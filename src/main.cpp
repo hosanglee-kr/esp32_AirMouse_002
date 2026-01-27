@@ -1,32 +1,21 @@
 #include <Arduino.h>
+#include "E10_EliteAirMouse_001.h"
 
-// The build version comes from an environment variable. Use the VERSION
-// define wherever the version is needed.
-#define STRINGIZER(arg) #arg
-#define STR_VALUE(arg)	STRINGIZER(arg)
-#define VERSION			STR_VALUE(BUILD_VERSION)
+// 에어마우스 객체 생성
+EliteAirMouse airMouse;
 
-#define S10
-#ifdef S10
-	#include "S10_streams-i2s-webserver_wav_001.h"
-#endif
-
+/**
+ * @brief 시스템 설정 및 에어마우스 가동
+ */
 void setup() {
-	// delay(5000);
-
-	Serial.begin(115200);
-	Serial.print("Version: ");
-	Serial.println(VERSION);
-
-#ifdef S10
-	S10_setup();
-#endif
-
-	Serial.println("11111");
+    // 에어마우스 모듈 시작 (내부적으로 멀티코어 태스크 생성)
+    airMouse.begin();
 }
 
+/**
+ * @brief 메인 루프는 비워두어 자원을 최소화 (모든 로직은 태스크에서 동작)
+ */
 void loop() {
-#ifdef S10
-	S10_loop();
-#endif
+    // FreeRTOS가 태스크를 관리하므로 메인 루프 태스크는 삭제하여 메모리 확보 가능
+    vTaskDelete(NULL); 
 }
