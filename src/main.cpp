@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include "E10_EliteAirMouse_002.h"
+#include "v001/E10_EliteAirMouse_002.h"
+
 
 // 에어마우스 객체 생성
 EliteAirMouse airMouse;
