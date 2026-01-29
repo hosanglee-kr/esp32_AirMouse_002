@@ -30,7 +30,7 @@ public:
         Wire.begin(4, 5);
         Wire.setClock(400000);
         _mpu.initialize();
-        _mpu.setFullScaleGyroRange(MPU6050_GYRO_RANGE_250);
+        _mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_250);
 
         pinMode(BTN_L, INPUT_PULLUP);
         pinMode(BTN_MODE, INPUT_PULLUP);
