@@ -11,8 +11,8 @@
 class EliteAirMouse {
 private:
     MPU6050 _mpu;
-    NimBLEMouse _mouse;
-    NimBLEKeyboard _keyboard;
+    BLEMouse _mouse;
+    BLEKeyboard _keyboard;
     AdvancedMotionProcessor _engine;
     
     // GPIO 설정
