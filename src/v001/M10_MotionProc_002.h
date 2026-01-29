@@ -1,5 +1,4 @@
-#ifndef ADVANCED_MOTION_PROCESSOR_H
-#define ADVANCED_MOTION_PROCESSOR_H
+#pragma once
 
 #include <Arduino.h>
 
@@ -49,5 +48,3 @@ public:
         outY = (int)applySigmoid(_lpfY);
     }
 };
-
-#endif

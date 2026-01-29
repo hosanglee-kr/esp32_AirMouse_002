@@ -1,7 +1,6 @@
 // E10_EliteAirMouse_002.h
 
-#ifndef ELITE_AIR_MOUSE_H
-#define ELITE_AIR_MOUSE_H
+#pragma once
 
 #include <BleMouse.h>
 #include <BleKeyboard.h>
@@ -144,5 +143,4 @@ private:
     }
 };
 
-#endif
 
