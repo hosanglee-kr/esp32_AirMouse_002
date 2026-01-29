@@ -26,12 +26,9 @@ build_flags =
 
 lib_deps =
   bblanchon/ArduinoJson @ ^7.4.2
-  
   h2zero/NimBLE-Arduino @ ^2.3.7
-  lemmingdev/ESP32-BLE-Gamepad@^0.7.4
-  ; https://github.com/wakwak-koba/ESP32-NimBLE-Mouse.git
-  ; https://github.com/wakwak-koba/ESP32-NimBLE-Keyboard.git
-
+  https://github.com/wakwak-koba/ESP32-NimBLE-Mouse.git
+  https://github.com/wakwak-koba/ESP32-NimBLE-Keyboard.git
   adafruit/Adafruit MPU6050@^2.2.6
   ; electroniccats/MPU6050 @ ^1.4.4
   esp32async/ESPAsyncWebServer @ ^3.9.3
