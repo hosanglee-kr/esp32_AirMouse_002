@@ -3,13 +3,13 @@
  * ------------------------------------------------------
  * 소스명 : E10_EliteAirMouse_005.h
  * 모듈약어 : E10
- * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터(Composite HID)
+ * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터 (Composite HID)
  * ------------------------------------------------------
  * 기능 요약
- *  - MPU6050(Adafruit) 기반 자이로 에어마우스
- *  - PPT 제스처(이전/다음 등) 키보드 HID 전송
+ *  - MPU6050 기반 자이로 에어마우스(마우스 HID)
+ *  - PPT 제스처(이전/다음/시작/종료 등) 키보드 HID 전송
+ *  - BLE Composite HID(Mouse + Keyboard) 단일 디바이스로 안정성 강화
  *  - FreeRTOS 듀얼 코어 태스크 분산 (Sensor: Core 1, Comm: Core 0)
- *  - Mystfit/ESP32-BLE-CompositeHID 기반 Composite HID(Mouse+Keyboard)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -56,70 +56,50 @@
 
 namespace E10_ {
 
-// ----- 키 상수 매핑(라이브러리별 네이밍 차이 흡수) -----
-#ifndef KEY_LEFT_SHIFT
-  #ifdef KEY_LEFTSHIFT
-    #define KEY_LEFT_SHIFT KEY_LEFTSHIFT
-  #endif
-#endif
-#ifndef KEY_LEFT_CTRL
-  #ifdef KEY_LEFTCTRL
-    #define KEY_LEFT_CTRL KEY_LEFTCTRL
-  #endif
-#endif
-#ifndef KEY_PAGE_UP
-  #ifdef KEY_PAGEUP
-    #define KEY_PAGE_UP KEY_PAGEUP
-  #endif
-#endif
-#ifndef KEY_PAGE_DOWN
-  #ifdef KEY_PAGEDOWN
-    #define KEY_PAGE_DOWN KEY_PAGEDOWN
-  #endif
-#endif
-
 class CL_E10_EliteAirMouse {
 private:
-    // 센서/엔진
     Adafruit_MPU6050 _mpu;
     AdvancedMotionProcessor _engine;
 
-    // Composite HID
     BleCompositeHID _hid;
     KeyboardDevice _keyboard;
     MouseDevice _mouse;
 
-    // GPIO (사용 HW에 맞춰 조정)
-    const int _btnL = 1;
-    const int _btnMode = 2;
+    // 안전 GPIO 예시(DevKitC 권장)
+    static constexpr int G_E10_BTN_L    = 12;
+    static constexpr int G_E10_BTN_MODE = 13;
 
-    bool _isPPTMode = false;
+    volatile bool _isPPTMode = false;
 
-    struct ST_E10_MouseState {
+    struct ST_E10_State {
         int x;
         int y;
         int wheel;
         bool updated;
     } _state;
 
-    SemaphoreHandle_t _mutex = nullptr;
+    SemaphoreHandle_t _mutex;
 
-    // HID Mouse 버튼(일반적으로 bit0=Left)
-    static constexpr uint8_t s_mouseBtnLeft = 0x01;
+    int _dpiLevel = 2; // 1~3
+
+    // Mouse button mask (Left=bit0)
+    static constexpr uint8_t G_E10_MOUSE_BTN_LEFT = 0x01;
 
 public:
     CL_E10_EliteAirMouse()
-        : _hid("Elite AirMouse S3", "ProMaker", 100) {
+    : _hid("Elite AirMouse S3", "ProMaker", 100),
+      _mutex(nullptr)
+    {
         _state = {0, 0, 0, false};
     }
 
     void begin() {
-        // I2C
+        Serial.begin(115200);
+
         Wire.begin(4, 5);
         Wire.setClock(400000);
 
         if (!_mpu.begin()) {
-            Serial.begin(115200);
             Serial.println("Failed to find MPU6050 chip");
             for (;;) delay(10);
         }
@@ -128,160 +108,112 @@ public:
         _mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
         _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
 
-        pinMode(_btnL, INPUT_PULLUP);
-        pinMode(_btnMode, INPUT_PULLUP);
+        pinMode(G_E10_BTN_L, INPUT_PULLUP);
+        pinMode(G_E10_BTN_MODE, INPUT_PULLUP);
 
         _mutex = xSemaphoreCreateMutex();
 
-        // Composite HID에 device 추가 후 시작 2
+        // Composite HID: device 등록 후 begin()
         _hid.addDevice(&_keyboard);
         _hid.addDevice(&_mouse);
         _hid.begin();
 
-        // 태스크
+        // 태스크 분리
         xTaskCreatePinnedToCore(sensorTask, "E10_Sensor", 8192, this, 3, nullptr, 1);
         xTaskCreatePinnedToCore(commTask,   "E10_Comm",   4096, this, 2, nullptr, 0);
     }
 
 private:
-    // ---- C++17 detection idiom: 라이브러리별 함수명 차이 흡수 ----
-    template <typename T>
-    static auto _has_keyPress(int) -> decltype(std::declval<T&>().keyPress(0), std::true_type{});
-    template <typename T>
-    static auto _has_keyPress(...) -> std::false_type;
-
-    template <typename T>
-    static auto _has_keyRelease(int) -> decltype(std::declval<T&>().keyRelease(0), std::true_type{});
-    template <typename T>
-    static auto _has_keyRelease(...) -> std::false_type;
-
-    template <typename T>
-    static auto _has_mouseMove(int) -> decltype(std::declval<T&>().mouseMove((int8_t)0, (int8_t)0), std::true_type{});
-    template <typename T>
-    static auto _has_mouseMove(...) -> std::false_type;
-
-    template <typename T>
-    static auto _has_mouseButtonPress(int) -> decltype(std::declval<T&>().mouseButtonPress((uint8_t)0), std::true_type{});
-    template <typename T>
-    static auto _has_mouseButtonPress(...) -> std::false_type;
-
-    template <typename T>
-    static auto _has_mouseButtonRelease(int) -> decltype(std::declval<T&>().mouseButtonRelease((uint8_t)0), std::true_type{});
-    template <typename T>
-    static auto _has_mouseButtonRelease(...) -> std::false_type;
-
-    static void keyPressCompat(KeyboardDevice& p_kb, uint8_t p_key) {
-        if constexpr (decltype(_has_keyPress<KeyboardDevice>(0))::value) {
-            p_kb.keyPress(p_key);
-        }
+    void togglePptMode() {
+        _isPPTMode = !_isPPTMode;
     }
-    static void keyReleaseCompat(KeyboardDevice& p_kb, uint8_t p_key) {
-        if constexpr (decltype(_has_keyRelease<KeyboardDevice>(0))::value) {
-            p_kb.keyRelease(p_key);
-        }
+
+    void cycleDpi() {
+        _dpiLevel++;
+        if (_dpiLevel > 3) _dpiLevel = 1;
+        _engine.setDPI(_dpiLevel);
     }
-    static void mouseMoveCompat(MouseDevice& p_ms, int p_x, int p_y, int p_wheel) {
-        (void)p_wheel;
-        if constexpr (decltype(_has_mouseMove<MouseDevice>(0))::value) {
-            // 라이브러리 예제가 int8_t 기반 mouseMove 사용 3
-            int8_t v_x = (int8_t)constrain(p_x, -127, 127);
-            int8_t v_y = (int8_t)constrain(p_y, -127, 127);
-            p_ms.mouseMove(v_x, v_y);
-        }
+
+    // 키 입력: keyPress/keyRelease만 사용(라이브러리 API 기준)
+    void tapKey(uint8_t p_key, uint16_t p_ms = 12) {
+        _keyboard.keyPress(p_key);
+        vTaskDelay(pdMS_TO_TICKS(p_ms));
+        _keyboard.keyRelease(p_key);
     }
-    static void mousePressCompat(MouseDevice& p_ms, uint8_t p_btnMask) {
-        if constexpr (decltype(_has_mouseButtonPress<MouseDevice>(0))::value) {
-            p_ms.mouseButtonPress(p_btnMask);
-        }
-    }
-    static void mouseReleaseCompat(MouseDevice& p_ms, uint8_t p_btnMask) {
-        if constexpr (decltype(_has_mouseButtonRelease<MouseDevice>(0))::value) {
-            p_ms.mouseButtonRelease(p_btnMask);
-        }
+
+    void tapCombo(uint8_t p_modKey, uint8_t p_key, uint16_t p_ms = 18) {
+        _keyboard.keyPress(p_modKey);
+        _keyboard.keyPress(p_key);
+        vTaskDelay(pdMS_TO_TICKS(p_ms));
+        _keyboard.keyRelease(p_key);
+        _keyboard.keyRelease(p_modKey);
     }
 
     void sendPPTCommand(const char* p_label) {
-        // 연결 체크는 compositeHID로 4
         if (!_hid.isConnected()) return;
 
-        if (strcmp(p_label, "START") == 0) {
-            // Shift+F5
-            keyPressCompat(_keyboard, KEY_LEFTSHIFT);
-            keyPressCompat(_keyboard, KEY_F5);
-            delay(30);
-            keyReleaseCompat(_keyboard, KEY_F5);
-            keyReleaseCompat(_keyboard, KEY_LEFTSHIFT);
+        if (strcmp(p_label, "START") == 0) {           // Shift + F5
+            tapCombo(KEY_LEFTSHIFT, KEY_F5, 25);
         }
-        else if (strcmp(p_label, "EXIT") == 0) {
-            keyPressCompat(_keyboard, KEY_ESC);
-            delay(10);
-            keyReleaseCompat(_keyboard, KEY_ESC);
+        else if (strcmp(p_label, "EXIT") == 0) {       // ESC
+            tapKey(KEY_ESC);
         }
-        else if (strcmp(p_label, "NEXT") == 0) {
-            keyPressCompat(_keyboard, KEY_PAGEDOWN);
-            delay(10);
-            keyReleaseCompat(_keyboard, KEY_PAGEDOWN);
+        else if (strcmp(p_label, "NEXT") == 0) {       // PageDown
+            tapKey(KEY_PAGEDOWN);
         }
-        else if (strcmp(p_label, "PREV") == 0) {
-            keyPressCompat(_keyboard, KEY_PAGEUP);
-            delay(10);
-            keyReleaseCompat(_keyboard, KEY_PAGEUP);
+        else if (strcmp(p_label, "PREV") == 0) {       // PageUp
+            tapKey(KEY_PAGEUP);
         }
-        else if (strcmp(p_label, "BLACK") == 0) {
-            // 'b'
-            keyPressCompat(_keyboard, KEY_B);
-            delay(10);
-            keyReleaseCompat(_keyboard, KEY_B);
+        else if (strcmp(p_label, "BLACK") == 0) {      // 'b'
+            tapKey(KEY_B);
         }
-        else if (strcmp(p_label, "LASER") == 0) {
-            // Ctrl+L
-            keyPressCompat(_keyboard, KEY_LEFTCTRL);
-            keyPressCompat(_keyboard, KEY_L);
-            delay(20);
-            keyReleaseCompat(_keyboard, KEY_L);
-            keyReleaseCompat(_keyboard, KEY_LEFTCTRL);
+        else if (strcmp(p_label, "LASER") == 0) {      // Ctrl + L
+            tapCombo(KEY_LEFTCTRL, KEY_L, 20);
         }
     }
 
-    void processGestures(float p_gz) {
+    // 제스처: deg/s로 통일(가독성/튜닝 편의)
+    void processGesturesDeg(float p_gzDegPerSec) {
         static unsigned long s_lastFlick = 0;
         if (millis() - s_lastFlick < 600) return;
 
-        if (p_gz > 3.5f) {
+        if (p_gzDegPerSec > 200.0f) {
             sendPPTCommand("PREV");
             s_lastFlick = millis();
-        } else if (p_gz < -3.5f) {
+        } else if (p_gzDegPerSec < -200.0f) {
             sendPPTCommand("NEXT");
             s_lastFlick = millis();
         }
     }
 
     static void sensorTask(void* p_pv) {
-        auto* v_m = (CL_E10_EliteAirMouse*)p_pv;
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
         TickType_t v_lastWake = xTaskGetTickCount();
-        unsigned long v_lastTime = micros();
+        unsigned long v_lastUs = micros();
+        unsigned long v_btnDownMs = 0;
 
         for (;;) {
             sensors_event_t v_a, v_g, v_temp;
             v_m->_mpu.getEvent(&v_a, &v_g, &v_temp);
 
-            float v_dt = (micros() - v_lastTime) / 1000000.0f;
-            v_lastTime = micros();
+            const unsigned long v_nowUs = micros();
+            const float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
+            v_lastUs = v_nowUs;
 
-            // 버튼 처리
-            static unsigned long s_btnTime = 0;
-            if (digitalRead(v_m->_btnMode) == LOW) {
-                if (s_btnTime == 0) s_btnTime = millis();
+            // 1) BTN_MODE: short=감도 변경, long=모드 토글
+            if (digitalRead(G_E10_BTN_MODE) == LOW) {
+                if (v_btnDownMs == 0) v_btnDownMs = millis();
             } else {
-                if (s_btnTime > 0) {
-                    if (millis() - s_btnTime > 1000) v_m->_isPPTMode = !v_m->_isPPTMode;
-                    else v_m->_engine.setDPI(2);
-                    s_btnTime = 0;
+                if (v_btnDownMs > 0) {
+                    const unsigned long v_hold = millis() - v_btnDownMs;
+                    if (v_hold > 1000) v_m->togglePptMode();
+                    else v_m->cycleDpi();
+                    v_btnDownMs = 0;
                 }
             }
 
-            // 엔진 업데이트
+            // 2) 물리 엔진 업데이트 (deg/s 기준 통일)
             v_m->_engine.updateOrientation(
                 v_a.acceleration.y,
                 v_a.acceleration.z,
@@ -290,17 +222,20 @@ private:
             );
 
             int v_tx = 0, v_ty = 0;
-            v_m->_engine.process(
-                -(v_g.gyro.z * RAD_TO_DEG),
-                -(v_g.gyro.x * RAD_TO_DEG),
-                v_tx, v_ty
-            );
+            const float v_rawX = -(v_g.gyro.z * RAD_TO_DEG);
+            const float v_rawY = -(v_g.gyro.x * RAD_TO_DEG);
+            v_m->_engine.process(v_rawX, v_rawY, v_tx, v_ty);
 
-            if (v_m->_isPPTMode) v_m->processGestures(v_g.gyro.z);
+            // 3) PPT 모드 제스처
+            if (v_m->_isPPTMode) {
+                v_m->processGesturesDeg(v_g.gyro.z * RAD_TO_DEG);
+            }
 
-            bool v_leftClick = (digitalRead(v_m->_btnL) == LOW);
+            // 4) 클릭 처리
+            const bool v_leftClick = (digitalRead(G_E10_BTN_L) == LOW);
             if (v_leftClick) v_m->_engine.notifyClick();
 
+            // 5) 상태 공유
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
                 v_m->_state.x = v_tx;
                 v_m->_state.y = v_ty;
@@ -309,10 +244,10 @@ private:
                 xSemaphoreGive(v_m->_mutex);
             }
 
-            // 클릭은 MouseDevice에 버튼 press/release가 있으면 사용(없으면 컴파일만 통과)
+            // 6) 버튼은 즉시 반영
             if (v_m->_hid.isConnected()) {
-                if (v_leftClick) mousePressCompat(v_m->_mouse, s_mouseBtnLeft);
-                else            mouseReleaseCompat(v_m->_mouse, s_mouseBtnLeft);
+                if (v_leftClick) v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
+                else            v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
             }
 
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8)); // 125Hz
@@ -320,12 +255,16 @@ private:
     }
 
     static void commTask(void* p_pv) {
-        auto* v_m = (CL_E10_EliteAirMouse*)p_pv;
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
         for (;;) {
             if (v_m->_hid.isConnected() && xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
                 if (v_m->_state.updated) {
-                    mouseMoveCompat(v_m->_mouse, v_m->_state.x, v_m->_state.y, v_m->_state.wheel);
+                    // MouseDevice는 일반적으로 int8_t delta를 기대
+                    const int8_t v_dx = (int8_t)constrain(v_m->_state.x, -127, 127);
+                    const int8_t v_dy = (int8_t)constrain(v_m->_state.y, -127, 127);
+
+                    v_m->_mouse.mouseMove(v_dx, v_dy);
                     v_m->_state.updated = false;
                 }
                 xSemaphoreGive(v_m->_mutex);
