@@ -3,8 +3,8 @@
 #ifndef ELITE_AIR_MOUSE_H
 #define ELITE_AIR_MOUSE_H
 
-#include <NimBLEMouse.h>
-#include <NimBLEKeyboard.h>
+#include <BleMouse.h>
+#include <BleKeyboard.h>
 #include <MPU6050.h>
 #include "M10_MotionProc_002.h"
 
