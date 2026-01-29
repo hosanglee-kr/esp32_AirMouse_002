@@ -4,6 +4,7 @@
 
 #include <BleMouse.h>
 #include <BleKeyboard.h>
+#include <Wire.h>
 #include <MPU6050.h>
 #include "M10_MotionProc_002.h"
 
