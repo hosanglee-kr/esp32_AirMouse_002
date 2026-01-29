@@ -4,7 +4,7 @@
 #include "v001/E10_EliteAirMouse_005.h"
 
 
-CL_E10_EliteAirMouse g_E10_airMouse;
+E10_::CL_E10_EliteAirMouse g_E10_airMouse;
 
 void setup() {
     Serial.begin(115200);
