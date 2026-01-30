@@ -9,7 +9,7 @@
  *  - MPU6050 기반 에어마우스(자이로) + BLE Composite HID(Mouse+Keyboard)
  *  - Gyro 오프셋 자동 캘리브레이션(부팅 후 1초 평균, 움직임 큰 샘플 제외)
  *  - 스크롤 전용 버튼(BTN_SCROLL)로 스크롤 모드 분리(UX 충돌 제거)
- *  - Click-Lock 완전고정 옵션 지원(150ms outX/outY=0)  *M10_MotionProc_004.h*
+ *  - Click-Lock 완전고정 옵션 지원(150ms outX/outY=0)  *M10_MotionProc_010.h*
  *  - FreeRTOS 듀얼 코어 태스크 분산 (Sensor: Core 1, Comm: Core 0)
  * ------------------------------------------------------
  * [구현 규칙]
@@ -52,7 +52,14 @@
 #include <MouseDevice.h>
 #include <KeyboardHIDCodes.h>
 
-#include "M10_MotionProc_005.h"
+#include "M10_MotionProc_010.h"
+
+// ------------------------------------------------------
+// [옵션] 조이스틱 유무 (v0.1.0: 스텁만, 기능 구현은 최후순위)
+// ------------------------------------------------------
+#ifndef E10_HAS_JOYSTICK
+#define E10_HAS_JOYSTICK 0
+#endif
 
 namespace E10_ {
 
@@ -67,7 +74,7 @@ private:
     CL_M10_AdvancedMotionProcessor _engine;
 
     // ======================================================
-    // GPIO (예시: DevKitC 안전핀, 실제 HW에 맞게 수정)
+    // GPIO (예시: DevKitC 안전핀, 실제 HW에 맞춰 수정)
     // ======================================================
     static constexpr int G_E10_BTN_L      = 12; // Left click
     static constexpr int G_E10_BTN_MODE   = 13; // Short=DPI, Long=PPT toggle
@@ -100,11 +107,6 @@ private:
 
     // ======================================================
     // [튜닝] 마우스 스케일/가속
-    // ------------------------------------------------------
-    // [튜닝 TIP]
-    //  - "전체적으로 느림"        : G_E10_SCALE_BASE_DPI2 ↑ (0.75 -> 0.90)
-    //  - "빠르게 휘두를 때 더 빨리": G_E10_ACCEL_GAIN_DPI2 ↑ (0.55 -> 0.75)
-    //  - "가속이 너무 빨리 붙음"   : G_E10_ACCEL_TH ↑ (8 -> 12)
     // ======================================================
     static constexpr float G_E10_SCALE_BASE_DPI1 = 0.55f;
     static constexpr float G_E10_SCALE_BASE_DPI2 = 0.75f;
@@ -118,32 +120,18 @@ private:
 
     // ======================================================
     // [튜닝] 스크롤(휠)
-    // ------------------------------------------------------
-    // [튜닝 TIP]
-    //  - "스크롤이 너무 민감" : G_E10_WHEEL_TH_DEG ↑ (90 -> 120)
-    //  - "스크롤이 둔감"     : G_E10_WHEEL_TH_DEG ↓ (90 -> 70)
-    //  - "휠 속도 더 빠르게" : G_E10_WHEEL_STEP_MAX ↑ (6 -> 10)
     // ======================================================
     static constexpr float G_E10_WHEEL_TH_DEG = 90.0f;
     static constexpr int   G_E10_WHEEL_STEP_MAX = 6;
 
     // ======================================================
     // 캘리브레이션
-    // ------------------------------------------------------
-    // [튜닝 TIP]
-    //  - "드리프트가 남는다" : G_E10_CALIB_MS ↑ (기본 1000ms)
-    //  - "부팅이 느리다"     : G_E10_CALIB_MS ↓ (600~800ms 권장)
-    //  - "손에 들고 켜도 안정적으로" : G_E10_CALIB_STILL_TH_DEG ↓ (기본 3.0)
     // ======================================================
     static constexpr uint32_t G_E10_CALIB_MS = 1000;
     static constexpr float    G_E10_CALIB_STILL_TH_DEG = 3.0f; // 움직임 큰 샘플 제외 임계(deg/s)
-    
-    
+
     // ======================================================
     // [옵션] PSP1000 Joystick (후순위 구현 예정)
-    // ------------------------------------------------------
-    // - v0.1.0: 유무 설정/핀맵/스텁만 제공 (실제 포인팅 미구현)
-    // - v0.2.0~ : ADC 읽기/데드존/가속 곡선/모드 전환 반영
     // ======================================================
 #if (E10_HAS_JOYSTICK == 1)
     // ⚠️ 실제 보드에서 "ADC 가능한 핀"인지 반드시 확인 필요
@@ -180,14 +168,12 @@ public:
         pinMode(G_E10_BTN_L, INPUT_PULLUP);
         pinMode(G_E10_BTN_MODE, INPUT_PULLUP);
         pinMode(G_E10_BTN_SCROLL, INPUT_PULLUP);
-        
-        #if (E10_HAS_JOYSTICK == 1)
-                // Joystick ADC 핀은 보통 pinMode 불필요(아두이노 코어가 analogRead에서 처리)
-                // 필요시 INPUT 설정 가능
-                pinMode(G_E10_JOY_X, INPUT);
-                pinMode(G_E10_JOY_Y, INPUT);
-        #endif
 
+#if (E10_HAS_JOYSTICK == 1)
+        // Joystick ADC 핀은 보통 pinMode 불필요(analogRead에서 처리)
+        pinMode(G_E10_JOY_X, INPUT);
+        pinMode(G_E10_JOY_Y, INPUT);
+#endif
 
         _mutex = xSemaphoreCreateMutex();
 
@@ -310,6 +296,14 @@ private:
                       _gyroBiasX, _gyroBiasY, _gyroBiasZ, (unsigned int)v_cnt);
     }
 
+#if (E10_HAS_JOYSTICK == 1)
+    // v0.1.0: 스텁(후순위 구현)
+    void readJoystickStub(int& p_outDx, int& p_outDy) {
+        (void)p_outDx; (void)p_outDy;
+        // TODO(v0.3.0): analogRead로 센터 캘리브/데드존/가속 적용 후 dx/dy 산출
+    }
+#endif
+
     static void sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
@@ -330,7 +324,7 @@ private:
             const float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
             v_lastUs = v_nowUs;
 
-            // 0) 스크롤 모드(전용 버튼) - 여기서 1회만 선언(중복/누락 방지)
+            // 0) 스크롤 모드(전용 버튼)
             const bool v_scrollMode = (digitalRead(G_E10_BTN_SCROLL) == LOW);
 
             // 1) BTN_MODE: short=감도 변경, long=PPT 토글
@@ -366,7 +360,7 @@ private:
 
             v_m->_engine.process(v_rawX, v_rawY, v_tx, v_ty);
 
-            // 4) PPT 모드 제스처 (스크롤 중에는 차단: UX 안정)
+            // 4) PPT 모드 제스처 (스크롤 중에는 차단)
             if (v_m->_isPPTMode && !v_scrollMode) {
                 v_m->processGesturesDeg(v_gz);
             }
@@ -391,15 +385,13 @@ private:
 
             float v_fx = (float)v_tx * v_base * v_acc;
             float v_fy = (float)v_ty * v_base * v_acc;
-            
-            
-            #if (E10_HAS_JOYSTICK == 1)
-                        // [v0.1.0] Joystick은 후순위 구현: 현재는 동작에 반영하지 않음
-                        // int v_jdx=0, v_jdy=0;
-                        // v_m->readJoystickStub(v_jdx, v_jdy);
-                        // TODO(v0.3.0): 에어모드/정밀모드 FSM에 따라 v_tx/v_ty를 대체/혼합
-            #endif
 
+#if (E10_HAS_JOYSTICK == 1)
+            // [v0.1.0] Joystick은 후순위 구현: 현재는 동작에 반영하지 않음
+            // int v_jdx=0, v_jdy=0;
+            // v_m->readJoystickStub(v_jdx, v_jdy);
+            // TODO(v0.3.0): 에어모드/정밀모드 FSM에 따라 v_tx/v_ty를 대체/혼합
+#endif
 
             // 7) 스크롤 전용 버튼 처리(BTN_SCROLL)
             int v_wheel = 0;
@@ -457,14 +449,6 @@ private:
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
-    #if (E10_HAS_JOYSTICK == 1)
-        // v0.1.0: 스텁(후순위 구현)
-        void readJoystickStub(int& p_outDx, int& p_outDy) {
-            (void)p_outDx; (void)p_outDy;
-            // TODO(v0.3.0): analogRead로 센터 캘리브/데드존/가속 적용 후 dx/dy 산출
-        }
-    #endif
-
 };
 
 } // namespace E10_

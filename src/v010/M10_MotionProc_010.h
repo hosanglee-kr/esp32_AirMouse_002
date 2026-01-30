@@ -9,6 +9,7 @@
  *  - 상보 필터(Complementary Filter)를 이용한 기울기 보정
  *  - 시그모이드(Sigmoid) 함수 기반 가변 가속도 적용
  *  - 클릭 시 흔들림 방지(Stabilization) 및 적응형 LPF 적용
+ *  - Hard Click-Lock 옵션: 150ms 동안 outX/outY=0 (완전 고정)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -41,10 +42,6 @@
 
 #include <Arduino.h>
 
-#ifndef E10_HAS_JOYSTICK
-#define E10_HAS_JOYSTICK 0
-#endif
-
 class CL_M10_AdvancedMotionProcessor {
 private:
     float _lpfX = 0.0f;
@@ -55,18 +52,15 @@ private:
 
     unsigned long _lastClickTime = 0;
     bool _isClickStabilizing = false;
-    
+
     bool _hardClickLock = false;   // true: 150ms 동안 outX/outY=0 (완전 고정)
-    
 
 public:
     CL_M10_AdvancedMotionProcessor() {}
 
     void setDPI(int p_level) { _dpiGain = 15.0f + (p_level * 7.0f); }
-    
     void setHardClickLock(bool p_enable) { _hardClickLock = p_enable; }
-    
-    
+
     void notifyClick() { _lastClickTime = millis(); _isClickStabilizing = true; }
 
     void updateOrientation(float p_ay, float p_az, float p_gx_deg_s, float p_dt_s) {
