@@ -146,7 +146,17 @@ private:
     static auto _has_mouseMove3(int) -> decltype(std::declval<T&>().mouseMove((int8_t)0, (int8_t)0, (int8_t)0), std::true_type{});
     template <typename T>
     static auto _has_mouseMove3(...) -> std::false_type;
+    
+    static void mouseSendCompat(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
+        // MouseDevice.h: mouseMove(x,y,scrollX,scrollY)
+        // - 일반 세로 스크롤로 쓰려면 scrollY에 넣는 구현도 있는데,
+        //   현재 라이브러리 필드는 _mouseWheel / _mouseHWheel 이라
+        //   관례상 scrollX=wheel, scrollY=hwheel 로 쓰는 경우가 많습니다.
+        //   (PC에서 방향이 반대면 아래 두 인자를 바꾸면 됩니다.)
+        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
+    }
 
+     /*
     static void mouseSendCompat(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
         if constexpr (decltype(_has_mouseMove3<MouseDevice>(0))::value) {
             p_ms.mouseMove(p_dx, p_dy, p_wheel);
@@ -159,6 +169,7 @@ private:
             }
         }
     }
+    */
 
 public:
     CL_E10_EliteAirMouse()
