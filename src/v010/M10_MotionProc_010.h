@@ -43,29 +43,32 @@
 #include <Arduino.h>
 
 class CL_M10_AdvancedMotionProcessor {
-private:
+  private:
     float _lpfX = 0.0f;
     float _lpfY = 0.0f;
 
-    float _roll = 0.0f;
+    float _roll    = 0.0f;
     float _dpiGain = 22.0f;
 
-    unsigned long _lastClickTime = 0;
-    bool _isClickStabilizing = false;
+    unsigned long _lastClickTime      = 0;
+    bool          _isClickStabilizing = false;
 
-    bool _hardClickLock = false;   // true: 150ms 동안 outX/outY=0 (완전 고정)
+    bool _hardClickLock = false; // true: 150ms 동안 outX/outY=0 (완전 고정)
 
-public:
+  public:
     CL_M10_AdvancedMotionProcessor() {}
 
     void setDPI(int p_level) { _dpiGain = 15.0f + (p_level * 7.0f); }
     void setHardClickLock(bool p_enable) { _hardClickLock = p_enable; }
 
-    void notifyClick() { _lastClickTime = millis(); _isClickStabilizing = true; }
+    void notifyClick() {
+        _lastClickTime      = millis();
+        _isClickStabilizing = true;
+    }
 
     void updateOrientation(float p_ay, float p_az, float p_gx_deg_s, float p_dt_s) {
         float v_accelRoll = atan2(p_ay, p_az);
-        _roll = 0.98f * (_roll + (p_gx_deg_s * DEG_TO_RAD) * p_dt_s) + 0.02f * v_accelRoll;
+        _roll             = 0.98f * (_roll + (p_gx_deg_s * DEG_TO_RAD) * p_dt_s) + 0.02f * v_accelRoll;
     }
 
     void process(float p_rawX, float p_rawY, int& p_outX, int& p_outY) {
@@ -78,7 +81,7 @@ public:
         if (_isClickStabilizing) {
             if (millis() - _lastClickTime < 150) {
                 if (_hardClickLock) {
-                    // ✅ 완전 고정 모드
+                    // 완전 고정 모드
                     p_outX = 0;
                     p_outY = 0;
                     return;

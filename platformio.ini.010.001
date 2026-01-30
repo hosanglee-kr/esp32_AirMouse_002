@@ -37,8 +37,8 @@
 
 
     build_src_filter =
-					+<*>
-					-<src_backup/>
+        +<*>
+        -<src_backup/>
 
 
 ; --- 2. ESP32-S3 Zero ---
@@ -52,18 +52,18 @@
     board_upload.flash_size = 4MB
     board_build.partitions 	= default_4MB.csv
 
-    lib_deps 				= ${ESP32_common.lib_deps}
-    build_unflags 			= ${ESP32_common.build_unflags}
+    lib_deps = ${ESP32_common.lib_deps}
+    build_unflags = ${ESP32_common.build_unflags}
     build_flags =
-							${ESP32_common.build_flags}
+        ${ESP32_common.build_flags}
 
-							-DBOARD_HAS_PSRAM
-							-mfix-esp32-psram-cache-issue
+        -DBOARD_HAS_PSRAM
+        -mfix-esp32-psram-cache-issue
 
-							-D ARDUINO_USB_MODE=1
-							-D ARDUINO_USB_CDC_ON_BOOT=1
+		-D ARDUINO_USB_MODE=1
+		-D ARDUINO_USB_CDC_ON_BOOT=1
 
-    build_src_filter 		= ${ESP32_common.build_src_filter}
+    build_src_filter = ${ESP32_common.build_src_filter}
 
 
 ; [env:esp32-s3-zero]

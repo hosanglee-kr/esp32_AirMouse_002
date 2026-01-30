@@ -58,18 +58,18 @@
 // [옵션] 조이스틱 유무 (v0.1.0: 스텁만, 기능 구현은 최후순위)
 // ------------------------------------------------------
 #ifndef E10_HAS_JOYSTICK
-#define E10_HAS_JOYSTICK 0
+	#define E10_HAS_JOYSTICK 0
 #endif
 
-namespace E10_ {
+
 
 class CL_E10_EliteAirMouse {
-private:
+  private:
     Adafruit_MPU6050 _mpu;
 
     BleCompositeHID _hid;
-    KeyboardDevice _keyboard;
-    MouseDevice _mouse;
+    KeyboardDevice  _keyboard;
+    MouseDevice     _mouse;
 
     CL_M10_AdvancedMotionProcessor _engine;
 
@@ -84,12 +84,12 @@ private:
     // 상태
     // ======================================================
     volatile bool _isPPTMode = false;
-    int _dpiLevel = 2; // 1~3
+    int           _dpiLevel  = 2; // 1~3
 
     struct ST_E10_State {
-        int x;
-        int y;
-        int wheel;
+        int  x;
+        int  y;
+        int  wheel;
         bool updated;
     } _state;
 
@@ -100,9 +100,9 @@ private:
     // ======================================================
     // Gyro bias (deg/s) : 캘리브레이션 결과
     // ======================================================
-    float _gyroBiasX = 0.0f;
-    float _gyroBiasY = 0.0f;
-    float _gyroBiasZ = 0.0f;
+    float _gyroBiasX     = 0.0f;
+    float _gyroBiasY     = 0.0f;
+    float _gyroBiasZ     = 0.0f;
     bool  _gyroCalibDone = false;
 
     // ======================================================
@@ -121,13 +121,13 @@ private:
     // ======================================================
     // [튜닝] 스크롤(휠)
     // ======================================================
-    static constexpr float G_E10_WHEEL_TH_DEG = 90.0f;
+    static constexpr float G_E10_WHEEL_TH_DEG   = 90.0f;
     static constexpr int   G_E10_WHEEL_STEP_MAX = 6;
 
     // ======================================================
     // 캘리브레이션
     // ======================================================
-    static constexpr uint32_t G_E10_CALIB_MS = 1000;
+    static constexpr uint32_t G_E10_CALIB_MS           = 1000;
     static constexpr float    G_E10_CALIB_STILL_TH_DEG = 3.0f; // 움직임 큰 샘플 제외 임계(deg/s)
 
     // ======================================================
@@ -135,20 +135,16 @@ private:
     // ======================================================
 #if (E10_HAS_JOYSTICK == 1)
     // ⚠️ 실제 보드에서 "ADC 가능한 핀"인지 반드시 확인 필요
-    static constexpr int G_E10_JOY_X = 1;   // ADC
-    static constexpr int G_E10_JOY_Y = 2;   // ADC
+    static constexpr int G_E10_JOY_X = 1; // ADC
+    static constexpr int G_E10_JOY_Y = 2; // ADC
 
     // [튜닝 자리] (후순위 구현에서 사용)
     static constexpr int   G_E10_JOY_DEADZONE = 80;
     static constexpr float G_E10_JOY_GAIN     = 1.0f;
 #endif
 
-public:
-    CL_E10_EliteAirMouse()
-    : _hid("Elite AirMouse S3", "ProMaker", 100)
-    {
-        _state = {0, 0, 0, false};
-    }
+  public:
+    CL_E10_EliteAirMouse() : _hid("Elite AirMouse S3", "ProMaker", 100) { _state = {0, 0, 0, false}; }
 
     void begin() {
         Serial.begin(115200);
@@ -189,10 +185,10 @@ public:
         _hid.begin();
 
         xTaskCreatePinnedToCore(sensorTask, "E10_Sensor", 8192, this, 3, nullptr, 1);
-        xTaskCreatePinnedToCore(commTask,   "E10_Comm",   4096, this, 2, nullptr, 0);
+        xTaskCreatePinnedToCore(commTask, "E10_Comm", 4096, this, 2, nullptr, 0);
     }
 
-private:
+  private:
     void togglePptMode() { _isPPTMode = !_isPPTMode; }
 
     void cycleDpi() {
@@ -218,17 +214,17 @@ private:
     void sendPPTCommand(const char* p_label) {
         if (!_hid.isConnected()) return;
 
-        if (strcmp(p_label, "START") == 0) {           // Shift + F5
+        if (strcmp(p_label, "START") == 0) { // Shift + F5
             tapCombo(KEY_LEFTSHIFT, KEY_F5, 25);
-        } else if (strcmp(p_label, "EXIT") == 0) {     // ESC
+        } else if (strcmp(p_label, "EXIT") == 0) { // ESC
             tapKey(KEY_ESC);
-        } else if (strcmp(p_label, "NEXT") == 0) {     // PageDown
+        } else if (strcmp(p_label, "NEXT") == 0) { // PageDown
             tapKey(KEY_PAGEDOWN);
-        } else if (strcmp(p_label, "PREV") == 0) {     // PageUp
+        } else if (strcmp(p_label, "PREV") == 0) { // PageUp
             tapKey(KEY_PAGEUP);
-        } else if (strcmp(p_label, "BLACK") == 0) {    // 'b'
+        } else if (strcmp(p_label, "BLACK") == 0) { // 'b'
             tapKey(KEY_B);
-        } else if (strcmp(p_label, "LASER") == 0) {    // Ctrl + L
+        } else if (strcmp(p_label, "LASER") == 0) { // Ctrl + L
             tapCombo(KEY_LEFTCTRL, KEY_L, 20);
         }
     }
@@ -258,8 +254,8 @@ private:
 
     // ✅ Gyro bias 캘리브레이션(약 1초 평균) + 움직임 큰 샘플 제외
     void runGyroCalibration() {
-        const uint32_t v_t0 = millis();
-        uint32_t v_cnt = 0;
+        const uint32_t v_t0  = millis();
+        uint32_t       v_cnt = 0;
 
         double v_sumX = 0.0, v_sumY = 0.0, v_sumZ = 0.0;
 
@@ -293,13 +289,17 @@ private:
         _gyroCalibDone = true;
 
         Serial.printf("[E10] Gyro calib done: biasX=%.3f biasY=%.3f biasZ=%.3f (deg/s), samples=%u\n",
-                      _gyroBiasX, _gyroBiasY, _gyroBiasZ, (unsigned int)v_cnt);
+                      _gyroBiasX,
+                      _gyroBiasY,
+                      _gyroBiasZ,
+                      (unsigned int)v_cnt);
     }
 
 #if (E10_HAS_JOYSTICK == 1)
     // v0.1.0: 스텁(후순위 구현)
     void readJoystickStub(int& p_outDx, int& p_outDy) {
-        (void)p_outDx; (void)p_outDy;
+        (void)p_outDx;
+        (void)p_outDy;
         // TODO(v0.3.0): analogRead로 센터 캘리브/데드존/가속 적용 후 dx/dy 산출
     }
 #endif
@@ -307,8 +307,8 @@ private:
     static void sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
-        TickType_t v_lastWake = xTaskGetTickCount();
-        unsigned long v_lastUs = micros();
+        TickType_t    v_lastWake  = xTaskGetTickCount();
+        unsigned long v_lastUs    = micros();
         unsigned long v_btnDownMs = 0;
 
         // ✅ 부팅 후 1회 캘리브레이션
@@ -321,8 +321,8 @@ private:
             v_m->_mpu.getEvent(&v_a, &v_g, &v_temp);
 
             const unsigned long v_nowUs = micros();
-            const float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
-            v_lastUs = v_nowUs;
+            const float         v_dt    = (v_nowUs - v_lastUs) / 1000000.0f;
+            v_lastUs                    = v_nowUs;
 
             // 0) 스크롤 모드(전용 버튼)
             const bool v_scrollMode = (digitalRead(G_E10_BTN_SCROLL) == LOW);
@@ -333,8 +333,10 @@ private:
             } else {
                 if (v_btnDownMs > 0) {
                     const unsigned long v_hold = millis() - v_btnDownMs;
-                    if (v_hold > 1000) v_m->togglePptMode();
-                    else v_m->cycleDpi();
+                    if (v_hold > 1000)
+                        v_m->togglePptMode();
+                    else
+                        v_m->cycleDpi();
                     v_btnDownMs = 0;
                 }
             }
@@ -345,12 +347,7 @@ private:
             float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
 
             // 3) 엔진 orientation 업데이트 (gx 사용)
-            v_m->_engine.updateOrientation(
-                v_a.acceleration.y,
-                v_a.acceleration.z,
-                v_gx,
-                v_dt
-            );
+            v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
 
             int v_tx = 0, v_ty = 0;
 
@@ -373,14 +370,19 @@ private:
             float v_base = G_E10_SCALE_BASE_DPI2;
             float v_accg = G_E10_ACCEL_GAIN_DPI2;
 
-            if (v_m->_dpiLevel == 1) { v_base = G_E10_SCALE_BASE_DPI1; v_accg = G_E10_ACCEL_GAIN_DPI1; }
-            else if (v_m->_dpiLevel == 3) { v_base = G_E10_SCALE_BASE_DPI3; v_accg = G_E10_ACCEL_GAIN_DPI3; }
+            if (v_m->_dpiLevel == 1) {
+                v_base = G_E10_SCALE_BASE_DPI1;
+                v_accg = G_E10_ACCEL_GAIN_DPI1;
+            } else if (v_m->_dpiLevel == 3) {
+                v_base = G_E10_SCALE_BASE_DPI3;
+                v_accg = G_E10_ACCEL_GAIN_DPI3;
+            }
 
             const float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
-            float v_acc = 1.0f;
+            float       v_acc = 1.0f;
             if (v_mag > G_E10_ACCEL_TH) {
                 const float v_ex = (v_mag - G_E10_ACCEL_TH);
-                v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
+                v_acc            = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
             }
 
             float v_fx = (float)v_tx * v_base * v_acc;
@@ -414,17 +416,19 @@ private:
 
             // 8) 공유 상태 저장
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
-                v_m->_state.x = (int)v_fx;
-                v_m->_state.y = (int)v_fy;
-                v_m->_state.wheel = v_wheel;
+                v_m->_state.x       = (int)v_fx;
+                v_m->_state.y       = (int)v_fy;
+                v_m->_state.wheel   = v_wheel;
                 v_m->_state.updated = true;
                 xSemaphoreGive(v_m->_mutex);
             }
 
             // 9) 버튼 상태 즉시 반영
             if (v_m->_hid.isConnected()) {
-                if (v_leftClick) v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
-                else            v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
+                if (v_leftClick)
+                    v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
+                else
+                    v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
             }
 
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8)); // 125Hz
@@ -451,4 +455,4 @@ private:
     }
 };
 
-} // namespace E10_
+
