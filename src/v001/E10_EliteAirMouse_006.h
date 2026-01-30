@@ -1,14 +1,15 @@
 #pragma once
 /*
  * ------------------------------------------------------
- * 소스명 : E10_EliteAirMouse_005.h
+ * 소스명 : E10_EliteAirMouse_006.h
  * 모듈약어 : E10
- * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터 (Composite HID)
+ * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터 (Composite HID, Calib/Scroll/ClickLock)
  * ------------------------------------------------------
  * 기능 요약
- *  - MPU6050 기반 자이로 에어마우스(마우스 HID)
- *  - PPT 제스처(이전/다음/시작/종료 등) 키보드 HID 전송
- *  - BLE Composite HID(Mouse + Keyboard) 단일 디바이스로 안정성 강화
+ *  - MPU6050 기반 에어마우스(자이로) + BLE Composite HID(Mouse+Keyboard)
+ *  - Gyro 오프셋 자동 캘리브레이션(부팅 후 1초 평균, 움직임 큰 샘플 제외)
+ *  - 스크롤 전용 버튼(BTN_SCROLL)로 스크롤 모드 분리(UX 충돌 제거)
+ *  - Click-Lock 완전고정 옵션 지원(150ms outX/outY=0)  *M10_MotionProc_004.h*
  *  - FreeRTOS 듀얼 코어 태스크 분산 (Sensor: Core 1, Comm: Core 0)
  * ------------------------------------------------------
  * [구현 규칙]
@@ -46,45 +47,37 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-// C++ 타입/검출(컴파일 안전)
-#include <type_traits>
-#include <utility>
-
-// Mystfit Composite HID
 #include <BleCompositeHID.h>
 #include <KeyboardDevice.h>
 #include <MouseDevice.h>
 #include <KeyboardHIDCodes.h>
 
-#include "M10_MotionProc_003.h"
+#include "M10_MotionProc_004.h"
 
 namespace E10_ {
 
 class CL_E10_EliteAirMouse {
 private:
-    // ======================================================
-    // HW/Engine
-    // ======================================================
     Adafruit_MPU6050 _mpu;
-    AdvancedMotionProcessor _engine;
 
-    // ======================================================
-    // BLE Composite HID
-    // ======================================================
     BleCompositeHID _hid;
     KeyboardDevice _keyboard;
     MouseDevice _mouse;
 
-    // ======================================================
-    // GPIO (DevKitC 기준 안전 GPIO 예시)
-    // ======================================================
-    static constexpr int G_E10_BTN_L    = 12;
-    static constexpr int G_E10_BTN_MODE = 13;
+    CL_M10_AdvancedMotionProcessor _engine;
 
     // ======================================================
-    // Runtime states
+    // GPIO (예시: DevKitC 안전핀, 실제 HW에 맞게 수정)
+    // ======================================================
+    static constexpr int G_E10_BTN_L      = 12; // Left click
+    static constexpr int G_E10_BTN_MODE   = 13; // Short=DPI, Long=PPT toggle
+    static constexpr int G_E10_BTN_SCROLL = 14; // Scroll 전용(누르는 동안만 스크롤)
+
+    // ======================================================
+    // 상태
     // ======================================================
     volatile bool _isPPTMode = false;
+    int _dpiLevel = 2; // 1~3
 
     struct ST_E10_State {
         int x;
@@ -93,22 +86,25 @@ private:
         bool updated;
     } _state;
 
-    SemaphoreHandle_t _mutex;
-    int _dpiLevel = 2; // 1~3
+    SemaphoreHandle_t _mutex = nullptr;
 
-    // Mouse button mask (Left=bit0)
     static constexpr uint8_t G_E10_MOUSE_BTN_LEFT = 0x01;
 
     // ======================================================
-    // [E10] 마우스 튜닝 파라미터
-    //  - 최종 dx/dy는 int8_t(-127~127)로 전송됨
-    //  - 스케일은 "픽셀 느낌의 v_tx/v_ty"를 HID delta로 매핑하는 계수
+    // Gyro bias (deg/s) : 캘리브레이션 결과
+    // ======================================================
+    float _gyroBiasX = 0.0f;
+    float _gyroBiasY = 0.0f;
+    float _gyroBiasZ = 0.0f;
+    bool  _gyroCalibDone = false;
+
+    // ======================================================
+    // [튜닝] 마우스 스케일/가속
     // ------------------------------------------------------
     // [튜닝 TIP]
-    //  - "전체적으로 느림"     : G_E10_SCALE_BASE_DPI2 값을 ↑ (예: 0.75 -> 0.90)
-    //  - "빠르게 휘두를 때 더 빨리" : G_E10_ACCEL_GAIN_DPI2 값을 ↑ (예: 0.55 -> 0.75)
-    //  - "가속이 너무 빨리 붙음"  : G_E10_ACCEL_TH 값을 ↑ (예: 8 -> 12)
-    //  - "가속이 너무 과함"      : G_E10_ACCEL_GAIN_* 값을 ↓
+    //  - "전체적으로 느림"        : G_E10_SCALE_BASE_DPI2 ↑ (0.75 -> 0.90)
+    //  - "빠르게 휘두를 때 더 빨리": G_E10_ACCEL_GAIN_DPI2 ↑ (0.55 -> 0.75)
+    //  - "가속이 너무 빨리 붙음"   : G_E10_ACCEL_TH ↑ (8 -> 12)
     // ======================================================
     static constexpr float G_E10_SCALE_BASE_DPI1 = 0.55f;
     static constexpr float G_E10_SCALE_BASE_DPI2 = 0.75f;
@@ -121,60 +117,30 @@ private:
     static constexpr float G_E10_ACCEL_TH = 8.0f;
 
     // ======================================================
-    // [E10] 휠(스크롤) 튜닝 파라미터
-    //  - "BTN_MODE 누르고 있는 동안" = 스크롤 모드
-    //  - gyro.y(deg/s)를 기반으로 wheel step 생성
+    // [튜닝] 스크롤(휠)
     // ------------------------------------------------------
     // [튜닝 TIP]
-    //  - "스크롤이 너무 민감" : G_E10_WHEEL_TH_DEG 값을 ↑ (예: 90 -> 120)
-    //  - "스크롤이 둔감"     : G_E10_WHEEL_TH_DEG 값을 ↓ (예: 90 -> 70)
-    //  - "휠 속도 더 빠르게" : G_E10_WHEEL_STEP_MAX 값을 ↑ (예: 6 -> 10)
+    //  - "스크롤이 너무 민감" : G_E10_WHEEL_TH_DEG ↑ (90 -> 120)
+    //  - "스크롤이 둔감"     : G_E10_WHEEL_TH_DEG ↓ (90 -> 70)
+    //  - "휠 속도 더 빠르게" : G_E10_WHEEL_STEP_MAX ↑ (6 -> 10)
     // ======================================================
     static constexpr float G_E10_WHEEL_TH_DEG = 90.0f;
     static constexpr int   G_E10_WHEEL_STEP_MAX = 6;
 
     // ======================================================
-    // [E10] MouseDevice wheel 지원 감지 + 전송 래퍼
-    //  - 구현에 따라 mouseWheel() 또는 mouseMove(dx,dy,wheel) 지원 가능
+    // 캘리브레이션
+    // ------------------------------------------------------
+    // [튜닝 TIP]
+    //  - "드리프트가 남는다" : G_E10_CALIB_MS ↑ (기본 1000ms)
+    //  - "부팅이 느리다"     : G_E10_CALIB_MS ↓ (600~800ms 권장)
+    //  - "손에 들고 켜도 안정적으로" : G_E10_CALIB_STILL_TH_DEG ↓ (기본 3.0)
     // ======================================================
-    template <typename T>
-    static auto _has_mouseWheel(int) -> decltype(std::declval<T&>().mouseWheel((int8_t)0), std::true_type{});
-    template <typename T>
-    static auto _has_mouseWheel(...) -> std::false_type;
-
-    template <typename T>
-    static auto _has_mouseMove3(int) -> decltype(std::declval<T&>().mouseMove((int8_t)0, (int8_t)0, (int8_t)0), std::true_type{});
-    template <typename T>
-    static auto _has_mouseMove3(...) -> std::false_type;
-    
-    static void mouseSendCompat(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
-        // MouseDevice.h: mouseMove(x,y,scrollX,scrollY)
-        // - 일반 세로 스크롤로 쓰려면 scrollY에 넣는 구현도 있는데,
-        //   현재 라이브러리 필드는 _mouseWheel / _mouseHWheel 이라
-        //   관례상 scrollX=wheel, scrollY=hwheel 로 쓰는 경우가 많습니다.
-        //   (PC에서 방향이 반대면 아래 두 인자를 바꾸면 됩니다.)
-        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
-    }
-
-     /*
-    static void mouseSendCompat(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
-        if constexpr (decltype(_has_mouseMove3<MouseDevice>(0))::value) {
-            p_ms.mouseMove(p_dx, p_dy, p_wheel);
-        } else {
-            p_ms.mouseMove(p_dx, p_dy);
-            if (p_wheel != 0) {
-                if constexpr (decltype(_has_mouseWheel<MouseDevice>(0))::value) {
-                    p_ms.mouseWheel(p_wheel);
-                }
-            }
-        }
-    }
-    */
+    static constexpr uint32_t G_E10_CALIB_MS = 1000;
+    static constexpr float    G_E10_CALIB_STILL_TH_DEG = 3.0f; // 움직임 큰 샘플 제외 임계(deg/s)
 
 public:
     CL_E10_EliteAirMouse()
-    : _hid("Elite AirMouse S3", "ProMaker", 100),
-      _mutex(nullptr)
+    : _hid("Elite AirMouse S3", "ProMaker", 100)
     {
         _state = {0, 0, 0, false};
     }
@@ -196,23 +162,27 @@ public:
 
         pinMode(G_E10_BTN_L, INPUT_PULLUP);
         pinMode(G_E10_BTN_MODE, INPUT_PULLUP);
+        pinMode(G_E10_BTN_SCROLL, INPUT_PULLUP);
 
         _mutex = xSemaphoreCreateMutex();
+
+        // ✅ Click-Lock 완전 고정 옵션 ON (원하면 false로)
+        _engine.setHardClickLock(true);
+
+        // ✅ 초기 DPI 적용 (축소/누락 방지)
+        _engine.setDPI(_dpiLevel);
 
         // Composite HID: device 등록 후 begin()
         _hid.addDevice(&_keyboard);
         _hid.addDevice(&_mouse);
         _hid.begin();
 
-        // 태스크 분리
         xTaskCreatePinnedToCore(sensorTask, "E10_Sensor", 8192, this, 3, nullptr, 1);
         xTaskCreatePinnedToCore(commTask,   "E10_Comm",   4096, this, 2, nullptr, 0);
     }
 
 private:
-    void togglePptMode() {
-        _isPPTMode = !_isPPTMode;
-    }
+    void togglePptMode() { _isPPTMode = !_isPPTMode; }
 
     void cycleDpi() {
         _dpiLevel++;
@@ -220,7 +190,6 @@ private:
         _engine.setDPI(_dpiLevel);
     }
 
-    // keyPress/keyRelease 기반 tap
     void tapKey(uint8_t p_key, uint16_t p_ms = 12) {
         _keyboard.keyPress(p_key);
         vTaskDelay(pdMS_TO_TICKS(p_ms));
@@ -240,34 +209,24 @@ private:
 
         if (strcmp(p_label, "START") == 0) {           // Shift + F5
             tapCombo(KEY_LEFTSHIFT, KEY_F5, 25);
-        }
-        else if (strcmp(p_label, "EXIT") == 0) {       // ESC
+        } else if (strcmp(p_label, "EXIT") == 0) {     // ESC
             tapKey(KEY_ESC);
-        }
-        else if (strcmp(p_label, "NEXT") == 0) {       // PageDown
+        } else if (strcmp(p_label, "NEXT") == 0) {     // PageDown
             tapKey(KEY_PAGEDOWN);
-        }
-        else if (strcmp(p_label, "PREV") == 0) {       // PageUp
+        } else if (strcmp(p_label, "PREV") == 0) {     // PageUp
             tapKey(KEY_PAGEUP);
-        }
-        else if (strcmp(p_label, "BLACK") == 0) {      // 'b'
+        } else if (strcmp(p_label, "BLACK") == 0) {    // 'b'
             tapKey(KEY_B);
-        }
-        else if (strcmp(p_label, "LASER") == 0) {      // Ctrl + L
+        } else if (strcmp(p_label, "LASER") == 0) {    // Ctrl + L
             tapCombo(KEY_LEFTCTRL, KEY_L, 20);
         }
     }
 
-    // 제스처: deg/s로 통일
     void processGesturesDeg(float p_gzDegPerSec) {
         static unsigned long s_lastFlick = 0;
         if (millis() - s_lastFlick < 600) return;
 
-        // ------------------------------------------------------
-        // [튜닝 TIP]
-        //  - 인식이 너무 잦다(민감) : 임계값(200)을 ↑ (예: 260)
-        //  - 인식이 잘 안 된다(둔감) : 임계값(200)을 ↓ (예: 150)
-        // ------------------------------------------------------
+        // [튜닝 TIP] 200을 ↑=둔감 / ↓=민감
         if (p_gzDegPerSec > 200.0f) {
             sendPPTCommand("PREV");
             s_lastFlick = millis();
@@ -277,12 +236,66 @@ private:
         }
     }
 
+    // ✅ MouseDevice.h 기준 wheel 전송
+    // - mouseMove(x, y, scrollX, scrollY)
+    static void mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
+        // 기본: scrollX에 wheel 사용
+        // 만약 PC에서 스크롤이 “가로/세로 반대”라면 아래 인자만 바꾸면 됨:
+        //   p_ms.mouseMove(p_dx, p_dy, 0, p_wheel);
+        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
+    }
+
+    // ✅ Gyro bias 캘리브레이션(약 1초 평균) + 움직임 큰 샘플 제외
+    void runGyroCalibration() {
+        const uint32_t v_t0 = millis();
+        uint32_t v_cnt = 0;
+
+        double v_sumX = 0.0, v_sumY = 0.0, v_sumZ = 0.0;
+
+        while (millis() - v_t0 < G_E10_CALIB_MS) {
+            sensors_event_t v_a, v_g, v_temp;
+            _mpu.getEvent(&v_a, &v_g, &v_temp);
+
+            // rad/s -> deg/s
+            const float v_gx = v_g.gyro.x * RAD_TO_DEG;
+            const float v_gy = v_g.gyro.y * RAD_TO_DEG;
+            const float v_gz = v_g.gyro.z * RAD_TO_DEG;
+
+            // ✅ 움직임이 큰 샘플은 캘리브에서 제외(손에 들고 켜는 상황 방지)
+            const float v_absMax = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
+            if (v_absMax < G_E10_CALIB_STILL_TH_DEG) {
+                v_sumX += v_gx;
+                v_sumY += v_gy;
+                v_sumZ += v_gz;
+                v_cnt++;
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(5));
+        }
+
+        if (v_cnt > 0) {
+            _gyroBiasX = (float)(v_sumX / (double)v_cnt);
+            _gyroBiasY = (float)(v_sumY / (double)v_cnt);
+            _gyroBiasZ = (float)(v_sumZ / (double)v_cnt);
+        }
+
+        _gyroCalibDone = true;
+
+        Serial.printf("[E10] Gyro calib done: biasX=%.3f biasY=%.3f biasZ=%.3f (deg/s), samples=%u\n",
+                      _gyroBiasX, _gyroBiasY, _gyroBiasZ, (unsigned int)v_cnt);
+    }
+
     static void sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
         TickType_t v_lastWake = xTaskGetTickCount();
         unsigned long v_lastUs = micros();
         unsigned long v_btnDownMs = 0;
+
+        // ✅ 부팅 후 1회 캘리브레이션
+        if (!v_m->_gyroCalibDone) {
+            v_m->runGyroCalibration();
+        }
 
         for (;;) {
             sensors_event_t v_a, v_g, v_temp;
@@ -292,7 +305,10 @@ private:
             const float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
             v_lastUs = v_nowUs;
 
-            // 1) BTN_MODE: short=감도 변경, long=모드 토글
+            // 0) 스크롤 모드(전용 버튼) - 여기서 1회만 선언(중복/누락 방지)
+            const bool v_scrollMode = (digitalRead(G_E10_BTN_SCROLL) == LOW);
+
+            // 1) BTN_MODE: short=감도 변경, long=PPT 토글
             if (digitalRead(G_E10_BTN_MODE) == LOW) {
                 if (v_btnDownMs == 0) v_btnDownMs = millis();
             } else {
@@ -304,79 +320,73 @@ private:
                 }
             }
 
-            // 2) 물리 엔진 업데이트 (deg/s 기준 통일)
+            // 2) gyro rad/s -> deg/s + bias 제거
+            float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
+            float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
+            float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
+
+            // 3) 엔진 orientation 업데이트 (gx 사용)
             v_m->_engine.updateOrientation(
                 v_a.acceleration.y,
                 v_a.acceleration.z,
-                v_g.gyro.x * RAD_TO_DEG,
+                v_gx,
                 v_dt
             );
 
             int v_tx = 0, v_ty = 0;
-            const float v_rawX = -(v_g.gyro.z * RAD_TO_DEG);
-            const float v_rawY = -(v_g.gyro.x * RAD_TO_DEG);
+
+            // rawX=gyro.z, rawY=gyro.x
+            const float v_rawX = -v_gz;
+            const float v_rawY = -v_gx;
+
             v_m->_engine.process(v_rawX, v_rawY, v_tx, v_ty);
 
-            // 3) PPT 모드 제스처
-            if (v_m->_isPPTMode) {
-                v_m->processGesturesDeg(v_g.gyro.z * RAD_TO_DEG);
+            // 4) PPT 모드 제스처 (스크롤 중에는 차단: UX 안정)
+            if (v_m->_isPPTMode && !v_scrollMode) {
+                v_m->processGesturesDeg(v_gz);
             }
 
-            // 4) 클릭 처리
+            // 5) 클릭 처리
             const bool v_leftClick = (digitalRead(G_E10_BTN_L) == LOW);
             if (v_leftClick) v_m->_engine.notifyClick();
 
-            // ======================================================
-            // (1) DPI 기반 base scale 선택
-            // ======================================================
+            // 6) DPI 기반 scale + 가속
             float v_base = G_E10_SCALE_BASE_DPI2;
             float v_accg = G_E10_ACCEL_GAIN_DPI2;
 
             if (v_m->_dpiLevel == 1) { v_base = G_E10_SCALE_BASE_DPI1; v_accg = G_E10_ACCEL_GAIN_DPI1; }
             else if (v_m->_dpiLevel == 3) { v_base = G_E10_SCALE_BASE_DPI3; v_accg = G_E10_ACCEL_GAIN_DPI3; }
 
-            // ======================================================
-            // (2) 가속 적용 (움직임이 커지면 추가 배율)
-            // ======================================================
             const float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
             float v_acc = 1.0f;
             if (v_mag > G_E10_ACCEL_TH) {
                 const float v_ex = (v_mag - G_E10_ACCEL_TH);
-                // 완만한 곡선(과가속 방지)
                 v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
             }
 
             float v_fx = (float)v_tx * v_base * v_acc;
             float v_fy = (float)v_ty * v_base * v_acc;
 
-            // ======================================================
-            // (3) 휠 계산: BTN_MODE 누르고 있는 동안 = 스크롤 모드
-            //     gyro.y(deg/s)로 wheel step 생성
-            // ======================================================
+            // 7) 스크롤 전용 버튼 처리(BTN_SCROLL)
             int v_wheel = 0;
-            const bool v_scrollMode = (digitalRead(G_E10_BTN_MODE) == LOW);
             if (v_scrollMode) {
-                const float v_gyDeg = v_g.gyro.y * RAD_TO_DEG;
-
-                if (v_gyDeg > G_E10_WHEEL_TH_DEG) {
-                    float v_norm = (v_gyDeg - G_E10_WHEEL_TH_DEG) / 120.0f;
+                // gyro.y(deg/s)로 wheel 생성
+                if (v_gy > G_E10_WHEEL_TH_DEG) {
+                    float v_norm = (v_gy - G_E10_WHEEL_TH_DEG) / 120.0f;
                     if (v_norm > 1.0f) v_norm = 1.0f;
                     v_wheel = (int)(1 + (v_norm * (G_E10_WHEEL_STEP_MAX - 1)));
-                }
-                else if (v_gyDeg < -G_E10_WHEEL_TH_DEG) {
-                    float v_norm = (-v_gyDeg - G_E10_WHEEL_TH_DEG) / 120.0f;
+                } else if (v_gy < -G_E10_WHEEL_TH_DEG) {
+                    float v_norm = (-v_gy - G_E10_WHEEL_TH_DEG) / 120.0f;
                     if (v_norm > 1.0f) v_norm = 1.0f;
                     v_wheel = -(int)(1 + (v_norm * (G_E10_WHEEL_STEP_MAX - 1)));
                 }
 
-                // 스크롤 모드에서는 커서 이동을 줄여 오동작 방지
+                // 스크롤 중 커서 이동 억제(오동작 방지)
                 v_fx *= 0.25f;
                 v_fy *= 0.25f;
             }
 
-            // ======================================================
-            // (4) state 저장
-            // ======================================================
+            // 8) 공유 상태 저장
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
                 v_m->_state.x = (int)v_fx;
                 v_m->_state.y = (int)v_fy;
@@ -385,7 +395,7 @@ private:
                 xSemaphoreGive(v_m->_mutex);
             }
 
-            // 6) 버튼은 즉시 반영
+            // 9) 버튼 상태 즉시 반영
             if (v_m->_hid.isConnected()) {
                 if (v_leftClick) v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
                 else            v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
@@ -405,7 +415,7 @@ private:
                     const int8_t v_dy = (int8_t)constrain(v_m->_state.y, -127, 127);
                     const int8_t v_wh = (int8_t)constrain(v_m->_state.wheel, -127, 127);
 
-                    mouseSendCompat(v_m->_mouse, v_dx, v_dy, v_wh);
+                    mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
                     v_m->_state.updated = false;
                 }
                 xSemaphoreGive(v_m->_mutex);

@@ -51,12 +51,18 @@ private:
 
     unsigned long _lastClickTime = 0;
     bool _isClickStabilizing = false;
+    
+    bool _hardClickLock = false;   // true: 150ms 동안 outX/outY=0 (완전 고정)
+    
 
 public:
     CL_M10_AdvancedMotionProcessor() {}
 
     void setDPI(int p_level) { _dpiGain = 15.0f + (p_level * 7.0f); }
-
+    
+    void setHardClickLock(bool p_enable) { _hardClickLock = p_enable; }
+    
+    
     void notifyClick() { _lastClickTime = millis(); _isClickStabilizing = true; }
 
     void updateOrientation(float p_ay, float p_az, float p_gx_deg_s, float p_dt_s) {
@@ -73,8 +79,16 @@ public:
 
         if (_isClickStabilizing) {
             if (millis() - _lastClickTime < 150) {
-                v_compX *= 0.05f;
-                v_compY *= 0.05f;
+                if (_hardClickLock) {
+                    // ✅ 완전 고정 모드
+                    p_outX = 0;
+                    p_outY = 0;
+                    return;
+                } else {
+                    // 기존: 강 감쇠(5%)
+                    v_compX *= 0.05f;
+                    v_compY *= 0.05f;
+                }
             } else {
                 _isClickStabilizing = false;
             }
