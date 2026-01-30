@@ -22,10 +22,6 @@ build_flags =
   -D ARDUINO_USB_CDC_ON_BOOT=1
   -D CONFIG_BT_NIMBLE_ENABLED=1
   -D CONFIG_BT_BLE_ENABLED=1
-  
-  ; ✅ Joystick 옵션(0=없음, 1=있음)
-  -D E10_HAS_JOYSTICK=0
-
   ; -std=gnu++17  ; 필요하면 아래 build_unflags와 같이 사용 권장
 
 lib_deps =
