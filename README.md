@@ -1,67 +1,177 @@
-# 📝 AirMouse Elite S3 기술 사양서 (Technical Specification)
+# 📝 AirMouse Elite S3 기술 사양서 (Updated Technical Specification)
 
-본 프로젝트는 **ESP32-S3**와 **MPU6050**을 결합하여 일반적인 센서 마우스의 한계를 극복하고, 상용 하이엔드 제품 수준의 부드러움과 정밀도를 구현한 오픈소스 에어마우스 솔루션입니다.
+본 프로젝트는 **ESP32-S3 + MPU6050** 조합을 기반으로,  
+일반 센서 마우스의 한계를 넘어 **프리젠테이션·거실 PC·HTPC·스마트TV** 환경까지 고려한  
+**하이엔드 오픈소스 에어마우스 플랫폼**입니다.
 
 ---
 
 ## 🚀 핵심 기능 (Key Features)
 
-### 1. 하이엔드 물리 엔진 (Advanced Motion Engine)
-단순한 좌표 변환을 넘어 인간의 미세한 움직임을 해석하는 4대 알고리즘이 적용되었습니다.
+### 1️⃣ 하이엔드 물리 엔진 (Advanced Motion Engine)
 
-* **상보 필터(Complementary Filter) 기반 기울기 보정**: 마우스를 쥐는 각도(Roll)에 상관없이 사용자가 체감하는 수평/수직 방향으로 커서를 정확히 이동시킵니다.
-* **시그모이드(Sigmoid) 가변 가속도**: 윈도우/macOS의 커서 조작감과 유사하게, 미세한 움직임은 정밀하게(Pixel-perfect), 빠른 움직임은 시원하게 가속됩니다.
-* **지능형 클릭 안정화(Click-Lock)**: 클릭 순간 발생하는 손가락의 반동과 떨림을 감지하여 150ms 동안 커서를 고정함으로써 미스클릭을 방지합니다.
-* **적응형 LPF(Adaptive Low Pass Filter)**: 정지 상태에서는 떨림을 억제하고, 빠른 이동 시에는 지연 시간(Latency)을 최소화하도록 필터 계수를 실시간 변경합니다.
+단순 자이로 → 좌표 변환이 아닌 **사람 손 움직임을 해석하는 물리 엔진**을 적용했습니다.
 
+- **상보 필터(Complementary Filter) 기반 기울기 보정**
+  - 마우스를 비스듬히 잡아도 화면 좌표는 항상 수평/수직 유지
+  - ±45° 이상에서도 자연스러운 조작감
 
+- **시그모이드(Sigmoid) 가변 가속도**
+  - 미세 움직임: 픽셀 단위 정밀 제어
+  - 빠른 스윙: 자연스러운 가속
+  - Windows / macOS 커서 가속 감각과 유사
 
-### 2. 멀티코어 RTOS 아키텍처
-ESP32-S3의 듀얼 코어를 활용하여 통신과 연산을 분리했습니다.
+- **Click-Lock (완전 고정 옵션)**
+  - 클릭 순간 발생하는 반동·떨림 완전 차단
+  - 150ms 동안 커서 이동량을 **0으로 강제 고정**
+  - 정밀 드래그·프리젠터 포인팅 최적화
 
-* **Core 1 (Sensor Task)**: 125Hz(8ms) 주기로 센서 데이터를 읽고 물리 엔진을 계산하여 연산 지터(Jitter)를 제거합니다.
-* **Core 0 (Comm Task)**: 블루투스 HID 스택을 관리하며 데이터 패킷을 비동기 전송하여 통신 부하가 조작감에 영향을 주지 않도록 설계되었습니다.
+- **적응형 LPF (Adaptive Low Pass Filter)**
+  - 정지 상태: 떨림 억제
+  - 빠른 이동: 지연 최소화
 
-### 3. 사용자 편의 기능 (UX)
-* **실시간 DPI 전환**: 전용 버튼을 통해 3단계 감도(저속/표준/고속)를 즉시 변경할 수 있습니다.
-* **지능형 스크롤 모드**: 스크롤 버튼을 누른 상태에서 마우스를 상하로 움직이면 화면 스크롤로 동작합니다.
-* **제스처 인식**: 순간적인 가속(Flick)을 감지하여 브라우저 뒤로 가기 등의 명령을 수행할 수 있습니다.
+---
+
+### 2️⃣ Gyro 오프셋 자동 캘리브레이션
+
+- 전원 인가 후 약 **1초간 자동 캘리브레이션**
+- 평균 기반 Gyro bias 계산
+- **움직임이 큰 샘플 자동 제외**
+  - 손에 들고 전원을 켜도 오차 최소화
+- 장시간 사용 시 드리프트 현저히 감소
+
+---
+
+### 3️⃣ 멀티코어 RTOS 아키텍처
+
+ESP32-S3 듀얼 코어 구조를 적극 활용
+
+| Core | Task | 역할 |
+|----|----|----|
+| Core 1 | Sensor Task | MPU6050 125Hz 샘플링 + 물리 엔진 계산 |
+| Core 0 | Comm Task | BLE Composite HID 전송 |
+
+✔ 센서 지터 제거  
+✔ BLE 스택 부하로 인한 커서 끊김 방지  
+
+---
+
+### 4️⃣ 사용자 UX 기능
+
+- **실시간 DPI 전환**
+  - 버튼 Short Press로 3단계 감도 변경
+  - (저속 / 표준 / 고속)
+
+- **스크롤 전용 버튼(BTN_SCROLL)**
+  - 커서 이동과 완전 분리
+  - 버튼을 누른 동안만 스크롤 동작
+  - 스크롤 중 커서 이동 자동 억제
+
+- **PPT 제스처 모드**
+  - Gyro Flick 제스처
+    - 좌/우 슬라이드 이동
+  - 스크롤 버튼 누를 때는 제스처 자동 차단 (오동작 방지)
 
 ---
 
 ## 📊 기술 스펙 (Technical Specifications)
 
-| 구분 | 상세 사양 | 비고 |
-| :--- | :--- | :--- |
-| **MCU** | ESP32-S3 (Dual-Core, 240MHz) | Xtensa® 32-bit LX7 |
-| **Sensor** | MPU6050 (6-Axis IMU) | Accelerometer + Gyroscope |
-| **Connectivity** | Bluetooth Low Energy (BLE) 5.0 | HID Profile 지원 |
-| **Polling Rate** | 125Hz (8ms) | 상용 유선 마우스 표준 주사율 |
-| **DPI Range** | 3단계 가변 (1200 / 2400 / 3600 DPI 상당) | 소프트웨어 가속 포함 |
-| **Axis Compensation** | ±45도 기울기 보정 지원 | 상보 필터 알고리즘 |
-| **Algorithm** | Adaptive EMA + Sigmoid Acceleration | 자체 개발 물리 엔진 |
-| **OS Compatibility** | Windows, macOS, Android, iOS, Linux | 별도 드라이버 불필요 |
+| 항목 | 사양 |
+|----|----|
+| MCU | ESP32-S3 (Dual-Core, 240MHz) |
+| Sensor | MPU6050 (6-axis IMU) |
+| Connectivity | BLE 5.0 |
+| HID | Composite HID (Mouse + Keyboard) |
+| Polling Rate | 125Hz (8ms) |
+| DPI | 3단계 가변 (소프트웨어 가속 포함) |
+| Calibration | 자동 Gyro bias 캘리브레이션 |
+| Scroll | Gyro 기반 스크롤 |
+| OS | Windows / macOS / Linux / Android / iOS |
+| Driver | 불필요 (표준 HID) |
 
 ---
 
-## 🛠 시스템 아키텍처 (Software Architecture)
+## 🔌 하드웨어 결선도 & 핀맵
 
-### 클래스 설계 (OOP)
-1.  **`AdvancedMotionProcessor`**: 수학적 모델링 담당. 기울기 보정, 가속도 곡선, 필터링 등 모든 물리 연산이 캡슐화되어 있습니다.
-2.  **`EliteAirMouse`**: 하드웨어 추상화 계층. MPU6050 초기화, 버튼 인터럽트 처리, BLE HID 통신 및 FreeRTOS 태스크 관리를 수행합니다.
-
-### 데이터 흐름 (Data Flow)
-1.  **Sensing**: MPU6050에서 6축 데이터 추출 (8ms 주기)
-2.  **Orientation**: 가속도/자이로 데이터를 결합하여 현재 롤(Roll) 각도 추정 (상보 필터)
-3.  **Correction**: 회전 행렬을 통한 좌표축 보정 및 클릭 떨림 억제
-4.  **Scaling**: 시그모이드 함수를 통한 비선형 가속도 적용
-5.  **Transmission**: Mutex로 보호된 공유 자원을 통해 BLE 스택으로 데이터 전달 후 PC 송신
-
-
+### 📐 기본 결선 구조
+ESP32-S3        MPU6050
+3V3   --------> VCC 
+GND   --------> GND 
+GPIO4 --------> SDA 
+GPIO5 --------> SCL
 
 ---
 
-## ⚠️ 설치 및 주의사항
-* **라이브러리 의존성**: `ESP32 BLE Mouse`, `MPU6050` 라이브러리가 필요합니다.
-* **초기 교정(Calibration)**: 전원을 켠 직후 약 1초간 마우스를 평평한 곳에 두어 자이로 오프셋을 자동으로 잡도록 설계되었습니다.
-* **핀 맵 설정**: `platformio.ini` 및 `EliteAirMouse.h`에서 실제 사용 중인 GPIO 번호를 반드시 확인하십시오.
+### 📍 GPIO 핀맵 표
+
+| 기능 | GPIO | 설명 |
+|----|----|----|
+| I2C SDA | GPIO 4 | MPU6050 데이터 |
+| I2C SCL | GPIO 5 | MPU6050 클럭 |
+| BTN_L | GPIO 12 | 좌클릭 |
+| BTN_MODE | GPIO 13 | DPI / PPT 모드 |
+| BTN_SCROLL | GPIO 14 | 스크롤 전용 버튼 |
+
+> ⚠️ GPIO 번호는 DevKitC 기준 예시이며, 실제 보드에 맞게 변경 가능
+
+---
+
+## 🖱️ 에어마우스 사용법 (User Guide)
+
+### 1️⃣ 기본 사용
+- 전원 인가 → 자동 BLE 연결
+- 손을 움직이면 커서 이동
+- BTN_L 클릭 = 마우스 좌클릭
+
+---
+
+### 2️⃣ DPI 변경
+- **BTN_MODE 짧게 누르기**
+  - 저속 → 표준 → 고속 → 반복
+- 해상도 높은 화면에서는 고속 권장
+
+---
+
+### 3️⃣ 스크롤 사용
+- **BTN_SCROLL 누른 상태에서 위/아래 기울이기**
+- 커서 이동 없이 스크롤만 동작
+- 웹, PDF, PPT 슬라이드 탐색에 최적
+
+---
+
+### 4️⃣ PPT 모드
+- **BTN_MODE 길게 누르기(1초)**
+  - PPT 제스처 모드 ON/OFF
+- 좌우로 빠르게 휘두르기(Flick)
+  - 다음/이전 슬라이드
+
+---
+
+### 5️⃣ Click-Lock 활용
+- 클릭 순간 커서가 완전히 고정됨
+- 버튼 클릭 시 포인터가 흔들리지 않음
+- 프리젠터 레이저 대용으로 적합
+
+---
+
+## ⚠️ 주의사항
+
+- 부팅 직후 **1초간 정지 상태 유지** 권장 (캘리브레이션 정확도 향상)
+- 스크롤 반응이 과하면 코드 상수 튜닝 가능
+- PC 환경에 따라 휠 방향이 반대일 경우  
+  `mouseMove(x,y,scrollX,scrollY)` 인자 순서 변경 가능
+
+---
+
+## 🎯 권장 활용 시나리오
+
+- 프리젠테이션 리모컨
+- 거실 PC / HTPC
+- 스마트TV 입력 장치
+- 산업용 HMI 무선 포인팅
+- 커스텀 게임 컨트롤러 확장
+
+---
+
+✅ **AirMouse Elite S3는 단순 프로젝트가 아닌,  
+상용급 입력 디바이스 아키텍처를 목표로 설계되었습니다.**
