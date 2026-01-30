@@ -1,5 +1,4 @@
-# 📝
-AirMouse Elite S3(v0.0.6) 기술 사양서 (Updated Technical Specification)
+# 📝 AirMouse Elite S3(v0.0.6) 기술 사양서 (Technical Specification)
 
 본 프로젝트는 **ESP32-S3 + MPU6050** 조합을 기반으로,  
 일반 센서 마우스의 한계를 넘어 **프리젠테이션·거실 PC·HTPC·스마트TV** 환경까지 고려한  
