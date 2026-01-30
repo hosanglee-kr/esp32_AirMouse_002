@@ -1,32 +1,16 @@
+// main.cpp
+
 #include <Arduino.h>
+#include "v001/E10_EliteAirMouse_006.h"
 
-// The build version comes from an environment variable. Use the VERSION
-// define wherever the version is needed.
-#define STRINGIZER(arg) #arg
-#define STR_VALUE(arg)	STRINGIZER(arg)
-#define VERSION			STR_VALUE(BUILD_VERSION)
 
-#define S10
-#ifdef S10
-	#include "S10_streams-i2s-webserver_wav_001.h"
-#endif
+E10_::CL_E10_EliteAirMouse g_E10_airMouse;
 
 void setup() {
-	// delay(5000);
-
-	Serial.begin(115200);
-	Serial.print("Version: ");
-	Serial.println(VERSION);
-
-#ifdef S10
-	S10_setup();
-#endif
-
-	Serial.println("11111");
+    Serial.begin(115200);
+    g_E10_airMouse.begin();
 }
 
 void loop() {
-#ifdef S10
-	S10_loop();
-#endif
+    vTaskDelete(NULL);
 }
