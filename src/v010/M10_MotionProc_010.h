@@ -1,3 +1,6 @@
+// ======================================================
+// File: src/v001/M10_MotionProc_010.h
+// ======================================================
 #pragma once
 /*
  * ------------------------------------------------------
@@ -41,19 +44,19 @@
  */
 
 #include <Arduino.h>
+#include <math.h>
 
 class CL_M10_AdvancedMotionProcessor {
   private:
-    float _lpfX = 0.0f;
-    float _lpfY = 0.0f;
-
-    float _roll    = 0.0f;
+    float _lpfX  = 0.0f;
+    float _lpfY  = 0.0f;
+    float _roll  = 0.0f;
     float _dpiGain = 22.0f;
 
-    unsigned long _lastClickTime      = 0;
+    unsigned long _lastClickTimeMs = 0;
     bool          _isClickStabilizing = false;
 
-    bool _hardClickLock = false; // true: 150ms 동안 outX/outY=0 (완전 고정)
+    bool _hardClickLock = false;
 
   public:
     CL_M10_AdvancedMotionProcessor() {}
@@ -62,49 +65,47 @@ class CL_M10_AdvancedMotionProcessor {
     void setHardClickLock(bool p_enable) { _hardClickLock = p_enable; }
 
     void notifyClick() {
-        _lastClickTime      = millis();
+        _lastClickTimeMs = millis();
         _isClickStabilizing = true;
     }
 
     void updateOrientation(float p_ay, float p_az, float p_gx_deg_s, float p_dt_s) {
-        float v_accelRoll = atan2(p_ay, p_az);
-        _roll             = 0.98f * (_roll + (p_gx_deg_s * DEG_TO_RAD) * p_dt_s) + 0.02f * v_accelRoll;
+        const float v_accelRoll = atan2(p_ay, p_az);
+        _roll = 0.98f * (_roll + (p_gx_deg_s * DEG_TO_RAD) * p_dt_s) + 0.02f * v_accelRoll;
     }
 
     void process(float p_rawX, float p_rawY, int& p_outX, int& p_outY) {
-        float v_cosR = cos(_roll);
-        float v_sinR = sin(_roll);
+        const float v_cosR = cosf(_roll);
+        const float v_sinR = sinf(_roll);
 
         float v_compX = p_rawX * v_cosR - p_rawY * v_sinR;
         float v_compY = p_rawX * v_sinR + p_rawY * v_cosR;
 
         if (_isClickStabilizing) {
-            if (millis() - _lastClickTime < 150) {
+            if (millis() - _lastClickTimeMs < 150) {
                 if (_hardClickLock) {
-                    // 완전 고정 모드
                     p_outX = 0;
                     p_outY = 0;
                     return;
-                } else {
-                    // 기존: 강 감쇠(5%)
-                    v_compX *= 0.05f;
-                    v_compY *= 0.05f;
                 }
+                v_compX *= 0.05f;
+                v_compY *= 0.05f;
             } else {
                 _isClickStabilizing = false;
             }
         }
 
-        float v_delta = sqrt(v_compX * v_compX + v_compY * v_compY);
-        float v_alpha = (v_delta > 3.0f) ? 0.5f : 0.12f;
+        const float v_delta = sqrtf(v_compX * v_compX + v_compY * v_compY);
+        const float v_alpha = (v_delta > 3.0f) ? 0.5f : 0.12f;
 
         _lpfX = (v_compX * v_alpha) + (_lpfX * (1.0f - v_alpha));
         _lpfY = (v_compY * v_alpha) + (_lpfY * (1.0f - v_alpha));
 
-        auto v_applySigmoid = [&](float p_input) -> float {
-            float v_av = abs(p_input);
+        auto v_applySigmoid = [&](float p_in) -> float {
+            const float v_av = fabsf(p_in);
             if (v_av < 0.4f) return 0.0f;
-            return (_dpiGain / (1.0f + exp(-0.8f * (v_av - 2.0f)))) * (p_input > 0 ? 1.0f : -1.0f);
+            const float v_out = (_dpiGain / (1.0f + expf(-0.8f * (v_av - 2.0f))));
+            return v_out * (p_in > 0 ? 1.0f : -1.0f);
         };
 
         p_outX = (int)v_applySigmoid(_lpfX);
