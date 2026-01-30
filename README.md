@@ -1,4 +1,5 @@
-# 📝 AirMouse Elite S3 기술 사양서 (Updated Technical Specification)
+# 📝
+AirMouse Elite S3(v0.0.6) 기술 사양서 (Updated Technical Specification)
 
 본 프로젝트는 **ESP32-S3 + MPU6050** 조합을 기반으로,  
 일반 센서 마우스의 한계를 넘어 **프리젠테이션·거실 PC·HTPC·스마트TV** 환경까지 고려한  
@@ -94,11 +95,11 @@ ESP32-S3 듀얼 코어 구조를 적극 활용
 ## 🔌 하드웨어 결선도 & 핀맵
 
 ### 📐 기본 결선 구조
-ESP32-S3        MPU6050
-3V3   --------> VCC 
-GND   --------> GND 
-GPIO4 --------> SDA 
-GPIO5 --------> SCL
+- ESP32-S3        MPU6050
+- 3V3   --------> VCC 
+- GND   --------> GND 
+- GPIO4 --------> SDA 
+- GPIO5 --------> SCL
 
 ---
 
