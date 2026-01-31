@@ -98,5 +98,8 @@ async function saveConfig() {
 window.addEventListener("load", () => {
     $("btn_load").addEventListener("click", loadConfig);
     $("btn_save").addEventListener("click", saveConfig);
+    $("btn_reset").addEventListener("click", resetDefaults);
+    $("btn_reboot").addEventListener("click", rebootDevice);
+
     loadConfig().catch((e) => setStatus("Load error: " + e));
 });

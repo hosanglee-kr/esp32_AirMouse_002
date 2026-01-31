@@ -109,4 +109,9 @@ input, select {
   color: var(--muted);
   font-size: 12px;
 }
+.btn.danger {
+  border-color: rgba(255, 110, 110, 0.55);
+  background: rgba(255, 110, 110, 0.10);
+}
+
 code { color: var(--accent); }

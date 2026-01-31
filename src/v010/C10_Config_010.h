@@ -295,4 +295,24 @@ class CL_C10_Config {
         setDefaults(v_cfg);
         return saveE10(v_cfg);
     }
+    
+    void makeDefaultsE10(ST_C10_E10Config_t& p_out) {
+        // 기존 defaults 로직이 이미 있다면 그걸 호출
+        // 없다면 여기서 기본값 세팅(지금까지 사용한 값)
+        memset(&p_out, 0, sizeof(p_out));
+        p_out.dpi_level = 2;
+        p_out.hard_click_lock = true;
+    
+        p_out.scale_base[0] = 0.55f; p_out.scale_base[1] = 0.75f; p_out.scale_base[2] = 1.00f;
+        p_out.accel_gain[0] = 0.35f; p_out.accel_gain[1] = 0.55f; p_out.accel_gain[2] = 0.85f;
+        p_out.accel_threshold = 8.0f;
+    
+        p_out.wheel_threshold_deg = 90.0f;
+        p_out.wheel_step_max = 6;
+    
+        p_out.gesture_flick_deg = 200.0f;
+        p_out.gesture_cooldown_ms = 600;
+    
+        p_out.scroll_cursor_damp = 0.25f;
+    }
 };
