@@ -4,98 +4,116 @@ File: data/www/index_011.html
 ====================================================== -->
 
 
+
 <!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>EliteAirMouse Config</title>
-  <link rel="stylesheet" href="/www/style_011.css" />
+  <title>Elite AirMouse S3 - Web Config</title>
+  <link rel="stylesheet" href="/www/style.css" />
 </head>
 <body>
   <div class="wrap">
-    <h1>EliteAirMouse Config</h1>
+    <h1>Elite AirMouse S3 설정</h1>
 
     <section class="card">
-      <h2>저장/상태</h2>
-      <div class="actions">
-        <button id="btn_load" class="btn">불러오기</button>
-        <button id="btn_save" class="btn primary">저장</button>
-        <button id="btn_reset" class="btn danger">기본값</button>
-        <button id="btn_reboot" class="btn">재부팅</button>
+      <h2>기본</h2>
+      <div class="row">
+        <label>DPI Level</label>
+        <select id="dpi_level">
+          <option value="1">1 (Low)</option>
+          <option value="2">2 (Mid)</option>
+          <option value="3">3 (High)</option>
+        </select>
       </div>
-      <pre id="status" class="status">Ready.</pre>
-    </section>
 
-    <section class="card">
-      <h2>E10 기본</h2>
-      <div class="grid2">
-        <label>DPI Level
-          <select id="dpi_level">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-          </select>
+      <div class="row">
+        <label>Hard Click-Lock</label>
+        <label class="chk">
+          <input type="checkbox" id="hard_click_lock" />
+          <span>클릭 후 150ms 완전 고정(outX/outY=0)</span>
         </label>
-
-        <label class="row">
-          <input id="hard_click_lock" type="checkbox" />
-          Hard Click-Lock (완전고정)
-        </label>
-
-        <label>Accel Threshold <input id="accel_threshold" type="number" step="0.1"></label>
-        <label>Scroll Cursor Damp <input id="scroll_cursor_damp" type="number" step="0.01" min="0" max="1"></label>
       </div>
     </section>
 
     <section class="card">
-      <h2>PPT Key Mapping (HID Code 숫자)</h2>
+      <h2>PPT 키 매핑</h2>
+      <p class="hint">키 이름으로 선택하면 내부적으로 (mod, key) 숫자값으로 저장됩니다.</p>
 
-      <div class="hint">
-        mod/key는 <b>KeyboardHIDCodes.h</b>의 숫자 값입니다. (예: LEFTCTRL=224, LEFTSHIFT=225, ESC=41, F5=62, PAGEUP=75, PAGEDOWN=78, B=5, L=15)
+      <div class="grid">
+        <div class="krow">
+          <div class="kname">START</div>
+          <div class="kctrl">
+            <select class="mod" data-key="start"></select>
+            <select class="key" data-key="start"></select>
+          </div>
+        </div>
+
+        <div class="krow">
+          <div class="kname">EXIT</div>
+          <div class="kctrl">
+            <select class="mod" data-key="exit"></select>
+            <select class="key" data-key="exit"></select>
+          </div>
+        </div>
+
+        <div class="krow">
+          <div class="kname">NEXT</div>
+          <div class="kctrl">
+            <select class="mod" data-key="next"></select>
+            <select class="key" data-key="next"></select>
+          </div>
+        </div>
+
+        <div class="krow">
+          <div class="kname">PREV</div>
+          <div class="kctrl">
+            <select class="mod" data-key="prev"></select>
+            <select class="key" data-key="prev"></select>
+          </div>
+        </div>
+
+        <div class="krow">
+          <div class="kname">BLACK</div>
+          <div class="kctrl">
+            <select class="mod" data-key="black"></select>
+            <select class="key" data-key="black"></select>
+          </div>
+        </div>
+
+        <div class="krow">
+          <div class="kname">LASER</div>
+          <div class="kctrl">
+            <select class="mod" data-key="laser"></select>
+            <select class="key" data-key="laser"></select>
+          </div>
+        </div>
       </div>
 
-      <div class="gridPpt">
-        <div class="hdr">Command</div><div class="hdr">MOD</div><div class="hdr">KEY</div><div class="hdr">Preset</div>
-
-        <div>START</div>
-        <input id="ppt_start_mod" type="number" min="0" max="255">
-        <input id="ppt_start_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_start_preset">Shift+F5</button>
-
-        <div>EXIT</div>
-        <input id="ppt_exit_mod" type="number" min="0" max="255">
-        <input id="ppt_exit_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_exit_preset">Esc</button>
-
-        <div>NEXT</div>
-        <input id="ppt_next_mod" type="number" min="0" max="255">
-        <input id="ppt_next_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_next_preset">PageDown</button>
-
-        <div>PREV</div>
-        <input id="ppt_prev_mod" type="number" min="0" max="255">
-        <input id="ppt_prev_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_prev_preset">PageUp</button>
-
-        <div>BLACK</div>
-        <input id="ppt_black_mod" type="number" min="0" max="255">
-        <input id="ppt_black_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_black_preset">B</button>
-
-        <div>LASER</div>
-        <input id="ppt_laser_mod" type="number" min="0" max="255">
-        <input id="ppt_laser_key" type="number" min="0" max="255">
-        <button class="btn" id="ppt_laser_preset">Ctrl+L</button>
-      </div>
-
-      <div class="hint">
-        key=0 으로 저장하면 해당 커맨드는 “비활성(전송 안함)” 처리됩니다.
-      </div>
+      <details class="adv">
+        <summary>고급: 숫자값 직접 입력(필요시)</summary>
+        <p class="hint">드롭다운이 원하는 키를 못 찾을 때만 사용하세요.</p>
+        <div class="row">
+          <label>START mod,key</label>
+          <input id="raw_start_mod" type="number" min="0" max="255" />
+          <input id="raw_start_key" type="number" min="0" max="255" />
+        </div>
+      </details>
     </section>
 
+    <section class="card">
+      <h2>동작</h2>
+      <div class="btns">
+        <button id="btn_reload">불러오기</button>
+        <button id="btn_save" class="primary">저장 + 적용</button>
+        <button id="btn_reset">기본값 복원</button>
+        <button id="btn_reboot">재부팅</button>
+      </div>
+      <pre id="log" class="log"></pre>
+    </section>
   </div>
 
-  <script src="/www/app_011.js"></script>
+  <script src="/www/app.js"></script>
 </body>
 </html>
