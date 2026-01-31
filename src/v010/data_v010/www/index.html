@@ -1,0 +1,136 @@
+<!-- ======================================================
+File: data/www/index.html
+(HTML/JS/CSS 분리, JS는 /www/app.js, CSS는 /www/style.css)
+====================================================== -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse S3 - Config</title>
+  <link rel="stylesheet" href="/www/style.css" />
+</head>
+
+<body>
+  <header class="top">
+    <h1>Elite AirMouse S3</h1>
+    <p class="sub">Web Config (v0.2.0 최소 UI) · /api/config</p>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>기본</h2>
+
+      <div class="row">
+        <label>DPI</label>
+        <select id="dpi_level">
+          <option value="1">1 (저속)</option>
+          <option value="2">2 (표준)</option>
+          <option value="3">3 (고속)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Hard Click-Lock</label>
+        <div class="inline">
+          <input id="hard_click_lock" type="checkbox" />
+          <span class="hint">클릭 후 150ms 완전 고정(outX/outY=0)</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <label>Accel Threshold</label>
+        <input id="accel_threshold" type="number" step="0.1" min="0" max="50" />
+      </div>
+
+      <div class="row">
+        <label>Scroll Cursor Damp</label>
+        <input id="scroll_cursor_damp" type="number" step="0.05" min="0" max="1" />
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>스케일/가속 (DPI별)</h2>
+
+      <div class="grid3">
+        <div class="subcard">
+          <h3>DPI1</h3>
+          <div class="row">
+            <label>Scale</label>
+            <input id="scale_base_1" type="number" step="0.01" min="0" max="3" />
+          </div>
+          <div class="row">
+            <label>AccelGain</label>
+            <input id="accel_gain_1" type="number" step="0.01" min="0" max="3" />
+          </div>
+        </div>
+
+        <div class="subcard">
+          <h3>DPI2</h3>
+          <div class="row">
+            <label>Scale</label>
+            <input id="scale_base_2" type="number" step="0.01" min="0" max="3" />
+          </div>
+          <div class="row">
+            <label>AccelGain</label>
+            <input id="accel_gain_2" type="number" step="0.01" min="0" max="3" />
+          </div>
+        </div>
+
+        <div class="subcard">
+          <h3>DPI3</h3>
+          <div class="row">
+            <label>Scale</label>
+            <input id="scale_base_3" type="number" step="0.01" min="0" max="3" />
+          </div>
+          <div class="row">
+            <label>AccelGain</label>
+            <input id="accel_gain_3" type="number" step="0.01" min="0" max="3" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>휠/제스처</h2>
+
+      <div class="row">
+        <label>Wheel Threshold (deg/s)</label>
+        <input id="wheel_threshold_deg" type="number" step="1" min="0" max="500" />
+      </div>
+
+      <div class="row">
+        <label>Wheel Step Max</label>
+        <input id="wheel_step_max" type="number" step="1" min="1" max="20" />
+      </div>
+
+      <div class="row">
+        <label>Flick Threshold (deg/s)</label>
+        <input id="gesture_flick_deg" type="number" step="1" min="50" max="800" />
+      </div>
+
+      <div class="row">
+        <label>Flick Cooldown (ms)</label>
+        <input id="gesture_cooldown_ms" type="number" step="10" min="100" max="2000" />
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>저장/상태</h2>
+      <div class="actions">
+        <button id="btn_load" class="btn">불러오기</button>
+        <button id="btn_save" class="btn primary">저장</button>
+      </div>
+
+      <pre id="status" class="status">Ready.</pre>
+
+      <p class="footnote">
+        저장 시 <code>/config.json</code> 갱신 + <code>/config.bak</code> 백업.
+        (옵션) 저장 후 E10 <code>reloadConfig()</code> 호출.
+      </p>
+    </section>
+  </main>
+
+  <script src="/www/app.js"></script>
+</body>
+</html>

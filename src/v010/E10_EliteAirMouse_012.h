@@ -1,19 +1,21 @@
 // ======================================================
-// File: src/v001/E10_EliteAirMouse_011.h
+// File: src/v001/E10_EliteAirMouse_012.h
+// - C10_Config 인스턴스 "외부 주입(공유)" 버전
+// - W10_WebConfig_010.h 와 동일 config.json을 공유하도록 구조 정리
 // ======================================================
 #pragma once
 /*
  * ------------------------------------------------------
- * 소스명 : E10_EliteAirMouse_011.h
+ * 소스명 : E10_EliteAirMouse_012.h
  * 모듈약어 : E10
- * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터 (Composite HID, Config 적용)
+ * 모듈명 : ESP32-S3 기반 에어마우스 + 프리젠터 (Composite HID, Config DI/공유)
  * ------------------------------------------------------
  * 기능 요약
  *  - MPU6050 기반 에어마우스(자이로) + BLE Composite HID(Mouse+Keyboard)
  *  - Gyro 오프셋 자동 캘리브레이션(부팅 후 1초 평균, 움직임 큰 샘플 제외)
  *  - 스크롤 전용 버튼(BTN_SCROLL)로 스크롤 모드 분리(UX 충돌 제거)
  *  - Click-Lock 완전고정 옵션 지원(150ms outX/outY=0)  *M10_MotionProc_010.h*
- *  - LittleFS /config.json 설정 로드 후 런타임 적용(C10_Config_010.h)
+ *  - C10_Config_010.h 외부 주입(공유)로 W10(Web)과 동일 config.json 사용
  *  - FreeRTOS 듀얼 코어 태스크 분산 (Sensor: Core 1, Comm: Core 0)
  * ------------------------------------------------------
  * [구현 규칙]
@@ -60,7 +62,6 @@
 #include "M10_MotionProc_010.h"
 #include "C10_Config_010.h"
 
-
 // ------------------------------------------------------
 // [옵션] 조이스틱 유무 (v0.1.0~: 스텁만, 기능 구현은 최후순위)
 // ------------------------------------------------------
@@ -78,7 +79,8 @@ class CL_E10_EliteAirMouse {
 
     CL_M10_AdvancedMotionProcessor _engine;
 
-    CL_C10_Config _cfg;
+    // ✅ 외부 주입(공유) 설정 관리자
+    CL_C10_Config* _cfg = nullptr;
 
     // GPIO (예시)
     static constexpr int G_E10_BTN_L      = 12;
@@ -109,9 +111,7 @@ class CL_E10_EliteAirMouse {
     static constexpr uint32_t G_E10_CALIB_MS           = 1000;
     static constexpr float    G_E10_CALIB_STILL_TH_DEG = 3.0f;
 
-    // ------------------------------
     // 런타임 Config(파일에서 로드)
-    // ------------------------------
     ST_C10_E10Config_t _rtCfg;
 
 #if (E10_HAS_JOYSTICK == 1)
@@ -126,15 +126,26 @@ class CL_E10_EliteAirMouse {
         _state.updated = false;
     }
 
-    void begin() {
+    // ✅ 주입형 begin: C10을 1개만 만들고(E10/W10 공유) 여기로 전달
+    bool begin(CL_C10_Config* p_cfg) {
         Serial.begin(115200);
+
+        _cfg = p_cfg;
+        if (_cfg == nullptr) {
+            Serial.println("[E10] begin failed: cfg is null");
+            return false;
+        }
+
+        // FS mount / config load
+        (void)_cfg->begin(true);
+        (void)_cfg->loadE10(_rtCfg);
 
         Wire.begin(4, 5);
         Wire.setClock(400000);
 
         if (!_mpu.begin()) {
-            Serial.println("Failed to find MPU6050 chip");
-            for (;;) delay(10);
+            Serial.println("[E10] Failed to find MPU6050 chip");
+            return false;
         }
 
         _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
@@ -152,30 +163,31 @@ class CL_E10_EliteAirMouse {
 
         _mutex = xSemaphoreCreateMutex();
 
-        // 1) 설정 로드(없으면 기본 생성)
-        (void)_cfg.begin(true);
-        (void)_cfg.loadE10(_rtCfg);
-
-        // 2) 설정 적용
+        // config 적용
         applyRuntimeConfig();
 
-        // 3) Composite HID 시작
+        // Composite HID 시작
         _hid.addDevice(&_keyboard);
         _hid.addDevice(&_mouse);
         _hid.begin();
 
         xTaskCreatePinnedToCore(sensorTask, "E10_Sensor", 8192, this, 3, nullptr, 1);
         xTaskCreatePinnedToCore(commTask,   "E10_Comm",   4096, this, 2, nullptr, 0);
+
+        Serial.println("[E10] begin ok");
+        return true;
     }
 
-    // (선택) 런타임에 config.json 재적용 (Web UI 붙일 때 사용)
+    // ✅ W10에서 접근하도록: 같은 인스턴스를 반환(필요 시)
+    CL_C10_Config* getConfig() { return _cfg; }
+
+    // ✅ 저장된 config.json을 다시 읽어서 즉시 반영
     bool reloadConfig() {
+        if (_cfg == nullptr) return false;
+
         ST_C10_E10Config_t v_new;
         memset(&v_new, 0, sizeof(v_new));
-
-        if (!_cfg.loadE10(v_new)) {
-            // load 실패해도 기본값으로 저장되므로, new를 적용하는 편이 낫다
-        }
+        (void)_cfg->loadE10(v_new);
 
         if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             _rtCfg = v_new;
@@ -190,7 +202,6 @@ class CL_E10_EliteAirMouse {
 
   private:
     void applyRuntimeConfig() {
-        // 엔진 쪽은 Task에서 쓰므로, 여기서 엔진 설정은 바로 적용
         // hard_click_lock
         _engine.setHardClickLock(_rtCfg.hard_click_lock);
 
@@ -214,15 +225,15 @@ class CL_E10_EliteAirMouse {
         v_next++;
         if (v_next > 3) v_next = 1;
 
-        // 저장까지는 v0.1.0에선 불필요하지만, v0.2.0 호환 위해 here 제공
         if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
             _rtCfg.dpi_level = v_next;
             xSemaphoreGive(_mutex);
         }
         _engine.setDPI(v_next);
 
-        // 저장을 원하면 아래 한 줄 활성화(버튼 누를 때마다 flash write 발생)
-        // (void)_cfg.saveE10(_rtCfg);
+        // 버튼 누를 때마다 flash write는 부담될 수 있어 기본은 OFF
+        // 필요하면 아래 활성화:
+        // if (_cfg != nullptr) (void)_cfg->saveE10(_rtCfg);
     }
 
     void tapKey(uint8_t p_key, uint16_t p_ms = 12) {
@@ -258,22 +269,22 @@ class CL_E10_EliteAirMouse {
     }
 
     void processGesturesDeg(float p_gzDegPerSec, float p_flickDeg, uint16_t p_cooldownMs) {
-        static unsigned long v_lastFlickMs = 0;
-        if (millis() - v_lastFlickMs < p_cooldownMs) return;
+        static unsigned long s_lastFlickMs = 0;
+        if (millis() - s_lastFlickMs < p_cooldownMs) return;
 
         if (p_gzDegPerSec > p_flickDeg) {
             sendPPTCommand("PREV");
-            v_lastFlickMs = millis();
+            s_lastFlickMs = millis();
         } else if (p_gzDegPerSec < -p_flickDeg) {
             sendPPTCommand("NEXT");
-            v_lastFlickMs = millis();
+            s_lastFlickMs = millis();
         }
     }
 
     // MouseDevice.h 기준: mouseMove(x,y,scrollX,scrollY)
     static void mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
         p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
-        // 세로 스크롤이 반대로 느껴지면:
+        // 세로 스크롤 축이 반대면 아래로 교체:
         // p_ms.mouseMove(p_dx, p_dy, 0, p_wheel);
     }
 
@@ -298,7 +309,6 @@ class CL_E10_EliteAirMouse {
                 v_sumZ += v_gz;
                 v_cnt++;
             }
-
             vTaskDelay(pdMS_TO_TICKS(5));
         }
 
@@ -324,15 +334,17 @@ class CL_E10_EliteAirMouse {
         if (!v_m->_gyroCalibDone) v_m->runGyroCalibration();
 
         for (;;) {
-            // 1) 현재 config 스냅샷(락 짧게)
+            // config 스냅샷
             ST_C10_E10Config_t v_cfg;
             memset(&v_cfg, 0, sizeof(v_cfg));
+
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
                 v_cfg = v_m->_rtCfg;
                 xSemaphoreGive(v_m->_mutex);
             } else {
-                // 락 실패 시에도 이전 값 대신 최소 디폴트로 동작
+                // 최소 안전값
                 v_cfg.dpi_level = 2;
+                v_cfg.hard_click_lock = true;
                 v_cfg.scale_base[0] = 0.55f; v_cfg.scale_base[1] = 0.75f; v_cfg.scale_base[2] = 1.0f;
                 v_cfg.accel_gain[0] = 0.35f; v_cfg.accel_gain[1] = 0.55f; v_cfg.accel_gain[2] = 0.85f;
                 v_cfg.accel_threshold = 8.0f;
@@ -358,10 +370,8 @@ class CL_E10_EliteAirMouse {
             } else {
                 if (v_btnDownMs > 0) {
                     const unsigned long v_hold = millis() - v_btnDownMs;
-                    if (v_hold > 1000)
-                        v_m->togglePptMode();
-                    else
-                        v_m->cycleDpi();
+                    if (v_hold > 1000) v_m->togglePptMode();
+                    else v_m->cycleDpi();
                     v_btnDownMs = 0;
                 }
             }
@@ -371,12 +381,9 @@ class CL_E10_EliteAirMouse {
             float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
             float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
 
-            // 엔진 orientation 업데이트
             v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
 
             int v_tx = 0, v_ty = 0;
-
-            // rawX=gyro.z, rawY=gyro.x
             v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
 
             // PPT 제스처(스크롤 중 차단)
@@ -396,17 +403,17 @@ class CL_E10_EliteAirMouse {
             float v_accg = v_cfg.accel_gain[v_i];
 
             const float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
-            float       v_acc = 1.0f;
+            float v_acc = 1.0f;
 
             if (v_mag > v_cfg.accel_threshold) {
                 const float v_ex = (v_mag - v_cfg.accel_threshold);
-                v_acc            = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
+                v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
             }
 
             float v_fx = (float)v_tx * v_base * v_acc;
             float v_fy = (float)v_ty * v_base * v_acc;
 
-            // 스크롤 모드(BTN_SCROLL)
+            // 스크롤 모드
             int v_wheel = 0;
             if (v_scrollMode) {
                 if (v_gy > v_cfg.wheel_threshold_deg) {
@@ -435,13 +442,11 @@ class CL_E10_EliteAirMouse {
 
             // 버튼 상태 즉시 반영
             if (v_m->_hid.isConnected()) {
-                if (v_leftClick)
-                    v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
-                else
-                    v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
+                if (v_leftClick) v_m->_mouse.mousePress(G_E10_MOUSE_BTN_LEFT);
+                else v_m->_mouse.mouseRelease(G_E10_MOUSE_BTN_LEFT);
             }
 
-            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8)); // 125Hz
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
         }
     }
 
@@ -464,4 +469,3 @@ class CL_E10_EliteAirMouse {
         }
     }
 };
-

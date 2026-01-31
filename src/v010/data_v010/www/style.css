@@ -1,0 +1,112 @@
+/* ======================================================
+File: data/www/style.css
+====================================================== */
+
+:root {
+  --bg: #0b0e14;
+  --card: #121826;
+  --fg: #e8eefc;
+  --muted: #9fb0d0;
+  --line: #24314d;
+  --accent: #6ea8ff;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.top {
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.top h1 { margin: 0 0 6px; font-size: 18px; }
+.sub { margin: 0; color: var(--muted); font-size: 12px; }
+
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.card h2 { margin: 0 0 12px; font-size: 15px; }
+.subcard {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+.subcard h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+
+.row {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(36, 49, 77, 0.35);
+}
+.row:last-child { border-bottom: 0; }
+
+label { color: var(--muted); font-size: 13px; }
+input, select {
+  width: 100%;
+  padding: 10px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #0f1420;
+  color: var(--fg);
+}
+
+.inline { display: flex; gap: 10px; align-items: center; }
+.hint { color: var(--muted); font-size: 12px; }
+
+.grid3 {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.actions { display: flex; gap: 10px; }
+.btn {
+  border: 1px solid var(--line);
+  background: #0f1420;
+  color: var(--fg);
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.btn.primary {
+  border-color: rgba(110,168,255,0.55);
+  background: rgba(110,168,255,0.12);
+}
+
+.status {
+  margin: 12px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #0a0f1a;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  overflow: auto;
+  max-height: 260px;
+  font-size: 12px;
+}
+
+.footnote {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+code { color: var(--accent); }
