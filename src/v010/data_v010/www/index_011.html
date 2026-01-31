@@ -1,0 +1,101 @@
+<!-- ======================================================
+File: data/www/index_011.html
+(HTML/JS/CSS 분리, JS는 /www/app.js, CSS는 /www/style.css)
+====================================================== -->
+
+
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EliteAirMouse Config</title>
+  <link rel="stylesheet" href="/www/style_011.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>EliteAirMouse Config</h1>
+
+    <section class="card">
+      <h2>저장/상태</h2>
+      <div class="actions">
+        <button id="btn_load" class="btn">불러오기</button>
+        <button id="btn_save" class="btn primary">저장</button>
+        <button id="btn_reset" class="btn danger">기본값</button>
+        <button id="btn_reboot" class="btn">재부팅</button>
+      </div>
+      <pre id="status" class="status">Ready.</pre>
+    </section>
+
+    <section class="card">
+      <h2>E10 기본</h2>
+      <div class="grid2">
+        <label>DPI Level
+          <select id="dpi_level">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <input id="hard_click_lock" type="checkbox" />
+          Hard Click-Lock (완전고정)
+        </label>
+
+        <label>Accel Threshold <input id="accel_threshold" type="number" step="0.1"></label>
+        <label>Scroll Cursor Damp <input id="scroll_cursor_damp" type="number" step="0.01" min="0" max="1"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>PPT Key Mapping (HID Code 숫자)</h2>
+
+      <div class="hint">
+        mod/key는 <b>KeyboardHIDCodes.h</b>의 숫자 값입니다. (예: LEFTCTRL=224, LEFTSHIFT=225, ESC=41, F5=62, PAGEUP=75, PAGEDOWN=78, B=5, L=15)
+      </div>
+
+      <div class="gridPpt">
+        <div class="hdr">Command</div><div class="hdr">MOD</div><div class="hdr">KEY</div><div class="hdr">Preset</div>
+
+        <div>START</div>
+        <input id="ppt_start_mod" type="number" min="0" max="255">
+        <input id="ppt_start_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_start_preset">Shift+F5</button>
+
+        <div>EXIT</div>
+        <input id="ppt_exit_mod" type="number" min="0" max="255">
+        <input id="ppt_exit_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_exit_preset">Esc</button>
+
+        <div>NEXT</div>
+        <input id="ppt_next_mod" type="number" min="0" max="255">
+        <input id="ppt_next_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_next_preset">PageDown</button>
+
+        <div>PREV</div>
+        <input id="ppt_prev_mod" type="number" min="0" max="255">
+        <input id="ppt_prev_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_prev_preset">PageUp</button>
+
+        <div>BLACK</div>
+        <input id="ppt_black_mod" type="number" min="0" max="255">
+        <input id="ppt_black_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_black_preset">B</button>
+
+        <div>LASER</div>
+        <input id="ppt_laser_mod" type="number" min="0" max="255">
+        <input id="ppt_laser_key" type="number" min="0" max="255">
+        <button class="btn" id="ppt_laser_preset">Ctrl+L</button>
+      </div>
+
+      <div class="hint">
+        key=0 으로 저장하면 해당 커맨드는 “비활성(전송 안함)” 처리됩니다.
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/www/app_011.js"></script>
+</body>
+</html>
