@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse S3 - Web Config</title>
+  <link rel="stylesheet" href="/www/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>Elite AirMouse S3 설정 (v0.1.7)</h1>
+
+    <section class="card">
+      <h2>상태</h2>
+      <div class="status-grid">
+        <div class="kv"><div class="k">WiFi</div><div class="v" id="st_wifi">-</div></div>
+        <div class="kv"><div class="k">IP</div><div class="v" id="st_ip">-</div></div>
+        <div class="kv"><div class="k">mDNS</div><div class="v" id="st_mdns">-</div></div>
+        <div class="kv"><div class="k">BLE</div><div class="v" id="st_ble">-</div></div>
+        <div class="kv"><div class="k">Uptime</div><div class="v" id="st_uptime">-</div></div>
+        <div class="kv"><div class="k">Heap</div><div class="v" id="st_heap">-</div></div>
+
+        <div class="kv"><div class="k">DPI</div><div class="v" id="st_dpi">-</div></div>
+        <div class="kv"><div class="k">PPT Mode</div><div class="v" id="st_ppt">-</div></div>
+
+        <div class="kv"><div class="k">Gyro Bias</div><div class="v" id="st_bias">-</div></div>
+        <div class="kv"><div class="k">Temp</div><div class="v" id="st_temp">-</div></div>
+        <div class="kv"><div class="k">Sampling</div><div class="v" id="st_sampling">-</div></div>
+        <div class="kv"><div class="k">Err</div><div class="v" id="st_err">-</div></div>
+      </div>
+
+      <div class="btns">
+        <button id="btn_ppt_toggle">PPT 모드 토글</button>
+        <button id="btn_dpi_1">DPI 1</button>
+        <button id="btn_dpi_2">DPI 2</button>
+        <button id="btn_dpi_3">DPI 3</button>
+      </div>
+      <p class="hint">※ WiFi 설정 변경은 저장 후 “재부팅”이 필요합니다.</p>
+    </section>
+
+    <section class="card">
+      <h2>WiFi</h2>
+      <div class="row">
+        <label>Mode</label>
+        <select id="wifi_mode">
+          <option value="0">AUTO (STA 시도 → 실패 시 AP)</option>
+          <option value="1">AP Only</option>
+          <option value="2">STA Only</option>
+        </select>
+      </div>
+
+      <h3>STA</h3>
+      <div class="row"><label>SSID</label><input id="sta_ssid" /></div>
+      <div class="row"><label>PASS</label><input id="sta_pass" type="password" /></div>
+
+      <h3>AP</h3>
+      <div class="row"><label>SSID</label><input id="ap_ssid" /></div>
+      <div class="row"><label>PASS</label><input id="ap_pass" type="password" /></div>
+
+      <h3>mDNS</h3>
+      <div class="row"><label>Host</label><input id="mdns_host" placeholder="elite-airmouse" /></div>
+    </section>
+
+    <section class="card">
+      <h2>에어마우스</h2>
+      <div class="row">
+        <label>DPI Level (기본)</label>
+        <select id="dpi_level">
+          <option value="1">1 (Low)</option>
+          <option value="2">2 (Mid)</option>
+          <option value="3">3 (High)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Hard Click-Lock</label>
+        <label class="chk">
+          <input type="checkbox" id="hard_click_lock" />
+          <span>클릭 후 150ms 완전 고정(outX/outY=0)</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>키코드 검색</h2>
+      <div class="row">
+        <label>Filter</label>
+        <input id="key_filter" placeholder="예: page, f5, esc, a..." />
+      </div>
+      <div class="row">
+        <label>Keys (preview)</label>
+        <div class="mono" id="key_preview">-</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>PPT 키 매핑</h2>
+      <p class="hint">HID Usage ID 기반 리스트입니다. 검색창으로 빠르게 찾으세요.</p>
+
+      <div class="grid">
+        <div class="krow"><div class="kname">START</div><div class="kctrl"><select class="mod" data-key="start"></select><select class="key" data-key="start"></select></div></div>
+        <div class="krow"><div class="kname">EXIT</div><div class="kctrl"><select class="mod" data-key="exit"></select><select class="key" data-key="exit"></select></div></div>
+        <div class="krow"><div class="kname">NEXT</div><div class="kctrl"><select class="mod" data-key="next"></select><select class="key" data-key="next"></select></div></div>
+        <div class="krow"><div class="kname">PREV</div><div class="kctrl"><select class="mod" data-key="prev"></select><select class="key" data-key="prev"></select></div></div>
+        <div class="krow"><div class="kname">BLACK</div><div class="kctrl"><select class="mod" data-key="black"></select><select class="key" data-key="black"></select></div></div>
+        <div class="krow"><div class="kname">LASER</div><div class="kctrl"><select class="mod" data-key="laser"></select><select class="key" data-key="laser"></select></div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>동작</h2>
+      <div class="btns">
+        <button id="btn_reload">불러오기</button>
+        <button id="btn_save" class="primary">저장 + 적용</button>
+        <button id="btn_reset">기본값 복원</button>
+        <button id="btn_reboot">재부팅</button>
+      </div>
+      <pre id="log" class="log"></pre>
+    </section>
+  </div>
+
+  <script src="/www/app.js"></script>
+</body>
+</html>
