@@ -59,7 +59,7 @@ class CL_W10_WebConfig {
     AsyncWebServer _svr;
 
     CL_C10_Config* _cfg = nullptr;
-    T_W10_ApplyFn  _applyFn = nullptr;
+    T_E10_ApplyFn  _applyFn = nullptr;
     void*          _applyCtx = nullptr; // E10 instance
 
     ST_C10_WiFiConfig_t _wifi;
@@ -136,7 +136,7 @@ class CL_W10_WebConfig {
         memset(&_e10,  0, sizeof(_e10));
     }
 
-    void begin(CL_C10_Config* p_cfg, T_W10_ApplyFn p_applyFn, void* p_applyCtx) {
+    void begin(CL_C10_Config* p_cfg, T_E10_ApplyFn p_applyFn, void* p_applyCtx) {
         _cfg = p_cfg;
         _applyFn = p_applyFn;
         _applyCtx = p_applyCtx;
