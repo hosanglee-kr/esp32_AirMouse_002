@@ -108,9 +108,9 @@ class CL_W10_WebConfig {
 
     // ✅ 파일명 반영: index_011.html / style_011.css / app_011.js
     static constexpr ST_W10_StaticRoute_t G_W10_STATIC_ROUTES[] = {
-        { "/",             "/www/index_011.html",  "text/html",              G_W10_CACHE_DEV, G_W10_CACHE_DEV }, // html은 보통 no-store 유지 추천
-        { "/www/app.js",   "/www/app_011.js",      "application/javascript", G_W10_CACHE_DEV, G_W10_CACHE_REL },
-        { "/www/style.css","/www/style_011.css",   "text/css",               G_W10_CACHE_DEV, G_W10_CACHE_REL },
+        { "/",             "/www/index_015.html",  "text/html",              G_W10_CACHE_DEV, G_W10_CACHE_DEV }, // html은 보통 no-store 유지 추천
+        { "/www/app.js",   "/www/app_015.js",      "application/javascript", G_W10_CACHE_DEV, G_W10_CACHE_REL },
+        { "/www/style.css","/www/style_015.css",   "text/css",               G_W10_CACHE_DEV, G_W10_CACHE_REL },
     };
 
     // ======================================================
