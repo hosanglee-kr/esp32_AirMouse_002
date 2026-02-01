@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Elite AirMouse S3</title>
+  <link rel="stylesheet" href="/www/style_020.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="title">Elite AirMouse S3</div>
+      <div class="sub">Web Config & Live Control</div>
+    </div>
+    <div class="pill" id="pillConn">BLE: -</div>
+    <div class="pill" id="pillNet">NET: -</div>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="kv">
+        <div>IP</div><div id="stIp">-</div>
+        <div>mDNS</div><div id="stMdns">-</div>
+        <div>Uptime</div><div id="stUp">-</div>
+        <div>Heap</div><div id="stHeap">-</div>
+        <div>RSSI</div><div id="stRssi">-</div>
+        <div>Temp</div><div id="stTemp">-</div>
+        <div>DT(avg)</div><div id="stDt">-</div>
+        <div>Reconnect</div><div id="stRe">-</div>
+        <div>Degraded</div><div id="stDe">-</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnReboot">Reboot</button>
+        <button class="btn danger" id="btnReset">Factory Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Live Control</h2>
+      <div class="row">
+        <button class="btn" id="btnPpt">PPT Toggle</button>
+        <button class="btn" id="btnDpi1">DPI 1</button>
+        <button class="btn" id="btnDpi2">DPI 2</button>
+        <button class="btn" id="btnDpi3">DPI 3</button>
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="chkHard"/> Hard Click-Lock</label>
+      </div>
+
+      <h3>Tuning (즉시 적용)</h3>
+      <div class="form">
+        <label>Accel Threshold <span id="vAccelTh"></span></label>
+        <input type="range" id="rngAccelTh" min="1" max="30" step="0.1"/>
+
+        <label>Scroll Cursor Damp <span id="vDamp"></span></label>
+        <input type="range" id="rngDamp" min="0.05" max="1.0" step="0.01"/>
+
+        <label>Zero Snap Th <span id="vSnap"></span></label>
+        <input type="range" id="rngSnap" min="0" max="3" step="0.05"/>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btnApplyTuning">Apply Tuning</button>
+        <button class="btn" id="btnSaveAll">Save Config</button>
+      </div>
+      <div class="note" id="noteSave">-</div>
+    </section>
+
+    <section class="card span2">
+      <h2>Keycodes (HID Usage ID) + Search</h2>
+      <div class="row">
+        <input class="inp" id="qKey" placeholder="Search key name... (ex: page, f5, esc)"/>
+        <select class="sel" id="selMod"></select>
+      </div>
+      <div class="list" id="listKeys"></div>
+      <div class="note">
+        mods(mask)는 E10에서 modifierKeyPress(mask)로 그대로 전송됩니다.
+      </div>
+    </section>
+  </main>
+
+  <script src="/www/app_020.js"></script>
+</body>
+</html>

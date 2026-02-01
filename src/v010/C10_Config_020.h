@@ -1,0 +1,485 @@
+#pragma once
+/*
+ * ------------------------------------------------------
+ * 소스명 : C10_Config_020.h
+ * 모듈약어 : C10
+ * 모듈명 : Config Manager (LittleFS JSON, WiFi+E10)
+ * ------------------------------------------------------
+ * 기능 요약
+ *  - LittleFS 기반 config.json 로드/저장/기본값 생성
+ *  - WiFi(AP/STA/AUTO + mDNS host) 설정 관리
+ *  - E10(에어마우스) 튜닝 파라미터/키맵 저장 관리
+ *  - Web(UI)에서 patch 적용을 위한 patchFromJson 지원
+ * ------------------------------------------------------
+ * [구현 규칙]
+ *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
+ *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
+ *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - JsonDocument 단일 타입만 사용
+ *  - createNestedArray/Object/containsKey 사용 금지
+ *  - memset + strlcpy 기반 안전 초기화
+ *  - 주석/필드명은 JSON 구조와 동일하게 유지
+ *  - 변수명은 가능한 해석 가능하게
+ * ------------------------------------------------------
+ * [코드 네이밍 규칙]
+ *   - namespace 명        : 모듈약어_ 접두사
+ *   - namespace 내 상수    : 모둘약어 접두시 미사용
+ *   - 전역 상수,매크로      : G_모듈약어_ 접두사
+ *   - 전역 변수             : g_모듈약어_ 접두사
+ *   - 전역 함수             : 모듈약어_ 접두사
+ *   - type                  : T_모듈약어_ 접두사
+ *   - typedef               : _t  접미사
+ *   - enum 상수             : EN_모듈약어_ 접두사
+ *   - 구조체                : ST_모듈약어_ 접두사
+ *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
+ *   - 클래스 private 멤버   : _ 접두사
+ *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
+ *   - 클래스 정적 멤버      : s_ 접두사
+ *   - 함수 로컬 변수        : v_ 접두사
+ *   - 함수 인자             : p_ 접두사
+ * ------------------------------------------------------
+ */
+
+#include <Arduino.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
+
+// -----------------------------
+// 버전
+// -----------------------------
+static constexpr uint16_t C10_CFG_VER = 20;
+
+// -----------------------------
+// WiFi mode
+// -----------------------------
+enum EN_C10_WiFiMode : uint8_t {
+    EN_C10_WIFI_AUTO = 0,
+    EN_C10_WIFI_AP   = 1,
+    EN_C10_WIFI_STA  = 2
+};
+
+// -----------------------------
+// PPT Key (UI mods mask + HID usage)
+// - mod: HID modifier bitfield (0x01 LCtrl ...)
+// - key: HID usage id (Keyboard/Keypad page 0x07)
+// -----------------------------
+struct ST_C10_PptKey_t {
+    uint8_t mod;
+    uint8_t key;
+};
+
+// -----------------------------
+// WiFi config
+// -----------------------------
+struct ST_C10_WiFiConfig_t {
+    uint8_t mode;
+
+    char ap_ssid[33];
+    char ap_pass[65];
+
+    char sta_ssid[33];
+    char sta_pass[65];
+
+    char mdns_host[33];
+};
+
+// -----------------------------
+// E10 config
+// -----------------------------
+struct ST_C10_E10Config_t {
+    uint8_t dpi_level;
+    bool    hard_click_lock;
+
+    float scale_base[3];
+    float accel_gain[3];
+    float accel_threshold;
+
+    float wheel_threshold_deg;
+    uint8_t wheel_step_max;
+
+    float gesture_flick_deg;
+    uint16_t gesture_cooldown_ms;
+
+    float scroll_cursor_damp;
+
+    // drift / idle tuning
+    float idle_gyro_th_deg;     // 정지 판정 gyro 임계
+    uint16_t idle_hold_ms;      // 정지 유지 시간
+    float bias_track_alpha;     // 정지 시 bias EMA alpha
+    float zero_snap_th;         // 커서 제로 스냅 임계(픽셀)
+
+    // ppt keys
+    ST_C10_PptKey_t ppt_start;
+    ST_C10_PptKey_t ppt_exit;
+    ST_C10_PptKey_t ppt_next;
+    ST_C10_PptKey_t ppt_prev;
+    ST_C10_PptKey_t ppt_black;
+    ST_C10_PptKey_t ppt_laser;
+};
+
+class CL_C10_Config {
+  private:
+    static constexpr const char* s_cfgPath = "/json/config.json";
+
+    bool _mounted = false;
+
+    bool readFile(String& p_out) {
+        File v_f = LittleFS.open(s_cfgPath, "r");
+        if (!v_f) return false;
+
+        p_out.reserve((size_t)v_f.size() + 8);
+        while (v_f.available()) {
+            p_out += (char)v_f.read();
+        }
+        v_f.close();
+        return true;
+    }
+
+    bool writeFile(const String& p_in) {
+        File v_f = LittleFS.open(s_cfgPath, "w");
+        if (!v_f) return false;
+        v_f.print(p_in);
+        v_f.close();
+        return true;
+    }
+
+  public:
+    CL_C10_Config() {}
+
+    void begin(bool p_formatOnFail) {
+        _mounted = LittleFS.begin(p_formatOnFail);
+        if (!_mounted) {
+            Serial.println("[C10] LittleFS mount failed");
+            return;
+        }
+        // ensure dirs exist (LittleFS는 directory 없이도 경로 생성이 되는 경우가 많지만, 파일만 보장)
+        (void)LittleFS.open(s_cfgPath, "a").close();
+    }
+
+    void makeDefaultsWiFi(ST_C10_WiFiConfig_t& p_out) {
+        memset(&p_out, 0, sizeof(p_out));
+        p_out.mode = (uint8_t)EN_C10_WIFI_AUTO;
+
+        strlcpy(p_out.ap_ssid, "EliteAirMouseS3", sizeof(p_out.ap_ssid));
+        strlcpy(p_out.ap_pass, "12345678", sizeof(p_out.ap_pass));
+
+        // sta는 기본 비움(자동 AP fallback)
+        p_out.sta_ssid[0] = '\0';
+        p_out.sta_pass[0] = '\0';
+
+        strlcpy(p_out.mdns_host, "elite-airmouse", sizeof(p_out.mdns_host));
+    }
+
+    void makeDefaultsE10(ST_C10_E10Config_t& p_out) {
+        memset(&p_out, 0, sizeof(p_out));
+
+        p_out.dpi_level = 2;
+        p_out.hard_click_lock = true;
+
+        p_out.scale_base[0] = 0.55f;
+        p_out.scale_base[1] = 0.75f;
+        p_out.scale_base[2] = 1.00f;
+
+        p_out.accel_gain[0] = 0.35f;
+        p_out.accel_gain[1] = 0.55f;
+        p_out.accel_gain[2] = 0.85f;
+
+        p_out.accel_threshold = 8.0f;
+
+        p_out.wheel_threshold_deg = 90.0f;
+        p_out.wheel_step_max = 6;
+
+        p_out.gesture_flick_deg = 200.0f;
+        p_out.gesture_cooldown_ms = 600;
+
+        p_out.scroll_cursor_damp = 0.25f;
+
+        // drift/idle
+        p_out.idle_gyro_th_deg = 2.0f;
+        p_out.idle_hold_ms = 1200;
+        p_out.bias_track_alpha = 0.008f;
+        p_out.zero_snap_th = 0.6f;
+
+        // default keymap (usage + modifier mask)
+        // Shift+F5
+        p_out.ppt_start.mod = 0x02; p_out.ppt_start.key = 0x3E; // LShift + F5
+        // Esc
+        p_out.ppt_exit.mod  = 0x00; p_out.ppt_exit.key  = 0x29;
+        // PageDown
+        p_out.ppt_next.mod  = 0x00; p_out.ppt_next.key  = 0x4E;
+        // PageUp
+        p_out.ppt_prev.mod  = 0x00; p_out.ppt_prev.key  = 0x4B;
+        // B
+        p_out.ppt_black.mod = 0x00; p_out.ppt_black.key = 0x05;
+        // Ctrl+L
+        p_out.ppt_laser.mod = 0x01; p_out.ppt_laser.key = 0x0F;
+    }
+
+    bool loadAll(ST_C10_WiFiConfig_t& p_wifi, ST_C10_E10Config_t& p_e10) {
+        makeDefaultsWiFi(p_wifi);
+        makeDefaultsE10(p_e10);
+
+        String v_json;
+        if (!readFile(v_json)) return false;
+
+        JsonDocument v_doc;
+        DeserializationError v_err = deserializeJson(v_doc, v_json);
+        if (v_err) return false;
+
+        // wifi
+        if (!v_doc["wifi"].isNull()) {
+            JsonVariant v_w = v_doc["wifi"];
+            if (!v_w["mode"].isNull()) p_wifi.mode = (uint8_t)v_w["mode"];
+
+            if (!v_w["ap"].isNull()) {
+                JsonVariant v_ap = v_w["ap"];
+                if (!v_ap["ssid"].isNull()) strlcpy(p_wifi.ap_ssid, (const char*)v_ap["ssid"], sizeof(p_wifi.ap_ssid));
+                if (!v_ap["pass"].isNull()) strlcpy(p_wifi.ap_pass, (const char*)v_ap["pass"], sizeof(p_wifi.ap_pass));
+            }
+            if (!v_w["sta"].isNull()) {
+                JsonVariant v_sta = v_w["sta"];
+                if (!v_sta["ssid"].isNull()) strlcpy(p_wifi.sta_ssid, (const char*)v_sta["ssid"], sizeof(p_wifi.sta_ssid));
+                if (!v_sta["pass"].isNull()) strlcpy(p_wifi.sta_pass, (const char*)v_sta["pass"], sizeof(p_wifi.sta_pass));
+            }
+            if (!v_w["mdns"].isNull()) {
+                JsonVariant v_md = v_w["mdns"];
+                if (!v_md["host"].isNull()) strlcpy(p_wifi.mdns_host, (const char*)v_md["host"], sizeof(p_wifi.mdns_host));
+            }
+        }
+
+        // e10
+        if (!v_doc["e10"].isNull()) {
+            JsonVariant v_e = v_doc["e10"];
+            if (!v_e["dpi_level"].isNull()) p_e10.dpi_level = (uint8_t)v_e["dpi_level"];
+            if (!v_e["hard_click_lock"].isNull()) p_e10.hard_click_lock = (bool)v_e["hard_click_lock"];
+
+            if (!v_e["scale_base"].isNull() && v_e["scale_base"].is<JsonArray>()) {
+                JsonArray a = v_e["scale_base"].as<JsonArray>();
+                uint8_t i = 0;
+                for (JsonVariant x : a) { if (i < 3) p_e10.scale_base[i++] = (float)x; }
+            }
+
+            if (!v_e["accel_gain"].isNull() && v_e["accel_gain"].is<JsonArray>()) {
+                JsonArray a = v_e["accel_gain"].as<JsonArray>();
+                uint8_t i = 0;
+                for (JsonVariant x : a) { if (i < 3) p_e10.accel_gain[i++] = (float)x; }
+            }
+
+            if (!v_e["accel_threshold"].isNull()) p_e10.accel_threshold = (float)v_e["accel_threshold"];
+
+            if (!v_e["wheel"].isNull()) {
+                JsonVariant v_w = v_e["wheel"];
+                if (!v_w["threshold_deg"].isNull()) p_e10.wheel_threshold_deg = (float)v_w["threshold_deg"];
+                if (!v_w["step_max"].isNull()) p_e10.wheel_step_max = (uint8_t)v_w["step_max"];
+            }
+
+            if (!v_e["gesture"].isNull()) {
+                JsonVariant v_g = v_e["gesture"];
+                if (!v_g["flick_deg"].isNull()) p_e10.gesture_flick_deg = (float)v_g["flick_deg"];
+                if (!v_g["cooldown_ms"].isNull()) p_e10.gesture_cooldown_ms = (uint16_t)v_g["cooldown_ms"];
+            }
+
+            if (!v_e["scroll_cursor_damp"].isNull()) p_e10.scroll_cursor_damp = (float)v_e["scroll_cursor_damp"];
+
+            if (!v_e["drift"].isNull()) {
+                JsonVariant v_d = v_e["drift"];
+                if (!v_d["idle_gyro_th_deg"].isNull()) p_e10.idle_gyro_th_deg = (float)v_d["idle_gyro_th_deg"];
+                if (!v_d["idle_hold_ms"].isNull()) p_e10.idle_hold_ms = (uint16_t)v_d["idle_hold_ms"];
+                if (!v_d["bias_track_alpha"].isNull()) p_e10.bias_track_alpha = (float)v_d["bias_track_alpha"];
+                if (!v_d["zero_snap_th"].isNull()) p_e10.zero_snap_th = (float)v_d["zero_snap_th"];
+            }
+
+            if (!v_e["ppt_keys"].isNull()) {
+                JsonVariant v_pk = v_e["ppt_keys"];
+                auto rd = [&](const char* n, ST_C10_PptKey_t& k) {
+                    if (v_pk[n].isNull()) return;
+                    JsonVariant o = v_pk[n];
+                    if (!o["mod"].isNull()) k.mod = (uint8_t)o["mod"];
+                    if (!o["key"].isNull()) k.key = (uint8_t)o["key"];
+                };
+                rd("start", p_e10.ppt_start);
+                rd("exit",  p_e10.ppt_exit);
+                rd("next",  p_e10.ppt_next);
+                rd("prev",  p_e10.ppt_prev);
+                rd("black", p_e10.ppt_black);
+                rd("laser", p_e10.ppt_laser);
+            }
+        }
+
+        // sanitize
+        if (p_e10.dpi_level < 1) p_e10.dpi_level = 1;
+        if (p_e10.dpi_level > 3) p_e10.dpi_level = 3;
+        if (p_e10.wheel_step_max < 1) p_e10.wheel_step_max = 1;
+        if (p_e10.wheel_step_max > 32) p_e10.wheel_step_max = 32;
+
+        return true;
+    }
+
+    bool saveAll(const ST_C10_WiFiConfig_t& p_wifi, const ST_C10_E10Config_t& p_e10) {
+        JsonDocument v_doc;
+        v_doc["ver"] = (uint16_t)C10_CFG_VER;
+
+        // wifi
+        JsonObject w = v_doc["wifi"].to<JsonObject>();
+        w["mode"] = p_wifi.mode;
+
+        JsonObject w_sta = w["sta"].to<JsonObject>();
+        w_sta["ssid"] = p_wifi.sta_ssid;
+        w_sta["pass"] = p_wifi.sta_pass;
+
+        JsonObject w_ap = w["ap"].to<JsonObject>();
+        w_ap["ssid"] = p_wifi.ap_ssid;
+        w_ap["pass"] = p_wifi.ap_pass;
+
+        JsonObject w_md = w["mdns"].to<JsonObject>();
+        w_md["host"] = p_wifi.mdns_host;
+
+        // e10
+        JsonObject e = v_doc["e10"].to<JsonObject>();
+        e["dpi_level"] = p_e10.dpi_level;
+        e["hard_click_lock"] = p_e10.hard_click_lock;
+
+        JsonArray sb = e["scale_base"].to<JsonArray>();
+        sb.add(p_e10.scale_base[0]); sb.add(p_e10.scale_base[1]); sb.add(p_e10.scale_base[2]);
+
+        JsonArray ag = e["accel_gain"].to<JsonArray>();
+        ag.add(p_e10.accel_gain[0]); ag.add(p_e10.accel_gain[1]); ag.add(p_e10.accel_gain[2]);
+
+        e["accel_threshold"] = p_e10.accel_threshold;
+
+        JsonObject wh = e["wheel"].to<JsonObject>();
+        wh["threshold_deg"] = p_e10.wheel_threshold_deg;
+        wh["step_max"] = p_e10.wheel_step_max;
+
+        JsonObject g = e["gesture"].to<JsonObject>();
+        g["flick_deg"] = p_e10.gesture_flick_deg;
+        g["cooldown_ms"] = p_e10.gesture_cooldown_ms;
+
+        e["scroll_cursor_damp"] = p_e10.scroll_cursor_damp;
+
+        JsonObject d = e["drift"].to<JsonObject>();
+        d["idle_gyro_th_deg"] = p_e10.idle_gyro_th_deg;
+        d["idle_hold_ms"] = p_e10.idle_hold_ms;
+        d["bias_track_alpha"] = p_e10.bias_track_alpha;
+        d["zero_snap_th"] = p_e10.zero_snap_th;
+
+        JsonObject pk = e["ppt_keys"].to<JsonObject>();
+        auto wr = [&](const char* n, const ST_C10_PptKey_t& k) {
+            JsonObject o = pk[n].to<JsonObject>();
+            o["mod"] = k.mod;
+            o["key"] = k.key;
+        };
+        wr("start", p_e10.ppt_start);
+        wr("exit",  p_e10.ppt_exit);
+        wr("next",  p_e10.ppt_next);
+        wr("prev",  p_e10.ppt_prev);
+        wr("black", p_e10.ppt_black);
+        wr("laser", p_e10.ppt_laser);
+
+        String v_out;
+        serializeJson(v_doc, v_out);
+        return writeFile(v_out);
+    }
+
+    // PATCH: body JSON 내 wifi/e10 키만 부분 적용
+    bool patchFromJsonWiFi(const String& p_json, ST_C10_WiFiConfig_t& p_io) {
+        JsonDocument v_doc;
+        DeserializationError v_err = deserializeJson(v_doc, p_json);
+        if (v_err) return false;
+
+        if (v_doc["wifi"].isNull()) return true;
+        JsonVariant v_w = v_doc["wifi"];
+
+        if (!v_w["mode"].isNull()) p_io.mode = (uint8_t)v_w["mode"];
+
+        if (!v_w["ap"].isNull()) {
+            JsonVariant v_ap = v_w["ap"];
+            if (!v_ap["ssid"].isNull()) strlcpy(p_io.ap_ssid, (const char*)v_ap["ssid"], sizeof(p_io.ap_ssid));
+            if (!v_ap["pass"].isNull()) strlcpy(p_io.ap_pass, (const char*)v_ap["pass"], sizeof(p_io.ap_pass));
+        }
+
+        if (!v_w["sta"].isNull()) {
+            JsonVariant v_sta = v_w["sta"];
+            if (!v_sta["ssid"].isNull()) strlcpy(p_io.sta_ssid, (const char*)v_sta["ssid"], sizeof(p_io.sta_ssid));
+            if (!v_sta["pass"].isNull()) strlcpy(p_io.sta_pass, (const char*)v_sta["pass"], sizeof(p_io.sta_pass));
+        }
+
+        if (!v_w["mdns"].isNull()) {
+            JsonVariant v_md = v_w["mdns"];
+            if (!v_md["host"].isNull()) strlcpy(p_io.mdns_host, (const char*)v_md["host"], sizeof(p_io.mdns_host));
+        }
+
+        return true;
+    }
+
+    bool patchFromJsonE10(const String& p_json, ST_C10_E10Config_t& p_io) {
+        JsonDocument v_doc;
+        DeserializationError v_err = deserializeJson(v_doc, p_json);
+        if (v_err) return false;
+
+        if (v_doc["e10"].isNull()) return true;
+        JsonVariant v_e = v_doc["e10"];
+
+        if (!v_e["dpi_level"].isNull()) p_io.dpi_level = (uint8_t)v_e["dpi_level"];
+        if (!v_e["hard_click_lock"].isNull()) p_io.hard_click_lock = (bool)v_e["hard_click_lock"];
+
+        if (!v_e["scale_base"].isNull() && v_e["scale_base"].is<JsonArray>()) {
+            JsonArray a = v_e["scale_base"].as<JsonArray>();
+            uint8_t i = 0; for (JsonVariant x : a) { if (i < 3) p_io.scale_base[i++] = (float)x; }
+        }
+
+        if (!v_e["accel_gain"].isNull() && v_e["accel_gain"].is<JsonArray>()) {
+            JsonArray a = v_e["accel_gain"].as<JsonArray>();
+            uint8_t i = 0; for (JsonVariant x : a) { if (i < 3) p_io.accel_gain[i++] = (float)x; }
+        }
+
+        if (!v_e["accel_threshold"].isNull()) p_io.accel_threshold = (float)v_e["accel_threshold"];
+
+        if (!v_e["wheel"].isNull()) {
+            JsonVariant v_w = v_e["wheel"];
+            if (!v_w["threshold_deg"].isNull()) p_io.wheel_threshold_deg = (float)v_w["threshold_deg"];
+            if (!v_w["step_max"].isNull()) p_io.wheel_step_max = (uint8_t)v_w["step_max"];
+        }
+
+        if (!v_e["gesture"].isNull()) {
+            JsonVariant v_g = v_e["gesture"];
+            if (!v_g["flick_deg"].isNull()) p_io.gesture_flick_deg = (float)v_g["flick_deg"];
+            if (!v_g["cooldown_ms"].isNull()) p_io.gesture_cooldown_ms = (uint16_t)v_g["cooldown_ms"];
+        }
+
+        if (!v_e["scroll_cursor_damp"].isNull()) p_io.scroll_cursor_damp = (float)v_e["scroll_cursor_damp"];
+
+        if (!v_e["drift"].isNull()) {
+            JsonVariant v_d = v_e["drift"];
+            if (!v_d["idle_gyro_th_deg"].isNull()) p_io.idle_gyro_th_deg = (float)v_d["idle_gyro_th_deg"];
+            if (!v_d["idle_hold_ms"].isNull()) p_io.idle_hold_ms = (uint16_t)v_d["idle_hold_ms"];
+            if (!v_d["bias_track_alpha"].isNull()) p_io.bias_track_alpha = (float)v_d["bias_track_alpha"];
+            if (!v_d["zero_snap_th"].isNull()) p_io.zero_snap_th = (float)v_d["zero_snap_th"];
+        }
+
+        if (!v_e["ppt_keys"].isNull()) {
+            JsonVariant v_pk = v_e["ppt_keys"];
+            auto rd = [&](const char* n, ST_C10_PptKey_t& k) {
+                if (v_pk[n].isNull()) return;
+                JsonVariant o = v_pk[n];
+                if (!o["mod"].isNull()) k.mod = (uint8_t)o["mod"];
+                if (!o["key"].isNull()) k.key = (uint8_t)o["key"];
+            };
+            rd("start", p_io.ppt_start);
+            rd("exit",  p_io.ppt_exit);
+            rd("next",  p_io.ppt_next);
+            rd("prev",  p_io.ppt_prev);
+            rd("black", p_io.ppt_black);
+            rd("laser", p_io.ppt_laser);
+        }
+
+        // sanitize
+        if (p_io.dpi_level < 1) p_io.dpi_level = 1;
+        if (p_io.dpi_level > 3) p_io.dpi_level = 3;
+        if (p_io.wheel_step_max < 1) p_io.wheel_step_max = 1;
+        if (p_io.wheel_step_max > 32) p_io.wheel_step_max = 32;
+
+        return true;
+    }
+};
