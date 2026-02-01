@@ -588,7 +588,7 @@ void CL_W10_WebConfig::_handleWifi(WiFiEvent_t p_event) {
     switch (p_event) {
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
             Serial.println("[W10] WiFi Connected (STA)");
-            if (_wifi.use_mdns && !_mdnsStarted) {
+            if (_wifi.mdns_host[0] && !_mdnsStarted) {
                 startMdnsIfPossible();
                 _mdnsStarted = true;
             }
