@@ -226,7 +226,7 @@ class CL_W10_WebConfig {
                       WiFi.localIP().toString().c_str());
         
         // mDNS 시작 (STA 연결된 경우에만)
-        if (_wifi.use_mdns && WiFi.status() == WL_CONNECTED) {
+        if (_wifi.mdns_host[0] && WiFi.status() == WL_CONNECTED) {
             if (!_mdnsStarted) {
                 if (MDNS.begin(_wifi.mdns_host)) {
                     _mdnsStarted = true;
@@ -605,7 +605,7 @@ void CL_W10_WebConfig::_handleWifi(WiFiEvent_t p_event) {
 
         case ARDUINO_EVENT_WIFI_AP_START:
             Serial.println("[W10] AP Mode Started");
-            if (_wifi.use_mdns && !_mdnsStarted) {
+            if (_wifi.mdns_host[0] && !_mdnsStarted) {
                 startMdnsIfPossible();
                 _mdnsStarted = true;
             }
