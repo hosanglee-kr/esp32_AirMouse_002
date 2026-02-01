@@ -64,7 +64,6 @@ class CL_W10_WebConfig {
 
     ST_C10_WiFiConfig_t _wifi;
     ST_C10_E10Config_t  _e10;
-    
 
     // ---------- Assets (gzip auto) ----------
     struct ST_W10_Asset_t {
@@ -75,23 +74,40 @@ class CL_W10_WebConfig {
         bool        cache_immutable;
     };
 
+    // [변경 #4] immutable 캐시는 "버전 URI"에만 적용 권장
+    // - HTML: no-store
+    // - CSS/JS: URI에 버전 포함 + immutable
     static constexpr ST_W10_Asset_t s_assets[] = {
-        { "/",            "/www/index_017.html", "/www/index_017.html.gz", "text/html", false },
-        { "/www/",        "/www/index_017.html", "/www/index_017.html.gz", "text/html", false },
-        { "/www/style.css","/www/style_017.css", "/www/style_017.css.gz",  "text/css", true  },
-        { "/www/app.js",  "/www/app_017.js",     "/www/app_017.js.gz",     "application/javascript", true  },
+        { "/",                 "/www/index_017.html", "/www/index_017.html.gz", "text/html", false },
+        { "/www/",             "/www/index_017.html", "/www/index_017.html.gz", "text/html", false },
+
+        // versioned URIs
+        { "/www/style_017.css","/www/style_017.css",  "/www/style_017.css.gz",  "text/css", true  },
+        { "/www/app_017.js",  "/www/app_017.js",      "/www/app_017.js.gz",     "application/javascript", true  },
     };
+
+    // [변경 #4] legacy 고정 URI가 남아있다면 versioned로 redirect(캐시/업데이트 안전)
+    static constexpr const char* G_W10_LEGACY_STYLE_URI = "/www/style.css";
+    static constexpr const char* G_W10_LEGACY_APP_URI   = "/www/app.js";
+    static constexpr const char* G_W10_STYLE_URI        = "/www/style_017.css";
+    static constexpr const char* G_W10_APP_URI          = "/www/app_017.js";
 
     // ---------- Key tables (HID Usage ID, Keyboard/Keypad page 0x07) ----------
     struct ST_W10_Key_t { const char* name; uint16_t usage; };
     struct ST_W10_Mod_t { const char* name; uint8_t mask; };
 
+    // [변경 #5] modifier는 "HID modifier bitfield" 의미로 정의(전송 정책은 E10에서 처리)
+    // - UI는 mask들을 OR 조합 가능(단일 선택 UI면 그대로 단일도 사용 가능)
     static constexpr ST_W10_Mod_t s_mods[] = {
-        { "None", 0x00 },
-        { "Ctrl", 0x01 },
-        { "Shift",0x02 },
-        { "Alt",  0x04 },
-        { "Meta", 0x08 },
+        { "None",   0x00 },
+        { "LCtrl",  0x01 },
+        { "LShift", 0x02 },
+        { "LAlt",   0x04 },
+        { "LMeta",  0x08 },
+        { "RCtrl",  0x10 },
+        { "RShift", 0x20 },
+        { "RAlt",   0x40 },
+        { "RMeta",  0x80 },
     };
 
     // HID usage IDs (0x07). 이 테이블이 “진짜 소스 오브 트루스”
@@ -130,17 +146,16 @@ class CL_W10_WebConfig {
         { "KP_Enter", 0x58 },{ "KP_1", 0x59 },{ "KP_2", 0x5A },{ "KP_3", 0x5B },{ "KP_4", 0x5C },{ "KP_5", 0x5D },
         { "KP_6", 0x5E },{ "KP_7", 0x5F },{ "KP_8", 0x60 },{ "KP_9", 0x61 },{ "KP_0", 0x62 },{ "KP_.", 0x63 },
     };
-    
+
     bool _mdnsStarted = false;
 
     // (1) 이벤트 핸들러용 정적 함수
     static void s_handleWifiEvent(WiFiEvent_t p_event, WiFiEventInfo_t p_info);
     // (2) 실제 로직을 처리할 인스턴스용 핸들러
     void _handleWifi(WiFiEvent_t p_event);
-    
+
     // 싱글톤 패턴처럼 인스턴스 포인터 보관 (이벤트 콜백용)
     static CL_W10_WebConfig* s_instance;
-    
 
   public:
     CL_W10_WebConfig() : _svr(80) {
@@ -153,7 +168,7 @@ class CL_W10_WebConfig {
         _cfg = p_cfg;
         _applyFn = p_applyFn;
         _applyCtx = p_applyCtx;
-        
+
         WiFi.onEvent(s_handleWifiEvent);
 
         // FS
@@ -162,16 +177,24 @@ class CL_W10_WebConfig {
         // load cfg
         (void)_cfg->loadAll(_wifi, _e10);
 
-        // (2) STA + mDNS (+ AP fallback on AUTO)
+        // STA/AP (mDNS는 WiFi 이벤트에서만 시작/종료)  [변경 #3]
         setupWiFi();
 
         // routes: assets
-        for (size_t i=0; i<sizeof(s_assets)/sizeof(s_assets[0]); i++) {
+        for (size_t i = 0; i < (sizeof(s_assets) / sizeof(s_assets[0])); i++) {
             const ST_W10_Asset_t& v_a = s_assets[i];
             _svr.on(v_a.uri, HTTP_GET, [this, v_a](AsyncWebServerRequest* p_req){
                 this->serveAsset(p_req, v_a);
             });
         }
+
+        // [변경 #4] legacy URI redirect
+        _svr.on(G_W10_LEGACY_STYLE_URI, HTTP_GET, [](AsyncWebServerRequest* p_req){
+            p_req->redirect(G_W10_STYLE_URI);
+        });
+        _svr.on(G_W10_LEGACY_APP_URI, HTTP_GET, [](AsyncWebServerRequest* p_req){
+            p_req->redirect(G_W10_APP_URI);
+        });
 
         // APIs
         _svr.on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* p_req){ this->apiGetConfig(p_req); });
@@ -185,8 +208,7 @@ class CL_W10_WebConfig {
         );
 
         _svr.on("/api/keycodes", HTTP_GET, [this](AsyncWebServerRequest* p_req){ this->apiKeycodes(p_req); });
-
-        _svr.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest* p_req){ this->apiStatus(p_req); });
+        _svr.on("/api/status",   HTTP_GET, [this](AsyncWebServerRequest* p_req){ this->apiStatus(p_req); });
 
         // (3) PPT/DPI 원격 제어
         _svr.on("/api/control", HTTP_POST,
@@ -224,28 +246,6 @@ class CL_W10_WebConfig {
         Serial.printf("[W10] WebConfig started. mode=%s, ip=%s\n",
                       WiFi.getMode() == WIFI_AP ? "AP" : "STA",
                       WiFi.localIP().toString().c_str());
-        
-        // mDNS 시작 (STA 연결된 경우에만)
-        if (_wifi.mdns_host[0] && WiFi.status() == WL_CONNECTED) {
-            if (!_mdnsStarted) {
-                if (MDNS.begin(_wifi.mdns_host)) {
-                    _mdnsStarted = true;
-        
-                    // 서비스 등록(원하는 경우)
-                    MDNS.addService("http", "tcp", 80);
-        
-                    Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
-                } else {
-                    Serial.println("[W10] mDNS begin failed");
-                }
-            }
-        }
-
-        /*
-        if (MDNS.isRunning()) {
-            Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
-        }*/
-    
     }
 
   private:
@@ -255,14 +255,13 @@ class CL_W10_WebConfig {
     void setupWiFi() {
         WiFi.mode(WIFI_MODE_NULL);
 
-        const bool v_hasSta = (_wifi.sta_ssid[0] != '\0');
-        const bool v_auto = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
-        const bool v_forceAp = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
+        const bool v_hasSta   = (_wifi.sta_ssid[0] != '\0');
+        const bool v_auto     = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
+        const bool v_forceAp  = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
         const bool v_forceSta = (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
 
         if (v_forceAp || (!v_hasSta && (v_auto || v_forceSta == false))) {
             startAp();
-            startMdnsIfPossible();
             return;
         }
 
@@ -278,20 +277,18 @@ class CL_W10_WebConfig {
         }
 
         if (v_ok) {
-            startMdnsIfPossible();
+            // mDNS는 이벤트(ARDUINO_EVENT_WIFI_STA_GOT_IP)에서 시작  [변경 #3]
             return;
         }
 
         // AUTO일 때만 AP fallback
         if (v_auto) {
             startAp();
-            startMdnsIfPossible();
             return;
         }
 
         // STA 강제인데 실패
         Serial.println("[W10] STA forced but connect failed.");
-        // 그래도 AP로 들어가고 싶으면 정책 변경(현재는 요구사항대로 STA 강제 유지)
     }
 
     void startAp() {
@@ -300,26 +297,47 @@ class CL_W10_WebConfig {
         Serial.printf("[W10] AP started: ssid=%s ip=%s\n", _wifi.ap_ssid, WiFi.softAPIP().toString().c_str());
     }
 
+    // [변경 #3] mDNS는 STA 연결 시에만 시작/종료(중복 호출/상태불일치 방지)
     void startMdnsIfPossible() {
         if (_wifi.mdns_host[0] == '\0') return;
-        if (WiFi.getMode() != WIFI_STA && WiFi.getMode() != WIFI_AP) return;
+        if (WiFi.getMode() != WIFI_STA) return;
+        if (WiFi.status() != WL_CONNECTED) return;
+
+        if (_mdnsStarted) return;
 
         if (!MDNS.begin(_wifi.mdns_host)) {
             Serial.println("[W10] mDNS begin failed");
+            _mdnsStarted = false;
             return;
         }
         MDNS.addService("http", "tcp", 80);
+        _mdnsStarted = true;
+
+        Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
+    }
+
+    void stopMdnsIfRunning() {
+        if (!_mdnsStarted) return;
+        MDNS.end();
+        _mdnsStarted = false;
+        Serial.println("[W10] mDNS stopped");
     }
 
     // -------------------------
     // Asset serving (gzip)
     // -------------------------
+    bool clientAcceptsGzip(AsyncWebServerRequest* p_req) {
+        if (!p_req->hasHeader("Accept-Encoding")) return false;
+        const String v_ae = p_req->header("Accept-Encoding");
+        return (v_ae.indexOf("gzip") >= 0);
+    }
+
     void serveAsset(AsyncWebServerRequest* p_req, const ST_W10_Asset_t& p_a) {
-        // gzip 우선: .gz 파일 존재 시 무조건 gzip으로 응답(브라우저는 대부분 gzip accept)
+        // [변경 #1] gzip은 Accept-Encoding: gzip 일 때만 사용
         bool v_useGz = false;
         const char* v_path = p_a.fs_path_plain;
 
-        if (p_a.fs_path_gz != nullptr && LittleFS.exists(p_a.fs_path_gz)) {
+        if (p_a.fs_path_gz != nullptr && LittleFS.exists(p_a.fs_path_gz) && clientAcceptsGzip(p_req)) {
             v_useGz = true;
             v_path = p_a.fs_path_gz;
         } else if (!LittleFS.exists(p_a.fs_path_plain)) {
@@ -348,6 +366,26 @@ class CL_W10_WebConfig {
         String v_out;
         serializeJson(p_doc, v_out);
         p_req->send(200, "application/json", v_out);
+    }
+
+    // [변경 #2] Async 업로드 바디: static String 제거(동시 요청 안전)
+    String* getOrCreateReqBody(AsyncWebServerRequest* p_req, size_t p_index) {
+        if (p_index == 0) {
+            // 새 요청 시작: 기존 tempObject 정리 후 새로 생성
+            if (p_req->_tempObject != nullptr) {
+                delete (String*)p_req->_tempObject;
+                p_req->_tempObject = nullptr;
+            }
+            p_req->_tempObject = new String();
+        }
+        return (String*)p_req->_tempObject;
+    }
+
+    void finalizeReqBody(AsyncWebServerRequest* p_req) {
+        if (p_req->_tempObject != nullptr) {
+            delete (String*)p_req->_tempObject;
+            p_req->_tempObject = nullptr;
+        }
     }
 
     // -------------------------
@@ -411,17 +449,20 @@ class CL_W10_WebConfig {
     // /api/config (POST) - body
     // -------------------------
     void apiPostConfig(AsyncWebServerRequest* p_req, uint8_t* p_data, size_t p_len, size_t p_index, size_t p_total) {
-        static String s_body;
-        if (p_index == 0) s_body = "";
-        for (size_t i=0; i<p_len; i++) s_body += (char)p_data[i];
+        String* v_body = getOrCreateReqBody(p_req, p_index);
+        if (v_body == nullptr) { p_req->send(500, "application/json", "{\"ok\":false}"); return; }
+
+        for (size_t i = 0; i < p_len; i++) (*v_body) += (char)p_data[i];
         if (p_index + p_len < p_total) return;
 
         // defaults + patch
         _cfg->makeDefaultsWiFi(_wifi);
         _cfg->makeDefaultsE10(_e10);
 
-        (void)_cfg->patchFromJsonWiFi(s_body, _wifi);
-        (void)_cfg->patchFromJsonE10(s_body, _e10);
+        (void)_cfg->patchFromJsonWiFi(*v_body, _wifi);
+        (void)_cfg->patchFromJsonE10(*v_body, _e10);
+
+        finalizeReqBody(p_req);
 
         bool v_ok = _cfg->saveAll(_wifi, _e10);
         bool v_applied = false;
@@ -458,7 +499,7 @@ class CL_W10_WebConfig {
     }
 
     // -------------------------
-    // /api/status  (C + (1))
+    // /api/status
     // -------------------------
     void apiStatus(AsyncWebServerRequest* p_req) {
         JsonDocument v_doc;
@@ -506,17 +547,20 @@ class CL_W10_WebConfig {
     }
 
     // -------------------------
-    // /api/control  (C + (3))
+    // /api/control
     // body: {"ppt_mode":true} or {"dpi_level":3} or both
     // -------------------------
     void apiControl(AsyncWebServerRequest* p_req, uint8_t* p_data, size_t p_len, size_t p_index, size_t p_total) {
-        static String s_body;
-        if (p_index == 0) s_body = "";
-        for (size_t i=0; i<p_len; i++) s_body += (char)p_data[i];
+        String* v_body = getOrCreateReqBody(p_req, p_index);
+        if (v_body == nullptr) { p_req->send(500, "application/json", "{\"ok\":false}"); return; }
+
+        for (size_t i=0; i<p_len; i++) (*v_body) += (char)p_data[i];
         if (p_index + p_len < p_total) return;
 
         JsonDocument v_doc;
-        DeserializationError v_err = deserializeJson(v_doc, s_body);
+        DeserializationError v_err = deserializeJson(v_doc, *v_body);
+        finalizeReqBody(p_req);
+
         if (v_err) {
             p_req->send(400, "application/json", "{\"ok\":false,\"err\":\"bad_json\"}");
             return;
@@ -526,12 +570,10 @@ class CL_W10_WebConfig {
         bool v_ok = true;
 
         if (v_e10 != nullptr) {
-            // ppt_mode optional
             if (!v_doc["ppt_mode"].isNull()) {
                 bool v_ppt = (bool)v_doc["ppt_mode"];
                 v_ok = v_ok && v_e10->setPptMode(v_ppt);
             }
-            // dpi_level optional
             if (!v_doc["dpi_level"].isNull()) {
                 uint8_t v_dpi = (uint8_t)v_doc["dpi_level"];
                 v_ok = v_ok && v_e10->setDpiLevel(v_dpi);
@@ -575,48 +617,32 @@ class CL_W10_WebConfig {
     }
 };
 
-
 // 정적 핸들러: 인스턴스 핸들러로 중계
 void CL_W10_WebConfig::s_handleWifiEvent(WiFiEvent_t p_event, WiFiEventInfo_t p_info) {
+    (void)p_info;
     if (s_instance) {
         s_instance->_handleWifi(p_event);
     }
 }
 
-// 실제 mDNS 제어 로직 (핵심)
+// [변경 #3] mDNS 시작/종료는 WiFi 이벤트에서만(중복 제거/상태 일치)
 void CL_W10_WebConfig::_handleWifi(WiFiEvent_t p_event) {
     switch (p_event) {
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
             Serial.println("[W10] WiFi Connected (STA)");
-            if (_wifi.mdns_host[0] && !_mdnsStarted) {
-                startMdnsIfPossible();
-                _mdnsStarted = true;
-            }
+            startMdnsIfPossible();
             break;
 
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
             Serial.println("[W10] WiFi Disconnected");
-            if (_mdnsStarted) {
-                MDNS.end();
-                _mdnsStarted = false;
-                Serial.println("[W10] mDNS stopped (WiFi lost)");
-            }
+            stopMdnsIfRunning();
             break;
 
-        case ARDUINO_EVENT_WIFI_AP_START:
-            Serial.println("[W10] AP Mode Started");
-            if (_wifi.mdns_host[0] && !_mdnsStarted) {
-                startMdnsIfPossible();
-                _mdnsStarted = true;
-            }
-            break;
-
+        // AP 모드에서 mDNS는 정책상 사용 안 함(탐색 불안정 회피)
         default:
             break;
     }
 }
 
-
 // 정적 멤버 초기화
 CL_W10_WebConfig* CL_W10_WebConfig::s_instance = nullptr;
-
