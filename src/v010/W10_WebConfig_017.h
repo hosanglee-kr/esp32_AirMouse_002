@@ -64,6 +64,7 @@ class CL_W10_WebConfig {
 
     ST_C10_WiFiConfig_t _wifi;
     ST_C10_E10Config_t  _e10;
+    
 
     // ---------- Assets (gzip auto) ----------
     struct ST_W10_Asset_t {
@@ -129,9 +130,21 @@ class CL_W10_WebConfig {
         { "KP_Enter", 0x58 },{ "KP_1", 0x59 },{ "KP_2", 0x5A },{ "KP_3", 0x5B },{ "KP_4", 0x5C },{ "KP_5", 0x5D },
         { "KP_6", 0x5E },{ "KP_7", 0x5F },{ "KP_8", 0x60 },{ "KP_9", 0x61 },{ "KP_0", 0x62 },{ "KP_.", 0x63 },
     };
+    
+    bool _mdnsStarted = false;
+
+    // (1) 이벤트 핸들러용 정적 함수
+    static void s_handleWifiEvent(WiFiEvent_t p_event, WiFiEventInfo_t p_info);
+    // (2) 실제 로직을 처리할 인스턴스용 핸들러
+    void _handleWifi(WiFiEvent_t p_event);
+    
+    // 싱글톤 패턴처럼 인스턴스 포인터 보관 (이벤트 콜백용)
+    static CL_W10_WebConfig* s_instance;
+    
 
   public:
     CL_W10_WebConfig() : _svr(80) {
+        s_instance = this; // 인스턴스 등록
         memset(&_wifi, 0, sizeof(_wifi));
         memset(&_e10,  0, sizeof(_e10));
     }
@@ -140,6 +153,8 @@ class CL_W10_WebConfig {
         _cfg = p_cfg;
         _applyFn = p_applyFn;
         _applyCtx = p_applyCtx;
+        
+        WiFi.onEvent(s_handleWifiEvent);
 
         // FS
         (void)LittleFS.begin(true);
@@ -209,7 +224,28 @@ class CL_W10_WebConfig {
         Serial.printf("[W10] WebConfig started. mode=%s, ip=%s\n",
                       WiFi.getMode() == WIFI_AP ? "AP" : "STA",
                       WiFi.localIP().toString().c_str());
-        if (MDNS.isRunning()) Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
+        
+        // mDNS 시작 (STA 연결된 경우에만)
+        if (_wifi.use_mdns && WiFi.status() == WL_CONNECTED) {
+            if (!_mdnsStarted) {
+                if (MDNS.begin(_wifi.mdns_host)) {
+                    _mdnsStarted = true;
+        
+                    // 서비스 등록(원하는 경우)
+                    MDNS.addService("http", "tcp", 80);
+        
+                    Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
+                } else {
+                    Serial.println("[W10] mDNS begin failed");
+                }
+            }
+        }
+
+        /*
+        if (MDNS.isRunning()) {
+            Serial.printf("[W10] mDNS: http://%s.local/\n", _wifi.mdns_host);
+        }*/
+    
     }
 
   private:
@@ -538,4 +574,49 @@ class CL_W10_WebConfig {
         ESP.restart();
     }
 };
+
+
+// 정적 핸들러: 인스턴스 핸들러로 중계
+void CL_W10_WebConfig::s_handleWifiEvent(WiFiEvent_t p_event, WiFiEventInfo_t p_info) {
+    if (s_instance) {
+        s_instance->_handleWifi(p_event);
+    }
+}
+
+// 실제 mDNS 제어 로직 (핵심)
+void CL_W10_WebConfig::_handleWifi(WiFiEvent_t p_event) {
+    switch (p_event) {
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            Serial.println("[W10] WiFi Connected (STA)");
+            if (_wifi.use_mdns && !_mdnsStarted) {
+                startMdnsIfPossible();
+                _mdnsStarted = true;
+            }
+            break;
+
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            Serial.println("[W10] WiFi Disconnected");
+            if (_mdnsStarted) {
+                MDNS.end();
+                _mdnsStarted = false;
+                Serial.println("[W10] mDNS stopped (WiFi lost)");
+            }
+            break;
+
+        case ARDUINO_EVENT_WIFI_AP_START:
+            Serial.println("[W10] AP Mode Started");
+            if (_wifi.use_mdns && !_mdnsStarted) {
+                startMdnsIfPossible();
+                _mdnsStarted = true;
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+// 정적 멤버 초기화
+CL_W10_WebConfig* CL_W10_WebConfig::s_instance = nullptr;
 
