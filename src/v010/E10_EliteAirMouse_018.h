@@ -3,16 +3,37 @@
  * ------------------------------------------------------
  * 소스명 : E10_EliteAirMouse_018.h
  * 모듈약어 : E10
- * 모듈명 : AirMouse+Presenter (Composite HID, Status/Control v0.1.8)
+ * 모듈명 : AirMouse+Presenter (Composite HID, Status/Control v0.1.8, ModifierPolicyFix)
  * ------------------------------------------------------
  * 기능 요약
  *  - MPU6050 기반 에어마우스 + Composite HID(Mouse+Keyboard)
  *  - Gyro 오프셋 자동 캘리브레이션(부팅 1초 평균, 움직임 큰 샘플 제외)
- *  - BTN_SCROLL 전용 버튼 분리
- *  - Hard Click-Lock 옵션
+ *  - BTN_SCROLL 전용 버튼 분리(스크롤/기본 조작 충돌 제거)
+ *  - Hard Click-Lock 옵션(150ms 완전 고정) : *M10_MotionProc_015.h*
  *  - /api/status 제공용 상태 구조체(gyro bias/temp/sampling/err 카운터 등)
  *  - 웹에서 PPT 모드 토글 / DPI 즉시 변경 지원
- *  - ✅ Modifier 전송 정책 확정: "mask -> modifier byte" (KeyboardDevice.modifierKeyPress/Release 사용)
+ *  - ✅ Modifier 전송 정책 확정:
+ *     - W10 /api/keycodes 의 mods.mask = HID modifier bitfield(보고서의 modifier byte)
+ *     - E10은 mask를 변환하지 않고 그대로 modifierKeyPress(mask)로 전송
+ *     - OS 호환/조합키(Ctrl+Shift 등) 안정성이 가장 높음
+ *
+ * ------------------------------------------------------
+ * [튜닝 TIP 요약]
+ *  - (A) Flick 제스처 민감도:
+ *      gesture_flick_deg ↑ : 둔감(오작동↓) / ↓ : 민감(손목 튕김에 잘 반응)
+ *      gesture_cooldown_ms ↑ : 연속 오작동↓ / ↓ : 빠른 넘김↑
+ *  - (B) 가속 체감:
+ *      accel_threshold ↓ : 작은 이동에도 가속 빨리 붙음
+ *      accel_gain[dpi] ↑ : 큰 이동에서 더 “확” 뻗음
+ *  - (C) Scroll 모드 커서 흔들림:
+ *      scroll_cursor_damp ↓(예:0.25→0.15) : 스크롤 중 커서 더 고정(대신 이동 어려움)
+ *  - (D) 스크롤 방향/축:
+ *      mouseSend()에서 mouseMove(dx,dy,scrollX,scrollY) 중 scrollX/scrollY를 바꿔
+ *      PC에서 느껴지는 스크롤 축(세로/가로) mismatch를 해결 가능
+ *  - (E) 조합키 stuck(키가 남음) 느낌:
+ *      tapComboUsage() 끝에 resetKeys()를 “PPT 명령 전용”으로 옵션 적용 가능
+ *      (항상 호출하면 입력감이 둔해질 수 있음)
+ *
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -94,16 +115,11 @@ class CL_E10_EliteAirMouse {
     CL_M10_AdvancedMotionProcessor _engine;
     CL_C10_Config* _cfg = nullptr;
 
-    // ======================================================
-    // GPIO (예시: DevKitC 안전핀, 실제 HW에 맞춰 수정)
-    // ======================================================
+    // class static members -> s_ prefix
     static constexpr int s_btnL      = 12;
     static constexpr int s_btnMode   = 13;
     static constexpr int s_btnScroll = 14;
 
-    // ======================================================
-    // 상태
-    // ======================================================
     volatile bool _isPptMode = false;
 
     struct ST_E10_State_t {
@@ -117,9 +133,7 @@ class CL_E10_EliteAirMouse {
 
     static constexpr uint8_t s_mouseBtnLeft = 0x01;
 
-    // ======================================================
-    // Gyro bias (deg/s)
-    // ======================================================
+    // gyro bias (deg/s)
     float _gyroBiasX = 0.0f;
     float _gyroBiasY = 0.0f;
     float _gyroBiasZ = 0.0f;
@@ -128,9 +142,7 @@ class CL_E10_EliteAirMouse {
     static constexpr uint32_t s_calibMs = 1000;
     static constexpr float    s_calibStillThDeg = 3.0f;
 
-    // ======================================================
-    // Config runtime
-    // ======================================================
+    // config runtime
     int   _dpiLevel = 2;
     bool  _hardClickLock = true;
 
@@ -153,9 +165,7 @@ class CL_E10_EliteAirMouse {
     ST_C10_PptKey_t _pptBlack;
     ST_C10_PptKey_t _pptLaser;
 
-    // ======================================================
-    // Status vars
-    // ======================================================
+    // status vars
     float _tempC = 0.0f;
     uint32_t _uptime0 = 0;
 
@@ -164,9 +174,14 @@ class CL_E10_EliteAirMouse {
     uint32_t _dtAvgCnt = 0;
 
     // counters
-    uint32_t _errMpuRead = 0;     // NOTE: Adafruit getEvent()가 void라 실측 실패 카운트는 제한적
+    uint32_t _errMpuRead = 0;
     uint32_t _errMutexMiss = 0;
     uint32_t _errTaskOverrun = 0;
+
+    // PPT combo 안정화 옵션(키 stuck 방지)
+    // - true면 tapKey/tapCombo 후 resetKeys()를 추가 호출
+    // - TIP: 항상 true면 입력감이 “둔”해질 수 있어, PPT 명령에만 적용 권장
+    bool _pptResetKeysAfterTap = false;
 
   public:
     CL_E10_EliteAirMouse() : _hid("Elite AirMouse S3", "ProMaker", 100) {
@@ -193,8 +208,13 @@ class CL_E10_EliteAirMouse {
             for (;;) delay(10);
         }
 
+        // [튜닝 TIP] GyroRange를 올리면(500/1000deg) 빠른 회전에서 clip이 줄지만 미세 조작이 거칠어질 수 있음
         _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+
+        // [튜닝 TIP] 2G가 일반적. 4G 이상은 큰 충격에도 덜 saturate 되지만 노이즈/해상도 체감 변화 가능
         _mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+
+        // [튜닝 TIP] 21Hz는 손 떨림 억제와 지연의 절충. 더 낮추면 부드럽지만 느려짐
         _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
 
         pinMode(s_btnL, INPUT_PULLUP);
@@ -205,6 +225,7 @@ class CL_E10_EliteAirMouse {
 
         (void)applyFromConfig();
 
+        // Composite HID 구성
         _hid.addDevice(&_keyboard);
         _hid.addDevice(&_mouse);
         _hid.begin();
@@ -219,7 +240,7 @@ class CL_E10_EliteAirMouse {
         return ((CL_E10_EliteAirMouse*)p_ctx)->applyFromConfig();
     }
 
-    // 웹에서 PPT/DPI 즉시 변경
+    // (3) 웹에서 PPT/DPI 즉시 변경
     bool setPptMode(bool p_enable) {
         if (_mutex != nullptr) (void)xSemaphoreTake(_mutex, portMAX_DELAY);
         _isPptMode = p_enable;
@@ -238,6 +259,7 @@ class CL_E10_EliteAirMouse {
         return true;
     }
 
+    // /api/status
     void getStatus(ST_E10_Status_t& p_out) {
         memset(&p_out, 0, sizeof(p_out));
 
@@ -317,23 +339,29 @@ class CL_E10_EliteAirMouse {
         return true;
     }
 
-    // -------------------------
-    // PPT key send helpers
-    // -------------------------
+    // ------------------------------------------------------
+    // Keyboard sending policy
+    // ------------------------------------------------------
+    // ✅ 정책 확정:
+    //  - p_modMask는 HID modifier bitfield(KeyboardInputReport.modifiers)에 들어갈 값
+    //  - W10 /api/keycodes 의 mods.mask 를 그대로 사용 (변환 없음)
+    //
+    // 예) Ctrl+Shift = 0x01|0x02 = 0x03
+    //
+    // 장점:
+    //  - 표준에 가장 부합
+    //  - 조합키(다중 modifier OR) 안정
+    //  - OS 호환성이 가장 높음
     void tapKeyUsage(uint8_t p_usage, uint16_t p_ms = 12) {
         if (p_usage == 0) return;
-
         _keyboard.keyPress(p_usage);
         vTaskDelay(pdMS_TO_TICKS(p_ms));
         _keyboard.keyRelease(p_usage);
 
-        // [튜닝 TIP] OS별 stuck-key가 보이면 아래 1줄을 "PPT 전용"으로만 활성화
-        // _keyboard.resetKeys();
+        // [튜닝 TIP] 키가 남는(stuck) 현상이 있으면 아래 옵션 적용
+        if (_pptResetKeysAfterTap) _keyboard.resetKeys();
     }
 
-    // ✅ [v0.1.8] 정책 확정: mask -> modifier byte
-    // - W10의 mods(mask)는 KeyboardInputReport.modifiers 비트필드와 동일
-    // - 여러 modifier 조합(예: Ctrl+Shift = 0x03)도 그대로 동작
     void tapComboUsage(uint8_t p_modMask, uint8_t p_usage, uint16_t p_ms = 18) {
         if (p_usage == 0) return;
 
@@ -342,51 +370,64 @@ class CL_E10_EliteAirMouse {
             return;
         }
 
+        // ✅ modifier byte 전송(보고서 bitfield)
         _keyboard.modifierKeyPress(p_modMask);
         _keyboard.keyPress(p_usage);
-
         vTaskDelay(pdMS_TO_TICKS(p_ms));
-
         _keyboard.keyRelease(p_usage);
         _keyboard.modifierKeyRelease(p_modMask);
 
-        // [튜닝 TIP] 조합키가 OS에서 가끔 남는다면 아래를 "PPT 전용"으로만 사용
-        // _keyboard.resetKeys();
+        // [튜닝 TIP] PPT 명령에서만 stuck이 가끔 있으면 true로(항상 true는 입력감 둔해질 수 있음)
+        if (_pptResetKeysAfterTap) _keyboard.resetKeys();
     }
 
     void sendPptKey(const ST_C10_PptKey_t& p_k) {
         if (!_hid.isConnected()) return;
         if (p_k.key == 0) return;
 
-        if (p_k.mod == 0) tapKeyUsage((uint8_t)p_k.key, 22);
+        // [TIP] PPT 명령만 resetKeys 옵션을 켜고 싶으면, 여기에서만 임시로 true로 바꿔도 됨
+        // bool v_prev = _pptResetKeysAfterTap;
+        // _pptResetKeysAfterTap = true;
+
+        if (p_k.mod == 0) tapKeyUsage((uint8_t)p_k.key);
         else tapComboUsage((uint8_t)p_k.mod, (uint8_t)p_k.key, 22);
+
+        // _pptResetKeysAfterTap = v_prev;
     }
 
     void processGesturesDeg(float p_gzDegPerSec) {
         static unsigned long s_lastFlick = 0;
         if (millis() - s_lastFlick < _gestureCooldownMs) return;
 
+        // [튜닝 TIP] flick 임계값을 올리면 오작동 감소(둔감), 내리면 민감
         if (p_gzDegPerSec > _gestureFlickDeg) { sendPptKey(_pptPrev); s_lastFlick = millis(); }
         else if (p_gzDegPerSec < -_gestureFlickDeg) { sendPptKey(_pptNext); s_lastFlick = millis(); }
     }
 
-    // -------------------------
-    // Mouse
-    // -------------------------
+    // ------------------------------------------------------
+    // Mouse send policy
+    // ------------------------------------------------------
     static void mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
-        // MouseDevice.h: mouseMove(x,y,scrollX,scrollY)
-        // 여기서는 scrollX를 wheel로 사용(환경에 따라 반대로 느껴지면 scrollY로 옮기면 됨)
+        // MouseDevice::mouseMove(x,y,scrollX,scrollY)
+        //
+        // [튜닝 TIP] 스크롤 방향/축 mismatch 해결:
+        //  - 세로 스크롤로 쓰고 싶으면 scrollY에 넣는 것이 일반적일 수 있음
+        //    p_ms.mouseMove(p_dx, p_dy, 0, p_wheel);
+        //  - 현재 구현은 scrollX에 wheel 사용(기존 유지)
         p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
     }
 
-    // -------------------------
-    // Gyro calibration
-    // -------------------------
+    // ------------------------------------------------------
+    // Gyro calibration policy
+    // ------------------------------------------------------
     void runGyroCalibration() {
         const uint32_t v_t0 = millis();
         uint32_t v_cnt = 0;
         double v_sumX = 0.0, v_sumY = 0.0, v_sumZ = 0.0;
 
+        // [튜닝 TIP]
+        //  - s_calibMs를 늘리면 평균이 더 안정적(대신 부팅 대기 증가)
+        //  - s_calibStillThDeg를 낮추면 "정말 고정된 샘플만" 사용(엄격)
         while (millis() - v_t0 < s_calibMs) {
             sensors_event_t v_a, v_g, v_temp;
             _mpu.getEvent(&v_a, &v_g, &v_temp);
@@ -413,9 +454,6 @@ class CL_E10_EliteAirMouse {
                       _gyroBiasX, _gyroBiasY, _gyroBiasZ, (unsigned)v_cnt);
     }
 
-    // -------------------------
-    // Tasks
-    // -------------------------
     static void sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
@@ -439,17 +477,17 @@ class CL_E10_EliteAirMouse {
             v_m->_dtAvgCnt++;
             v_m->_dtAvgMs = v_m->_dtAvgMs * 0.98f + v_dtMs * 0.02f;
 
+            // Scroll 모드: BTN_SCROLL을 누르는 동안만 스크롤
             const bool v_scrollMode = (digitalRead(s_btnScroll) == LOW);
 
-            // BTN_MODE: short=dpi cycle, long=ppt toggle
+            // mode 버튼: short=dpi cycle, long=ppt toggle
             if (digitalRead(s_btnMode) == LOW) {
                 if (v_btnDownMs == 0) v_btnDownMs = millis();
             } else {
                 if (v_btnDownMs > 0) {
                     const unsigned long v_hold = millis() - v_btnDownMs;
-                    if (v_hold > 1000) {
-                        v_m->_isPptMode = !v_m->_isPptMode;
-                    } else {
+                    if (v_hold > 1000) v_m->_isPptMode = !v_m->_isPptMode;
+                    else {
                         v_m->_dpiLevel++;
                         if (v_m->_dpiLevel > 3) v_m->_dpiLevel = 1;
                         v_m->_engine.setDPI(v_m->_dpiLevel);
@@ -458,29 +496,31 @@ class CL_E10_EliteAirMouse {
                 }
             }
 
-            // gyro bias 제거 (deg/s)
+            // gyro (deg/s) + bias 제거
             float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
             float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
             float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
 
+            // orientation 보정: gx 사용(roll drift 보정용)
             v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
 
             int v_tx = 0, v_ty = 0;
             v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
 
-            // PPT flick gesture (스크롤 중 차단)
+            // PPT 제스처는 스크롤 중에는 차단 권장(오작동 방지)
             if (v_m->_isPptMode && !v_scrollMode) v_m->processGesturesDeg(v_gz);
 
-            // click
             const bool v_leftClick = (digitalRead(s_btnL) == LOW);
             if (v_leftClick) v_m->_engine.notifyClick();
 
-            // DPI 기반 scale + accel
+            // DPI scale + accel
             float v_base = v_m->_scaleBase[v_m->_dpiLevel - 1];
             float v_accg = v_m->_accelGain[v_m->_dpiLevel - 1];
 
             const float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
             float v_acc = 1.0f;
+
+            // [튜닝 TIP] accel_threshold를 낮추면 작은 움직임에도 가속이 빨리 붙음
             if (v_mag > v_m->_accelTh) {
                 const float v_ex = (v_mag - v_m->_accelTh);
                 v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
@@ -489,9 +529,10 @@ class CL_E10_EliteAirMouse {
             float v_fx = (float)v_tx * v_base * v_acc;
             float v_fy = (float)v_ty * v_base * v_acc;
 
-            // scroll
+            // Scroll 모드: gyro.y로 wheel 생성 + 커서 이동 감쇠
             int v_wheel = 0;
             if (v_scrollMode) {
+                // [튜닝 TIP] wheel_threshold_deg를 낮추면 스크롤이 쉽게 발생(민감)
                 if (v_gy > v_m->_wheelThDeg) {
                     float v_norm = (v_gy - v_m->_wheelThDeg) / 120.0f;
                     if (v_norm > 1.0f) v_norm = 1.0f;
@@ -501,11 +542,13 @@ class CL_E10_EliteAirMouse {
                     if (v_norm > 1.0f) v_norm = 1.0f;
                     v_wheel = -(int)(1 + (v_norm * (v_m->_wheelStepMax - 1)));
                 }
+
+                // [튜닝 TIP] scroll_cursor_damp ↓ : 스크롤 중 커서 더 고정(대신 이동 어려움)
                 v_fx *= v_m->_scrollCursorDamp;
                 v_fy *= v_m->_scrollCursorDamp;
             }
 
-            // shared state
+            // 공유 상태 저장
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
                 v_m->_state.x = (int)v_fx;
                 v_m->_state.y = (int)v_fy;
@@ -516,17 +559,20 @@ class CL_E10_EliteAirMouse {
                 v_m->_errMutexMiss++;
             }
 
-            // mouse button state
+            // 버튼 상태 즉시 반영
             if (v_m->_hid.isConnected()) {
                 if (v_leftClick) v_m->_mouse.mousePress(s_mouseBtnLeft);
                 else v_m->_mouse.mouseRelease(s_mouseBtnLeft);
             }
 
-            // overrun indicator (대략)
+            // overrun 감지(대략)
             TickType_t v_before = xTaskGetTickCount();
-            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8)); // 125Hz
             TickType_t v_after = xTaskGetTickCount();
-            if ((v_after - v_before) == 0) v_m->_errTaskOverrun++;
+            if ((v_after - v_before) == 0) {
+                // 즉시 리턴 케이스는 "이미 늦음" 가능성이 높음 (대략적 지표)
+                v_m->_errTaskOverrun++;
+            }
         }
     }
 
@@ -549,3 +595,4 @@ class CL_E10_EliteAirMouse {
         }
     }
 };
+
