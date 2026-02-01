@@ -1,0 +1,75 @@
+<!-- File: data/www/index_019.html -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Elite AirMouse Config</title>
+  <link rel="stylesheet" href="/www/style_019.css"/>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Elite AirMouse</div>
+    <div class="statusline" id="statusLine">loading...</div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="row">
+        <button id="btnPptOn">PPT ON</button>
+        <button id="btnPptOff">PPT OFF</button>
+        <button id="btnDpi1">DPI 1</button>
+        <button id="btnDpi2">DPI 2</button>
+        <button id="btnDpi3">DPI 3</button>
+      </div>
+      <pre id="statusJson" class="mono"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Keycodes</h2>
+      <div class="row">
+        <input id="keySearch" placeholder="search keys..." />
+        <select id="keyGroup">
+          <option value="">all groups</option>
+          <option value="letters">letters</option>
+          <option value="numbers">numbers</option>
+          <option value="control">control</option>
+          <option value="symbols">symbols</option>
+          <option value="function">function</option>
+          <option value="nav">nav</option>
+          <option value="keypad">keypad</option>
+          <option value="consumer">consumer</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="col">
+          <div class="label">Modifier (mask)</div>
+          <select id="modSelect"></select>
+        </div>
+        <div class="col">
+          <div class="label">Key (page/usage)</div>
+          <select id="keySelect"></select>
+        </div>
+      </div>
+      <p class="hint mono">
+        정책: mods.mask는 “modifier byte(bitfield)”이며 E10은 modifierKeyPress/Release로 전송합니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Config</h2>
+      <div class="row">
+        <button id="btnLoad">LOAD</button>
+        <button id="btnSave">SAVE</button>
+        <button id="btnReset">RESET</button>
+        <button id="btnReboot" class="danger">REBOOT</button>
+      </div>
+      <pre id="cfgJson" class="mono"></pre>
+      <div class="msg" id="msgBox"></div>
+    </section>
+  </main>
+
+  <script src="/www/app_019.js"></script>
+</body>
+</html>
