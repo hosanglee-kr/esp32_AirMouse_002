@@ -14,9 +14,9 @@ Import("env")
 import os, gzip, shutil
 
 TARGETS = [
-    "data/www/index_019.html",
-    "data/www/style_019.css",
-    "data/www/app_019.js",
+    "src/v010/data_v010/www/index_019.html",
+    "src/v010/data_v010/www/style_019.css",
+    "src/v010/data_v010/www/app_019.js",
 ]
 
 def gzip_file(path):
