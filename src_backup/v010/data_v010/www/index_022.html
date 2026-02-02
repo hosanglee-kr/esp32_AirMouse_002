@@ -1,0 +1,105 @@
+<!-- =======================================================
+File: src/v022/data_v022/www/index_022.html
+======================================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.2)</title>
+  <link rel="stylesheet" href="/www/style_022.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="title">Elite AirMouse</div>
+    <div class="sub">v0.2.2 Web Config</div>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="row">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+      <pre id="statusBox" class="box">loading...</pre>
+      <div class="hint">
+        health.state: 0=OK, 1=WARN, 2=DEGRADED / score: 0~1000
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Control</h2>
+      <div class="row">
+        <button id="btnPptOn">PPT ON</button>
+        <button id="btnPptOff">PPT OFF</button>
+      </div>
+      <div class="row">
+        <button data-dpi="1" class="btnDpi">DPI 1</button>
+        <button data-dpi="2" class="btnDpi">DPI 2</button>
+        <button data-dpi="3" class="btnDpi">DPI 3</button>
+      </div>
+      <div class="row">
+        <button id="btnPrecOn">Precision ON</button>
+        <button id="btnPrecOff">Precision OFF</button>
+      </div>
+      <div class="hint">
+        Precision은 "조이스틱 느낌" 커서 곡선(Deadzone/MaxStep/Accel/Smooth) 적용
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Config</h2>
+      <div class="row">
+        <button id="btnGetCfg">Load</button>
+        <button id="btnSaveCfg">Save</button>
+      </div>
+      <textarea id="cfgBox" class="box area" spellcheck="false"></textarea>
+      <div class="hint">
+        Save는 atomic + .bak 백업(P0). WiFi 변경은 reboot 필요.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Export / Import / Rollback</h2>
+      <div class="row">
+        <button id="btnExport">Export</button>
+        <input type="file" id="fileImport" accept=".json,application/json" />
+        <button id="btnImport">Import</button>
+      </div>
+      <div class="row">
+        <button id="btnRollback" class="danger">Rollback (.bak)</button>
+        <button id="btnReboot" class="danger">Reboot</button>
+      </div>
+      <pre id="cfgMsg" class="box small">-</pre>
+    </section>
+
+    <section class="card">
+      <h2>OTA Update</h2>
+      <div class="row">
+        <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+        <button id="btnOta" class="danger">Upload & Reboot</button>
+      </div>
+      <div class="bar"><div id="otaBar"></div></div>
+      <pre id="otaMsg" class="box small">-</pre>
+      <div class="hint">
+        OTA 실패 시 자동 reboot 금지(P0). 성공 시 자동 reboot.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Keycodes</h2>
+      <div class="row">
+        <button id="btnKeys">Load</button>
+        <input id="keySearch" placeholder="search..." />
+      </div>
+      <pre id="keysBox" class="box small">-</pre>
+      <div class="hint">
+        mods.mask는 modifier byte(KeyboardInputReport.modifiers)와 1:1 일치.
+      </div>
+    </section>
+  </main>
+
+  <script src="/www/app_022.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+:root{--bg:#0b0d10;--card:#121621;--text:#e8edf6;--muted:#98a4b8;--line:#23304a;--btn:#1f2b45;--danger:#4a1f26}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif}
+.top{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,13,16,.92);backdrop-filter:blur(10px)}
+.brand .title{font-size:18px;font-weight:700}
+.brand .sub{font-size:12px;color:var(--muted)}
+.pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;max-width:1100px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.card h2{margin:0 0 10px 0;font-size:16px}
+.card h3{margin:14px 0 8px 0;font-size:13px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{background:var(--btn);border:1px solid var(--line);color:var(--text);padding:9px 12px;border-radius:12px;cursor:pointer}
+.btn:hover{filter:brightness(1.12)}
+.btn.danger{background:var(--danger)}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:13px}
+.kv div:nth-child(odd){color:var(--muted)}
+.form{display:grid;gap:8px}
+.form label{font-size:12px;color:var(--muted)}
+.form input[type=range]{width:100%}
+.note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.4}
+.inp,.sel{background:#0f1420;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:10px 12px}
+.inp{flex:1;min-width:220px}
+.sel{min-width:170px}
+.list{margin-top:10px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.item{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px}
+.item:last-child{border-bottom:none}
+.badge{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.chk{color:var(--muted);font-size:13px}
+.span2{grid-column:span 2}
+@media (max-width:820px){.grid{grid-template-columns:1fr}.span2{grid-column:span 1}}
+
