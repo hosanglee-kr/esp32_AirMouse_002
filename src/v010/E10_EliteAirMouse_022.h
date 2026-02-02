@@ -63,7 +63,7 @@
 #include <MouseDevice.h>
 
 #include "C10_Config_022.h"
-#include "M10_MotionProc_015.h" // 기존 엔진 유지(하드클릭락 포함)
+#include "M10_MotionProc_020.h" // 기존 엔진 유지(하드클릭락 포함)
 
 typedef bool (*T_E10_ApplyFn)(void* p_ctx);
 
