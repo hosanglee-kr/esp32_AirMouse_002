@@ -16,6 +16,8 @@
 #include <KeyboardDevice.h>
 #include <MouseDevice.h>
 
+#include "A40_ComFunc_070.h"
+
 #include "C10_Config_023.h"
 #include "M10_MotionProc_020.h"
 
