@@ -57,15 +57,34 @@ class CL_W10_WebConfig {
     // Consumer presets (mask). (대표값만 제공; Raw 입력 가능)
     struct ST_Consumer { const char* name; uint32_t mask; };
     static constexpr ST_Consumer s_consumer[] = {
-        {"None",0x00000000},
-        {"Play/Pause",0x00000001},
-        {"Next Track",0x00000002},
-        {"Prev Track",0x00000004},
-        {"Stop",0x00000008},
-        {"Mute",0x00000010},
-        {"Volume Up",0x00000020},
-        {"Volume Down",0x00000040},
-        {"Browser Home",0x00000080},
+        {"None", 0x00000000},
+    
+        {"Play",        0x00000001}, // KEY_MEDIA_PLAY
+        {"Pause",       0x00000002}, // KEY_MEDIA_PAUSE
+        {"Record",      0x00000004}, // KEY_MEDIA_RECORD
+        {"FastForward", 0x00000008}, // KEY_MEDIA_FASTFORWARD
+        {"Rewind",      0x00000010}, // KEY_MEDIA_REWIND
+        {"NextTrack",   0x00000020}, // KEY_MEDIA_NEXTTRACK
+        {"PrevTrack",   0x00000040}, // KEY_MEDIA_PREVIOUSTRACK
+        {"Stop",        0x00000080}, // KEY_MEDIA_STOP
+        {"Eject",       0x00000100}, // KEY_MEDIA_EJECT
+        {"RandomPlay",  0x00000200}, // KEY_MEDIA_RANDOMPLAY
+        {"Repeat",      0x00000400}, // KEY_MEDIA_REPEAT
+        {"PlayPause",   0x00000800}, // KEY_MEDIA_PLAYPAUSE
+    
+        {"Mute",        0x00001000}, // KEY_MEDIA_MUTE
+        {"VolumeUp",    0x00002000}, // KEY_MEDIA_VOLUMEUP
+        {"VolumeDown",  0x00004000}, // KEY_MEDIA_VOLUMEDOWN
+    
+        {"WWWHome",     0x00008000}, // KEY_MEDIA_WWWHOME
+        {"MyComputer",  0x00010000}, // KEY_MEDIA_MYCOMPUTER
+        {"Calculator",  0x00020000}, // KEY_MEDIA_CALCULATOR
+        {"WWWFavorites",0x00040000}, // KEY_MEDIA_WWWFAVORITES
+        {"WWWSearch",   0x00080000}, // KEY_MEDIA_WWWSEARCH
+        {"WWWStop",     0x00100000}, // KEY_MEDIA_WWWSTOP
+        {"WWWBack",     0x00200000}, // KEY_MEDIA_WWWBACK
+        {"MediaSelect", 0x00400000}, // KEY_MEDIA_MEDIASELECT
+        {"Mail",        0x00800000}, // KEY_MEDIA_MAIL
     };
 
     bool _mdnsStarted=false;
