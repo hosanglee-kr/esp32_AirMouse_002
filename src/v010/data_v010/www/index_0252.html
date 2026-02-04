@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.5)</title>
+  <link rel="stylesheet" href="./style_0252.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.5 Field Dashboard + PPT Keymap + Full Config UI</div>
+</header>
+
+<main class="grid">
+  <!-- Dashboard -->
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div id="healthBanner" class="banner ok">OK</div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+  </section>
+
+  <!-- PPT Keymap -->
+  <section class="card">
+    <h2>PPT Keymap Editor</h2>
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">kb(0x07) full list + consumer presets + raw mask</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <!-- Full Config UI -->
+  <section class="card">
+    <h2>Config Editor (WiFi / E10)</h2>
+
+    <div class="row">
+      <button id="btnCfgLoad">Load</button>
+      <button id="btnCfgValidate">Validate</button>
+      <button id="btnCfgApply">Apply only</button>
+      <button id="btnCfgSave" class="danger">Save</button>
+      <span id="cfgMsg" class="pill">-</span>
+    </div>
+
+    <div class="split2">
+      <!-- WiFi -->
+      <div class="panel">
+        <div class="panelTitle">WiFi</div>
+
+        <div class="formRow">
+          <label>Mode</label>
+          <select id="wifi_mode">
+            <option value="0">AUTO</option>
+            <option value="1">AP</option>
+            <option value="2">STA</option>
+          </select>
+        </div>
+
+        <div class="panelSub">STA</div>
+        <div class="formRow">
+          <label>SSID</label>
+          <input id="wifi_sta_ssid" placeholder="(optional)" />
+        </div>
+        <div class="formRow">
+          <label>Password</label>
+          <input id="wifi_sta_pass" placeholder="(optional)" />
+        </div>
+
+        <div class="panelSub">AP</div>
+        <div class="formRow">
+          <label>SSID</label>
+          <input id="wifi_ap_ssid" />
+        </div>
+        <div class="formRow">
+          <label>Password</label>
+          <input id="wifi_ap_pass" />
+          <div class="hint">min 8 chars (otherwise server will clamp to default)</div>
+        </div>
+
+        <div class="panelSub">mDNS</div>
+        <div class="formRow">
+          <label>Host</label>
+          <input id="wifi_mdns_host" />
+          <div class="hint">device URL: http://&lt;host&gt;.local</div>
+        </div>
+      </div>
+
+      <!-- E10 -->
+      <div class="panel">
+        <div class="panelTitle">E10 Motion / Cursor</div>
+
+        <div class="formRow">
+          <label>DPI Level</label>
+          <select id="e10_dpi_level">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label>Hard Click Lock</label>
+          <label class="inline"><input type="checkbox" id="e10_hard_click_lock" /> enable</label>
+        </div>
+
+        <div class="panelSub">Scale Base (per DPI 1/2/3)</div>
+        <div class="sliderRow"><div class="sLbl">DPI1</div><input id="sb1" type="range" min="0.05" max="3.00" step="0.01"/><div class="sVal" id="sb1v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">DPI2</div><input id="sb2" type="range" min="0.05" max="3.00" step="0.01"/><div class="sVal" id="sb2v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">DPI3</div><input id="sb3" type="range" min="0.05" max="3.00" step="0.01"/><div class="sVal" id="sb3v">-</div></div>
+
+        <div class="panelSub">Accel Gain (per DPI 1/2/3)</div>
+        <div class="sliderRow"><div class="sLbl">DPI1</div><input id="ag1" type="range" min="0.00" max="3.00" step="0.01"/><div class="sVal" id="ag1v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">DPI2</div><input id="ag2" type="range" min="0.00" max="3.00" step="0.01"/><div class="sVal" id="ag2v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">DPI3</div><input id="ag3" type="range" min="0.00" max="3.00" step="0.01"/><div class="sVal" id="ag3v">-</div></div>
+
+        <div class="panelSub">Accel Threshold</div>
+        <div class="sliderRow"><div class="sLbl">th</div><input id="acc_th" type="range" min="0.1" max="80.0" step="0.1"/><div class="sVal" id="acc_th_v">-</div></div>
+
+        <div class="panelSub">Wheel</div>
+        <div class="sliderRow"><div class="sLbl">deg</div><input id="wheel_deg" type="range" min="5" max="360" step="1"/><div class="sVal" id="wheel_deg_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">step</div><input id="wheel_step" type="range" min="1" max="20" step="1"/><div class="sVal" id="wheel_step_v">-</div></div>
+
+        <div class="panelSub">Gesture</div>
+        <div class="sliderRow"><div class="sLbl">flick</div><input id="gst_flick" type="range" min="20" max="1200" step="5"/><div class="sVal" id="gst_flick_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">cool</div><input id="gst_cd" type="range" min="50" max="5000" step="10"/><div class="sVal" id="gst_cd_v">-</div></div>
+
+        <div class="panelSub">Scroll Cursor Damp</div>
+        <div class="sliderRow"><div class="sLbl">damp</div><input id="scr_damp" type="range" min="0.00" max="1.00" step="0.01"/><div class="sVal" id="scr_damp_v">-</div></div>
+
+        <div class="panelSub">Precision</div>
+        <div class="formRow">
+          <label>Enable</label>
+          <label class="inline"><input type="checkbox" id="prec_en" /> enable</label>
+        </div>
+        <div class="sliderRow"><div class="sLbl">dead</div><input id="prec_dead" type="range" min="0.0" max="50.0" step="0.1"/><div class="sVal" id="prec_dead_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">gain</div><input id="prec_gain" type="range" min="0.05" max="3.00" step="0.01"/><div class="sVal" id="prec_gain_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">accel</div><input id="prec_acc" type="range" min="0.0" max="5.0" step="0.01"/><div class="sVal" id="prec_acc_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">max</div><input id="prec_max" type="range" min="1" max="80" step="1"/><div class="sVal" id="prec_max_v">-</div></div>
+        <div class="sliderRow"><div class="sLbl">smooth</div><input id="prec_smooth" type="range" min="0.00" max="0.99" step="0.01"/><div class="sVal" id="prec_smooth_v">-</div></div>
+
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelTitle">Config Result</div>
+      <pre id="cfgOut" class="box small">-</pre>
+    </div>
+  </section>
+
+  <!-- Quick tools -->
+  <section class="card">
+    <h2>Config / OTA (Quick)</h2>
+    <div class="row">
+      <button id="btnExport">Export</button>
+      <input type="file" id="fileImport" accept=".json,application/json" />
+      <button id="btnImport">Import</button>
+      <button id="btnRollback" class="danger">Rollback (.bak)</button>
+      <button id="btnReboot" class="danger">Reboot</button>
+    </div>
+
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+    </div>
+
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+
+</main>
+
+<script src="./app_0252.js"></script>
+</body>
+</html>
+
