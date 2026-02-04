@@ -6,7 +6,7 @@
 
 #include "v010/A40_ComFunc_070.h"   // 내부에서 D10_Logger_060.h 포함
 
-#include "v010/C10_Config_023.h"
+#include "v010/C10_Config_025.h"
 #include "v010/E10_EliteAirMouse_025.h"
 #include "v010/W10_WebConfig_026.h"
 
