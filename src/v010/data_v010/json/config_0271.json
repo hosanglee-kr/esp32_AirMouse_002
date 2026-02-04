@@ -1,0 +1,18 @@
+{
+    "dpi_level": 2,
+    "hard_click_lock": true,
+    
+    "scale_base": [0.55, 0.75, 1.0],
+    "accel_gain": [0.35, 0.55, 0.85],
+    "accel_threshold": 8.0,
+    
+    "wheel": {
+        "threshold_deg": 90.0,
+        "step_max": 6
+    },
+    
+    "gesture": {
+        "flick_deg": 200.0,
+        "cooldown_ms": 600
+    }
+}
