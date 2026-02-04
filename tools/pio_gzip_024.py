@@ -13,6 +13,15 @@ def gzip_file(path):
         # mtime arg 제거(호환)
         with gzip.open(gz_path, "wb", compresslevel=9) as f_out:
             f_out.write(f_in.read())
+            
+    # 압축 결과 로그 계산
+    orig_size = os.path.getsize(path)
+    gz_size = os.path.getsize(gz_path)
+    ratio = (1 - (gz_size / orig_size)) * 100 if orig_size > 0 else 0
+    
+    # 터미널에 진행 상황 출력
+    print(f"  [GZIP] {os.path.basename(path)}: {orig_size} -> {gz_size} bytes ({ratio:.1f}% saved)")
+
 
 def before_build(source, target, env):
     # www only
@@ -28,3 +37,4 @@ def before_build(source, target, env):
                 gzip_file(p)
 
 env.AddPreAction("buildfs", before_build)
+
