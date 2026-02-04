@@ -19,7 +19,7 @@
 #include <ESPAsyncWebServer.h>
 #include <Update.h>
 
-#include "C10_Config_023.h"          // ✅ 프로젝트에서 025로 바뀌었으면 교체
+#include "C10_Config_025.h"          // ✅ 프로젝트에서 025로 바뀌었으면 교체
 #include "E10_EliteAirMouse_025.h"   // ✅
 
 class CL_W10_WebConfig {
