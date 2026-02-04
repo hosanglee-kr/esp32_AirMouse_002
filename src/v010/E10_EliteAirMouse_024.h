@@ -3,22 +3,28 @@
  * ------------------------------------------------------
  * 소스명 : E10_EliteAirMouse_024.h
  * 모듈약어 : E10
- * 모듈명 : AirMouse+Presenter (Composite HID, ModifierByte, MediaKeys, Status/Control v0.2.3)
+ * 모듈명 : AirMouse+Presenter (Composite HID, PPT Keymap v2, Status Snap, MediaKeys)
  * ------------------------------------------------------
  * 기능 요약
  *  - MPU6050 기반 에어마우스 + Composite HID(Mouse+Keyboard)
  *  - Gyro 오프셋 자동 캘리브레이션(부팅 1초 평균, 움직임 큰 샘플 제외)
- *  - BTN_SCROLL 전용 버튼 분리
+ *  - BTN_SCROLL 전용 버튼 분리(스크롤 모드: 커서 억제 + 제스처 차단)
  *  - Hard Click-Lock 옵션
- *  - /api/status 제공용 상태 구조체(gyro bias/temp/sampling/err 카운터 등)
- *  - 웹에서 PPT 모드 토글 / DPI 즉시 변경 지원
- *  - ✅ E10 Modifier 정책 확정: "modifier byte(bitmask)" 방식
- *    - W10 /api/keycodes mods(mask)와 1:1 일치
- *    - KeyboardDevice::modifierKeyPress(mask)/modifierKeyRelease(mask) 사용
- *  - ✅ Media(Consumer) 키 전송 기반 마련
- *    - KeyboardConfiguration::setUseMediaKeys(true) 적용
- *    - KeyboardDevice::mediaKeyPress(uint32_t mask)/mediaKeyRelease(uint32_t mask)
- *    - (주의) Consumer는 usage-id가 아니라 "bitflag mask(OR 가능)" 방식
+ *  - PPT Keymap v2: Keyboard(0x07) + Consumer(0x0C) 전송
+ *  - /api/status 제공용 “스냅샷(Status Snapshot)” 구조체(노이즈 RMS/에러 히스토리/Recover/Anomaly)
+ *  - 웹에서 PPT 모드 토글 / DPI 즉시 변경 / 정밀모드 토글 / PPT 임시 테스트(/api/ppt/test) 지원
+ * ------------------------------------------------------
+ * 변경점(024)
+ *  - [P0] Media(Consumer) 키 전송을 위해 KeyboardConfiguration::setUseMediaKeys(true) 활성화
+ *  - [P0] W10 mods(mask) ↔ E10 modifier byte 정책 1:1 확정: modifierKeyPress(mask) 사용
+ *  - [P0] KB page에서 0xE0~0xE7(modifier usage)를 “일반 key”로 선택 시 차단(오동작 방지)
+ *  - [P0] status는 getStatus()에서 실시간 멤버 읽기 대신, 센서루프가 200ms마다 갱신하는 스냅샷을 반환
+ *  - [P1] health_score 산정에 consecutive_recover_fail 반영(현장 판단력 강화)
+ * ------------------------------------------------------
+ * 튜닝 팁(현장)
+ *  - s_spikeThDeg: 스파이크 감지 임계(빠른 손목 스냅이 잦으면 ↑, 노이즈가 많으면 ↓)
+ *  - _precDeadzone/_precSmooth: 정밀모드 체감 좌우(드리프트 있으면 deadzone↑, 떨림 있으면 smooth↑)
+ *  - _wheelThDeg/_wheelStepMax: 스크롤 민감도(회의실/프레젠테이션 환경에서 과민하면 ThDeg↑)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -60,33 +66,68 @@
 #include <KeyboardConfiguration.h>
 #include <MouseDevice.h>
 
-#include "M10_MotionProc_020.h"
+#include "A40_ComFunc_070.h"
 #include "C10_Config_023.h"
+#include "M10_MotionProc_020.h"
 
 typedef bool (*T_E10_ApplyFn)(void* p_ctx);
 
+enum EN_E10_Health_t : uint8_t {
+    EN_E10_HEALTH_OK       = 0,
+    EN_E10_HEALTH_WARN     = 1,
+    EN_E10_HEALTH_DEGRADED = 2
+};
+
+// err code 정의(대시보드/분석용)
+enum EN_E10_ErrCode_t : uint8_t {
+    EN_E10_ERR_NONE            = 0,
+    EN_E10_ERR_MPU_NAN         = 1,
+    EN_E10_ERR_MUTEX_MISS      = 2,
+    EN_E10_ERR_TASK_OVERRUN    = 3,
+    EN_E10_ERR_I2C_RECOVER_OK  = 4,
+    EN_E10_ERR_I2C_RECOVER_FAIL= 5,
+    EN_E10_ERR_INVALID_KB_USAGE= 6
+};
+
+struct ST_E10_ErrEvt_t {
+    uint32_t ts_ms;
+    uint8_t  code;
+    uint16_t value;
+};
+
 struct ST_E10_Status_t {
-    // runtime
     bool     ble_connected;
     bool     ppt_mode;
     uint8_t  dpi_level;
+    bool     precision_mode;
 
-    // sensor
-    float gyro_bias_x;
-    float gyro_bias_y;
-    float gyro_bias_z;
+    uint8_t  health;
+    uint16_t health_score;
+
+    float gyro_bias_x, gyro_bias_y, gyro_bias_z;
     float temp_c;
 
-    // timing
+    float gyro_rms;
+    float cursor_rms;
+
     uint32_t sampling_ms_target;
     float    sampling_ms_avg;
 
-    // counters
-    uint32_t err_mpu_read;
+    uint32_t i2c_recover_count;
+    bool     i2c_recover_last_ok;
+
+    uint32_t err_mpu_nan;
     uint32_t err_mutex_miss;
     uint32_t err_task_overrun;
 
-    // misc
+    uint8_t  err_hist_n;
+    ST_E10_ErrEvt_t err_hist[16];
+
+    // anomaly
+    uint16_t spike_count_10s;
+    uint16_t consecutive_fail;
+    uint16_t consecutive_recover_fail;
+
     uint32_t uptime_ms;
 };
 
@@ -96,7 +137,7 @@ class CL_E10_EliteAirMouse {
 
     BleCompositeHID _hid;
 
-    // ✅ Media keys enable을 위해 KeyboardDevice를 "config 적용 생성" 방식으로 전환
+    // [P0] Media keys enable을 위해 config 적용 생성(포인터)
     KeyboardDevice* _keyboard = nullptr;
     MouseDevice     _mouse;
 
@@ -108,18 +149,10 @@ class CL_E10_EliteAirMouse {
     static constexpr int s_btnMode   = 13;
     static constexpr int s_btnScroll = 14;
 
-    volatile bool _isPptMode = false;
-
-    struct ST_E10_State_t {
-        int  x;
-        int  y;
-        int  wheel;
-        bool updated;
-    } _state;
-
-    SemaphoreHandle_t _mutex = nullptr;
-
     static constexpr uint8_t s_mouseBtnLeft = 0x01;
+
+    struct ST_State_t { int x; int y; int wheel; bool updated; } _state;
+    SemaphoreHandle_t _mutex = nullptr;
 
     // gyro bias
     float _gyroBiasX = 0.0f;
@@ -130,7 +163,10 @@ class CL_E10_EliteAirMouse {
     static constexpr uint32_t s_calibMs = 1000;
     static constexpr float    s_calibStillThDeg = 3.0f;
 
-    // config runtime
+    // mode/status flags (setters use mutex, sensor reads are tolerant)
+    volatile bool _isPptMode = false;
+
+    // runtime config
     int   _dpiLevel = 2;
     bool  _hardClickLock = true;
 
@@ -146,36 +182,81 @@ class CL_E10_EliteAirMouse {
 
     float _scrollCursorDamp = 0.25f;
 
-    // PPT keys (kb page 0x07 기준: mod(mask) + key(usage-id))
-    ST_C10_PptKey_t _pptStart;
-    ST_C10_PptKey_t _pptExit;
-    ST_C10_PptKey_t _pptNext;
-    ST_C10_PptKey_t _pptPrev;
-    ST_C10_PptKey_t _pptBlack;
-    ST_C10_PptKey_t _pptLaser;
+    // precision mode (joystick-like)
+    bool   _precisionEnable = false;
+    volatile bool _precisionMode = false;
 
-    // status vars
-    float _tempC = 0.0f;
+    float  _precDeadzone = 1.2f;
+    float  _precGain     = 0.65f;
+    float  _precAccel    = 0.25f;
+    uint8_t _precMaxStep = 18;
+    float  _precSmooth   = 0.85f;
+
+    float _precSmX = 0.0f;
+    float _precSmY = 0.0f;
+
+    // PPT v2
+    ST_C10_PptKey2_t _ppt2_start;
+    ST_C10_PptKey2_t _ppt2_exit;
+    ST_C10_PptKey2_t _ppt2_next;
+    ST_C10_PptKey2_t _ppt2_prev;
+    ST_C10_PptKey2_t _ppt2_black;
+    ST_C10_PptKey2_t _ppt2_laser;
+
+    // status vars (센서 루프가 갱신)
+    float    _tempC = 0.0f;
     uint32_t _uptime0 = 0;
 
-    // timing avg
-    float _dtAvgMs = 8.0f;
-    uint32_t _dtAvgCnt = 0;
+    float    _dtAvgMs = 8.0f;
 
-    // counters
-    uint32_t _errMpuRead = 0;
+    // errors
+    uint32_t _errMpuNan = 0;
     uint32_t _errMutexMiss = 0;
     uint32_t _errTaskOverrun = 0;
+
+    // RMS (Welford)
+    uint32_t _gyroN = 0; double _gyroMean = 0.0; double _gyroM2 = 0.0;
+    uint32_t _curN  = 0; double _curMean  = 0.0; double _curM2  = 0.0;
+
+    // i2c recover
+    uint32_t _i2cRecoverCount = 0;
+    bool     _i2cRecoverLastOk = true;
+
+    // history ring
+    static constexpr uint8_t s_errHistCap = 16;
+    ST_E10_ErrEvt_t _errHist[s_errHistCap];
+    uint8_t _errHistHead = 0;
+    uint8_t _errHistCount = 0;
+
+    // anomaly spike
+    static constexpr float s_spikeThDeg = 650.0f; // 튜닝 포인트
+    struct ST_SpikeEvt_t { uint32_t ts_ms; };
+    ST_SpikeEvt_t _spikes[32];
+    uint8_t _spikeHead = 0;
+    uint8_t _spikeCount = 0;
+
+    uint16_t _consecutiveFail = 0;
+    uint16_t _consecutiveRecoverFail = 0;
+
+    // [P0] status snapshot (200ms 주기 갱신)
+    ST_E10_Status_t _statusSnap;
+    uint32_t _snapTsMs = 0;
 
   public:
     CL_E10_EliteAirMouse() : _hid("Elite AirMouse S3", "ProMaker", 100) {
         _state = {0,0,0,false};
-        memset(&_pptStart, 0, sizeof(_pptStart));
-        memset(&_pptExit,  0, sizeof(_pptExit));
-        memset(&_pptNext,  0, sizeof(_pptNext));
-        memset(&_pptPrev,  0, sizeof(_pptPrev));
-        memset(&_pptBlack, 0, sizeof(_pptBlack));
-        memset(&_pptLaser, 0, sizeof(_pptLaser));
+
+        memset(&_ppt2_start, 0, sizeof(_ppt2_start));
+        memset(&_ppt2_exit,  0, sizeof(_ppt2_exit));
+        memset(&_ppt2_next,  0, sizeof(_ppt2_next));
+        memset(&_ppt2_prev,  0, sizeof(_ppt2_prev));
+        memset(&_ppt2_black, 0, sizeof(_ppt2_black));
+        memset(&_ppt2_laser, 0, sizeof(_ppt2_laser));
+
+        memset(_errHist, 0, sizeof(_errHist));
+        memset(_spikes,  0, sizeof(_spikes));
+
+        memset(&_statusSnap, 0, sizeof(_statusSnap));
     }
 
     void begin(CL_C10_Config* p_cfg) {
@@ -188,7 +269,7 @@ class CL_E10_EliteAirMouse {
         Wire.setClock(400000);
 
         if (!_mpu.begin()) {
-            Serial.println("Failed to find MPU6050 chip");
+            Serial.println("[E10] MPU begin fail");
             for (;;) delay(10);
         }
 
@@ -204,22 +285,15 @@ class CL_E10_EliteAirMouse {
 
         (void)applyFromConfig();
 
-        // ------------------------------------------------------
-        // ✅ Keyboard init (Media keys ON)
-        // ------------------------------------------------------
-        // [중요] Media keys는 기본 비활성일 수 있음 → config로 활성화
+        // [P0] Media keys enable
         KeyboardConfiguration v_kcfg;
         v_kcfg.setUseMediaKeys(true);
-
-        // NOTE: new 실패 시 브릭 방지. (대신 keyboard 기능이 제한될 수 있음)
         _keyboard = new (std::nothrow) KeyboardDevice(v_kcfg);
         if (_keyboard == nullptr) {
-            Serial.println("[E10] ERR: KeyboardDevice alloc failed");
-            // 최소 동작을 위해 무한루프는 피함. (mouse만 살아있게)
-        } else {
-            _hid.addDevice(_keyboard);
+            Serial.println("[E10] WARN: KeyboardDevice alloc failed (media keys disabled).");
         }
 
+        if (_keyboard != nullptr) _hid.addDevice(_keyboard);
         _hid.addDevice(&_mouse);
         _hid.begin();
 
@@ -227,17 +301,17 @@ class CL_E10_EliteAirMouse {
         xTaskCreatePinnedToCore(commTask,   "E10_Comm",   4096, this, 2, nullptr, 0);
     }
 
-    // 기존 Apply 콜백
+    // W10 Apply 콜백
     static bool E10_W10Apply(void* p_ctx) {
         if (p_ctx == nullptr) return false;
         return ((CL_E10_EliteAirMouse*)p_ctx)->applyFromConfig();
     }
 
-    // 웹에서 PPT/DPI 즉시 변경
+    // control
     bool setPptMode(bool p_enable) {
-        if (_mutex != nullptr) (void)xSemaphoreTake(_mutex, portMAX_DELAY);
+        lock_();
         _isPptMode = p_enable;
-        if (_mutex != nullptr) xSemaphoreGive(_mutex);
+        unlock_();
         return true;
     }
 
@@ -245,93 +319,59 @@ class CL_E10_EliteAirMouse {
         if (p_level < 1) p_level = 1;
         if (p_level > 3) p_level = 3;
 
-        if (_mutex != nullptr) (void)xSemaphoreTake(_mutex, portMAX_DELAY);
+        lock_();
         _dpiLevel = (int)p_level;
         _engine.setDPI(_dpiLevel);
-        if (_mutex != nullptr) xSemaphoreGive(_mutex);
+        unlock_();
         return true;
     }
 
-    // /api/status
+    bool setPrecisionMode(bool p_enable) {
+        lock_();
+        _precisionMode = (p_enable && _precisionEnable);
+        _precSmX = 0.0f;
+        _precSmY = 0.0f;
+        unlock_();
+        return true;
+    }
+
+    // /api/ppt/test에서 사용 (Apply without Save)
+    bool testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code) {
+        if (!_hid.isConnected()) return false;
+        sendPptKey2_(p_page, p_mod, p_code);
+        return true;
+    }
+
+    // /api/status: 스냅샷 반환
     void getStatus(ST_E10_Status_t& p_out) {
         memset(&p_out, 0, sizeof(p_out));
-
-        if (_mutex != nullptr) (void)xSemaphoreTake(_mutex, portMAX_DELAY);
-
-        p_out.ble_connected = _hid.isConnected();
-        p_out.ppt_mode = _isPptMode;
-        p_out.dpi_level = (uint8_t)_dpiLevel;
-
-        p_out.gyro_bias_x = _gyroBiasX;
-        p_out.gyro_bias_y = _gyroBiasY;
-        p_out.gyro_bias_z = _gyroBiasZ;
-        p_out.temp_c = _tempC;
-
-        p_out.sampling_ms_target = 8;
-        p_out.sampling_ms_avg = _dtAvgMs;
-
-        p_out.err_mpu_read = _errMpuRead;
-        p_out.err_mutex_miss = _errMutexMiss;
-        p_out.err_task_overrun = _errTaskOverrun;
-
-        p_out.uptime_ms = (uint32_t)(millis() - _uptime0);
-
-        if (_mutex != nullptr) xSemaphoreGive(_mutex);
-    }
-
-    // ------------------------------------------------------
-    // ✅ (추가) PPT 임시 테스트용 전송 헬퍼
-    // - W10의 /api/ppt/test 같은 임시 API에서 호출하기 좋음
-    // ------------------------------------------------------
-    bool sendKb(uint8_t p_modMask, uint8_t p_usage, uint16_t p_ms = 22) {
-        if (!_hid.isConnected()) return false;
-        if (_keyboard == nullptr) return false;
-        if (p_usage == 0) return false;
-
-        // 정책: modifier byte(bitmask) 방식 (W10 mods mask와 1:1)
-        if (p_modMask != 0) _keyboard->modifierKeyPress(p_modMask);
-        _keyboard->keyPress(p_usage);
-        vTaskDelay(pdMS_TO_TICKS(p_ms));
-        _keyboard->keyRelease(p_usage);
-        if (p_modMask != 0) _keyboard->modifierKeyRelease(p_modMask);
-        return true;
-    }
-
-    bool sendConsumer(uint32_t p_mask, uint16_t p_ms = 50) {
-        if (!_hid.isConnected()) return false;
-        if (_keyboard == nullptr) return false;
-        if (p_mask == 0) return false;
-
-        // Consumer(Media) 키는 usage-id가 아닌 "bitflag mask(OR 가능)" 방식
-        _keyboard->mediaKeyPress(p_mask);
-        vTaskDelay(pdMS_TO_TICKS(p_ms));
-        _keyboard->mediaKeyRelease(p_mask);
-        return true;
+        lock_();
+        p_out = _statusSnap;
+        unlock_();
     }
 
   private:
+    // -------------------------
+    // Config apply
+    // -------------------------
     bool applyFromConfig() {
         if (_cfg == nullptr) return false;
 
         ST_C10_WiFiConfig_t v_w;
         ST_C10_E10Config_t  v_e;
-        memset(&v_w, 0, sizeof(v_w));
-        memset(&v_e, 0, sizeof(v_e));
-
+        _cfg->makeDefaultsWiFi(v_w);
+        _cfg->makeDefaultsE10(v_e);
         (void)_cfg->loadAll(v_w, v_e);
 
-        if (_mutex != nullptr) (void)xSemaphoreTake(_mutex, portMAX_DELAY);
+        lock_();
 
         _dpiLevel = (int)v_e.dpi_level;
         _hardClickLock = v_e.hard_click_lock;
 
-        _scaleBase[0] = v_e.scale_base[0];
-        _scaleBase[1] = v_e.scale_base[1];
-        _scaleBase[2] = v_e.scale_base[2];
-
-        _accelGain[0] = v_e.accel_gain[0];
-        _accelGain[1] = v_e.accel_gain[1];
-        _accelGain[2] = v_e.accel_gain[2];
+        for (int i=0; i<3; i++) {
+            _scaleBase[i] = v_e.scale_base[i];
+            _accelGain[i] = v_e.accel_gain[i];
+        }
 
         _accelTh = v_e.accel_threshold;
 
@@ -343,91 +383,347 @@ class CL_E10_EliteAirMouse {
 
         _scrollCursorDamp = v_e.scroll_cursor_damp;
 
-        _pptStart = v_e.ppt_start;
-        _pptExit  = v_e.ppt_exit;
-        _pptNext  = v_e.ppt_next;
-        _pptPrev  = v_e.ppt_prev;
-        _pptBlack = v_e.ppt_black;
-        _pptLaser = v_e.ppt_laser;
+        _precisionEnable = v_e.precision_enable;
+        _precDeadzone    = v_e.precision_deadzone;
+        _precGain        = v_e.precision_gain;
+        _precAccel       = v_e.precision_accel;
+        _precMaxStep     = v_e.precision_max_step;
+        _precSmooth      = v_e.precision_smooth;
+
+        if (!_precisionEnable) _precisionMode = false;
+
+        // PPT v2
+        _ppt2_start = v_e.ppt2_start;
+        _ppt2_exit  = v_e.ppt2_exit;
+        _ppt2_next  = v_e.ppt2_next;
+        _ppt2_prev  = v_e.ppt2_prev;
+        _ppt2_black = v_e.ppt2_black;
+        _ppt2_laser = v_e.ppt2_laser;
 
         _engine.setHardClickLock(_hardClickLock);
         _engine.setDPI(_dpiLevel);
 
-        if (_mutex != nullptr) xSemaphoreGive(_mutex);
+        unlock_();
 
-        Serial.printf("[E10] apply ok: dpi=%d hard=%d accelTh=%.2f wheelTh=%.1f step=%d flick=%.1f cd=%u damp=%.2f\n",
+        Serial.printf("[E10] apply ok: dpi=%d hard=%d accelTh=%.2f wheelTh=%.1f step=%d flick=%.1f cd=%u damp=%.2f precEn=%d\n",
                       _dpiLevel, _hardClickLock ? 1 : 0, _accelTh, _wheelThDeg, _wheelStepMax,
-                      _gestureFlickDeg, (unsigned)_gestureCooldownMs, _scrollCursorDamp);
+                      _gestureFlickDeg, (unsigned)_gestureCooldownMs, _scrollCursorDamp,
+                      _precisionEnable ? 1 : 0);
 
         return true;
     }
 
     // -------------------------
-    // PPT send helpers
+    // Modifier policy (W10 mods mask == HID modifier byte 1:1)
     // -------------------------
-    void sendPptKey(const ST_C10_PptKey_t& p_k) {
-        if (!_hid.isConnected()) return;
+    static bool isModifierUsage_(uint8_t p_usage) {
+        return (p_usage >= 0xE0 && p_usage <= 0xE7);
+    }
+
+    void tapUsageKb_(uint8_t p_usage, uint16_t p_ms = 12) {
+        if (p_usage == 0) return;
         if (_keyboard == nullptr) return;
-        if (p_k.key == 0) return;
-
-        // ✅ modifier byte 방식: W10 mods(mask)와 1:1
-        // - p_k.mod: KEY_MOD_* mask (0x01~0x80)
-        // - p_k.key: Keyboard/Keypad page 0x07 usage-id (0x04~0xE7)
-        (void)sendKb((uint8_t)p_k.mod, (uint8_t)p_k.key, 22);
+        _keyboard->keyPress(p_usage);
+        vTaskDelay(pdMS_TO_TICKS(p_ms));
+        _keyboard->keyRelease(p_usage);
     }
 
-    void processGesturesDeg(float p_gzDegPerSec) {
-        static unsigned long s_lastFlick = 0;
-        if (millis() - s_lastFlick < _gestureCooldownMs) return;
+    void tapComboUsageKb_(uint8_t p_modMask, uint8_t p_usage, uint16_t p_ms = 22) {
+        if (p_usage == 0) return;
+        if (_keyboard == nullptr) return;
 
-        // [튜닝 TIP]
-        // - _gestureFlickDeg: 200을 ↑=둔감 / ↓=민감
-        if (p_gzDegPerSec > _gestureFlickDeg) { sendPptKey(_pptPrev); s_lastFlick = millis(); }
-        else if (p_gzDegPerSec < -_gestureFlickDeg) { sendPptKey(_pptNext); s_lastFlick = millis(); }
+        // [P0] 일반 key에 modifier usage가 들어오면 차단(정책 일관성)
+        if (isModifierUsage_(p_usage)) {
+            pushErr_(EN_E10_ERR_INVALID_KB_USAGE, p_usage);
+            return;
+        }
+
+        if (p_modMask) _keyboard->modifierKeyPress(p_modMask);
+        _keyboard->keyPress(p_usage);
+        vTaskDelay(pdMS_TO_TICKS(p_ms));
+        _keyboard->keyRelease(p_usage);
+        if (p_modMask) _keyboard->modifierKeyRelease(p_modMask);
     }
 
-    static void mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
-        // NOTE: 라이브러리 mouseMove(x, y, scrollX, scrollY) 형태
-        // - 세로 스크롤이 반대로 느껴지면 여기서 부호만 바꾸면 됨.
-        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
+    void tapConsumerMask_(uint32_t p_mask, uint16_t p_ms = 28) {
+        if (p_mask == 0) return;
+        if (_keyboard == nullptr) return;
+        // KeyboardDevice::mediaKeyPress는 "mask(bitflag)" 방식
+        _keyboard->mediaKeyPress(p_mask);
+        vTaskDelay(pdMS_TO_TICKS(p_ms));
+        _keyboard->mediaKeyRelease(p_mask);
+    }
+
+    void sendPptKey2_(uint8_t p_page, uint8_t p_mod, uint32_t p_code) {
+        if (p_page == (uint8_t)EN_C10_KEYPAGE_CONSUMER) {
+            // Consumer page: code=mask
+            tapConsumerMask_(p_code);
+            return;
+        }
+
+        // Keyboard page(0x07): code=usage_id (0x00~0xE7)
+        uint8_t v_usage = (uint8_t)min((uint32_t)0xE7, p_code);
+
+        // [P0] UI 실수 방어: key로 modifier usage가 오면 차단(모디파이어는 mod byte로만)
+        if (isModifierUsage_(v_usage)) {
+            pushErr_(EN_E10_ERR_INVALID_KB_USAGE, v_usage);
+            return;
+        }
+
+        if (p_mod) tapComboUsageKb_(p_mod, v_usage, 22);
+        else       tapUsageKb_(v_usage, 12);
+    }
+
+    void sendPptKey2FromCfg_(const ST_C10_PptKey2_t& p_k) {
+        sendPptKey2_(p_k.page, p_k.mod, p_k.code);
+    }
+
+    void processGesturesDeg_(float p_gzDeg) {
+        static unsigned long s_last = 0;
+        if (millis() - s_last < _gestureCooldownMs) return;
+
+        if (p_gzDeg > _gestureFlickDeg)      { sendPptKey2FromCfg_(_ppt2_prev);  s_last = millis(); }
+        else if (p_gzDeg < -_gestureFlickDeg){ sendPptKey2FromCfg_(_ppt2_next);  s_last = millis(); }
     }
 
     // -------------------------
-    // Gyro Calibration
+    // Precision shaping
     // -------------------------
-    void runGyroCalibration() {
+    void applyPrecision_(float& p_fx, float& p_fy) {
+        if (!_precisionMode) return;
+
+        if (fabsf(p_fx) < _precDeadzone) p_fx = 0.0f;
+        if (fabsf(p_fy) < _precDeadzone) p_fy = 0.0f;
+
+        auto shape = [&](float v)->float {
+            float a = fabsf(v);
+            if (a < 0.0001f) return 0.0f;
+            float n = min(1.0f, a / (float)_precMaxStep);
+            float b = n + (_precAccel * n * n);
+            float out = b * (float)_precMaxStep;
+            out *= _precGain;
+            return (v >= 0) ? out : -out;
+        };
+
+        float v_tx = constrain(shape(p_fx), -(float)_precMaxStep, (float)_precMaxStep);
+        float v_ty = constrain(shape(p_fy), -(float)_precMaxStep, (float)_precMaxStep);
+
+        _precSmX = _precSmX * _precSmooth + v_tx * (1.0f - _precSmooth);
+        _precSmY = _precSmY * _precSmooth + v_ty * (1.0f - _precSmooth);
+
+        p_fx = _precSmX;
+        p_fy = _precSmY;
+    }
+
+    // -------------------------
+    // Stats helpers
+    // -------------------------
+    void welfordAdd_(uint32_t& n, double& mean, double& m2, double x) {
+        n++;
+        double d  = x - mean;
+        mean     += d / (double)n;
+        double d2 = x - mean;
+        m2       += d * d2;
+
+        // 과도 누적 방지(현장 장시간 운영)
+        if (n > 2500) { n = 1; mean = x; m2 = 0.0; }
+    }
+
+    float calcRms_(uint32_t n, double m2) {
+        if (n < 2) return 0.0f;
+        double var = m2 / (double)(n - 1);
+        if (var < 0.0) var = 0.0;
+        return (float)sqrt(var);
+    }
+
+    void pushErr_(uint8_t p_code, uint16_t p_value = 0) {
+        ST_E10_ErrEvt_t v_e;
+        v_e.ts_ms = (uint32_t)(millis() - _uptime0);
+        v_e.code  = p_code;
+        v_e.value = p_value;
+
+        _errHist[_errHistHead] = v_e;
+        _errHistHead = (uint8_t)((_errHistHead + 1) % s_errHistCap);
+        if (_errHistCount < s_errHistCap) _errHistCount++;
+    }
+
+    void pushSpike_(uint32_t p_tsMs) {
+        _spikes[_spikeHead].ts_ms = p_tsMs;
+        _spikeHead = (uint8_t)((_spikeHead + 1) % 32);
+        if (_spikeCount < 32) _spikeCount++;
+    }
+
+    // -------------------------
+    // I2C Recover
+    // -------------------------
+    bool recoverI2C_() {
+        const int v_sda = 4;
+        const int v_scl = 5;
+
+        pinMode(v_sda, INPUT_PULLUP);
+        pinMode(v_scl, OUTPUT_OPEN_DRAIN);
+
+        // SCL 9 pulses
+        for (int i=0; i<9; i++) {
+            digitalWrite(v_scl, HIGH); delayMicroseconds(6);
+            digitalWrite(v_scl, LOW);  delayMicroseconds(6);
+        }
+        digitalWrite(v_scl, HIGH); delayMicroseconds(6);
+
+        Wire.end(); delay(5);
+        Wire.begin(v_sda, v_scl);
+        Wire.setClock(400000);
+        delay(5);
+
+        bool v_ok = _mpu.begin();
+        if (v_ok) {
+            _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+            _mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+            _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+        }
+
+        _i2cRecoverCount++;
+        _i2cRecoverLastOk = v_ok;
+
+        if (v_ok) {
+            _consecutiveRecoverFail = 0;
+            pushErr_(EN_E10_ERR_I2C_RECOVER_OK, 0);
+        } else {
+            _consecutiveRecoverFail++;
+            _consecutiveFail++;
+            pushErr_(EN_E10_ERR_I2C_RECOVER_FAIL, 0);
+        }
+
+        return v_ok;
+    }
+
+    // -------------------------
+    // Calibration
+    // -------------------------
+    void runGyroCalibration_() {
         const uint32_t v_t0 = millis();
         uint32_t v_cnt = 0;
-        double v_sumX = 0.0, v_sumY = 0.0, v_sumZ = 0.0;
+        double v_sx = 0.0, v_sy = 0.0, v_sz = 0.0;
 
         while (millis() - v_t0 < s_calibMs) {
-            sensors_event_t v_a, v_g, v_temp;
-            _mpu.getEvent(&v_a, &v_g, &v_temp);
+            sensors_event_t v_a, v_g, v_t;
+            _mpu.getEvent(&v_a, &v_g, &v_t);
 
-            const float v_gx = v_g.gyro.x * RAD_TO_DEG;
-            const float v_gy = v_g.gyro.y * RAD_TO_DEG;
-            const float v_gz = v_g.gyro.z * RAD_TO_DEG;
+            float v_gx = v_g.gyro.x * RAD_TO_DEG;
+            float v_gy = v_g.gyro.y * RAD_TO_DEG;
+            float v_gz = v_g.gyro.z * RAD_TO_DEG;
 
-            // [튜닝 TIP]
-            // - s_calibStillThDeg: "손에 든 채 켜는 상황"에서 bias가 틀어지는 걸 막기 위해
-            //   움직임 큰 샘플을 제외함. ↑=엄격(샘플 적음) / ↓=완화(샘플 많음)
-            const float v_absMax = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
-            if (v_absMax < s_calibStillThDeg) {
-                v_sumX += v_gx; v_sumY += v_gy; v_sumZ += v_gz; v_cnt++;
+            float v_m = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
+            if (v_m < s_calibStillThDeg) {
+                v_sx += v_gx; v_sy += v_gy; v_sz += v_gz; v_cnt++;
             }
             vTaskDelay(pdMS_TO_TICKS(5));
         }
 
         if (v_cnt > 0) {
-            _gyroBiasX = (float)(v_sumX / (double)v_cnt);
-            _gyroBiasY = (float)(v_sumY / (double)v_cnt);
-            _gyroBiasZ = (float)(v_sumZ / (double)v_cnt);
+            _gyroBiasX = (float)(v_sx / (double)v_cnt);
+            _gyroBiasY = (float)(v_sy / (double)v_cnt);
+            _gyroBiasZ = (float)(v_sz / (double)v_cnt);
         }
 
         _gyroCalibDone = true;
         Serial.printf("[E10] gyro calib: bx=%.3f by=%.3f bz=%.3f samples=%u\n",
                       _gyroBiasX, _gyroBiasY, _gyroBiasZ, (unsigned)v_cnt);
     }
+
+    // -------------------------
+    // Status Snapshot
+    // -------------------------
+    uint16_t calcSpikeCount10s_(uint32_t p_nowMs) {
+        uint16_t v_sc = 0;
+        for (uint8_t i=0; i<_spikeCount; i++) {
+            int v_idx = (int)_spikeHead - 1 - (int)i;
+            if (v_idx < 0) v_idx += 32;
+            if (p_nowMs - _spikes[v_idx].ts_ms <= 10000) v_sc++;
+            else break;
+        }
+        return v_sc;
+    }
+
+    void updateStatusSnapIfDue_(uint32_t p_nowMs) {
+        if (p_nowMs - _snapTsMs < 200) return;
+        _snapTsMs = p_nowMs;
+
+        ST_E10_Status_t v_s;
+        memset(&v_s, 0, sizeof(v_s));
+
+        v_s.ble_connected = _hid.isConnected();
+        v_s.ppt_mode      = _isPptMode;
+        v_s.dpi_level     = (uint8_t)_dpiLevel;
+        v_s.precision_mode= _precisionMode;
+
+        v_s.gyro_bias_x = _gyroBiasX;
+        v_s.gyro_bias_y = _gyroBiasY;
+        v_s.gyro_bias_z = _gyroBiasZ;
+        v_s.temp_c      = _tempC;
+
+        v_s.sampling_ms_target = 8;
+        v_s.sampling_ms_avg    = _dtAvgMs;
+
+        v_s.i2c_recover_count   = _i2cRecoverCount;
+        v_s.i2c_recover_last_ok = _i2cRecoverLastOk;
+
+        v_s.err_mpu_nan     = _errMpuNan;
+        v_s.err_mutex_miss  = _errMutexMiss;
+        v_s.err_task_overrun= _errTaskOverrun;
+
+        v_s.gyro_rms   = calcRms_(_gyroN, _gyroM2);
+        v_s.cursor_rms = calcRms_(_curN,  _curM2);
+
+        v_s.spike_count_10s          = calcSpikeCount10s_(p_nowMs);
+        v_s.consecutive_fail         = _consecutiveFail;
+        v_s.consecutive_recover_fail = _consecutiveRecoverFail;
+
+        v_s.uptime_ms = p_nowMs;
+
+        // err history newest-first
+        v_s.err_hist_n = (uint8_t)min((uint8_t)s_errHistCap, _errHistCount);
+        for (uint8_t i=0; i<v_s.err_hist_n; i++) {
+            int v_idx = (int)_errHistHead - 1 - (int)i;
+            if (v_idx < 0) v_idx += s_errHistCap;
+            v_s.err_hist[i] = _errHist[v_idx];
+        }
+
+        // health score (현장 판단용)
+        uint16_t v_score = 1000;
+        v_score = (uint16_t)max(0, (int)v_score - (int)(v_s.gyro_rms * 25.0f));
+        v_score = (uint16_t)max(0, (int)v_score - (int)(v_s.cursor_rms * 18.0f));
+        v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)400, v_s.err_mpu_nan * 20));
+        v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)300, v_s.i2c_recover_count * 35));
+        v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)300, (uint32_t)v_s.spike_count_10s * 12));
+        v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)400, (uint32_t)v_s.consecutive_fail * 18));
+
+        // [P1] recover fail도 반영(현장 체감에 매우 중요)
+        v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)500, (uint32_t)v_s.consecutive_recover_fail * 35));
+
+        v_s.health_score = v_score;
+        v_s.health = (v_score >= 820) ? (uint8_t)EN_E10_HEALTH_OK
+                   : (v_score >= 620) ? (uint8_t)EN_E10_HEALTH_WARN
+                                      : (uint8_t)EN_E10_HEALTH_DEGRADED;
+
+        // snapshot commit (mutex 보호)
+        lock_();
+        _statusSnap = v_s;
+        unlock_();
+    }
+
+    // -------------------------
+    // Mouse send
+    // -------------------------
+    static void mouseSend_(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
+        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
+    }
+
+    // -------------------------
+    // Mutex helpers
+    // -------------------------
+    void lock_()   { if (_mutex) (void)xSemaphoreTake(_mutex, portMAX_DELAY); }
+    void unlock_() { if (_mutex) xSemaphoreGive(_mutex); }
 
     // -------------------------
     // Tasks
@@ -439,33 +735,30 @@ class CL_E10_EliteAirMouse {
         unsigned long v_lastUs = micros();
         unsigned long v_btnDownMs = 0;
 
-        if (!v_m->_gyroCalibDone) v_m->runGyroCalibration();
+        if (!v_m->_gyroCalibDone) v_m->runGyroCalibration_();
 
         for (;;) {
-            sensors_event_t v_a, v_g, v_temp;
-            v_m->_mpu.getEvent(&v_a, &v_g, &v_temp);
-            v_m->_tempC = v_temp.temperature;
+            sensors_event_t v_a, v_g, v_t;
+            v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
+            v_m->_tempC = v_t.temperature;
 
             const unsigned long v_nowUs = micros();
             const float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
             v_lastUs = v_nowUs;
 
-            // dt 평균(상태 표시용)
             const float v_dtMs = v_dt * 1000.0f;
-            v_m->_dtAvgCnt++;
             v_m->_dtAvgMs = v_m->_dtAvgMs * 0.98f + v_dtMs * 0.02f;
 
             const bool v_scrollMode = (digitalRead(s_btnScroll) == LOW);
 
-            // BTN_MODE: short=dpi cycle, long=ppt toggle
+            // mode 버튼: short=dpi cycle, long=ppt toggle
             if (digitalRead(s_btnMode) == LOW) {
                 if (v_btnDownMs == 0) v_btnDownMs = millis();
             } else {
                 if (v_btnDownMs > 0) {
                     const unsigned long v_hold = millis() - v_btnDownMs;
-                    if (v_hold > 1000) {
-                        v_m->_isPptMode = !v_m->_isPptMode;
-                    } else {
+                    if (v_hold > 1000) v_m->_isPptMode = !v_m->_isPptMode;
+                    else {
                         v_m->_dpiLevel++;
                         if (v_m->_dpiLevel > 3) v_m->_dpiLevel = 1;
                         v_m->_engine.setDPI(v_m->_dpiLevel);
@@ -474,33 +767,47 @@ class CL_E10_EliteAirMouse {
                 }
             }
 
-            // gyro deg/s (bias 제거)
             float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
             float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
             float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
 
-            // roll 보정(상보필터)
+            const uint32_t v_ts = (uint32_t)(millis() - v_m->_uptime0);
+
+            // spike anomaly
+            if (fabsf(v_gz) > s_spikeThDeg) v_m->pushSpike_(v_ts);
+
+            // NaN guard + recover
+            if (isnan(v_gx) || isnan(v_gy) || isnan(v_gz)) {
+                v_m->_errMpuNan++;
+                v_m->_consecutiveFail++;
+                v_m->pushErr_(EN_E10_ERR_MPU_NAN, 0);
+
+                if ((v_m->_errMpuNan % 5) == 0) (void)v_m->recoverI2C_();
+
+                v_m->updateStatusSnapIfDue_(v_ts);
+                vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+                continue;
+            } else {
+                // 정상 샘플이면 연속실패를 완만히 감소
+                if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
+            }
+
+            v_m->welfordAdd_(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);
+
             v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
 
             int v_tx = 0, v_ty = 0;
             v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
 
-            // 스크롤 모드에서는 제스처 차단(UX 충돌 방지)
-            if (v_m->_isPptMode && !v_scrollMode) v_m->processGesturesDeg(v_gz);
-
-            // 클릭 처리
             const bool v_leftClick = (digitalRead(s_btnL) == LOW);
             if (v_leftClick) v_m->_engine.notifyClick();
 
-            // DPI 기반 scale + 가속
             float v_base = v_m->_scaleBase[v_m->_dpiLevel - 1];
             float v_accg = v_m->_accelGain[v_m->_dpiLevel - 1];
 
             const float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
             float v_acc = 1.0f;
             if (v_mag > v_m->_accelTh) {
-                // [튜닝 TIP]
-                // - +18.0f를 ↓면 가속이 빨리 붙고, ↑면 완만해짐
                 const float v_ex = (v_mag - v_m->_accelTh);
                 v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
             }
@@ -508,27 +815,27 @@ class CL_E10_EliteAirMouse {
             float v_fx = (float)v_tx * v_base * v_acc;
             float v_fy = (float)v_ty * v_base * v_acc;
 
-            // 스크롤 전용 버튼(BTN_SCROLL)
+            if (!v_scrollMode) v_m->applyPrecision_(v_fx, v_fy);
+
+            v_m->welfordAdd_(v_m->_curN, v_m->_curMean, v_m->_curM2, (double)sqrtf(v_fx*v_fx + v_fy*v_fy));
+
+            if (v_m->_isPptMode && !v_scrollMode) v_m->processGesturesDeg_(v_gz);
+
             int v_wheel = 0;
             if (v_scrollMode) {
-                // [튜닝 TIP]
-                // - _wheelThDeg: ↑=둔감(스크롤 덜 됨) / ↓=민감(스크롤 잘 됨)
                 if (v_gy > v_m->_wheelThDeg) {
-                    float v_norm = (v_gy - v_m->_wheelThDeg) / 120.0f;
-                    if (v_norm > 1.0f) v_norm = 1.0f;
-                    v_wheel = (int)(1 + (v_norm * (v_m->_wheelStepMax - 1)));
+                    float v_n = (v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = (int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
                 } else if (v_gy < -v_m->_wheelThDeg) {
-                    float v_norm = (-v_gy - v_m->_wheelThDeg) / 120.0f;
-                    if (v_norm > 1.0f) v_norm = 1.0f;
-                    v_wheel = -(int)(1 + (v_norm * (v_m->_wheelStepMax - 1)));
+                    float v_n = (-v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = -(int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
                 }
-
-                // 커서 이동 억제(오동작 방지)
                 v_fx *= v_m->_scrollCursorDamp;
                 v_fy *= v_m->_scrollCursorDamp;
             }
 
-            // 공유 상태 저장 (comm task에서 HID 전송)
             if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
                 v_m->_state.x = (int)v_fx;
                 v_m->_state.y = (int)v_fy;
@@ -537,20 +844,24 @@ class CL_E10_EliteAirMouse {
                 xSemaphoreGive(v_m->_mutex);
             } else {
                 v_m->_errMutexMiss++;
+                v_m->pushErr_(EN_E10_ERR_MUTEX_MISS, 0);
             }
 
-            // 버튼 상태 즉시 반영(연결 중에만)
             if (v_m->_hid.isConnected()) {
                 if (v_leftClick) v_m->_mouse.mousePress(s_mouseBtnLeft);
-                else v_m->_mouse.mouseRelease(s_mouseBtnLeft);
+                else             v_m->_mouse.mouseRelease(s_mouseBtnLeft);
             }
+
+            // status snapshot update (200ms)
+            v_m->updateStatusSnapIfDue_(v_ts);
 
             // overrun 감지(대략)
             TickType_t v_before = xTaskGetTickCount();
-            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8)); // 125Hz
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
             TickType_t v_after = xTaskGetTickCount();
             if ((v_after - v_before) == 0) {
                 v_m->_errTaskOverrun++;
+                if ((v_m->_errTaskOverrun % 10) == 0) v_m->pushErr_(EN_E10_ERR_TASK_OVERRUN, 0);
             }
         }
     }
@@ -565,7 +876,7 @@ class CL_E10_EliteAirMouse {
                     const int8_t v_dy = (int8_t)constrain(v_m->_state.y, -127, 127);
                     const int8_t v_wh = (int8_t)constrain(v_m->_state.wheel, -127, 127);
 
-                    mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+                    mouseSend_(v_m->_mouse, v_dx, v_dy, v_wh);
                     v_m->_state.updated = false;
                 }
                 xSemaphoreGive(v_m->_mutex);
@@ -574,5 +885,3 @@ class CL_E10_EliteAirMouse {
         }
     }
 };
-
-
