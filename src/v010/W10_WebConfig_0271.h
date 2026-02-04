@@ -58,7 +58,7 @@
 #include "C10_Config_0271.h"
 
 // E10은 기존 v025 기반 유지 가능: 아래 include만 프로젝트에 맞게 연결
-#include "E10_EliteAirMouse_024.h"  // 또는 E10_EliteAirMouse_0271.h 로 교체
+#include "E10_EliteAirMouse_025.h"  // 또는 E10_EliteAirMouse_0271.h 로 교체
 
 class CL_W10_WebConfig {
   private:
