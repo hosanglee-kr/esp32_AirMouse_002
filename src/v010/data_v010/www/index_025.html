@@ -1,0 +1,96 @@
+
+<!-- =======================================================
+File: src/v025/data_v025/www/index_025.html
+======================================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.5)</title>
+  <link rel="stylesheet" href="./style_025.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.5 Field Dashboard + PPT Keymap Editor + OTA Safe</div>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div id="healthBanner" class="banner ok">OK</div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+      <div class="kpi"><div class="k">PPT Runtime</div><div class="v" id="kRt">-</div></div>
+      <div class="kpi"><div class="k">OTA</div><div class="v" id="otaState">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts (server-side)</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>PPT Keymap Editor</h2>
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">mods mask == modifier byte. kb 0xE0~0xE7는 사용 비권장</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Config / OTA (Safe)</h2>
+    <div class="row">
+      <button id="btnExport">Export</button>
+      <input type="file" id="fileImport" accept=".json,application/json" />
+      <button id="btnImport">Import</button>
+      <button id="btnRollback" class="danger">Rollback (.bak)</button>
+      <button id="btnReboot" class="danger">Reboot</button>
+    </div>
+
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+      <button id="btnOtaCancel" class="danger">Cancel</button>
+      <button id="btnOtaReboot" class="danger">Reboot after OTA</button>
+    </div>
+
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+
+</main>
+
+<script src="./app_025.js"></script>
+</body>
+</html>
