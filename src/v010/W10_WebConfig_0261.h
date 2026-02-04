@@ -42,10 +42,10 @@ class CL_W10_WebConfig {
     };
 
     static constexpr ST_W10_Asset_t s_assets[] = {
-        { "/", "/www/index_025.html", "/www/index_025.html.gz", "text/html", false },
-        { "/www/", "/www/index_025.html", "/www/index_025.html.gz", "text/html", false },
-        { "/www/style_025.css", "/www/style_025.css", "/www/style_025.css.gz", "text/css", true },
-        { "/www/app_025.js", "/www/app_025.js", "/www/app_025.js.gz", "application/javascript", true },
+        { "/", "/www/index_0251.html", "/www/index_0251.html.gz", "text/html", false },
+        { "/www/", "/www/index_0251.html", "/www/index_0251.html.gz", "text/html", false },
+        { "/www/style_0251.css", "/www/style_0251.css", "/www/style_0251.css.gz", "text/css", true },
+        { "/www/app_0251.js", "/www/app_0251.js", "/www/app_0251.js.gz", "application/javascript", true },
     };
 
     // mods mask == modifier byte (1:1)

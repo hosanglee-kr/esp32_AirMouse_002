@@ -640,3 +640,4 @@ class CL_C10_Config {
         return true;
     }
 };
+
