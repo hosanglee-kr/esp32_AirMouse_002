@@ -34,10 +34,10 @@ class CL_W10_WebConfig {
     };
 
     static constexpr ST_W10_Asset_t s_assets[] = {
-        { "/", "/www/index_0272.html", "/www/index_0272.html.gz", "text/html", false },
-        { "/www/", "/www/index_0272.html", "/www/index_0272.html.gz", "text/html", false },
-        { "/www/style_0272.css", "/www/style_0272.css", "/www/style_0272.css.gz", "text/css", true },
-        { "/www/app_0272.js", "/www/app_0272.js", "/www/app_0272.js.gz", "application/javascript", true },
+      { "/", "/www/index_0273.html", "/www/index_0273.html.gz", "text/html", false },
+      { "/www/", "/www/index_0273.html", "/www/index_0273.html.gz", "text/html", false },
+      { "/www/style_0273.css", "/www/style_0273.css", "/www/style_0273.css.gz", "text/css", true },
+      { "/www/app_0273.js", "/www/app_0273.js", "/www/app_0273.js.gz", "application/javascript", true },
     };
 
     // mods mask == modifier byte (1:1)
@@ -178,6 +178,66 @@ class CL_W10_WebConfig {
 
   private:
     // ---------- WiFi ----------
+    // ---------- WiFi ----------
+    void setupWiFi_(){
+        WiFi.mode(WIFI_MODE_NULL);
+    
+        const bool hasSta   = (_wifi.sta_ssid[0] != '\0');
+        const bool autoM    = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
+        const bool forceAp  = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
+        const bool forceSta = (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
+    
+        // (0273) Safe Boot: 무조건 AP 진입
+        if(_cfg && _cfg->isSafeMode()){
+            // Safe Boot에서 SSID 구분되게 하고 싶으면 아래처럼 suffix 권장
+            // (원본 보존 위해 _wifi.ap_ssid를 직접 변경하지 않고 local로 구성)
+            char v_ssid[33]; memset(v_ssid,0,sizeof(v_ssid));
+            strlcpy(v_ssid, _wifi.ap_ssid, sizeof(v_ssid));
+            // 길이 여유 있으면 "-SAFE" 추가
+            if(strlen(v_ssid) <= 28) strlcat(v_ssid, "-SAFE", sizeof(v_ssid));
+    
+            WiFi.mode(WIFI_AP);
+            // pass 비어있으면 open AP
+            if(_wifi.ap_pass[0] != '\0') WiFi.softAP(v_ssid, _wifi.ap_pass);
+            else WiFi.softAP(v_ssid);
+    
+            return;
+        }
+    
+        // normal logic
+        if(forceAp || (!hasSta && (autoM || !forceSta))){
+            startAp_();
+            return;
+        }
+    
+        // STA try
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(_wifi.sta_ssid, _wifi.sta_pass);
+    
+        uint32_t t0 = millis();
+        bool ok = false;
+        while(millis() - t0 < 8000){
+            if(WiFi.status() == WL_CONNECTED){ ok = true; break; }
+            delay(200);
+        }
+    
+        if(ok){
+            // STA 연결 성공 시 mDNS는 이벤트에서 붙지만, 여기서도 보강 가능
+            startMdns_();
+            return;
+        }
+    
+        // STA 실패
+        if(autoM){
+            startAp_();
+            return;
+        }
+    
+        // forceSta 이고 실패면 그대로(사용자가 STA 강제 설정한 경우)
+        // (원하면 여기서도 AP fallback을 허용하는 옵션을 추가 가능)
+    }
+
+    /*
     void setupWiFi_(){
         WiFi.mode(WIFI_MODE_NULL);
         const bool hasSta = (_wifi.sta_ssid[0] != '\0');
@@ -200,6 +260,7 @@ class CL_W10_WebConfig {
         if(ok) return;
         if(autoM){ startAp_(); return; }
     }
+    */
 
     void startAp_(){ WiFi.mode(WIFI_AP); WiFi.softAP(_wifi.ap_ssid,_wifi.ap_pass); }
     void onWifiEvent_(WiFiEvent_t e){

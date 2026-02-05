@@ -30,6 +30,20 @@ static bool holdAtBoot_(int pin, uint32_t ms){
 
 void setup(){
   Serial.begin(115200);
+  
+  CL_D10_Logger::begin(Serial);
+  CL_D10_Logger::setLevel(EN_D10_LOG_INFO);
+  CL_D10_Logger::enableTimestamp(true);
+  CL_D10_Logger::enableMemUsage(false);
+
+  // LittleFS
+  if (!LittleFS.begin(true)) {
+    D10_LOGE("LittleFS begin failed");
+  } else {
+    D10_LOGI("LittleFS mounted");
+  }
+  
+  
 
   // 1) 부팅 중 Factory Reset (MODE 6초)
   if(holdAtBoot_(G_BTN_MODE, 6000)){
