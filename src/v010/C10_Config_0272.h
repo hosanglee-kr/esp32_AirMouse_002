@@ -307,7 +307,7 @@ class CL_C10_Config {
         if (e.wheel_step_max < 1 || e.wheel_step_max > 12) return false;
         if (e.gesture_cooldown_ms < 50 || e.gesture_cooldown_ms > 3000) return false;
         if (e.precision_smooth < 0.0f || e.precision_smooth > 0.99f) return false;
-        if (e.prec_max_step > 80) return false; // 과도한 값 방지
+        if (e.precision_max_step > 80) return false; // 과도한 값 방지
         // ppt2 kb usage 범위 보호
         auto chkPpt2=[&](const ST_C10_PptKey2_t& k)->bool{
             if (k.page == (uint8_t)EN_C10_KEYPAGE_CONSUMER) return true;
