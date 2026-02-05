@@ -19,7 +19,7 @@
 #include <MouseDevice.h>
 
 #include "A40_ComFunc_070.h"
-#include "C10_Config_0272.h"
+#include "C10_Config_0273.h"
 #include "M10_MotionProc_020.h"
 
 enum EN_E10_Health_t : uint8_t { EN_E10_HEALTH_OK=0, EN_E10_HEALTH_WARN=1, EN_E10_HEALTH_DEGRADED=2 };

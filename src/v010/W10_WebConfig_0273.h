@@ -1,5 +1,5 @@
 // =======================================================
-// File: src/v0272/W10_WebConfig_0272.h
+// File: src/v0272/W10_WebConfig_0273.h
 // =======================================================
 #pragma once
 #include <Arduino.h>
@@ -157,6 +157,18 @@ class CL_W10_WebConfig {
             [this](AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final){
                 this->apiOtaUpload_(req,filename,index,data,len,final);
             });
+            
+            _svr.on("/api/safeboot", HTTP_GET, [this](AsyncWebServerRequest* req){ this->apiSafeBootGet_(req); });
+            _svr.on("/api/safeboot", HTTP_POST, [this](AsyncWebServerRequest* req){ (void)req; }, nullptr,
+              [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total){
+                  this->apiSafeBootPost_(req,data,len,index,total);
+              });
+            
+            _svr.on("/api/factory_reset", HTTP_POST, [this](AsyncWebServerRequest* req){ (void)req; }, nullptr,
+              [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total){
+                  (void)data;(void)len;(void)index;(void)total;
+                  this->apiFactoryReset_(req);
+              });
 
         _svr.on("/api/reboot", HTTP_POST, [this](AsyncWebServerRequest* req){ req->send(200,"application/json","{\"ok\":true}"); delay(50); ESP.restart(); });
         _svr.onNotFound([](AsyncWebServerRequest* req){ req->send(404,"text/plain","not found"); });
@@ -305,6 +317,14 @@ class CL_W10_WebConfig {
         ota["written"]=(uint32_t)_otaWritten;
         ota["ok"]=_otaOk;
         ota["err"]=_otaErr;
+        
+        if(_cfg){
+          ST_C10_BootState_t bs; _cfg->getBootState(bs);
+          JsonObject b=d["boot"].to<JsonObject>();
+          b["safe_mode"]=bs.safe_mode;
+          b["fail_count"]=bs.fail_count;
+          b["pending"]=bs.pending;
+        }
 
         sendJson_(req,d);
     }
@@ -662,7 +682,55 @@ class CL_W10_WebConfig {
         d["err"]=_otaErr;
         sendJson_(req,d);
     }
+    
+    void apiSafeBootGet_(AsyncWebServerRequest* req){
+      JsonDocument d;
+      if(_cfg){
+        ST_C10_BootState_t bs; _cfg->getBootState(bs);
+        d["ok"]=true;
+        d["safe_mode"]=bs.safe_mode;
+        d["fail_count"]=bs.fail_count;
+        d["pending"]=bs.pending;
+      }else{
+        d["ok"]=false;
+      }
+      sendJson_(req,d, d["ok"]?200:500);
+    }
+    
+    void apiSafeBootPost_(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total){
+      String* body=reqBody_(req,index);
+      if(!body){ req->send(500,"application/json","{\"ok\":false}"); return; }
+      for(size_t i=0;i<len;i++) (*body)+=(char)data[i];
+      if(index+len<total) return;
+    
+      JsonDocument in;
+      DeserializationError err=deserializeJson(in,*body);
+      reqBodyFree_(req);
+      if(err){ req->send(400,"application/json","{\"ok\":false,\"err\":\"bad_json\"}"); return; }
+    
+      bool ok=false;
+      if(_cfg && !in["exit"].isNull() && (bool)in["exit"]){
+        ok=_cfg->clearSafeMode();
+      }
+      JsonDocument out; out["ok"]=ok;
+      out["note"]="If safe mode was active, reboot recommended after exit.";
+      sendJson_(req,out, ok?200:500);
+    }
+    
+    void apiFactoryReset_(AsyncWebServerRequest* req){
+      bool ok=false;
+      if(_cfg){
+        ok=_cfg->factoryReset(true);
+      }
+      JsonDocument out; out["ok"]=ok;
+      out["note"]="Factory reset done. Rebooting...";
+      sendJson_(req,out, ok?200:500);
+      if(ok){ delay(200); ESP.restart(); }
+    }
+
 };
 
 CL_W10_WebConfig* CL_W10_WebConfig::s_instance=nullptr;
+
+
 
