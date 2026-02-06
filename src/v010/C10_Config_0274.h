@@ -109,12 +109,12 @@ struct ST_C10_E10Config_t {
     float precision_accel;
     uint8_t precision_max_step;
     float precision_smooth;
-    
-    uint16_t prec_entry_ms;
-    uint16_t prec_exit_ms;
-    float    prec_entry_still_deg;
-    float    prec_exit_move_deg;
-    uint8_t  prec_profile;
+
+	uint16_t prec_entry_ms;          // 정밀모드 진입 판정 유지시간(ms)
+	uint16_t prec_exit_ms;           // 정밀모드 이탈 판정 유지시간(ms)
+	float    prec_entry_still_deg;   // 진입: “정지” 판정 각속도(deg/s) 임계
+	float    prec_exit_move_deg;     // 이탈: “움직임” 판정 각속도(deg/s) 임계
+	uint8_t  prec_profile;           // 정밀모드 프로파일(0=default, 1=soft, 2=hard...)
 
     // (기존) ppt_keys
     ST_C10_PptKey_t ppt_start;
@@ -142,13 +142,13 @@ struct ST_C10_BootState_t {
 class CL_C10_Config {
   private:
     // (요구) config_0272.json
-    static constexpr const char* s_path_cfg  = "/json/config_0272.json";
-    static constexpr const char* s_path_tmp  = "/json/config_0272.json.tmp";
-    static constexpr const char* s_path_bak  = "/json/config_0272.json.bak";
+    static constexpr const char* s_path_cfg = "/json/config_0272.json";
+    static constexpr const char* s_path_tmp = "/json/config_0272.json.tmp";
+    static constexpr const char* s_path_bak = "/json/config_0272.json.bak";
 
     // SafeBoot state
-    static constexpr const char* s_path_boot = "/json/boot_state.json";
-    static constexpr const char* s_path_boot_tmp = "/json/boot_state.json.tmp";
+    static constexpr const char*   s_path_boot           = "/json/boot_state_0272.json";
+    static constexpr const char*   s_path_boot_tmp       = "/json/boot_state_0272.json.tmp";
     static constexpr const uint8_t s_safe_fail_threshold = 2; // 2회 연속 실패 시 safe_mode
 
     ST_C10_BootState_t _boot;
@@ -219,7 +219,7 @@ class CL_C10_Config {
         p_out.precision_accel = 0.25f;
         p_out.precision_max_step = 18;
         p_out.precision_smooth = 0.85f;
-        
+
         // (0272~) precision entry/exit defaults
         p_out.prec_entry_ms = 450;          // 추천: 350~700
         p_out.prec_exit_ms  = 300;          // 추천: 200~600
@@ -272,11 +272,17 @@ class CL_C10_Config {
 
         if(p_e.scroll_cursor_damp < 0.0f || p_e.scroll_cursor_damp > 1.0f) return false;
 
-        if(p_e.precision_deadzone < 0.0f || p_e.precision_deadzone > 50.0f) return false;
-        if(p_e.precision_gain < 0.0f || p_e.precision_gain > 5.0f) return false;
-        if(p_e.precision_accel < 0.0f || p_e.precision_accel > 5.0f) return false;
-        if(p_e.precision_max_step < 1 || p_e.precision_max_step > 200) return false;
-        if(p_e.precision_smooth < 0.0f || p_e.precision_smooth > 1.0f) return false;
+        if (p_e.precision_deadzone < 0.0f || p_e.precision_deadzone > 50.0f) return false;
+        if (p_e.precision_gain < 0.0f || p_e.precision_gain > 5.0f) return false;
+        if (p_e.precision_accel < 0.0f || p_e.precision_accel > 5.0f) return false;
+        if (p_e.precision_max_step < 1 || p_e.precision_max_step > 200) return false;
+        if (p_e.precision_smooth < 0.0f || p_e.precision_smooth > 1.0f) return false;
+
+        if (p_e.prec_entry_ms < 50 || p_e.prec_entry_ms > 5000) return false;
+        if (p_e.prec_exit_ms < 50 || p_e.prec_exit_ms > 5000) return false;
+        if (p_e.prec_entry_still_deg < 0.1f || p_e.prec_entry_still_deg > 20.0f) return false;
+        if (p_e.prec_exit_move_deg < 0.1f || p_e.prec_exit_move_deg > 50.0f) return false;
+        if (p_e.prec_profile > 5) return false;
 
         // ppt2 constraints
         const ST_C10_PptKey2_t* keys[] = { &p_e.ppt2_start,&p_e.ppt2_exit,&p_e.ppt2_next,&p_e.ppt2_prev,&p_e.ppt2_black,&p_e.ppt2_laser };
@@ -497,6 +503,12 @@ class CL_C10_Config {
             if(!v_p["accel"].isNull()) p_e10.precision_accel = (float)v_p["accel"];
             if(!v_p["max_step"].isNull()) p_e10.precision_max_step = (uint8_t)v_p["max_step"];
             if(!v_p["smooth"].isNull()) p_e10.precision_smooth = (float)v_p["smooth"];
+
+			if (!v_p["entry_ms"].isNull())          p_e10.prec_entry_ms = (uint16_t)v_p["entry_ms"];
+			if (!v_p["exit_ms"].isNull())           p_e10.prec_exit_ms  = (uint16_t)v_p["exit_ms"];
+			if (!v_p["entry_still_deg"].isNull())   p_e10.prec_entry_still_deg = (float)v_p["entry_still_deg"];
+			if (!v_p["exit_move_deg"].isNull())     p_e10.prec_exit_move_deg   = (float)v_p["exit_move_deg"];
+			if (!v_p["profile"].isNull())           p_e10.prec_profile = (uint8_t)v_p["profile"];
         }
 
         // (기존) ppt_keys
@@ -629,6 +641,12 @@ class CL_C10_Config {
         p["accel"] = e.precision_accel;
         p["max_step"] = e.precision_max_step;
         p["smooth"] = e.precision_smooth;
+
+		p["entry_ms"] = e.prec_entry_ms;
+		p["exit_ms"]  = e.prec_exit_ms;
+		p["entry_still_deg"] = e.prec_entry_still_deg;
+		p["exit_move_deg"]   = e.prec_exit_move_deg;
+		p["profile"] = e.prec_profile;
 
         // (기존) ppt_keys
         JsonObject pk = je["ppt_keys"].to<JsonObject>();
