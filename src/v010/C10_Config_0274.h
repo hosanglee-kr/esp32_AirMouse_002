@@ -109,6 +109,12 @@ struct ST_C10_E10Config_t {
     float precision_accel;
     uint8_t precision_max_step;
     float precision_smooth;
+    
+    uint16_t prec_entry_ms;
+    uint16_t prec_exit_ms;
+    float    prec_entry_still_deg;
+    float    prec_exit_move_deg;
+    uint8_t  prec_profile;
 
     // (기존) ppt_keys
     ST_C10_PptKey_t ppt_start;
@@ -213,6 +219,13 @@ class CL_C10_Config {
         p_out.precision_accel = 0.25f;
         p_out.precision_max_step = 18;
         p_out.precision_smooth = 0.85f;
+        
+        // (0272~) precision entry/exit defaults
+        p_out.prec_entry_ms = 450;          // 추천: 350~700
+        p_out.prec_exit_ms  = 300;          // 추천: 200~600
+        p_out.prec_entry_still_deg = 1.2f;  // 추천: 0.8~2.0
+        p_out.prec_exit_move_deg   = 3.5f;  // 추천: 2.0~6.0
+        p_out.prec_profile = 0;
 
         // (기존) defaults
         p_out.ppt_start = {0x02, 0x3E}; // Shift+F5
