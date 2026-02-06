@@ -312,7 +312,23 @@ class CL_C10_Config {
         _boot.pending = false;
         return saveBootState_(_boot);
     }
+    
+    // setup에서 grace 통과 후 호출: pending 해제
+    bool bootMarkOkIfGracePassed(uint32_t p_graceMs){
+        (void)p_graceMs;
+    
+        // 이번 부팅 성공 표시
+        _boot.pending = false;
+    
+        // safe_mode가 false인 경우에만 fail_count 리셋
+        if(!_boot.safe_mode){
+            _boot.fail_count = 0;
+        }
+        // safe_mode는 유지(사용자 해제까지)
+        return saveBootState_(_boot);
+    }
 
+    /*
     // setup에서 grace 통과 후 호출: pending 해제 + fail_count reset
     bool bootMarkOkIfGracePassed(uint32_t p_graceMs){
         (void)p_graceMs; // 호출자에서 uptime 확인 후 호출
@@ -321,6 +337,7 @@ class CL_C10_Config {
         // safe_mode는 유지(사용자가 해제할 때까지) 정책
         return saveBootState_(_boot);
     }
+    */
 
     // ---------- Config Load/Save ----------
     bool loadAll(ST_C10_WiFiConfig_t& p_wifi, ST_C10_E10Config_t& p_e10){
@@ -580,7 +597,9 @@ class CL_C10_Config {
 
         // reset boot state in memory
         memset(&_boot, 0, sizeof(_boot));
-        _boot.pending = true; // 이번 부팅을 pending으로 다시 찍어두는 편이 안전
+        // factory reset 직후엔 pending을 false로 저장(다음 begin에서 다시 true로 마킹됨)
+        _boot.pending = false;
+        //  _boot.pending = true; // 이번 부팅을 pending으로 다시 찍어두는 편이 안전
         (void)saveBootState_(_boot);
 
         if(p_recreateDefault){
