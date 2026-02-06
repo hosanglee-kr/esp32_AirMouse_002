@@ -1,7 +1,54 @@
 // =======================================================
-// File: src/v0272/W10_WebConfig_0273.h
+// File: src/v010/W10_WebConfig_0273.h
 // =======================================================
+
+
 #pragma once
+/*
+ * ------------------------------------------------------
+ * 소스명 : W10_WebConfig_0273.h
+ * 모듈약어 : W10
+ * 모듈명 : Web Config/Status/UI/OTA Server (Field Dashboard + PPT + WiFi/E10 Editor)
+ * ------------------------------------------------------
+ * 기능 요약
+ *  - 자산(HTML/CSS/JS) gzip 서빙 + 캐시 정책
+ *  - /api/status : 현장용 대시보드 데이터(health/anomaly/i2c/err/ota)
+ *  - /api/keycodes : kb(0x00~0xE7) + consumer presets + mods(Modifier byte mask)
+ *  - /api/ppt, /api/ppt/test : PPT Keymap(v2) 편집/즉시 테스트
+ *  - /api/config/ui : WiFi/E10 전체 편집(검증/적용/저장/리부트 안내)
+ *  - /api/config/export/import/rollback : 백업/복구
+ *  - /api/ota : Web OTA 업로드 + /api/ota/status
+ * ------------------------------------------------------
+ * [구현 규칙]
+ *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
+ *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
+ *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - JsonDocument 단일 타입만 사용
+ *  - createNestedArray/Object/containsKey 사용 금지
+ *  - memset + strlcpy 기반 안전 초기화
+ *  - 주석/필드명은 JSON 구조와 동일하게 유지
+ *  - 변수명은 가능한 해석 가능하게
+ * ------------------------------------------------------
+ * [코드 네이밍 규칙]
+ *   - namespace 명        : 모듈약어_ 접두사
+ *   - namespace 내 상수    : 모둘약어 접두시 미사용
+ *   - 전역 상수,매크로      : G_모듈약어_ 접두사
+ *   - 전역 변수             : g_모듈약어_ 접두사
+ *   - 전역 함수             : 모듈약어_ 접두사
+ *   - type                  : T_모듈약어_ 접두사
+ *   - typedef               : _t  접미사
+ *   - enum 상수             : EN_모듈약어_ 접두사
+ *   - 구조체                : ST_모듈약어_ 접두사
+ *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
+ *   - 클래스 private 멤버   : _ 접두사
+ *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
+ *   - 클래스 정적 멤버      : s_ 접두사
+ *   - 함수 로컬 변수        : v_ 접두사
+ *   - 함수 인자             : p_ 접두사
+ * ------------------------------------------------------
+ */
+
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>

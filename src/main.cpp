@@ -7,9 +7,9 @@
 
 #include "v010/A40_ComFunc_070.h"   // 내부에서 D10_Logger_060.h 포함
 
-#include "v010/C10_Config_0273.h"
+#include "v010/C10_Config_0274.h"
 #include "v010/E10_EliteAirMouse_0272.h"
-#include "v010/W10_WebConfig_0273.h"
+#include "v010/W10_WebConfig_0274.h"
 
 static CL_C10_Config g_cfg;
 static CL_E10_EliteAirMouse g_e10;
@@ -50,14 +50,14 @@ void setup(){
     D10_LOGI("LittleFS mounted");
   }
 
-  // 1) C10 begin (내부에서 /json 보장 + 기본 config 생성)
+  // 1) C10 begin (내부에서 /json 보장 + 기본 config 생성 + SafeBoot pending 마킹)
   g_cfg.begin(true);
 
   // 2) 부팅 중 Factory Reset (MODE 6초)
   //    - C10 begin 이후 호출: 경로/디렉토리 보장
   if(holdAtBoot_(G_BTN_MODE, 6000)){
-    (void)g_cfg.factoryReset(true);   // true면 즉시 기본 config 재생성 가정
-    D10_LOGW("[0273] FactoryReset by boot key. rebooting...");
+    (void)g_cfg.factoryReset(true);   // true면 즉시 기본 config 재생성
+    D10_LOGW("[0274] FactoryReset by boot key. rebooting...");
     delay(200);
     ESP.restart();
   }
@@ -65,14 +65,14 @@ void setup(){
   // 3) Safe Boot 상태 확인
   //    - Safe mode일 때는 W10.setupWiFi_()가 강제로 AP 타야 함
   if(g_cfg.isSafeMode()){
-    D10_LOGW("[0273] SAFE BOOT MODE ACTIVE");
+    D10_LOGW("[0274] SAFE BOOT MODE ACTIVE");
   }
 
   // 4) 모듈 시작
   g_e10.begin(&g_cfg);
   g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10);
 
-  D10_LOGI("[0273] started");
+  D10_LOGI("[0274] started");
 
   // 5) grace 타이머 시작
   g_tStart = millis();
@@ -87,7 +87,7 @@ void loop(){
     if(up >= G_BOOT_GRACE_MS){
       (void)g_cfg.bootMarkOkIfGracePassed(G_BOOT_GRACE_MS);
       g_bootOkDone = true;
-      D10_LOGI("[0273] boot grace passed -> boot ok marked");
+      D10_LOGI("[0274] boot grace passed -> boot ok marked");
     }
   }
 
