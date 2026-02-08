@@ -197,7 +197,7 @@ class CL_W10_WebConfig {
         // 1) 루트는 index로 유도
         _svr.on("/", HTTP_GET, [this](AsyncWebServerRequest* req){
             // no-store (항상 최신 HTML)
-            req->redirect("/www/index_0275.html");
+            req->redirect("/www/index_0276.html");
         });
 
         // 2) NotFound에서 화이트리스트 기반 동적 서빙 처리
