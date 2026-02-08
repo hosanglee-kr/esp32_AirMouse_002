@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse WebConfig 0275</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/www/style_0275.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="title">Elite AirMouse</div>
+      <div class="sub">WebConfig 0275</div>
+    </div>
+
+    <div class="right">
+      <div class="pill" id="pillNet">NET: -</div>
+      <div class="pill" id="pillBle">BLE: -</div>
+      <button class="btn" id="btnRefresh">새로고침</button>
+      <button class="btn warn" id="btnReboot">재부팅</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="row">
+        <div class="kv"><div class="k">Uptime</div><div class="v" id="stUptime">-</div></div>
+        <div class="kv"><div class="k">Heap Free</div><div class="v" id="stHeap">-</div></div>
+      </div>
+      <div class="row">
+        <div class="kv"><div class="k">WiFi</div><div class="v" id="stWiFi">-</div></div>
+        <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
+      </div>
+      <div class="row">
+        <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
+        <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <button class="btn" id="btnSafeInfo">SafeBoot 상태</button>
+        <button class="btn" id="btnSafeExit">SafeBoot 해제</button>
+        <button class="btn danger" id="btnFactory">Factory Reset</button>
+      </div>
+
+      <pre class="log" id="statusJson">loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Quick Control</h2>
+
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="swPpt">
+          <span class="slider"></span>
+        </label>
+        <div class="hint">PPT 모드</div>
+      </div>
+
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="swPrec">
+          <span class="slider"></span>
+        </label>
+        <div class="hint">Precision 모드</div>
+      </div>
+
+      <div class="row">
+        <div class="hint">DPI Level</div>
+        <select id="selDpi" class="select">
+          <option value="0">0 (Low)</option>
+          <option value="1">1 (Mid)</option>
+          <option value="2" selected>2 (High)</option>
+        </select>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>PPT Keymap v2</h3>
+      <div class="hint2">page=kb(usage-id) / consumer(mask). mod는 kb에서만 사용</div>
+
+      <div class="tbl">
+        <div class="tr head"><div>Action</div><div>Page</div><div>Mod</div><div>Code</div><div></div></div>
+
+        <div class="tr"><div>start</div><div><select id="pptStartPage" class="select mini"></select></div><div><select id="pptStartMod" class="select mini"></select></div><div><input id="pptStartCode" class="inp mini" /></div><div><button class="btn mini" data-test="start">Test</button></div></div>
+        <div class="tr"><div>exit</div><div><select id="pptExitPage" class="select mini"></select></div><div><select id="pptExitMod" class="select mini"></select></div><div><input id="pptExitCode" class="inp mini" /></div><div><button class="btn mini" data-test="exit">Test</button></div></div>
+        <div class="tr"><div>next</div><div><select id="pptNextPage" class="select mini"></select></div><div><select id="pptNextMod" class="select mini"></select></div><div><input id="pptNextCode" class="inp mini" /></div><div><button class="btn mini" data-test="next">Test</button></div></div>
+        <div class="tr"><div>prev</div><div><select id="pptPrevPage" class="select mini"></select></div><div><select id="pptPrevMod" class="select mini"></select></div><div><input id="pptPrevCode" class="inp mini" /></div><div><button class="btn mini" data-test="prev">Test</button></div></div>
+        <div class="tr"><div>black</div><div><select id="pptBlackPage" class="select mini"></select></div><div><select id="pptBlackMod" class="select mini"></select></div><div><input id="pptBlackCode" class="inp mini" /></div><div><button class="btn mini" data-test="black">Test</button></div></div>
+        <div class="tr"><div>laser</div><div><select id="pptLaserPage" class="select mini"></select></div><div><select id="pptLaserMod" class="select mini"></select></div><div><input id="pptLaserCode" class="inp mini" /></div><div><button class="btn mini" data-test="laser">Test</button></div></div>
+      </div>
+
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="swPptSave" checked>
+          <span class="slider"></span>
+        </label>
+        <div class="hint">저장까지 수행(save=true)</div>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btnPptReload">PPT 로드</button>
+        <button class="btn primary" id="btnPptSave">PPT 저장</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>OTA</h3>
+      <div class="row">
+        <input type="file" id="otaFile" class="file" />
+        <button class="btn primary" id="btnOta">업로드</button>
+      </div>
+      <div class="hint2" id="otaHint">-</div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div>Cache: HTML=no-store / assets=immutable(if version token) / other=short</div>
+  </footer>
+
+  <script src="/www/app_0275.js"></script>
+</body>
+</html>
+
