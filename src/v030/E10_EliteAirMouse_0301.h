@@ -19,7 +19,7 @@
 #include <MouseDevice.h>
 
 #include "A40_ComFunc_070.h"
-#include "C10_Config_0300.h"
+#include "C10_Config_0301.h"
 #include "M10_MotionProc_0300.h"
 
 #include "E10_Def_0301.h"
