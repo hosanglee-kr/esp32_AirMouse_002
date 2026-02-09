@@ -8,7 +8,7 @@
 #include "v010/A40_ComFunc_070.h" // 내부에서 D10_Logger_060.h 포함
 
 #include "v030/C10_Config_0302.h"
-#include "v030/E10_EliteAirMouse_0303.h"
+#include "v030/E10_AirMouse_0303.h"
 #include "v030/W10_WebConfig_0300.h"
 
 static CL_C10_Config        g_cfg;
