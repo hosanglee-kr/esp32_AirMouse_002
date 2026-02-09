@@ -4,7 +4,7 @@
 #pragma once
 /*
  * ------------------------------------------------------
- * 소스명 : W10_WebConfig_0277.h
+ * 소스명 : W10_WebConfig_0278.h
  * 모듈약어 : W10
  * 모듈명 : Web Config/Status/UI/OTA Server (Dynamic Static Routing)
  * ------------------------------------------------------
@@ -60,7 +60,7 @@
 #include "C10_Config_0274.h"
 #include "E10_EliteAirMouse_0272.h"
 
-#include "W10_Const_0277.h"
+#include "W10_Def_0278.h"
 
 class CL_W10_WebConfig {
   private:
