@@ -861,7 +861,67 @@ class CL_E10_EliteAirMouse {
             }
         }
     }
+    
+    // -----------------------
+    // Task: Comm (HID send)
+    // - btn_mask 전체(LEFT/RIGHT/MIDDLE) 지원
+    // - 변경 시에만 press/release (스팸/지터 방지)
+    // -----------------------
+    static void _commTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        // 이전 버튼 상태(변경 감지용)
+        uint8_t v_lastBtnMask = 0;
+    
+        for (;;) {
+            if (v_m->_hid.isConnected() && xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+                if (v_m->_state.updated) {
+                    // ---- snapshot ----
+                    int16_t v_x     = v_m->_state.x;
+                    int16_t v_y     = v_m->_state.y;
+                    int16_t v_wheel = v_m->_state.wheel;
+                    uint8_t v_btn   = v_m->_state.btn_mask;
+    
+                    v_m->_state.updated = false;
+                    xSemaphoreGive(v_m->_mutex);
+    
+                    // ---- clamp to HID range ----
+                    int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
+                    int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
+                    int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
+    
+                    // ---- button state diff ----
+                    const uint8_t v_changed = (uint8_t)(v_btn ^ v_lastBtnMask);
+    
+                    if (v_changed & (uint8_t)EN_E10_BTN_LEFT) {
+                        if (v_btn & (uint8_t)EN_E10_BTN_LEFT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
+                        else                                  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                    }
+                    if (v_changed & (uint8_t)EN_E10_BTN_RIGHT) {
+                        if (v_btn & (uint8_t)EN_E10_BTN_RIGHT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
+                        else                                   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                    }
+                    if (v_changed & (uint8_t)EN_E10_BTN_MIDDLE) {
+                        if (v_btn & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
+                        else                                    v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+                    }
+    
+                    v_lastBtnMask = v_btn;
+    
+                    // ---- send move ----
+                    _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+    
+                } else {
+                    xSemaphoreGive(v_m->_mutex);
+                }
+            }
+    
+            vTaskDelay(pdMS_TO_TICKS(7));
+        }
+    }
 
+
+    /*
     static void _commTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
     
@@ -886,7 +946,7 @@ class CL_E10_EliteAirMouse {
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
-
+    */
     
     /*
     static void _sensorTask(void* p_pv) {
