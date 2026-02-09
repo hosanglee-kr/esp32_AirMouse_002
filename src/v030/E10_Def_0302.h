@@ -51,7 +51,7 @@ namespace E10_CONST {
     static constexpr int      PIN_BTN_MODE   = 13;
     static constexpr int      PIN_BTN_SCROLL = 14;
 
-    static constexpr uint8_t  MOUSE_BTN_LEFT = 0x01;
+    // static constexpr uint8_t  MOUSE_BTN_LEFT = 0x01;
 
     static constexpr uint32_t CALIB_MS       = 1000;
     static constexpr float    CALIB_STILL_TH = 3.0f;
@@ -95,6 +95,13 @@ enum EN_PREC_SUB_t : uint8_t {
     EN_PREC_EXIT = 3
 };
 
+enum EN_E10_MouseBtnMask_t : uint8_t {
+    EN_E10_BTN_LEFT = 0x01,
+    EN_E10_BTN_RIGHT = 0x02, 
+    EN_E10_BTN_MIDDLE = 0x04 
+};
+
+
 struct ST_E10_ErrEvt_t {
     uint32_t ts_ms;
     uint8_t  code;
@@ -110,7 +117,8 @@ struct ST_E10_State_t {
     int16_t x;
     int16_t y;
     int16_t wheel;
-    uint8_t btn_mask; // bit0=left
+    uint8_t btn_mask; // EN_E10_MouseBtnMask_t OR-mask
+    bool updated;
 };
 
 struct ST_E10_Status_t {

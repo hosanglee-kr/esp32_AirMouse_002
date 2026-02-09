@@ -144,8 +144,11 @@ class CL_E10_EliteAirMouse {
 
   public:
     CL_E10_EliteAirMouse()
-        : _hid("Elite AirMouse S3", "ProMaker", 100) {
-        _state = {0, 0, 0, false};
+        : _hid("Elite AirMouse S3", "ProMaker", 100) { 
+            
+        memset(&_state, 0, sizeof(_state));
+        // _state = {0,0,0,0,false};
+        // _state = {0, 0, 0, false};
 
         memset(_errHist, 0, sizeof(_errHist));
         memset(_spikes,  0, sizeof(_spikes));
@@ -688,9 +691,204 @@ class CL_E10_EliteAirMouse {
         if (_mutex) xSemaphoreGive(_mutex);
     }
 
+
     // -----------------------
     // Tasks
     // -----------------------
+    static void _sensorTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        TickType_t     v_lastWake   = xTaskGetTickCount();
+        unsigned long  v_lastUs     = micros();
+        unsigned long  v_btnDownMs  = 0;
+    
+        if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
+    
+        for (;;) {
+            // ---- sensor read ----
+            sensors_event_t v_a, v_g, v_t;
+            v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
+            v_m->_tempC = v_t.temperature;
+    
+            // ---- dt ----
+            unsigned long v_nowUs = micros();
+            float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
+            v_lastUs = v_nowUs;
+    
+            float v_dtMs = v_dt * 1000.0f;
+            v_m->_dtAvgMs = v_m->_dtAvgMs * 0.98f + v_dtMs * 0.02f;
+    
+            // ---- buttons ----
+            const bool v_scrollMode = (digitalRead(E10_CONST::PIN_BTN_SCROLL) == LOW);
+    
+            // mode short/long (short=dpi cycle, long=ppt toggle)
+            bool v_modeLongToggle = false;
+            if (digitalRead(E10_CONST::PIN_BTN_MODE) == LOW) {
+                if (v_btnDownMs == 0) v_btnDownMs = millis();
+            } else {
+                if (v_btnDownMs > 0) {
+                    unsigned long v_hold = millis() - v_btnDownMs;
+                    if (v_hold > 1000) {
+                        v_modeLongToggle = true;
+                    } else {
+                        v_m->_dpiLevel++;
+                        if (v_m->_dpiLevel > 3) v_m->_dpiLevel = 1;
+                        v_m->_engine.setDPI(v_m->_dpiLevel);
+                    }
+                    v_btnDownMs = 0;
+                }
+            }
+    
+            const bool v_leftClick = (digitalRead(E10_CONST::PIN_BTN_L) == LOW);
+            if (v_leftClick) v_m->_engine.notifyClick();
+    
+            uint8_t v_btnMask = 0;
+            if (v_leftClick) v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
+    
+            // ---- gyro ----
+            float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
+            float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
+            float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
+    
+            const float v_gyroAbs = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
+    
+            // ---- spike detect ----
+            const uint32_t v_ts = (uint32_t)(millis() - v_m->_uptime0);
+            if (fabsf(v_gz) > E10_CONST::SPIKE_TH_DEG) v_m->_pushSpike(v_ts);
+    
+            // ---- fsm ----
+            v_m->_fsmUpdate(v_scrollMode, v_modeLongToggle, v_gyroAbs);
+    
+            // ---- NaN guard ----
+            if (isnan(v_gx) || isnan(v_gy) || isnan(v_gz)) {
+                v_m->_errMpuNan++;
+                v_m->_consecutiveFail++;
+                v_m->_pushErr(EN_E10_ERR_MPU_NAN, 0);
+    
+                if ((v_m->_errMpuNan % 5) == 0) (void)v_m->_recoverI2C();
+    
+                vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+                continue;
+            } else {
+                if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
+            }
+    
+            // ---- stats + motion engine ----
+            v_m->_welfordAdd(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);
+    
+            v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
+    
+            int v_tx = 0;
+            int v_ty = 0;
+            v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
+    
+            // ---- accel shaping ----
+            float v_base = v_m->_scaleBase[v_m->_dpiLevel - 1];
+            float v_accg = v_m->_accelGain[v_m->_dpiLevel - 1];
+    
+            float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
+            float v_acc = 1.0f;
+    
+            if (v_mag > v_m->_accelTh) {
+                float v_ex = (v_mag - v_m->_accelTh);
+                v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
+            }
+    
+            float v_fx = (float)v_tx * v_base * v_acc;
+            float v_fy = (float)v_ty * v_base * v_acc;
+    
+            // ---- apply FSM ----
+            if (v_m->_fsm == EN_FSM_SCROLL) {
+                // scroll: wheel only + cursor damp
+                int v_wheel = 0;
+    
+                if (v_gy > v_m->_wheelThDeg) {
+                    float v_n = (v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = (int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
+                } else if (v_gy < -v_m->_wheelThDeg) {
+                    float v_n = (-v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = -(int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
+                }
+    
+                v_fx *= v_m->_scrollCursorDamp;
+                v_fy *= v_m->_scrollCursorDamp;
+    
+                if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
+                    v_m->_state.wheel    = (int16_t)constrain((int)v_wheel, -32767, 32767);
+                    v_m->_state.btn_mask = v_btnMask;
+                    v_m->_state.updated  = true;
+                    xSemaphoreGive(v_m->_mutex);
+                } else {
+                    v_m->_errMutexMiss++;
+                    v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+                }
+            } else {
+                // AIR/PPT/PREC cursor
+                if (v_m->_fsm == EN_FSM_PREC) {
+                    v_m->_applyPrecision(v_fx, v_fy);
+                }
+                if (v_m->_fsm == EN_FSM_PPT) {
+                    v_m->_processGesturesDeg(v_gz);
+                }
+    
+                v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2, (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
+    
+                if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
+                    v_m->_state.wheel    = 0;
+                    v_m->_state.btn_mask = v_btnMask;
+                    v_m->_state.updated  = true;
+                    xSemaphoreGive(v_m->_mutex);
+                } else {
+                    v_m->_errMutexMiss++;
+                    v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+                }
+            }
+    
+            // ---- pacing / overrun ----
+            TickType_t v_before = xTaskGetTickCount();
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+            TickType_t v_after = xTaskGetTickCount();
+    
+            if ((v_after - v_before) == 0) {
+                v_m->_errTaskOverrun++;
+                if ((v_m->_errTaskOverrun % 10) == 0) v_m->_pushErr(EN_E10_ERR_TASK_OVERRUN, 0);
+            }
+        }
+    }
+
+    static void _commTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        for (;;) {
+            if (v_m->_hid.isConnected() && xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+                if (v_m->_state.updated) {
+                    const int8_t v_dx = (int8_t)constrain((int)v_m->_state.x, -127, 127);
+                    const int8_t v_dy = (int8_t)constrain((int)v_m->_state.y, -127, 127);
+                    const int8_t v_wh = (int8_t)constrain((int)v_m->_state.wheel, -127, 127);
+    
+                    const bool v_left = ((v_m->_state.btn_mask & (uint8_t)EN_E10_BTN_LEFT) != 0);
+    
+                    if (v_left) v_m->_mouse.mousePress(E10_CONST::MOUSE_BTN_LEFT);
+                    else        v_m->_mouse.mouseRelease(E10_CONST::MOUSE_BTN_LEFT);
+    
+                    _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+    
+                    v_m->_state.updated = false;
+                }
+                xSemaphoreGive(v_m->_mutex);
+            }
+            vTaskDelay(pdMS_TO_TICKS(7));
+        }
+    }
+
+    
+    /*
     static void _sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
@@ -803,11 +1001,13 @@ class CL_E10_EliteAirMouse {
                 v_fy *= v_m->_scrollCursorDamp;
 
                 if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
-                    v_m->_state.x       = (int)v_fx;
-                    v_m->_state.y       = (int)v_fy;
-                    v_m->_state.wheel   = v_wheel;
-                    v_m->_state.updated = true;
-                    xSemaphoreGive(v_m->_mutex);
+                    m->_state.x = (int16_t)constrain((int)fx, -32767, 32767);
+                    m->_state.y = (int16_t)constrain((int)fy, -32767, 32767);
+                    m->_state.wheel = (int16_t)constrain((int)wheel, -32767, 32767);
+                    m->_state.btn_mask = v_btnMask;
+                    m->_state.updated = true;
+                    xSemaphoreGive(m->_mutex);
+    
                 } else {
                     v_m->_errMutexMiss++;
                     v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
@@ -834,11 +1034,12 @@ class CL_E10_EliteAirMouse {
                     v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
                 }
             }
-
-            if (v_m->_hid.isConnected()) {
-                if (v_leftClick) v_m->_mouse.mousePress(E10_CONST::MOUSE_BTN_LEFT);
-                else             v_m->_mouse.mouseRelease(E10_CONST::MOUSE_BTN_LEFT);
-            }
+            
+            // 여기 있던 mousePress/mouseRelease 즉시처리는 제거(아래 commTask로 이동)
+            // if (v_m->_hid.isConnected()) {
+            //     if (v_leftClick) v_m->_mouse.mousePress(E10_CONST::MOUSE_BTN_LEFT);
+            //     else             v_m->_mouse.mouseRelease(E10_CONST::MOUSE_BTN_LEFT);
+            // }
 
             TickType_t v_before = xTaskGetTickCount();
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
@@ -858,16 +1059,24 @@ class CL_E10_EliteAirMouse {
         for (;;) {
             if (v_m->_hid.isConnected() && xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
                 if (v_m->_state.updated) {
-                    int8_t v_dx = (int8_t)constrain(v_m->_state.x, -127, 127);
-                    int8_t v_dy = (int8_t)constrain(v_m->_state.y, -127, 127);
-                    int8_t v_wh = (int8_t)constrain(v_m->_state.wheel, -127, 127);
-
-                    _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
-                    v_m->_state.updated = false;
+                    int8_t v_dx = (int8_t)constrain((int)m->_state.x, -127, 127);
+                    int8_t v_dy = (int8_t)constrain((int)m->_state.y, -127, 127);
+                    int8_t v_wh = (int8_t)constrain((int)m->_state.wheel, -127, 127);
+                
+                    const bool v_left = ((m->_state.btn_mask & (uint8_t)EN_E10_BTN_LEFT) != 0);
+                
+                    if (v_left) m->_mouse.mousePress(E10_CONST::MOUSE_BTN_LEFT);
+                    else        m->_mouse.mouseRelease(E10_CONST::MOUSE_BTN_LEFT);
+                
+                    mouseSend_(m->_mouse, v_dx, v_dy, v_wh);
+                
+                    m->_state.updated = false;
+    
                 }
                 xSemaphoreGive(v_m->_mutex);
             }
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
+    */
 };
