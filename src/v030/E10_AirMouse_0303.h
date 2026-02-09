@@ -874,9 +874,9 @@ class CL_E10_EliteAirMouse {
     
                     const bool v_left = ((v_m->_state.btn_mask & (uint8_t)EN_E10_BTN_LEFT) != 0);
     
-                    if (v_left) v_m->_mouse.mousePress(E10_CONST::MOUSE_BTN_LEFT);
-                    else        v_m->_mouse.mouseRelease(E10_CONST::MOUSE_BTN_LEFT);
-    
+                    if (v_left) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
+                    else        v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+
                     _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
     
                     v_m->_state.updated = false;
