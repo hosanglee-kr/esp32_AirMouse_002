@@ -31,7 +31,7 @@
 #include <MouseDevice.h>
 
 #include "A40_ComFunc_070.h"
-#include "C10_Config_0302.h"
+#include "C10_Config_0303.h"
 #include "M10_MotionProc_0300.h"
 
 #include "E10_Def_0302.h"
@@ -48,6 +48,9 @@ class CL_E10_EliteAirMouse {
     CL_C10_Config*                 _cfg = nullptr;
 
     ST_E10_State_t _state;
+    
+    // safe mode gate
+    volatile bool _safeMode = false;
 
     SemaphoreHandle_t _mutex = nullptr;
 
@@ -165,8 +168,6 @@ class CL_E10_EliteAirMouse {
         _cfg     = p_cfg;
         _uptime0 = millis();
 
-        Serial.begin(115200);
-
         Wire.begin(s_i2cSda, s_i2cScl);
         Wire.setClock(400000);
 
@@ -183,6 +184,8 @@ class CL_E10_EliteAirMouse {
         pinMode(E10_CONST::PIN_BTN_SCROLL, INPUT_PULLUP);
 
         _mutex = xSemaphoreCreateMutex();
+        
+        _safeMode = (_cfg && _cfg->isSafeMode());
 
         (void)_applyFromConfig();
 
@@ -335,6 +338,17 @@ class CL_E10_EliteAirMouse {
         }
 
         _unlock();
+    }
+    
+    bool setSafeMode(bool p_enable) {
+        _lock();
+        _safeMode = p_enable;
+    
+        // safe mode 진입 시: 상태 초기화(버튼 stuck 방지용)
+        _state.btn_mask = 0;
+        _state.updated  = true;
+        _unlock();
+        return true;
     }
 
   private:
@@ -862,6 +876,104 @@ class CL_E10_EliteAirMouse {
         }
     }
     
+    
+    // -----------------------
+    // Task: Comm (HID send)
+    // - SafeMode일 때 HID 출력 완전 차단
+    // - btn_mask 전체(LEFT/RIGHT/MIDDLE) 지원
+    // - 변경 시에만 press/release (스팸/지터 방지)
+    // -----------------------
+    static void _commTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        // 이전 버튼 상태(변경 감지용)
+        uint8_t v_lastBtnMask = 0;
+        bool    v_releasedOnSafe = false;
+    
+        for (;;) {
+            // 연결 안됐으면 루프만 돌림
+            if (!v_m->_hid.isConnected()) {
+                vTaskDelay(pdMS_TO_TICKS(12));
+                continue;
+            }
+    
+            // ---- SafeMode: HID 출력 차단 + stuck 방지 1회 릴리즈 ----
+            if (v_m->_safeMode) {
+                if (!v_releasedOnSafe) {
+                    // SafeMode 진입 순간에만 릴리즈 시도
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_LEFT)   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_RIGHT)  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+    
+                    v_lastBtnMask = 0;
+                    v_releasedOnSafe = true;
+                }
+    
+                // state 소비만 해주면, 센서태스크가 updated 계속 세팅해도 누적 안됨
+                if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    v_m->_state.updated  = false;
+                    v_m->_state.btn_mask = 0;
+                    xSemaphoreGive(v_m->_mutex);
+                }
+    
+                vTaskDelay(pdMS_TO_TICKS(20));
+                continue;
+            } else {
+                // SafeMode 해제되면 다시 정상 송신 재개
+                v_releasedOnSafe = false;
+            }
+    
+            // ---- normal path ----
+            if (xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+                if (!v_m->_state.updated) {
+                    xSemaphoreGive(v_m->_mutex);
+                    vTaskDelay(pdMS_TO_TICKS(7));
+                    continue;
+                }
+    
+                // snapshot
+                const int16_t v_x     = v_m->_state.x;
+                const int16_t v_y     = v_m->_state.y;
+                const int16_t v_wheel = v_m->_state.wheel;
+                const uint8_t v_btn   = v_m->_state.btn_mask;
+    
+                v_m->_state.updated = false;
+                xSemaphoreGive(v_m->_mutex);
+    
+                // clamp to HID range
+                const int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
+                const int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
+                const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
+    
+                // button diff
+                const uint8_t v_changed = (uint8_t)(v_btn ^ v_lastBtnMask);
+    
+                if (v_changed & (uint8_t)EN_E10_BTN_LEFT) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_LEFT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
+                    else                                  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                }
+                if (v_changed & (uint8_t)EN_E10_BTN_RIGHT) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_RIGHT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
+                    else                                   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                }
+                if (v_changed & (uint8_t)EN_E10_BTN_MIDDLE) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
+                    else                                    v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+                }
+    
+                v_lastBtnMask = v_btn;
+    
+                // move
+                _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+            }
+    
+            vTaskDelay(pdMS_TO_TICKS(7));
+        }
+    }
+
+    
+    
+    /*
     // -----------------------
     // Task: Comm (HID send)
     // - btn_mask 전체(LEFT/RIGHT/MIDDLE) 지원
@@ -919,5 +1031,6 @@ class CL_E10_EliteAirMouse {
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
+    */
 };
 
