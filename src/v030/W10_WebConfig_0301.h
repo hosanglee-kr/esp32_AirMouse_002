@@ -1241,7 +1241,54 @@ class CL_W10_WebConfig {
         d["ok"] = false;
         _sendJson(req, d, 500);
     }
+    
+    void apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index);
+        for (size_t i = 0; i < len; i++) body += (char)data[i];
+        if (index + len < total) return;
+    
+        JsonDocument in;
+        DeserializationError err = deserializeJson(in, body);
+        _bodyFree(req);
+    
+        if (err) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "bad_json";
+            _sendJson(req, out, 400);
+            return;
+        }
+    
+        bool v_exit = false;
+        if (!in["exit"].isNull()) v_exit = (bool)in["exit"];
+    
+        bool ok = false;
+        if (_cfg && v_exit) {
+            ok = _cfg->clearSafeMode();
+        }
+    
+        JsonDocument out;
+        out["ok"]   = ok;
+        out["exit"] = v_exit;
+        out["note"] = "exit=true -> clears safe_mode and reboots.";
+        _sendJson(req, out, ok ? 200 : 500);
+    
+        if (ok && v_exit) {
+            delay(150);
+            ESP.restart();
+        }
+    }
 
+    
+    /*
     void apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
         if (total > G_W10_BODY_MAX) {
             JsonDocument out;
@@ -1282,6 +1329,7 @@ class CL_W10_WebConfig {
             ESP.restart();
         }
     }
+    */
 
     void apiFactoryReset(AsyncWebServerRequest* req) {
         bool ok = (_cfg && _cfg->factoryReset(true));
