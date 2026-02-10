@@ -919,6 +919,7 @@ class CL_E10_EliteAirMouse {
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
+};
 
 
     /*
@@ -1139,4 +1140,3 @@ class CL_E10_EliteAirMouse {
         }
     }
     */
-};

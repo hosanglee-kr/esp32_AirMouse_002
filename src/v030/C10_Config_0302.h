@@ -20,7 +20,9 @@ class CL_C10_Config {
     ST_C10_BootState_t _boot;
 
   public:
-    CL_C10_Config() { memset(&_boot, 0, sizeof(_boot)); }
+    CL_C10_Config() { 
+        memset(&_boot, 0, sizeof(_boot)); 
+    }
 
     void begin(bool p_formatOnFail = true) {
         (void)LittleFS.begin(p_formatOnFail);
