@@ -1251,7 +1251,7 @@ class CL_W10_WebConfig {
             return;
         }
         
-        String& body = _bodyGet(req, index);
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
     
