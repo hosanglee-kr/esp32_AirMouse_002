@@ -70,9 +70,13 @@ static constexpr const char* G_W10_CACHE_SHORT     = "public, max-age=3600";
 // 버전 토큰 규칙(파일명에 포함되면 immutable 후보)
 // - 예: app_0279.js, style-0279.css, logo_v0279.webp ...
 // -------------------------------------------------------
-static constexpr const char* G_W10_VER_TOKEN_A = "_027";
-static constexpr const char* G_W10_VER_TOKEN_B = "-027";
-static constexpr const char* G_W10_VER_TOKEN_C = "v027";
+static constexpr const char* G_W10_VER_TOKEN_A = "_03";
+static constexpr const char* G_W10_VER_TOKEN_B = "-03";
+static constexpr const char* G_W10_VER_TOKEN_C = "v03";
+
+static constexpr size_t G_W10_BODY_MAX = 8192;
+static constexpr size_t G_W10_BODY_MAP_MAX = 8;
+
 
 // -------------------------------------------------------
 // PPT keycodes presets (W10 /api/keycodes)

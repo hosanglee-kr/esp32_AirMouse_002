@@ -113,7 +113,7 @@ class CL_W10_WebConfig {
         _applyCtx = p_applyCtx;
 
         WiFi.onEvent(s_wifiEvent);
-        (void)LittleFS.begin(true);
+        // C10 config.begin()에서 초기화 (void)LittleFS.begin(true);
 
         if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
 
@@ -358,6 +358,48 @@ class CL_W10_WebConfig {
     // =====================================================
     // Request Body (map 기반 누적)
     // =====================================================
+    String& _bodyGet(AsyncWebServerRequest* req, size_t index, size_t total) {
+        // A-4: 폭주 방지(맵이 이상하게 커지면 전체 정리)
+        if (s_reqBodyMap.size() > G_W10_BODY_MAP_MAX) {
+            s_reqBodyMap.clear();
+        }
+    
+        if (index == 0) {
+            s_reqBodyMap.erase(req);
+            s_reqBodyMap.emplace(req, String());
+        }
+    
+        String& v_body = s_reqBodyMap[req];
+    
+        // A-4: total 기준 최대치 제한(초과면 잘라서라도 막기)
+        if (total > G_W10_BODY_MAX) {
+            // 너무 큰 요청은 이후 핸들러에서 413으로 처리하도록 유도
+            // 여기서는 누적만 최소화
+            if (v_body.length() > G_W10_BODY_MAX) {
+                v_body.remove(G_W10_BODY_MAX);
+            }
+        }
+        return v_body;
+    }
+
+    
+    /*
+    String& _bodyGet(AsyncWebServerRequest* req, size_t index) {
+        if (index == 0) {
+            s_reqBodyMap.erase(req);
+            s_reqBodyMap.emplace(req, String());
+    
+            // 가능하면 연결 종료시 자동 정리(지원되는 버전에서만)
+            req->onDisconnect([req]() {
+                auto it = CL_W10_WebConfig::s_reqBodyMap.find(req);
+                if (it != CL_W10_WebConfig::s_reqBodyMap.end()) CL_W10_WebConfig::s_reqBodyMap.erase(it);
+            });
+        }
+        return s_reqBodyMap[req];
+    }
+    */
+
+    /*
     String& _bodyGet(AsyncWebServerRequest* req, size_t index) {
         if (index == 0) {
             // 새 요청 시작: 기존 잔재 제거 후 초기화
@@ -366,6 +408,7 @@ class CL_W10_WebConfig {
         }
         return s_reqBodyMap[req];
     }
+    */
 
     void _bodyFree(AsyncWebServerRequest* req) {
         auto it = s_reqBodyMap.find(req);
@@ -601,6 +644,7 @@ class CL_W10_WebConfig {
             b["safe_mode"]  = bs.safe_mode;
             b["fail_count"] = bs.fail_count;
             b["pending"]    = bs.pending;
+            b["last_reset_reason"] = bs.last_reset_reason;
         }
 
         _sendJson(req, d, 200);
@@ -787,7 +831,15 @@ class CL_W10_WebConfig {
     }
 
     void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -806,7 +858,15 @@ class CL_W10_WebConfig {
     }
 
     void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -857,7 +917,15 @@ class CL_W10_WebConfig {
     }
 
     void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -889,7 +957,15 @@ class CL_W10_WebConfig {
     // /api/control
     // =====================================================
     void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -948,7 +1024,15 @@ class CL_W10_WebConfig {
     }
 
     void apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -1031,7 +1115,15 @@ class CL_W10_WebConfig {
     }
 
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -1151,7 +1243,15 @@ class CL_W10_WebConfig {
     }
 
     void apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        String& body = _bodyGet(req, index);
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
+        
+        String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
         if (index + len < total) return;
 
@@ -1176,6 +1276,11 @@ class CL_W10_WebConfig {
         out["ok"]   = ok;
         out["note"] = "If safe mode was active, reboot recommended after exit.";
         _sendJson(req, out, ok ? 200 : 500);
+        
+        if (ok && v_exit) {
+            delay(150);
+            ESP.restart();
+        }
     }
 
     void apiFactoryReset(AsyncWebServerRequest* req) {

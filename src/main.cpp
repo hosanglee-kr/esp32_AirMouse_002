@@ -56,7 +56,16 @@ void setup() {
     // 3) Safe Boot 상태 확인
     if (g_cfg.isSafeMode()) {
         D10_LOGW("[0274] SAFE BOOT MODE ACTIVE");
+    
+        // A-4: SAFE 진입 시 config.bak 자동 롤백 1회 시도
+        bool v_rb = g_cfg.rollbackFromBak();
+        if (v_rb) {
+            D10_LOGW("[0274] rollbackFromBak OK (auto)");
+        } else {
+            D10_LOGW("[0274] rollbackFromBak skipped/failed (no bak or invalid)");
+        }
     }
+
 
     // 4) 모듈 시작
     g_e10.begin(&g_cfg);

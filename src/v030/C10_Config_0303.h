@@ -12,6 +12,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 #include <strings.h>
+#include <esp_system.h> // esp_reset_reason()
 
 #include "C10_Def_0303.h"
 
@@ -31,10 +32,17 @@ class CL_C10_Config {
         // 1) boot state load + mark start (pending)
         _loadBootState(_boot);
 
-        // 이전 부팅이 pending 상태였으면 실패 카운트 증가
+        // A-3: reset reason 기록
+        _boot.last_reset_reason = _getResetReasonU8();
+        
+        // 이전 부팅이 pending이었다면 “비정상 리셋”일 때만 실패 카운트 증가
         if (_boot.pending) {
-            if (_boot.fail_count < 250) _boot.fail_count++;
+            esp_reset_reason_t v_r = (esp_reset_reason_t)_boot.last_reset_reason;
+            if (_isBadResetReason(v_r)) {
+                if (_boot.fail_count < 250) _boot.fail_count++;
+            }
         }
+
 
         // fail threshold 도달 시 safe mode
         if (_boot.fail_count >= C10_DEF::SAFE_FAIL_THRESHOLD) {
@@ -471,6 +479,31 @@ class CL_C10_Config {
         }
         return true;
     }
+    
+    bool _isBadResetReason(esp_reset_reason_t p_r) {
+        // “진짜 실패”로 볼 리셋 원인만 true
+        switch (p_r) {
+            case ESP_RST_PANIC:
+            case ESP_RST_INT_WDT:
+            case ESP_RST_TASK_WDT:
+            case ESP_RST_WDT:
+                return true;
+
+            // 브라운아웃을 실패로 볼지 정책 선택:
+            // - 현장 전원 불안정이면 safe로 유도하는 게 맞을 수 있음
+            case ESP_RST_BROWNOUT:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    uint8_t _getResetReasonU8() {
+        esp_reset_reason_t v_r = esp_reset_reason();
+        return (uint8_t)v_r;
+    }
+    
 
   private:
     // ---------- JSON build ----------
@@ -565,6 +598,9 @@ class CL_C10_Config {
         
         // (NEW)
         if (!v_d["boot_ms"].isNull())    p_out.boot_ms    = (uint32_t)v_d["boot_ms"];
+        
+        if (!v_d["last_reset_reason"].isNull()) p_out.last_reset_reason = (uint8_t)v_d["last_reset_reason"];
+        
     
         return true;
     }
@@ -577,6 +613,9 @@ class CL_C10_Config {
         
         // (NEW)
         v_d["boot_ms"]    = p_in.boot_ms;
+        
+        v_d["last_reset_reason"] = p_in.last_reset_reason;
+        
 
         File v_tmp = LittleFS.open(C10_DEF::BOOT_TMP_PATH, "w");
         if (!v_tmp) return false;

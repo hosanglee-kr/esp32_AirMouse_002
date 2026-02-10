@@ -116,4 +116,5 @@ struct ST_C10_BootState_t {
     
     // (NEW) 이번 부팅 시작 시각(업타임 기준 millis)
     uint32_t boot_ms;
+    uint8_t  last_reset_reason;
 };
