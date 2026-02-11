@@ -593,6 +593,7 @@ class CL_W10_WebConfig {
             e["precision_mode"]   = s.precision_mode;
             e["fsm_state"]        = s.fsm_state;
             e["fsm_sub"]          = s.fsm_sub;
+            e["btn_mask"] = s.btn_mask;
 
             JsonObject h = e["health"].to<JsonObject>();
             h["state"]   = s.health;

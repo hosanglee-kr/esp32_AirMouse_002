@@ -141,19 +141,12 @@ class CL_E10_EliteAirMouse {
     uint8_t  _precSub = EN_PREC_OFF;
     uint32_t _precT0  = 0;
 
-    /*
-    // class-static fixed pins (board wiring)
-    static constexpr int s_i2cSda = 4;
-    static constexpr int s_i2cScl = 5;
-    */
 
   public:
     CL_E10_EliteAirMouse()
         : _hid("Elite AirMouse S3", "ProMaker", 100) { 
             
         memset(&_state, 0, sizeof(_state));
-        // _state = {0,0,0,0,false};
-        // _state = {0, 0, 0, false};
 
         memset(_errHist, 0, sizeof(_errHist));
         memset(_spikes,  0, sizeof(_spikes));
@@ -171,7 +164,6 @@ class CL_E10_EliteAirMouse {
         _uptime0 = millis();
 
         Wire.begin(E10_CONST::PIN_I2C_SDA, E10_CONST::PIN_I2C_SCL);
-        // Wire.begin(s_i2cSda, s_i2cScl);
         Wire.setClock(400000);
 
         if (!_mpu.begin()) {
@@ -281,6 +273,8 @@ class CL_E10_EliteAirMouse {
         p_out.ble_connected = _hid.isConnected();
         p_out.ppt_mode      = _isPptMode;
         p_out.dpi_level     = (uint8_t)_dpiLevel;
+        
+        p_out.btn_mask = _state.btn_mask;
 
         p_out.precision_enable = _precisionEnable;
         p_out.precision_mode   = _precisionMode;
@@ -628,6 +622,7 @@ class CL_E10_EliteAirMouse {
 
         Wire.end();
         delay(5);
+        
         Wire.begin(E10_CONST::PIN_I2C_SDA, E10_CONST::PIN_I2C_SCL);
         Wire.setClock(400000);
         delay(5);
@@ -771,6 +766,18 @@ class CL_E10_EliteAirMouse {
             if (v_leftClick)  v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
             if (v_rightClick) v_btnMask |= (uint8_t)EN_E10_BTN_RIGHT;
             if (v_midClick)   v_btnMask |= (uint8_t)EN_E10_BTN_MIDDLE;
+            
+            // ---- btn change detect (mutex miss 보완용) ----
+            bool v_btnChanged = false;
+            if (!v_lastBtnInit) {
+                v_lastBtnMask = v_btnMask;
+                v_lastBtnInit = true;
+                v_btnChanged  = true; // 첫 1회 동기화
+            } else if (v_btnMask != v_lastBtnMask) {
+                v_btnChanged  = true;
+                v_lastBtnMask = v_btnMask;
+            }
+
 
             // ---- gyro ----
             float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
@@ -843,15 +850,46 @@ class CL_E10_EliteAirMouse {
                 v_fy *= v_m->_scrollCursorDamp;
     
                 if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
+                    const int16_t v_wo = (int16_t)constrain((int)v_wheel, -32767, 32767);
+                    
+                    v_m->_state.x        = v_xo;
+                    v_m->_state.y        = v_yo;
+                    v_m->_state.wheel    = v_wo;
+                    v_m->_state.btn_mask = v_btnMask;
+                    
+                    // updated 정책: 버튼/이동/휠 중 하나라도 변화면 true
+                    if (v_btnChanged || (v_xo != 0) || (v_yo != 0) || (v_wo != 0)) {
+                        v_m->_state.updated = true;
+                    }
+                    
+                    xSemaphoreGive(v_m->_mutex);
+
+                    /*
                     v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
                     v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
                     v_m->_state.wheel    = (int16_t)constrain((int)v_wheel, -32767, 32767);
                     v_m->_state.btn_mask = v_btnMask;
                     v_m->_state.updated  = true;
+                    
                     xSemaphoreGive(v_m->_mutex);
+                    */
+                    
+                    
                 } else {
                     v_m->_errMutexMiss++;
                     v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+                    
+                    // 버튼 변화가 있었다면 짧게 1회 재시도 (stuck 방지용)
+                    if (v_btnChanged) {
+                        if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                            v_m->_state.btn_mask = v_btnMask;
+                            v_m->_state.updated  = true;
+                            xSemaphoreGive(v_m->_mutex);
+                        }
+                    }
+    
                 }
             } else {
                 // AIR/PPT/PREC cursor
@@ -865,15 +903,41 @@ class CL_E10_EliteAirMouse {
                 v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2, (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
     
                 if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
+                    
+                    v_m->_state.x        = v_xo;
+                    v_m->_state.y        = v_yo;
+                    v_m->_state.wheel    = 0;
+                    v_m->_state.btn_mask = v_btnMask;
+                    
+                    // updated 정책: 버튼/이동/휠 중 하나라도 변화면 true
+                    if (v_btnChanged || (v_xo != 0) || (v_yo != 0)) {
+                        v_m->_state.updated = true;
+                    }
+                    
+                    xSemaphoreGive(v_m->_mutex);
+                    
+                    /*
                     v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
                     v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
                     v_m->_state.wheel    = 0;
                     v_m->_state.btn_mask = v_btnMask;
                     v_m->_state.updated  = true;
                     xSemaphoreGive(v_m->_mutex);
+                    */
                 } else {
                     v_m->_errMutexMiss++;
                     v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+                    
+                    // 버튼 변화가 있었다면 짧게 1회 재시도 (stuck 방지용)
+                    if (v_btnChanged) {
+                        if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                            v_m->_state.btn_mask = v_btnMask;
+                            v_m->_state.updated  = true;
+                            xSemaphoreGive(v_m->_mutex);
+                        }
+                    }
                 }
             }
     
