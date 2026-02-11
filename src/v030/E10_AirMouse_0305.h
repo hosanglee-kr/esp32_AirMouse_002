@@ -708,6 +708,374 @@ class CL_E10_EliteAirMouse {
     // -----------------------
     // Tasks
     // -----------------------
+    
+    static void _sensorTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        TickType_t     v_lastWake  = xTaskGetTickCount();
+        unsigned long  v_lastUs    = micros();
+        unsigned long  v_btnDownMs = 0;
+    
+        // 버튼 변화 감지(커밋 성공 시에만 last 갱신)
+        uint8_t v_lastBtnMask = 0;
+        bool    v_lastBtnInit = false;
+    
+        if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
+    
+        for (;;) {
+            // ---- sensor read ----
+            sensors_event_t v_a, v_g, v_t;
+            v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
+            v_m->_tempC = v_t.temperature;
+    
+            // ---- dt ----
+            unsigned long v_nowUs = micros();
+            float v_dt = (v_nowUs - v_lastUs) / 1000000.0f;
+            v_lastUs = v_nowUs;
+    
+            float v_dtMs = v_dt * 1000.0f;
+            v_m->_dtAvgMs = v_m->_dtAvgMs * 0.98f + v_dtMs * 0.02f;
+    
+            // ---- buttons ----
+            const bool v_scrollMode = (digitalRead(E10_CONST::PIN_BTN_SCROLL) == LOW);
+    
+            // mode short/long (short=dpi cycle, long=ppt toggle)
+            bool v_modeLongToggle = false;
+            if (digitalRead(E10_CONST::PIN_BTN_MODE) == LOW) {
+                if (v_btnDownMs == 0) v_btnDownMs = millis();
+            } else {
+                if (v_btnDownMs > 0) {
+                    unsigned long v_hold = millis() - v_btnDownMs;
+                    if (v_hold > 1000) {
+                        v_modeLongToggle = true;
+                    } else {
+                        v_m->_dpiLevel++;
+                        if (v_m->_dpiLevel > 3) v_m->_dpiLevel = 1;
+                        v_m->_engine.setDPI(v_m->_dpiLevel);
+                    }
+                    v_btnDownMs = 0;
+                }
+            }
+    
+            const bool v_leftClick  = (digitalRead(E10_CONST::PIN_BTN_L) == LOW);
+            const bool v_rightClick = (digitalRead(E10_CONST::PIN_BTN_R) == LOW);
+            const bool v_midClick   = (digitalRead(E10_CONST::PIN_BTN_M) == LOW);
+    
+            // 기존 정책 유지: 클릭 notify는 LEFT 기준
+            if (v_leftClick) v_m->_engine.notifyClick();
+    
+            uint8_t v_btnMask = 0;
+            if (v_leftClick)  v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
+            if (v_rightClick) v_btnMask |= (uint8_t)EN_E10_BTN_RIGHT;
+            if (v_midClick)   v_btnMask |= (uint8_t)EN_E10_BTN_MIDDLE;
+    
+            // ---- gyro ----
+            float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
+            float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
+            float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
+    
+            const float v_gyroAbs = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
+    
+            // ---- spike detect ----
+            const uint32_t v_ts = (uint32_t)(millis() - v_m->_uptime0);
+            if (fabsf(v_gz) > E10_CONST::SPIKE_TH_DEG) v_m->_pushSpike(v_ts);
+    
+            // ---- fsm ----
+            v_m->_fsmUpdate(v_scrollMode, v_modeLongToggle, v_gyroAbs);
+    
+            // ---- NaN guard ----
+            if (isnan(v_gx) || isnan(v_gy) || isnan(v_gz)) {
+                v_m->_errMpuNan++;
+                v_m->_consecutiveFail++;
+                v_m->_pushErr(EN_E10_ERR_MPU_NAN, 0);
+    
+                if ((v_m->_errMpuNan % 5) == 0) (void)v_m->_recoverI2C();
+    
+                vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+                continue;
+            } else {
+                if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
+            }
+    
+            // ---- stats + motion engine ----
+            v_m->_welfordAdd(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);
+    
+            v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
+    
+            int v_tx = 0;
+            int v_ty = 0;
+            v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
+    
+            // ---- accel shaping ----
+            float v_base = v_m->_scaleBase[v_m->_dpiLevel - 1];
+            float v_accg = v_m->_accelGain[v_m->_dpiLevel - 1];
+    
+            float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
+            float v_acc = 1.0f;
+    
+            if (v_mag > v_m->_accelTh) {
+                float v_ex = (v_mag - v_m->_accelTh);
+                v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
+            }
+    
+            float v_fx = (float)v_tx * v_base * v_acc;
+            float v_fy = (float)v_ty * v_base * v_acc;
+    
+            // ---- apply FSM ----
+            if (v_m->_fsm == EN_FSM_SCROLL) {
+                // scroll: wheel only + cursor damp
+                int v_wheel = 0;
+    
+                if (v_gy > v_m->_wheelThDeg) {
+                    float v_n = (v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = (int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
+                } else if (v_gy < -v_m->_wheelThDeg) {
+                    float v_n = (-v_gy - v_m->_wheelThDeg) / 120.0f;
+                    if (v_n > 1.0f) v_n = 1.0f;
+                    v_wheel = -(int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
+                }
+    
+                v_fx *= v_m->_scrollCursorDamp;
+                v_fy *= v_m->_scrollCursorDamp;
+    
+                if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
+                    const int16_t v_wo = (int16_t)constrain((int)v_wheel, -32767, 32767);
+    
+                    // btn change detect는 "커밋 성공 시에만" last 갱신
+                    bool v_btnChanged = false;
+                    if (!v_lastBtnInit) {
+                        v_lastBtnInit = true;
+                        v_btnChanged  = true; // 첫 1회 동기화
+                    } else if (v_btnMask != v_lastBtnMask) {
+                        v_btnChanged = true;
+                    }
+    
+                    v_m->_state.x        = v_xo;
+                    v_m->_state.y        = v_yo;
+                    v_m->_state.wheel    = v_wo;
+                    v_m->_state.btn_mask = v_btnMask;
+    
+                    // updated 정책: 버튼/이동/휠 중 하나라도 변화면 true
+                    if (v_btnChanged || (v_xo != 0) || (v_yo != 0) || (v_wo != 0)) {
+                        v_m->_state.updated = true;
+                    }
+    
+                    // 성공 커밋 시에만 갱신
+                    v_lastBtnMask = v_btnMask;
+    
+                    xSemaphoreGive(v_m->_mutex);
+                } else {
+                    v_m->_errMutexMiss++;
+                    v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+    
+                    // 버튼 변화가 있었다면 짧게 1회 재시도 (stuck 방지용)
+                    // - last 갱신도 "성공 시에만"
+                    const bool v_btnNeedRetry = (!v_lastBtnInit) || (v_btnMask != v_lastBtnMask);
+                    if (v_btnNeedRetry) {
+                        if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                            v_m->_state.btn_mask = v_btnMask;
+                            v_m->_state.updated  = true;
+    
+                            v_lastBtnInit = true;
+                            v_lastBtnMask = v_btnMask;
+    
+                            xSemaphoreGive(v_m->_mutex);
+                        }
+                    }
+                }
+            } else {
+                // AIR/PPT/PREC cursor
+                if (v_m->_fsm == EN_FSM_PREC) {
+                    v_m->_applyPrecision(v_fx, v_fy);
+                }
+                if (v_m->_fsm == EN_FSM_PPT) {
+                    v_m->_processGesturesDeg(v_gz);
+                }
+    
+                v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,
+                                 (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
+    
+                if (xSemaphoreTake(v_m->_mutex, 0) == pdTRUE) {
+                    const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
+                    const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
+    
+                    // btn change detect는 "커밋 성공 시에만" last 갱신
+                    bool v_btnChanged = false;
+                    if (!v_lastBtnInit) {
+                        v_lastBtnInit = true;
+                        v_btnChanged  = true; // 첫 1회 동기화
+                    } else if (v_btnMask != v_lastBtnMask) {
+                        v_btnChanged = true;
+                    }
+    
+                    v_m->_state.x        = v_xo;
+                    v_m->_state.y        = v_yo;
+                    v_m->_state.wheel    = 0;
+                    v_m->_state.btn_mask = v_btnMask;
+    
+                    // updated 정책: 버튼/이동/휠 중 하나라도 변화면 true
+                    if (v_btnChanged || (v_xo != 0) || (v_yo != 0)) {
+                        v_m->_state.updated = true;
+                    }
+    
+                    // 성공 커밋 시에만 갱신
+                    v_lastBtnMask = v_btnMask;
+    
+                    xSemaphoreGive(v_m->_mutex);
+                } else {
+                    v_m->_errMutexMiss++;
+                    v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+    
+                    // 버튼 변화가 있었다면 짧게 1회 재시도 (stuck 방지용)
+                    const bool v_btnNeedRetry = (!v_lastBtnInit) || (v_btnMask != v_lastBtnMask);
+                    if (v_btnNeedRetry) {
+                        if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                            v_m->_state.btn_mask = v_btnMask;
+                            v_m->_state.updated  = true;
+    
+                            v_lastBtnInit = true;
+                            v_lastBtnMask = v_btnMask;
+    
+                            xSemaphoreGive(v_m->_mutex);
+                        }
+                    }
+                }
+            }
+    
+            // ---- pacing / overrun ----
+            TickType_t v_before = xTaskGetTickCount();
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+            TickType_t v_after = xTaskGetTickCount();
+    
+            if ((v_after - v_before) == 0) {
+                v_m->_errTaskOverrun++;
+                if ((v_m->_errTaskOverrun % 10) == 0) v_m->_pushErr(EN_E10_ERR_TASK_OVERRUN, 0);
+            }
+        }
+    }
+    
+    // -----------------------
+    // Task: Comm (HID send)
+    // - SafeMode일 때 HID 출력 완전 차단
+    // - btn_mask 전체(LEFT/RIGHT/MIDDLE) 지원
+    // - 변경 시에만 press/release (스팸/지터 방지)
+    // - 핵심 보강: updated=false여도 "버튼 변화(diff)"는 무조건 전송(버튼 stuck 방지)
+    // -----------------------
+    static void _commTask(void* p_pv) {
+        CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+    
+        // 이전 버튼 상태(변경 감지용)
+        uint8_t v_lastBtnMask    = 0;
+        bool    v_releasedOnSafe = false;
+    
+        bool v_prevConn = false;
+    
+        for (;;) {
+            const bool v_conn = v_m->_hid.isConnected();
+    
+            // disconnect edge: stuck 방지 릴리즈(강추)
+            if (!v_conn && v_prevConn) {
+                if (v_lastBtnMask & (uint8_t)EN_E10_BTN_LEFT)   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                if (v_lastBtnMask & (uint8_t)EN_E10_BTN_RIGHT)  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                if (v_lastBtnMask & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+                v_lastBtnMask = 0;
+            }
+    
+            if (!v_conn) {
+                v_prevConn = false;
+                vTaskDelay(pdMS_TO_TICKS(12));
+                continue;
+            }
+    
+            // connect edge: 1회만 동기화
+            if (v_conn && !v_prevConn) {
+                if (xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+                    v_lastBtnMask = v_m->_state.btn_mask;
+                    // (선택) connect 시 잔여 updated/이동값이 남아있으면 초기화해도 됨
+                    // v_m->_state.updated = false;
+                    xSemaphoreGive(v_m->_mutex);
+                }
+            }
+            v_prevConn = true;
+    
+            // ---- SafeMode: HID 출력 차단 + stuck 방지 1회 릴리즈 ----
+            if (v_m->_safeMode) {
+                if (!v_releasedOnSafe) {
+                    // SafeMode 진입 순간에만 릴리즈 시도
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_LEFT)   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_RIGHT)  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+    
+                    v_lastBtnMask    = 0;
+                    v_releasedOnSafe = true;
+                }
+    
+                // state 소비만 해주면, 센서태스크가 updated 계속 세팅해도 누적 안됨
+                if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    v_m->_state.updated  = false;
+                    v_m->_state.btn_mask = 0;
+                    xSemaphoreGive(v_m->_mutex);
+                }
+    
+                vTaskDelay(pdMS_TO_TICKS(20));
+                continue;
+            } else {
+                // SafeMode 해제되면 다시 정상 송신 재개
+                v_releasedOnSafe = false;
+            }
+    
+            // ---- normal path ----
+            if (xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+                // snapshot (항상: 버튼 diff를 updated와 무관하게 처리하기 위해)
+                const bool    v_upd   = v_m->_state.updated;
+                const int16_t v_x     = v_m->_state.x;
+                const int16_t v_y     = v_m->_state.y;
+                const int16_t v_wheel = v_m->_state.wheel;
+                const uint8_t v_btn   = v_m->_state.btn_mask;
+    
+                // 소비(이동/휠/버튼은 sensor가 계속 갱신, updated만 내림)
+                v_m->_state.updated = false;
+                xSemaphoreGive(v_m->_mutex);
+    
+                // ---- button diff: updated 여부와 무관하게 처리(버튼 stuck 방지 핵심) ----
+                const uint8_t v_changed = (uint8_t)(v_btn ^ v_lastBtnMask);
+    
+                if (v_changed & (uint8_t)EN_E10_BTN_LEFT) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_LEFT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
+                    else                                  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+                }
+                if (v_changed & (uint8_t)EN_E10_BTN_RIGHT) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_RIGHT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
+                    else                                   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+                }
+                if (v_changed & (uint8_t)EN_E10_BTN_MIDDLE) {
+                    if (v_btn & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
+                    else                                    v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+                }
+    
+                v_lastBtnMask = v_btn;
+    
+                // ---- move/wheel: updated==true일 때만 전송 (스팸/지터 방지) ----
+                if (v_upd) {
+                    // clamp to HID range
+                    const int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
+                    const int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
+                    const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
+    
+                    _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+                }
+            }
+    
+            vTaskDelay(pdMS_TO_TICKS(7));
+        }
+    }
+
+
+
+    /*
     static void _sensorTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
     
@@ -866,16 +1234,6 @@ class CL_E10_EliteAirMouse {
                     
                     xSemaphoreGive(v_m->_mutex);
 
-                    /*
-                    v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
-                    v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
-                    v_m->_state.wheel    = (int16_t)constrain((int)v_wheel, -32767, 32767);
-                    v_m->_state.btn_mask = v_btnMask;
-                    v_m->_state.updated  = true;
-                    
-                    xSemaphoreGive(v_m->_mutex);
-                    */
-                    
                     
                 } else {
                     v_m->_errMutexMiss++;
@@ -918,14 +1276,7 @@ class CL_E10_EliteAirMouse {
                     
                     xSemaphoreGive(v_m->_mutex);
                     
-                    /*
-                    v_m->_state.x        = (int16_t)constrain((int)v_fx, -32767, 32767);
-                    v_m->_state.y        = (int16_t)constrain((int)v_fy, -32767, 32767);
-                    v_m->_state.wheel    = 0;
-                    v_m->_state.btn_mask = v_btnMask;
-                    v_m->_state.updated  = true;
-                    xSemaphoreGive(v_m->_mutex);
-                    */
+        
                 } else {
                     v_m->_errMutexMiss++;
                     v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
@@ -952,6 +1303,7 @@ class CL_E10_EliteAirMouse {
             }
         }
     }
+    */
     
     
     // -----------------------
@@ -960,6 +1312,9 @@ class CL_E10_EliteAirMouse {
     // - btn_mask 전체(LEFT/RIGHT/MIDDLE) 지원
     // - 변경 시에만 press/release (스팸/지터 방지)
     // -----------------------
+    
+    
+    /*
     static void _commTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
     
@@ -1059,6 +1414,7 @@ class CL_E10_EliteAirMouse {
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
+    */
     
 };
 
