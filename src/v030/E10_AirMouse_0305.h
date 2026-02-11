@@ -613,24 +613,22 @@ class CL_E10_EliteAirMouse {
     // I2C recover
     // -----------------------
     bool _recoverI2C() {
-        const int v_sda = s_i2cSda;
-        const int v_scl = s_i2cScl;
-
-        pinMode(v_sda, INPUT_PULLUP);
-        pinMode(v_scl, OUTPUT_OPEN_DRAIN);
+        
+        pinMode(E10_CONST::PIN_I2C_SDA, INPUT_PULLUP);
+        pinMode(E10_CONST::PIN_I2C_SCL, OUTPUT_OPEN_DRAIN);
 
         for (int v_i = 0; v_i < 9; v_i++) {
-            digitalWrite(v_scl, HIGH);
+            digitalWrite(E10_CONST::PIN_I2C_SCL, HIGH);
             delayMicroseconds(6);
-            digitalWrite(v_scl, LOW);
+            digitalWrite(E10_CONST::PIN_I2C_SCL, LOW);
             delayMicroseconds(6);
         }
-        digitalWrite(v_scl, HIGH);
+        digitalWrite(E10_CONST::PIN_I2C_SCL, HIGH);
         delayMicroseconds(6);
 
         Wire.end();
         delay(5);
-        Wire.begin(v_sda, v_scl);
+        Wire.begin(E10_CONST::PIN_I2C_SDA, E10_CONST::PIN_I2C_SCL);
         Wire.setClock(400000);
         delay(5);
 
