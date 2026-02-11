@@ -48,8 +48,17 @@
 // -------- 시스템 상수 --------
 namespace E10_CONST {
     static constexpr int      PIN_BTN_L      = 12;
+    static constexpr int      PIN_BTN_R      = 15;
+    static constexpr int      PIN_BTN_M      = 16;
+    
     static constexpr int      PIN_BTN_MODE   = 13;
     static constexpr int      PIN_BTN_SCROLL = 14;
+    
+    // class-static fixed pins (board wiring)
+    static constexpr int      PIN_I2C_SDA = 4;
+    static constexpr int      PIN_I2C_SCL = 5;
+     
+    
 
     // static constexpr uint8_t  MOUSE_BTN_LEFT = 0x01;
 

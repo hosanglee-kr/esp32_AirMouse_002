@@ -180,6 +180,9 @@ class CL_E10_EliteAirMouse {
         _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
 
         pinMode(E10_CONST::PIN_BTN_L,      INPUT_PULLUP);
+        pinMode(E10_CONST::PIN_BTN_R,      INPUT_PULLUP);
+        pinMode(E10_CONST::PIN_BTN_M,      INPUT_PULLUP);
+
         pinMode(E10_CONST::PIN_BTN_MODE,   INPUT_PULLUP);
         pinMode(E10_CONST::PIN_BTN_SCROLL, INPUT_PULLUP);
 
@@ -715,6 +718,9 @@ class CL_E10_EliteAirMouse {
         TickType_t     v_lastWake   = xTaskGetTickCount();
         unsigned long  v_lastUs     = micros();
         unsigned long  v_btnDownMs  = 0;
+        
+        uint8_t v_lastBtnMask = 0;
+        bool    v_lastBtnInit = false;
     
         if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
     
@@ -753,11 +759,25 @@ class CL_E10_EliteAirMouse {
                 }
             }
     
+            const bool v_leftClick  = (digitalRead(E10_CONST::PIN_BTN_L) == LOW);
+            const bool v_rightClick = (digitalRead(E10_CONST::PIN_BTN_R) == LOW);
+            const bool v_midClick   = (digitalRead(E10_CONST::PIN_BTN_M) == LOW);
+            
+            // 기존 정책 유지: 클릭 notify는 LEFT 기준(필요시 R/M도 확장 가능)
+            if (v_leftClick) v_m->_engine.notifyClick();
+            
+            uint8_t v_btnMask = 0;
+            if (v_leftClick)  v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
+            if (v_rightClick) v_btnMask |= (uint8_t)EN_E10_BTN_RIGHT;
+            if (v_midClick)   v_btnMask |= (uint8_t)EN_E10_BTN_MIDDLE;
+
+            /*
             const bool v_leftClick = (digitalRead(E10_CONST::PIN_BTN_L) == LOW);
             if (v_leftClick) v_m->_engine.notifyClick();
     
             uint8_t v_btnMask = 0;
             if (v_leftClick) v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
+            */
     
             // ---- gyro ----
             float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
@@ -886,32 +906,48 @@ class CL_E10_EliteAirMouse {
     static void _commTask(void* p_pv) {
         CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
     
-        // 이전 버튼 상태(변경 감지용)
-        uint8_t v_lastBtnMask = 0;
+        uint8_t v_lastBtnMask   = 0;
         bool    v_releasedOnSafe = false;
+        bool    v_prevConn      = false;
     
         for (;;) {
-            // 연결 안됐으면 루프만 돌림
-            if (!v_m->_hid.isConnected()) {
+            const bool v_conn = v_m->_hid.isConnected();
+    
+            // disconnected: 내부 기준만 리셋(전송은 어차피 불가)
+            if (!v_conn) {
+                v_prevConn = false;
+                v_lastBtnMask = 0;
                 vTaskDelay(pdMS_TO_TICKS(12));
                 continue;
             }
     
-            // ---- SafeMode: HID 출력 차단 + stuck 방지 1회 릴리즈 ----
+            // connect edge: 1회 동기화(블로킹 금지)
+            if (!v_prevConn) {
+                if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
+                    v_lastBtnMask = v_m->_state.btn_mask;
+                    xSemaphoreGive(v_m->_mutex);
+                } else {
+                    v_lastBtnMask = 0;
+                }
+            }
+            v_prevConn = true;
+    
+            // ---- SafeMode: HID 출력 차단 + 내부 state 소거 ----
             if (v_m->_safeMode) {
                 if (!v_releasedOnSafe) {
-                    // SafeMode 진입 순간에만 릴리즈 시도
+                    // 연결된 상태에서 safe 진입이면 release 의미 있음
                     if (v_lastBtnMask & (uint8_t)EN_E10_BTN_LEFT)   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
                     if (v_lastBtnMask & (uint8_t)EN_E10_BTN_RIGHT)  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
                     if (v_lastBtnMask & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
-    
                     v_lastBtnMask = 0;
                     v_releasedOnSafe = true;
                 }
     
-                // state 소비만 해주면, 센서태스크가 updated 계속 세팅해도 누적 안됨
                 if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
                     v_m->_state.updated  = false;
+                    v_m->_state.x        = 0;
+                    v_m->_state.y        = 0;
+                    v_m->_state.wheel    = 0;
                     v_m->_state.btn_mask = 0;
                     xSemaphoreGive(v_m->_mutex);
                 }
@@ -919,19 +955,19 @@ class CL_E10_EliteAirMouse {
                 vTaskDelay(pdMS_TO_TICKS(20));
                 continue;
             } else {
-                // SafeMode 해제되면 다시 정상 송신 재개
                 v_releasedOnSafe = false;
             }
     
             // ---- normal path ----
-            if (xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
+            // (중요) 버튼만 바뀌어도 처리되게 하려면:
+            // - 센서태스크에서 "btn 변화 => updated=true" 보장하는 게 베스트.
+            if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
                 if (!v_m->_state.updated) {
                     xSemaphoreGive(v_m->_mutex);
                     vTaskDelay(pdMS_TO_TICKS(7));
                     continue;
                 }
     
-                // snapshot
                 const int16_t v_x     = v_m->_state.x;
                 const int16_t v_y     = v_m->_state.y;
                 const int16_t v_wheel = v_m->_state.wheel;
@@ -940,12 +976,10 @@ class CL_E10_EliteAirMouse {
                 v_m->_state.updated = false;
                 xSemaphoreGive(v_m->_mutex);
     
-                // clamp to HID range
                 const int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
                 const int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
                 const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
     
-                // button diff
                 const uint8_t v_changed = (uint8_t)(v_btn ^ v_lastBtnMask);
     
                 if (v_changed & (uint8_t)EN_E10_BTN_LEFT) {
@@ -962,14 +996,14 @@ class CL_E10_EliteAirMouse {
                 }
     
                 v_lastBtnMask = v_btn;
-    
-                // move
                 _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
             }
     
             vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
+
+
 
     
     
