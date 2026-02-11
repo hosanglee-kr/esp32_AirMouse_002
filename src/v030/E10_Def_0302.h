@@ -134,6 +134,8 @@ struct ST_E10_Status_t {
     bool    ble_connected;
     bool    ppt_mode;
     uint8_t dpi_level;
+    
+    uint8_t btn_mask;
 
     bool    precision_enable;
     bool    precision_mode;
