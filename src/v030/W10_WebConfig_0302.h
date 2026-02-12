@@ -537,6 +537,61 @@ class CL_W10_WebConfig {
         res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
         req->send(res);
     }
+    
+    void _fillE10Status(JsonObject e, CL_E10_EliteAirMouse* e10) {
+        if (!e10) return;
+
+        ST_E10_Status_t s;
+        e10->getStatus(s);
+
+        e["ble_connected"]    = s.ble_connected;
+        e["ppt_mode"]         = s.ppt_mode;
+        e["dpi_level"]        = s.dpi_level;
+        e["precision_enable"] = s.precision_enable;
+        e["precision_mode"]   = s.precision_mode;
+        e["fsm_state"]        = s.fsm_state;
+        e["fsm_sub"]          = s.fsm_sub;
+        e["btn_mask"]         = s.btn_mask;
+
+        // D에서 추가한 safe_mode 노출 (getter 사용)
+        e["safe_mode"]        = e10->isSafeMode();
+
+        JsonObject h = e["health"].to<JsonObject>();
+        h["state"]   = s.health;
+        h["score"]   = s.health_score;
+
+        JsonObject gyro = e["gyro"].to<JsonObject>();
+        gyro["bias_x"]  = s.gyro_bias_x;
+        gyro["bias_y"]  = s.gyro_bias_y;
+        gyro["bias_z"]  = s.gyro_bias_z;
+        gyro["rms"]     = s.gyro_rms;
+
+        e["cursor_rms"] = s.cursor_rms;
+        e["temp_c"]     = s.temp_c;
+
+        JsonObject i2c         = e["i2c"].to<JsonObject>();
+        i2c["recover_count"]   = s.i2c_recover_count;
+        i2c["recover_last_ok"] = s.i2c_recover_last_ok;
+
+        JsonObject err      = e["err"].to<JsonObject>();
+        err["mpu_nan"]      = s.err_mpu_nan;
+        err["mutex_miss"]   = s.err_mutex_miss;
+        err["task_overrun"] = s.err_task_overrun;
+
+        JsonObject an                  = e["anomaly"].to<JsonObject>();
+        an["spike_count_10s"]          = s.spike_count_10s;
+        an["consecutive_fail"]         = s.consecutive_fail;
+        an["consecutive_recover_fail"] = s.consecutive_recover_fail;
+
+        JsonArray hist = e["err_hist"].to<JsonArray>();
+        for (uint8_t i = 0; i < s.err_hist_n; i++) {
+            JsonObject o = hist.add<JsonObject>();
+            o["ts_ms"]   = s.err_hist[i].ts_ms;
+            o["code"]    = s.err_hist[i].code;
+            o["value"]   = s.err_hist[i].value;
+        }
+    }
+    
 
     // =====================================================
     // /api/status
@@ -559,6 +614,9 @@ class CL_W10_WebConfig {
             e10->getStatus(s);
 
             JsonObject e          = d["e10"].to<JsonObject>();
+            _fillE10Status(e, e10);
+            
+            /*
             e["ble_connected"]    = s.ble_connected;
             e["ppt_mode"]         = s.ppt_mode;
             e["dpi_level"]        = s.dpi_level;
@@ -604,6 +662,7 @@ class CL_W10_WebConfig {
                 o["code"]    = s.err_hist[i].code;
                 o["value"]   = s.err_hist[i].value;
             }
+            */
         }
 
         JsonObject ota     = d["ota"].to<JsonObject>();
@@ -940,6 +999,103 @@ class CL_W10_WebConfig {
             _sendJson(req, out, 413);
             return;
         }
+
+        String& body = _bodyGet(req, index, total);
+        for (size_t i = 0; i < len; i++) body += (char)data[i];
+        if (index + len < total) return;
+
+        JsonDocument d;
+        DeserializationError err = deserializeJson(d, body);
+        _bodyFree(req);
+
+        if (err) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "bad_json";
+            _sendJson(req, out, 400);
+            return;
+        }
+
+        CL_E10_EliteAirMouse* e10 = (CL_E10_EliteAirMouse*)_applyCtx;
+        bool ok = true;
+
+        // D+ 옵션: snapshot
+        const bool v_snapshot = (!d["snapshot"].isNull()) ? (bool)d["snapshot"] : false;
+
+        // D+ 옵션: cmd 우선 처리
+        const char* v_cmd = nullptr;
+        if (!d["cmd"].isNull()) v_cmd = (const char*)d["cmd"];
+
+        if (!e10) ok = false;
+
+        if (ok && v_cmd && v_cmd[0] != '\0') {
+            // ---- cmd mode ----
+            if (strcmp(v_cmd, "set_ppt") == 0) {
+                bool v_en = false;
+                if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+                ok = ok && e10->setPptMode(v_en);
+
+            } else if (strcmp(v_cmd, "set_dpi") == 0) {
+                uint8_t v_lv = 2;
+                if (!d["level"].isNull()) v_lv = (uint8_t)d["level"];
+                ok = ok && e10->setDpiLevel(v_lv);
+
+            } else if (strcmp(v_cmd, "set_precision") == 0) {
+                bool v_en = false;
+                if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+                ok = ok && e10->setPrecisionMode(v_en);
+
+            } else if (strcmp(v_cmd, "force_release") == 0) {
+                // SafeMode에서도 허용: 강제 릴리즈
+                ok = ok && e10->forceReleaseButtons();
+
+            } else if (strcmp(v_cmd, "gyro_calib") == 0) {
+                ok = ok && e10->requestGyroCalibration();
+
+            } else if (strcmp(v_cmd, "i2c_recover") == 0) {
+                ok = ok && e10->requestI2CRecover();
+
+            } else if (strcmp(v_cmd, "clear_diag") == 0) {
+                ok = ok && e10->clearDiagnostics();
+
+            } else if (strcmp(v_cmd, "set_safe_mode") == 0) {
+                bool v_en = false;
+                if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+                ok = ok && e10->setSafeMode(v_en);
+
+            } else {
+                ok = false;
+            }
+
+        } else if (ok) {
+            // ---- legacy field mode (기존 호환 유지) ----
+            if (!d["ppt_mode"].isNull())        ok = ok && e10->setPptMode((bool)d["ppt_mode"]);
+            if (!d["dpi_level"].isNull())       ok = ok && e10->setDpiLevel((uint8_t)d["dpi_level"]);
+            if (!d["precision_mode"].isNull())  ok = ok && e10->setPrecisionMode((bool)d["precision_mode"]);
+            if (!d["safe_mode"].isNull())       ok = ok && e10->setSafeMode((bool)d["safe_mode"]);
+        }
+
+        JsonDocument out;
+        out["ok"] = ok;
+        out["cmd"] = (v_cmd ? v_cmd : "");
+
+        if (v_snapshot) {
+            JsonObject e = out["e10"].to<JsonObject>();
+            _fillE10Status(e, e10);
+        }
+
+        _sendJson(req, out, ok ? 200 : 400);
+    }
+    
+    /*
+    void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
     
         String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
@@ -1023,6 +1179,7 @@ class CL_W10_WebConfig {
         if (!ok) out["err"] = err;
         _sendJson(req, out, ok ? 200 : 400);
     }
+    */
 
     /*
     void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {

@@ -541,6 +541,27 @@ class CL_E10_EliteAirMouse {
         return true;
     }
     
+    // SafeMode에서도 허용: 버튼 stuck 강제 해제 + state 초기화
+    bool forceReleaseButtons() {
+        _lock();
+
+        // HID 연결 여부와 무관하게 "의도상" 릴리즈 시도
+        // (연결 안돼도 mouseRelease가 내부적으로 무시되거나 안전해야 함)
+        _mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
+        _mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
+        _mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+
+        _state.btn_mask = 0;
+        _state.x = 0;
+        _state.y = 0;
+        _state.wheel = 0;
+        _state.updated = true;
+
+        _unlock();
+        return true;
+    }
+    
+    
 
 
   private:
