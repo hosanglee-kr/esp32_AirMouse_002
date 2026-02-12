@@ -965,6 +965,88 @@ class CL_W10_WebConfig {
             _sendJson(req, out, 413);
             return;
         }
+    
+        String& body = _bodyGet(req, index, total);
+        for (size_t i = 0; i < len; i++) body += (char)data[i];
+        if (index + len < total) return;
+    
+        JsonDocument d;
+        DeserializationError derr = deserializeJson(d, body);
+        _bodyFree(req);
+    
+        if (derr) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "bad_json";
+            _sendJson(req, out, 400);
+            return;
+        }
+    
+        CL_E10_EliteAirMouse* e10 = (CL_E10_EliteAirMouse*)_applyCtx;
+    
+        const char* v_cmd = nullptr;
+        if (!d["cmd"].isNull()) v_cmd = (const char*)d["cmd"];
+    
+        bool ok = true;
+        const char* err = "none";
+    
+        if (!e10 || !v_cmd || v_cmd[0] == '\0') {
+            ok  = false;
+            err = (!e10) ? "no_e10" : "no_cmd";
+        } else {
+            // ---- cmd dispatch ----
+            if (strcmp(v_cmd, "ppt_mode") == 0) {
+                bool en = false;
+                if (!d["enable"].isNull()) en = (bool)d["enable"];
+                ok = e10->setPptMode(en);
+    
+            } else if (strcmp(v_cmd, "dpi_level") == 0) {
+                uint8_t lv = 2;
+                if (!d["level"].isNull()) lv = (uint8_t)d["level"];
+                ok = e10->setDpiLevel(lv);
+    
+            } else if (strcmp(v_cmd, "precision_mode") == 0) {
+                bool en = false;
+                if (!d["enable"].isNull()) en = (bool)d["enable"];
+                ok = e10->setPrecisionMode(en);
+    
+            } else if (strcmp(v_cmd, "safe_mode") == 0) {
+                bool en = false;
+                if (!d["enable"].isNull()) en = (bool)d["enable"];
+                ok = e10->setSafeMode(en);
+    
+            } else if (strcmp(v_cmd, "force_release") == 0) {
+                ok = e10->forceReleaseAllButtons();
+    
+            } else if (strcmp(v_cmd, "mouse_click_test") == 0) {
+                uint8_t  mask = 0;
+                uint16_t hold = 30;
+                if (!d["btn_mask"].isNull()) mask = (uint8_t)d["btn_mask"];
+                if (!d["hold_ms"].isNull())  hold = (uint16_t)d["hold_ms"];
+                ok = e10->testMouseClick(mask, hold);
+    
+            } else {
+                ok  = false;
+                err = "unknown_cmd";
+            }
+        }
+    
+        JsonDocument out;
+        out["ok"]  = ok;
+        out["cmd"] = v_cmd ? v_cmd : "";
+        if (!ok) out["err"] = err;
+        _sendJson(req, out, ok ? 200 : 400);
+    }
+
+    /*
+    void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        if (total > G_W10_BODY_MAX) {
+            JsonDocument out;
+            out["ok"]  = false;
+            out["err"] = "body_too_large";
+            _sendJson(req, out, 413);
+            return;
+        }
         
         String& body = _bodyGet(req, index, total);
         for (size_t i = 0; i < len; i++) body += (char)data[i];
@@ -997,6 +1079,9 @@ class CL_W10_WebConfig {
         out["ok"] = ok;
         _sendJson(req, out, ok ? 200 : 500);
     }
+    */
+    
+    
 
     // =====================================================
     // /api/ppt

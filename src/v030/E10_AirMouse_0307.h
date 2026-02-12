@@ -148,6 +148,11 @@ class CL_E10_EliteAirMouse {
     uint32_t      _otaGuardT0Ms  = 0; // uptime 기준(ms)
 
 
+    // ---- async requests (handled in sensor task) ----
+    volatile bool _reqGyroCalib  = false;
+    volatile bool _reqI2CRecover = false;
+    
+
 
   public:
     CL_E10_EliteAirMouse()
@@ -428,46 +433,114 @@ class CL_E10_EliteAirMouse {
     }
     
     // 버튼 stuck 강제 해제(진단/복구용)
-    // - HID 연결 상태일 때 즉시 release 시도 + 내부 상태도 0으로 동기화
+    // - 내부 상태를 0으로 동기화 + HID 연결 상태면 즉시 release 시도
     bool forceReleaseAllButtons() {
-        _lock();
+        uint8_t v_btn = 0;
+        bool    v_conn = false;
     
-        const uint8_t v_btn = _state.btn_mask;
+        _lock();
+        v_btn  = _state.btn_mask;
+        v_conn = _hid.isConnected();
+    
         _state.btn_mask = 0;
         _state.updated  = true;
+        _unlock();
     
-        // HID 연결되어 있으면 즉시 release(선택이지만 진단에 유용)
-        if (_hid.isConnected()) {
+        // HID I/O는 mutex 밖에서
+        if (v_conn) {
             if (v_btn & (uint8_t)EN_E10_BTN_LEFT)   _mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
             if (v_btn & (uint8_t)EN_E10_BTN_RIGHT)  _mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
             if (v_btn & (uint8_t)EN_E10_BTN_MIDDLE) _mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
         }
     
-        _pushErr(EN_E10_ERR_NONE, 0);
-        _unlock();
+        // 로그를 남기고 싶으면 전용 코드 추천(EN_E10_ERR_NONE는 비추)
+        // _pushErr(EN_E10_ERR_FORCE_RELEASE, v_btn);
+    
         return true;
     }
     
-    // 마우스 클릭 테스트(예: /api/control/mouse_click_test)
+    // 마우스 클릭 테스트
     // - mask: EN_E10_MouseBtnMask_t OR-mask
     bool testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs = 25) {
         if (!_hid.isConnected()) return false;
-    
-        // Safe/OTA 게이트 중엔 차단
         if (_safeMode || _otaGuard) return false;
     
+        // hold ms clamp
+        uint16_t v_hold = p_holdMs;
+        if (v_hold < 5)   v_hold = 5;
+        if (v_hold > 250) v_hold = 250;
+    
+        // press
         if (p_btnMask & (uint8_t)EN_E10_BTN_LEFT)   _mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
         if (p_btnMask & (uint8_t)EN_E10_BTN_RIGHT)  _mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
         if (p_btnMask & (uint8_t)EN_E10_BTN_MIDDLE) _mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
     
-        vTaskDelay(pdMS_TO_TICKS(p_holdMs));
+        vTaskDelay(pdMS_TO_TICKS(v_hold));
     
+        // release
         if (p_btnMask & (uint8_t)EN_E10_BTN_LEFT)   _mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
         if (p_btnMask & (uint8_t)EN_E10_BTN_RIGHT)  _mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
         if (p_btnMask & (uint8_t)EN_E10_BTN_MIDDLE) _mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
     
+        // 내부 상태 동기화(CommTask diff로 재-press되는 것 방지)
+        _lock();
+        _state.btn_mask = 0;
+        _state.updated  = true;
+        _unlock();
+    
         return true;
     }
+    
+    bool isSafeMode() const { return _safeMode; }
+
+    // 센서태스크에서 캘리브를 수행하도록 요청(비동기)
+    bool requestGyroCalibration() {
+        _lock();
+        _reqGyroCalib = true;
+        _unlock();
+        return true;
+    }
+
+    // 센서태스크에서 I2C recover 수행 요청(비동기)
+    bool requestI2CRecover() {
+        _lock();
+        _reqI2CRecover = true;
+        _unlock();
+        return true;
+    }
+
+    // 진단 카운터/히스토리/통계 리셋
+    bool clearDiagnostics() {
+        _lock();
+
+        _errMpuNan = 0;
+        _errMutexMiss = 0;
+        _errTaskOverrun = 0;
+
+        _gyroN = 0; _gyroMean = 0.0; _gyroM2 = 0.0;
+        _curN  = 0; _curMean  = 0.0; _curM2  = 0.0;
+
+        _i2cRecoverCount  = 0;
+        _i2cRecoverLastOk = true;
+
+        memset(_errHist, 0, sizeof(_errHist));
+        _errHistHead  = 0;
+        _errHistCount = 0;
+
+        memset(_spikes, 0, sizeof(_spikes));
+        _spikeHead  = 0;
+        _spikeCount = 0;
+
+        _consecutiveFail = 0;
+        _consecutiveRecoverFail = 0;
+
+        // 상태도 한 번 갱신 플래그(웹 status/comm stuck 방지에 도움)
+        _state.updated = true;
+
+        _unlock();
+        return true;
+    }
+    
 
 
   private:
@@ -904,6 +977,17 @@ class CL_E10_EliteAirMouse {
         if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
     
         for (;;) {
+            // ---- async requests (handled only here) ----
+            if (v_m->_reqGyroCalib) {
+                v_m->_reqGyroCalib = false;
+                v_m->_gyroCalibDone = false;
+                v_m->_runGyroCalibration();
+            }
+            if (v_m->_reqI2CRecover) {
+                v_m->_reqI2CRecover = false;
+                (void)v_m->_recoverI2C();
+            }
+    
             // ---- sensor read ----
             sensors_event_t v_a, v_g, v_t;
             v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
