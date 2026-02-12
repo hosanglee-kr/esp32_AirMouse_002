@@ -136,6 +136,13 @@ struct ST_E10_Status_t {
     uint8_t dpi_level;
     
     uint8_t btn_mask;
+    
+    // ---- (C) gate 상태 노출 ----
+    bool    safe_mode;          // 현재 SafeMode 게이트
+    bool    ota_guard;          // OTA Guard 게이트
+    uint32_t ota_guard_count;   // OTA guard 진입 횟수
+    uint32_t ota_guard_uptime_ms; // 마지막 OTA guard 진입 후 경과(ms)
+    
 
     bool    precision_enable;
     bool    precision_mode;
