@@ -1358,34 +1358,6 @@ class CL_E10_EliteAirMouse {
             } else {
                 v_releasedOnSafe = false;
             }
-
-            
-            /*
-            if (v_m->_safeMode) {
-                if (!v_releasedOnSafe) {
-                    // SafeMode 진입 순간에만 릴리즈 시도
-                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_LEFT)   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
-                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_RIGHT)  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
-                    if (v_lastBtnMask & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
-    
-                    v_lastBtnMask    = 0;
-                    v_releasedOnSafe = true;
-                }
-    
-                // state 소비만 해주면, 센서태스크가 updated 계속 세팅해도 누적 안됨
-                if (xSemaphoreTake(v_m->_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-                    v_m->_state.updated  = false;
-                    v_m->_state.btn_mask = 0;
-                    xSemaphoreGive(v_m->_mutex);
-                }
-    
-                vTaskDelay(pdMS_TO_TICKS(20));
-                continue;
-            } else {
-                // SafeMode 해제되면 다시 정상 송신 재개
-                v_releasedOnSafe = false;
-            }
-            */
     
             // ---- normal path ----
             if (xSemaphoreTake(v_m->_mutex, portMAX_DELAY) == pdTRUE) {
