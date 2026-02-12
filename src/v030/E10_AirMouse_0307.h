@@ -151,6 +151,7 @@ class CL_E10_EliteAirMouse {
     // ---- async requests (handled in sensor task) ----
     volatile bool _reqGyroCalib  = false;
     volatile bool _reqI2CRecover = false;
+    volatile bool _reqClearDiag  = false;
     
 
 
@@ -491,7 +492,9 @@ class CL_E10_EliteAirMouse {
         return true;
     }
     
-    bool isSafeMode() const { return _safeMode; }
+    bool isSafeMode() const { 
+        return _safeMode; 
+    }
 
     // 센서태스크에서 캘리브를 수행하도록 요청(비동기)
     bool requestGyroCalibration() {
@@ -536,6 +539,8 @@ class CL_E10_EliteAirMouse {
 
         // 상태도 한 번 갱신 플래그(웹 status/comm stuck 방지에 도움)
         _state.updated = true;
+        
+        _reqClearDiag = true;
 
         _unlock();
         return true;
@@ -999,14 +1004,53 @@ class CL_E10_EliteAirMouse {
     
         for (;;) {
             // ---- async requests (handled only here) ----
-            if (v_m->_reqGyroCalib) {
-                v_m->_reqGyroCalib = false;
-                v_m->_gyroCalibDone = false;
-                v_m->_runGyroCalibration();
+            // =================================================
+            // Control requests (from /api/control)
+            // - 반드시 센서태스크에서 처리해서 I2C/MPU 충돌 방지
+            // =================================================
+            if (v_m->_reqClearDiag) {
+                v_m->_reqClearDiag = false;
+
+                // 진단값 초기화
+                v_m->_lock();
+                v_m->_errMpuNan      = 0;
+                v_m->_errMutexMiss   = 0;
+                v_m->_errTaskOverrun = 0;
+
+                v_m->_gyroN = 0; v_m->_gyroMean = 0.0; v_m->_gyroM2 = 0.0;
+                v_m->_curN  = 0; v_m->_curMean  = 0.0; v_m->_curM2  = 0.0;
+
+                v_m->_i2cRecoverCount  = 0;
+                v_m->_i2cRecoverLastOk = true;
+
+                v_m->_errHistHead  = 0;
+                v_m->_errHistCount = 0;
+                memset(v_m->_errHist, 0, sizeof(v_m->_errHist));
+
+                v_m->_spikeHead  = 0;
+                v_m->_spikeCount = 0;
+                memset(v_m->_spikes, 0, sizeof(v_m->_spikes));
+
+                v_m->_consecutiveFail        = 0;
+                v_m->_consecutiveRecoverFail = 0;
+
+                v_m->_unlock();
+
+                v_m->_pushErr(EN_E10_ERR_NONE, 0);
             }
+
             if (v_m->_reqI2CRecover) {
                 v_m->_reqI2CRecover = false;
                 (void)v_m->_recoverI2C();
+            }
+
+            if (v_m->_reqGyroCalib) {
+                v_m->_reqGyroCalib = false;
+
+                // 캘리브 다시
+                v_m->_gyroCalibDone = false;
+                v_m->_runGyroCalibration();
+                v_m->_gyroCalibDone = true;
             }
     
             // ---- sensor read ----
