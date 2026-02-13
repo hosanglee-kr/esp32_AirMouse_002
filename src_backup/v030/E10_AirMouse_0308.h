@@ -357,7 +357,7 @@ class CL_E10_EliteAirMouse {
 
 
         //p_out.precision_enable = _precisionEnable;
-        p_out.precision_mode   = _precision_mode; // ✅ 이게 맞음
+        p_out.precision_mode   = _precision_mode;
         p_out.fsm_state        = _fsm;
         p_out.fsm_sub          = _precSub;
 
