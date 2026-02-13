@@ -804,10 +804,34 @@ class CL_W10_WebConfig {
             o["name"]    = G_W10_CONSUMER[i].name;
             o["mask"]    = (uint32_t)G_W10_CONSUMER[i].mask;
         }
+        
+        // ---------------------------
+        // precision modes (owned by C10)
+        // ---------------------------
+        JsonArray pm = d["precision_modes"].to<JsonArray>();
+        for (uint8_t m = 0; m < (uint8_t)EN_C10_E10_PREC_MAX; m++) {
+            JsonObject o = pm.add<JsonObject>();
+            o["name"] = _precModeName(m);
+            o["mode"] = m;
+        }
 
-        d["note"] = "mods mask == HID modifier byte. kb=usage-id(0x07), consumer=32-bit mask.";
+
+        d["note"] = "mods mask == HID modifier byte. kb=usage-id(0x07), consumer=32-bit mask. precision_modes owned by C10.";
+     
         _sendJson(req, d, 200);
     }
+    
+    const char* _precModeName(uint8_t p_mode) {
+        switch (p_mode) {
+            case (uint8_t)EN_C10_E10_PREC_OFF:  return "OFF";
+            case (uint8_t)EN_C10_E10_PREC_LOW:  return "LOW";
+            case (uint8_t)EN_C10_E10_PREC_MED:  return "MED";
+            case (uint8_t)EN_C10_E10_PREC_HIGH: return "HIGH";
+            case (uint8_t)EN_C10_E10_PREC_PPT:  return "PPT";
+            default: return "UNKNOWN";
+        }
+    }
+
 
     // =====================================================
     // /api/config
@@ -999,6 +1023,20 @@ class CL_W10_WebConfig {
                 uint8_t v_lv = 2;
                 if (!d["level"].isNull()) v_lv = (uint8_t)d["level"];
                 ok = ok && e10->setDpiLevel(v_lv);
+                
+            } else if (strcmp(v_cmd, "set_precision") == 0) {
+
+                uint8_t v_mode = (uint8_t)EN_C10_E10_PREC_OFF;
+                if (!d["mode"].isNull()) v_mode = (uint8_t)d["mode"];
+            
+                // (C10 contract) invalid -> reject
+                if (v_mode >= (uint8_t)EN_C10_E10_PREC_MAX) {
+                    ok = false;
+                } else {
+                    ok = ok && e10->setPrecisionMode(v_mode);
+                }
+                
+            /*
             } else if (strcmp(v_cmd, "set_precision") == 0) {
                 
                 uint8_t v_mode = 0;
@@ -1008,7 +1046,7 @@ class CL_W10_WebConfig {
                 }
             
                 ok = ok && e10->setPrecisionMode(v_mode);
-
+            */
 
             } else if (strcmp(v_cmd, "force_release") == 0) {
                 // SafeMode에서도 허용: 강제 릴리즈
@@ -1041,7 +1079,13 @@ class CL_W10_WebConfig {
             // ---- legacy field mode (기존 호환 유지) ----
             if (!d["ppt_mode"].isNull())        ok = ok && e10->setPptMode((bool)d["ppt_mode"]);
             if (!d["dpi_level"].isNull())       ok = ok && e10->setDpiLevel((uint8_t)d["dpi_level"]);
-            if (!d["precision_mode"].isNull())  ok = ok && e10->setPrecisionMode((uint8_t)d["precision_mode"]);
+            
+            if (!d["precision_mode"].isNull()) {
+                uint8_t v_mode = (uint8_t)d["precision_mode"];
+                if (v_mode >= (uint8_t)EN_C10_E10_PREC_MAX) ok = false;
+                else ok = ok && e10->setPrecisionMode(v_mode);
+            }
+            // if (!d["precision_mode"].isNull())  ok = ok && e10->setPrecisionMode((uint8_t)d["precision_mode"]);
             if (!d["safe_mode"].isNull())       ok = ok && e10->setSafeMode((bool)d["safe_mode"]);
         }
 
