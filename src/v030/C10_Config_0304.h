@@ -399,7 +399,6 @@ class CL_C10_Config {
         if (!v_p.isNull()) {
             
             if (!v_p["mode"].isNull())              p_e10.precision_mode = (uint8_t)v_p["mode"];
-            // if (!v_p["enable"].isNull())            p_e10.precision_enable = (bool)v_p["enable"];
             if (!v_p["deadzone"].isNull())          p_e10.precision_deadzone = (float)v_p["deadzone"];
             if (!v_p["gain"].isNull())              p_e10.precision_gain = (float)v_p["gain"];
             if (!v_p["accel"].isNull())             p_e10.precision_accel = (float)v_p["accel"];
@@ -542,9 +541,7 @@ class CL_C10_Config {
 
         JsonObject v_p = v_je["precision"].to<JsonObject>();
         
-        v_p["mode"]     = p_e.precision_mode; 
-        //v_p["enable"]   = p_e.precision_enable;
-        
+        v_p["mode"]     = p_e.precision_mode;
         v_p["deadzone"] = p_e.precision_deadzone;
         v_p["gain"]     = p_e.precision_gain;
         v_p["accel"]    = p_e.precision_accel;

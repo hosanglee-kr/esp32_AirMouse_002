@@ -91,7 +91,6 @@ struct ST_C10_E10Config_t {
     float scroll_cursor_damp;
 
     uint8_t precision_mode; // EN_C10_E10PrecisionMode_t
-    //bool    precision_enable;
     
     float   precision_deadzone;
     float   precision_gain;

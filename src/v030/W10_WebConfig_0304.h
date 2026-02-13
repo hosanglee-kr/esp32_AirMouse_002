@@ -5,7 +5,7 @@
 
 /*
  * ------------------------------------------------------
- * 소스명 : W10_WebConfig_0302.h
+ * 소스명 : W10_WebConfig_0303.h
  * 모듈약어 : W10
  * 모듈명 : Web Config/Status/UI/OTA Server (Dynamic Static Routing, No Asset Table)
  * ------------------------------------------------------
@@ -1041,7 +1041,7 @@ class CL_W10_WebConfig {
             // ---- legacy field mode (기존 호환 유지) ----
             if (!d["ppt_mode"].isNull())        ok = ok && e10->setPptMode((bool)d["ppt_mode"]);
             if (!d["dpi_level"].isNull())       ok = ok && e10->setDpiLevel((uint8_t)d["dpi_level"]);
-            if (!d["precision_mode"].isNull())  ok = ok && e10->setPrecisionMode((bool)d["precision_mode"]);
+            if (!d["precision_mode"].isNull())  ok = ok && e10->setPrecisionMode((uint8_t)d["precision_mode"]);
             if (!d["safe_mode"].isNull())       ok = ok && e10->setSafeMode((bool)d["safe_mode"]);
         }
 
