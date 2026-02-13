@@ -1064,10 +1064,10 @@ class CL_W10_WebConfig {
                 ok = ok && e10->setDpiLevel(v_lv);
             } else if (strcmp(v_cmd, "set_precision") == 0) {
                 
-            
+                uint8_t v_mode = 0;
                 // 1) mode 우선 (0이면 OFF, 그 외 ON)
                 if (!d["mode"].isNull()) {
-                    uint8_t v_mode = (uint8_t)d["mode"];
+                    v_mode = (uint8_t)d["mode"];
                 }
             
                 ok = ok && e10->setPrecisionMode(v_mode);
