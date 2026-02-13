@@ -12,12 +12,12 @@ static constexpr uint16_t G_C10_CFG_VER = 303; // 스키마 버전(권장: 파�
 
 namespace C10_DEF {
     // ---------- Paths ----------
-    static constexpr const char* CFG_PATH = "/json/config_0272.json";
-    static constexpr const char* CFG_TMP  = "/json/config_0272.json.tmp";
-    static constexpr const char* CFG_BAK  = "/json/config_0272.json.bak";
+    static constexpr const char* CFG_PATH = "/json/config_301.json";
+    static constexpr const char* CFG_TMP  = "/json/config_0301.json.tmp";
+    static constexpr const char* CFG_BAK  = "/json/config_0301.json.bak";
 
-    static constexpr const char* BOOT_PATH     = "/json/boot_state_0272.json";
-    static constexpr const char* BOOT_TMP_PATH = "/json/boot_state_0272.json.tmp";
+    static constexpr const char* BOOT_PATH     = "/json/boot_state_0300.json";
+    static constexpr const char* BOOT_TMP_PATH = "/json/boot_state_0300.json.tmp";
 
     static constexpr uint8_t SAFE_FAIL_THRESHOLD = 2; // 2회 연속 실패 시 safe_mode
 
@@ -35,6 +35,17 @@ enum EN_C10_WIFI_MODE_t : uint8_t {
     EN_C10_WIFI_AP   = 1,
     EN_C10_WIFI_STA  = 2
 };
+
+// (NEW) E10 precision mode contract (owned by C10 config schema)
+enum EN_C10_E10PrecisionMode_t : uint8_t {
+    EN_C10_E10_PREC_OFF  = 0,    // 정밀 기능 OFF (기본)
+    EN_C10_E10_PREC_LOW  = 1,     // 약하게 안정화
+    EN_C10_E10_PREC_MED  = 2,    // 기본 정밀(권장)
+    EN_C10_E10_PREC_HIGH = 3,    // 강한 안정화(손떨림 큰 사용자)
+    EN_C10_E10_PREC_PPT  = 4,    // PPT 포인터 특화(최강 안정화 + 가속 억제)
+    EN_C10_E10_PREC_MAX
+};
+
 
 struct ST_C10_WiFiConfig_t {
     uint8_t mode;
@@ -79,7 +90,9 @@ struct ST_C10_E10Config_t {
 
     float scroll_cursor_damp;
 
-    bool    precision_enable;
+    uint8_t precision_mode; // EN_C10_E10PrecisionMode_t
+    //bool    precision_enable;
+    
     float   precision_deadzone;
     float   precision_gain;
     float   precision_accel;

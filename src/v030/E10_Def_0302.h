@@ -111,6 +111,21 @@ enum EN_E10_MouseBtnMask_t : uint8_t {
 };
 
 
+struct ST_E10_PrecProfile_t {
+    float   gain;
+    uint8_t alpha;       // 0=필터없음, 255=최대 스무딩
+    float   accel_limit; // 0=제한없음, 값이 낮을수록 급변 억제
+};
+
+static constexpr ST_E10_PrecProfile_t G_E10_PREC_PROFILES[] = {
+    /* OFF  */ {1.00f,   0, 0.0f},
+    /* LOW  */ {0.85f,  64, 0.0f},
+    /* MED  */ {0.70f, 128, 0.0f},
+    /* HIGH */ {0.55f, 180, 0.0f},
+    /* PPT  */ {0.45f, 210, 1.5f},
+};
+
+
 struct ST_E10_ErrEvt_t {
     uint32_t ts_ms;
     uint8_t  code;
@@ -144,8 +159,10 @@ struct ST_E10_Status_t {
     uint32_t ota_guard_uptime_ms; // 마지막 OTA guard 진입 후 경과(ms)
     
 
-    bool    precision_enable;
-    bool    precision_mode;
+    uint8_t precision_mode; //
+    // bool    precision_enable;
+    // bool    precision_mode;
+    
     uint8_t fsm_state; // 디버깅용
     uint8_t fsm_sub;   // precision substate
 

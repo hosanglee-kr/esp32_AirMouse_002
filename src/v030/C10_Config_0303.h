@@ -93,7 +93,9 @@ class CL_C10_Config {
 
         p_out.scroll_cursor_damp = 0.25f;
 
-        p_out.precision_enable   = false;
+        p_out.precision_mode = EN_C10_E10_PREC_OFF;
+        // p_out.precision_enable   = false;
+        
         p_out.precision_deadzone = 1.2f;
         p_out.precision_gain     = 0.65f;
         p_out.precision_accel    = 0.25f;
@@ -148,6 +150,7 @@ class CL_C10_Config {
 
         if (p_e.scroll_cursor_damp < 0.0f || p_e.scroll_cursor_damp > 1.0f) return false;
 
+        if (p_e.precision_mode >= (uint8_t)EN_C10_E10_PREC_MAX) return false;
         if (p_e.precision_deadzone < 0.0f || p_e.precision_deadzone > 50.0f) return false;
         if (p_e.precision_gain < 0.0f || p_e.precision_gain > 5.0f) return false;
         if (p_e.precision_accel < 0.0f || p_e.precision_accel > 5.0f) return false;
@@ -245,7 +248,7 @@ class CL_C10_Config {
         serializeJson(v_doc, v_json);
 
         (void)patchFromJsonWiFi(v_json, p_wifi);
-        (void)patchFromJsonE10(v_json, p_e10);
+        (void)0(v_json, p_e10);
         return true;
     }
 
@@ -405,7 +408,9 @@ class CL_C10_Config {
 
         JsonVariant v_p = v_e10["precision"];
         if (!v_p.isNull()) {
-            if (!v_p["enable"].isNull())            p_e10.precision_enable = (bool)v_p["enable"];
+            
+            if (!v_p["mode"].isNull())              p_e10.precision_mode = (uint8_t)v_p["mode"];
+            // if (!v_p["enable"].isNull())            p_e10.precision_enable = (bool)v_p["enable"];
             if (!v_p["deadzone"].isNull())          p_e10.precision_deadzone = (float)v_p["deadzone"];
             if (!v_p["gain"].isNull())              p_e10.precision_gain = (float)v_p["gain"];
             if (!v_p["accel"].isNull())             p_e10.precision_accel = (float)v_p["accel"];
@@ -547,7 +552,10 @@ class CL_C10_Config {
         v_je["scroll_cursor_damp"] = p_e.scroll_cursor_damp;
 
         JsonObject v_p = v_je["precision"].to<JsonObject>();
-        v_p["enable"]   = p_e.precision_enable;
+        
+        v_p["mode"]     = p_e.precision_mode; 
+        //v_p["enable"]   = p_e.precision_enable;
+        
         v_p["deadzone"] = p_e.precision_deadzone;
         v_p["gain"]     = p_e.precision_gain;
         v_p["accel"]    = p_e.precision_accel;

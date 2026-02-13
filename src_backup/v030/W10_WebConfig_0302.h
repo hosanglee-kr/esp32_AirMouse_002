@@ -610,8 +610,10 @@ class CL_W10_WebConfig {
         // E10 status snapshot
         CL_E10_EliteAirMouse* e10 = (CL_E10_EliteAirMouse*)_applyCtx;
         if (e10) {
-            ST_E10_Status_t s;
-            e10->getStatus(s);
+            
+            // ST_E10_Status_t s;
+            // e10->getStatus(s);
+            
 
             JsonObject e          = d["e10"].to<JsonObject>();
             _fillE10Status(e, e10);
@@ -1032,7 +1034,7 @@ class CL_W10_WebConfig {
         out["ok"] = ok;
         out["cmd"] = (v_cmd ? v_cmd : "");
 
-        if (v_snapshot) {
+        if (v_snapshot && e10) {
             JsonObject e = out["e10"].to<JsonObject>();
             _fillE10Status(e, e10);
         }

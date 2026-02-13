@@ -78,8 +78,10 @@ class CL_E10_EliteAirMouse {
     float _scrollCursorDamp = 0.25f;
 
     // precision config + fsm knobs
-    bool    _precisionEnable = false;
-    bool    _precisionMode   = false;
+    uint8_t _precision_mode = (uint8_t)EN_C10_E10_PREC_OFF; // EN_C10_E10PrecisionMode_t
+    //bool    _precisionEnable = false;
+    // bool    _precisionMode   = false;
+    
     float   _precDeadzone    = 1.2f;
     float   _precGain        = 0.65f;
     float   _precAccel       = 0.25f;
@@ -227,14 +229,21 @@ class CL_E10_EliteAirMouse {
         // 1) apply to runtime with guards
         _applyE10ToRuntime(p_e);
     
-        // 2) 상태 일관성: precision 비활성화면 precision_mode는 항상 OFF
-        if (!_precisionEnable) {
-            _precisionMode = false;
-            _precSub       = EN_PREC_OFF;
-            _fsm           = _isPptMode ? EN_FSM_PPT : EN_FSM_AIR;
-            _precSmX       = 0.0f;
-            _precSmY       = 0.0f;
+        // Mega E 일관성: mode==OFF면 precision sub/FSM 흔적 제거
+        if (_precision_mode == (uint8_t)EN_C10_E10_PREC_OFF) {
+            _precSub = EN_PREC_OFF;
+            _precSmX = 0.0f;
+            _precSmY = 0.0f;
+        } else {
+            // mode가 켜져 있고 아직 sub가 OFF면 entry로 진입 준비
+            if (_precSub == EN_PREC_OFF) {
+                _precSub = EN_PREC_ENTRY;
+                _precT0  = (uint32_t)millis();
+                _precSmX = 0.0f;
+                _precSmY = 0.0f;
+            }
         }
+        
     
         // 3) 적용 직후: 센서/커뮤 사이 stuck 방지용 최소 리셋(이동값은 유지)
         _state.updated = true;   // 1회는 커밋되게(버튼 diff/초기상태 동기화)
@@ -323,8 +332,8 @@ class CL_E10_EliteAirMouse {
         }
 
 
-        p_out.precision_enable = _precisionEnable;
-        p_out.precision_mode   = _precisionMode;
+        //p_out.precision_enable = _precisionEnable;
+        p_out.precision_mode   = _precision_mode;
         p_out.fsm_state        = _fsm;
         p_out.fsm_sub          = _precSub;
 
@@ -638,7 +647,8 @@ class CL_E10_EliteAirMouse {
         if (_scrollCursorDamp > 1.00f) _scrollCursorDamp = 1.00f;
     
         // precision
-        _precisionEnable   = p_e.precision_enable;
+        _precision_mode    = p_e.precision_mode;
+        // _precisionEnable   = p_e.precision_enable;
         _precDeadzone      = p_e.precision_deadzone;
         _precGain          = p_e.precision_gain;
         _precAccel         = p_e.precision_accel;

@@ -1,0 +1,54 @@
+{
+    "ver": 272,
+    "wifi": {
+        "mode": 0,
+        "sta": {
+            "ssid": "",
+            "pass": ""
+        },
+        "ap": {
+            "ssid": "EliteAirMouse",
+            "pass": "12345678"
+        },
+        "mdns": {
+            "host": "elite-airmouse"
+        }
+    },
+    "e10": {
+        "dpi_level": 2,
+        "hard_click_lock": true,
+        "scale_base": [0.55, 0.75, 1.0],
+        "accel_gain": [0.35, 0.55, 0.85],
+        "accel_threshold": 8.0,
+        "wheel": {
+            "threshold_deg": 90.0,
+            "step_max": 6
+        },
+        "gesture": {
+            "flick_deg": 200.0,
+            "cooldown_ms": 600
+        },
+        "scroll_cursor_damp": 0.25,
+        "precision": {
+            "mode": 0,
+            "deadzone": 1.2,
+            "gain": 0.65,
+            "accel": 0.25,
+            "max_step": 18,
+            "smooth": 0.85,
+			"entry_ms": 450,
+			"exit_ms": 300,
+			"entry_still_deg": 1.2,
+			"exit_move_deg": 3.5,
+			"profile": 0
+        },
+        "ppt_keys2": {
+            "start": { "page": "kb", "mod": 2, "code": 62 },
+            "exit": { "page": "kb", "mod": 0, "code": 41 },
+            "next": { "page": "kb", "mod": 0, "code": 78 },
+            "prev": { "page": "kb", "mod": 0, "code": 75 },
+            "black": { "page": "kb", "mod": 0, "code": 5 },
+            "laser": { "page": "kb", "mod": 1, "code": 15 }
+        }
+    }
+}
