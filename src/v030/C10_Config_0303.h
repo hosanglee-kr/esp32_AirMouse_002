@@ -248,7 +248,8 @@ class CL_C10_Config {
         serializeJson(v_doc, v_json);
 
         (void)patchFromJsonWiFi(v_json, p_wifi);
-        (void)0(v_json, p_e10);
+        (void)patchFromJsonE10(v_json, p_e10);
+        
         return true;
     }
 

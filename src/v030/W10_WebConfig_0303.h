@@ -1071,7 +1071,6 @@ class CL_W10_WebConfig {
                 }
             
                 ok = ok && e10->setPrecisionMode(v_mode);
-            }
 
             /*
             } else if (strcmp(v_cmd, "set_precision") == 0) {
