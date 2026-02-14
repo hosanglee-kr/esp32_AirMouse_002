@@ -22,7 +22,7 @@ import shutil
 #   - (0279) 빌드 전 DST/www 전체 삭제 → 남은 구파일로 인한 잘못된 서빙 방지
 # -------------------------------------------------------
 
-SRC_WWW_DIR = os.path.join(env["PROJECT_DIR"], env["PROJECT_SRC_DIR"], "v031", "data_v031_www")
+SRC_WWW_DIR = os.path.join(env["PROJECT_DIR"], env["PROJECT_SRC_DIR"], "v031_06", "data_v031_www")
 DST_WWW_DIR = os.path.join(env["PROJECT_DATA_DIR"], "www")
 
 # gzip 대상(텍스트)
