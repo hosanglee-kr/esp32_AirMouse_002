@@ -63,7 +63,7 @@
 
 #include "C10_Config_0310.h"
 #include "E10_Def_0310.h"
-#include "W10_Def_0310.h"
+#include "W10_Def_03.h"
 
 
 // =======================================================
@@ -1006,44 +1006,44 @@ class CL_W10_WebConfig {
     // /api/status
     // =====================================================
     void _apiStatus(AsyncWebServerRequest* req) {
-        JsonDocument data;
+        JsonDocument v_doc;
         const uint32_t v_uptime = (uint32_t)millis();
         const uint32_t v_heapFree = (uint32_t)ESP.getFreeHeap();
         const uint32_t v_heapMin  = (uint32_t)ESP.getMinFreeHeap();
         const uint32_t v_heapMaxA = (uint32_t)ESP.getMaxAllocHeap();
 
         // flat(legacy)
-        data["uptime_ms"]     = v_uptime;
-        data["heap_free"]     = v_heapFree;
-        data["heap_min_free"] = v_heapMin;
-        data["heap_max_alloc"] = v_heapMaxA;
-        data["api_ver"]       = (uint16_t)G_W10_API_VER;
+        v_doc["uptime_ms"]     = v_uptime;
+        v_doc["heap_free"]     = v_heapFree;
+        v_doc["heap_min_free"] = v_heapMin;
+        v_doc["heap_max_alloc"] = v_heapMaxA;
+        v_doc["api_ver"]       = (uint16_t)G_W10_API_VER;
 
         // grouped(UI-friendly)
-        JsonObject sys = data["sys"].to<JsonObject>();
+        JsonObject sys = v_doc["sys"].to<JsonObject>();
         sys["uptime_ms"] = v_uptime;
         sys["api_ver"]   = (uint16_t)G_W10_API_VER;
 
-        JsonObject mem = data["mem"].to<JsonObject>();
+        JsonObject mem = v_doc["mem"].to<JsonObject>();
         mem["heap_free"]      = v_heapFree;
         mem["heap_min_free"]  = v_heapMin;
         mem["heap_max_alloc"] = v_heapMaxA;
 
-        JsonObject feat = data["features"].to<JsonObject>();
+        JsonObject feat = v_doc["features"].to<JsonObject>();
         feat["etag_config"] = true;
         feat["reboot_api"]  = true;
         feat["safe_mode_policy"] = true;
         feat["ota_guard"] = true;
         feat["e10_observability"] = true;
 
-        JsonObject diag = data["diag"].to<JsonObject>();
+        JsonObject diag = v_doc["diag"].to<JsonObject>();
         diag["body_too_large"] = (uint32_t)_cnt_body_too_large;
         diag["body_no_slot"]   = (uint32_t)_cnt_body_no_slot;
         diag["json_bad"]       = (uint32_t)_cnt_json_bad;
         diag["safe_blocked"]   = (uint32_t)_cnt_safe_blocked;
         diag["ota_blocked"]    = (uint32_t)_cnt_ota_blocked;
 
-        JsonObject net = data["net"].to<JsonObject>();
+        JsonObject net = v_doc["net"].to<JsonObject>();
         net["mode"]    = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
         net["ip"]      = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
         net["ssid"]    = (WiFi.getMode() == WIFI_AP) ? String(_wifi.ap_ssid) : WiFi.SSID();
@@ -1055,14 +1055,14 @@ class CL_W10_WebConfig {
         if (e10if) {
             ST_E10_Status_t s;
             if (e10if->getStatus && e10if->getStatus(e10if->ctx, &s)) {
-                JsonObject e = data["e10"].to<JsonObject>();
+                JsonObject e = v_doc["e10"].to<JsonObject>();
                 _fillE10StatusFromSnapshot(e, s);
                 // policy 요약(배너용)
                 v_otaGuard = s.ota_guard;
             }
         }
 
-        JsonObject ota     = data["ota"].to<JsonObject>();
+        JsonObject ota     = v_doc["ota"].to<JsonObject>();
         ota["in_progress"] = _otaInProgress;
         ota["total"]       = (uint32_t)_otaTotal;
         ota["written"]     = (uint32_t)_otaWritten;
@@ -1072,14 +1072,14 @@ class CL_W10_WebConfig {
         if (_cfg) {
             ST_C10_BootState_t bs;
             _cfg->getBootState(bs);
-            JsonObject b    = data["boot"].to<JsonObject>();
+            JsonObject b    = v_doc["boot"].to<JsonObject>();
             b["safe_mode"]  = bs.safe_mode;
             b["fail_count"] = bs.fail_count;
             b["pending"]    = bs.pending;
             b["last_reset_reason"] = bs.last_reset_reason;
 
             // 정책/배너 노출
-            JsonObject pol = data["policy"].to<JsonObject>();
+            JsonObject pol = v_doc["policy"].to<JsonObject>();
             pol["reboot_required"]       = _needReboot;
             pol["reboot_reason_mask"]    = (uint32_t)_needRebootMask;
             pol["reboot_reasons"]        = _rebootReasonsString(_needRebootMask);
@@ -1091,7 +1091,7 @@ class CL_W10_WebConfig {
             uint32_t v_etag = 0;
             size_t   v_cfgSize = 0;
             bool v_etagOk = _cfg->getConfigEtag(v_etag, &v_cfgSize);
-            JsonObject cfg = data["config"].to<JsonObject>();
+            JsonObject cfg = v_doc["config"].to<JsonObject>();
             cfg["ver"]  = (uint16_t)G_C10_CFG_VER;
             cfg["etag_ok"] = v_etagOk;
             cfg["etag"] = (uint32_t)v_etag;
@@ -1105,7 +1105,7 @@ class CL_W10_WebConfig {
         }
 
         // groups(UI-friendly, single root)
-        JsonObject groups = data["groups"].to<JsonObject>();
+        JsonObject groups = v_doc["groups"].to<JsonObject>();
         {
             JsonObject gSys = groups["sys"].to<JsonObject>();
             gSys["uptime_ms"] = v_uptime;
@@ -1131,7 +1131,7 @@ class CL_W10_WebConfig {
 
             if (_cfg) {
                 JsonObject gPol = groups["policy"].to<JsonObject>();
-                JsonObject pol = data["policy"].as<JsonObject>();
+                JsonObject pol = v_doc["policy"].as<JsonObject>();
                 gPol["reboot_required"]       = pol["reboot_required"];
                 gPol["reboot_reason_mask"]    = pol["reboot_reason_mask"];
                 gPol["reboot_reasons"]        = pol["reboot_reasons"];
@@ -1140,14 +1140,14 @@ class CL_W10_WebConfig {
                 gPol["ota_upload_blocked"]    = pol["ota_upload_blocked"];
 
                 JsonObject gBoot = groups["boot"].to<JsonObject>();
-                JsonObject boot = data["boot"].as<JsonObject>();
+                JsonObject boot = v_doc["boot"].as<JsonObject>();
                 gBoot["safe_mode"] = boot["safe_mode"];
                 gBoot["fail_count"] = boot["fail_count"];
                 gBoot["pending"] = boot["pending"];
                 gBoot["last_reset_reason"] = boot["last_reset_reason"];
 
                 JsonObject gCfg = groups["config"].to<JsonObject>();
-                JsonObject cfg = data["config"].as<JsonObject>();
+                JsonObject cfg = v_doc["config"].as<JsonObject>();
                 gCfg["ver"] = cfg["ver"];
                 gCfg["etag_ok"] = cfg["etag_ok"];
                 gCfg["etag"] = cfg["etag"];
@@ -1167,7 +1167,7 @@ class CL_W10_WebConfig {
             gOta["err"] = ota["err"];
 
             // e10 group (optional)
-            JsonVariant e10v = data["e10"];
+            JsonVariant e10v = v_doc["e10"];
             if (!e10v.isNull()) {
                 JsonObject gE10 = groups["e10"].to<JsonObject>();
                 JsonObject e10 = e10v.as<JsonObject>();
@@ -1192,7 +1192,7 @@ class CL_W10_WebConfig {
         }
 
 
-        _sendOk(req, "status", "", &data, 200);
+        _sendOk(req, "status", "", &v_doc, 200);
     }
 
     // =====================================================
@@ -1651,14 +1651,14 @@ class CL_W10_WebConfig {
         bool applied = false;
         if (ok && _applyFn) applied = _applyFn(_applyCtx);
 
-        JsonDocument data;
-        data["applied"] = applied;
+        JsonDocument v_doc;
+        v_doc["applied"] = applied;
         if (ok) {
             _markLastApply(true, "rollback", "config_rollback");
-            _sendOk(req, "config_rollback", "", &data, 200);
+            _sendOk(req, "config_rollback", "", &v_doc, 200);
         } else {
             _markLastApply(false, "rollback", "config_rollback_failed");
-            _sendErr(req, 400, "config_rollback_failed", "Rollback failed.", &data);
+            _sendErr(req, 400, "config_rollback_failed", "Rollback failed.", &v_doc);
         }
     }
 
@@ -1773,14 +1773,14 @@ class CL_W10_WebConfig {
             if (!d["safe_mode"].isNull())       ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, (bool)d["safe_mode"]) : false);
         }
 
-        JsonDocument data;
-        data["cmd"] = (v_cmd ? v_cmd : "");
+        JsonDocument v_doc;
+        v_doc["cmd"] = (v_cmd ? v_cmd : "");
         if (v_snapshot && e10if) {
-            JsonObject e = data["e10"].to<JsonObject>();
+            JsonObject e = v_doc["e10"].to<JsonObject>();
             _fillE10Status(e, e10if);
         }
-        if (ok) _sendOk(req, "control", "", &data, 200);
-        else    _sendErr(req, 400, "control_failed", "Control failed.", &data);
+        if (ok) _sendOk(req, "control", "", &v_doc, 200);
+        else    _sendErr(req, 400, "control_failed", "Control failed.", &v_doc);
     }
     
     // =====================================================
@@ -1885,11 +1885,11 @@ class CL_W10_WebConfig {
             }
         }
 
-        JsonDocument data;
-        data["saved"] = saved;
-        data["applied"] = applied;
-        if (ok) _sendOk(req, "ppt_set", "", &data, 200);
-        else    _sendErr(req, 400, "ppt_set_failed", "Failed to update mapping.", &data);
+        JsonDocument v_doc;
+        v_doc["saved"] = saved;
+        v_doc["applied"] = applied;
+        if (ok) _sendOk(req, "ppt_set", "", &v_doc, 200);
+        else    _sendErr(req, 400, "ppt_set_failed", "Failed to update mapping.", &v_doc);
     }
 
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
@@ -1944,9 +1944,9 @@ class CL_W10_WebConfig {
                     if (s.ota_guard) {
                         _cnt_ota_blocked++;
                         if (index == 0) {
-                            JsonDocument data;
-                            data["reason"] = "ota_guard";
-                            _sendErr(req, 403, "ota_guard_blocked", "OTA upload is blocked by guard.", &data);
+                            JsonDocument v_doc;
+                            v_doc["reason"] = "ota_guard";
+                            _sendErr(req, 403, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
                         }
                         return;
                     }
@@ -2007,14 +2007,14 @@ class CL_W10_WebConfig {
     }
 
     void apiOtaStatus(AsyncWebServerRequest* req) {
-        JsonDocument data;
-        data["in_progress"] = _otaInProgress;
-        data["total"]       = (uint32_t)_otaTotal;
-        data["written"]     = (uint32_t)_otaWritten;
-        data["ok"]          = _otaOk;
-        data["err"]         = _otaErr;
+        JsonDocument v_doc;
+        v_doc["in_progress"] = _otaInProgress;
+        v_doc["total"]       = (uint32_t)_otaTotal;
+        v_doc["written"]     = (uint32_t)_otaWritten;
+        v_doc["ok"]          = _otaOk;
+        v_doc["err"]         = _otaErr;
 
-        _sendOk(req, "ota_status", "", &data, 200);
+        _sendOk(req, "ota_status", "", &v_doc, 200);
     }
 
     // =====================================================
@@ -2024,11 +2024,11 @@ class CL_W10_WebConfig {
         if (_cfg) {
             ST_C10_BootState_t bs;
             _cfg->getBootState(bs);
-            JsonDocument data;
-            data["safe_mode"]  = bs.safe_mode;
-            data["fail_count"] = bs.fail_count;
-            data["pending"]    = bs.pending;
-            _sendOk(req, "safeboot", "", &data, 200);
+            JsonDocument v_doc;
+            v_doc["safe_mode"]  = bs.safe_mode;
+            v_doc["fail_count"] = bs.fail_count;
+            v_doc["pending"]    = bs.pending;
+            _sendOk(req, "safeboot", "", &v_doc, 200);
             return;
         }
         _sendErr(req, 500, "no_config", "Config manager not ready.");
@@ -2055,11 +2055,11 @@ class CL_W10_WebConfig {
             ok = _cfg->clearSafeMode();
         }
     
-        JsonDocument data;
-        data["exit"] = v_exit;
-        data["note"] = "exit=true -> clears safe_mode and reboots.";
-        if (ok) _sendOk(req, "safeboot_exit", "", &data, 200);
-        else    _sendErr(req, 500, "safeboot_exit_failed", "Failed.", &data);
+        JsonDocument v_doc;
+        v_doc["exit"] = v_exit;
+        v_doc["note"] = "exit=true -> clears safe_mode and reboots.";
+        if (ok) _sendOk(req, "safeboot_exit", "", &v_doc, 200);
+        else    _sendErr(req, 500, "safeboot_exit_failed", "Failed.", &v_doc);
     
         if (ok && v_exit) {
             delay(150);
@@ -2070,14 +2070,14 @@ class CL_W10_WebConfig {
     void apiFactoryReset(AsyncWebServerRequest* req) {
         bool ok = (_cfg && _cfg->factoryReset(true));
 
-        JsonDocument data;
-        data["note"] = "Factory reset done. Rebooting...";
+        JsonDocument v_doc;
+        v_doc["note"] = "Factory reset done. Rebooting...";
         if (ok) {
             _markLastApply(true, "factory", "factory_reset");
-            _sendOk(req, "factory_reset", "", &data, 200);
+            _sendOk(req, "factory_reset", "", &v_doc, 200);
         } else {
             _markLastApply(false, "factory", "factory_reset_failed");
-            _sendErr(req, 500, "factory_reset_failed", "Failed.", &data);
+            _sendErr(req, 500, "factory_reset_failed", "Failed.", &v_doc);
         }
 
         if (ok) {
@@ -2131,29 +2131,29 @@ class CL_W10_WebConfig {
         // If not forced and no reason_mask provided, allow reboot only when a reboot is currently required.
         if (!v_force && !v_hasMask) {
             if (!_needReboot) {
-                JsonDocument data;
-                data["need_reboot"] = _needReboot;
-                data["need_reboot_mask"] = (uint32_t)_needRebootMask;
-                data["reboot_reasons"] = _rebootReasonsString(_needRebootMask);
-                _sendErr(req, 409, "no_reboot_needed", "Reboot is not required.", &data);
+                JsonDocument v_doc;
+                v_doc["need_reboot"] = _needReboot;
+                v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
+                v_doc["reboot_reasons"] = _rebootReasonsString(_needRebootMask);
+                _sendErr(req, 409, "no_reboot_needed", "Reboot is not required.", &v_doc);
                 return;
             }
         }
 
         if (!v_force && v_hasMask) {
             if (((_needRebootMask & v_mask) != v_mask)) {
-                JsonDocument data;
-                data["need_reboot"] = _needReboot;
-                data["need_reboot_mask"] = (uint32_t)_needRebootMask;
-                _sendErr(req, 409, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &data);
+                JsonDocument v_doc;
+                v_doc["need_reboot"] = _needReboot;
+                v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
+                _sendErr(req, 409, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
                 return;
             }
         }
 
-        JsonDocument data;
-        data["need_reboot"] = _needReboot;
-        data["need_reboot_mask"] = (uint32_t)_needRebootMask;
-        _sendOk(req, "reboot_scheduled", "Reboot scheduled.", &data, 200);
+        JsonDocument v_doc;
+        v_doc["need_reboot"] = _needReboot;
+        v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
+        _sendOk(req, "reboot_scheduled", "Reboot scheduled.", &v_doc, 200);
 
         // reboot after response flush
         xTaskCreatePinnedToCore(_taskReboot, "w10_reboot", 2048, nullptr, 1, nullptr, 0);
