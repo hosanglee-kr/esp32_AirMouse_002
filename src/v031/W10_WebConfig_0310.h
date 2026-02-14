@@ -719,7 +719,7 @@ class CL_W10_WebConfig {
     bool _wantsJson(AsyncWebServerRequest* req) const {
         if (!req) return false;
         if (!req->hasHeader("Accept")) return false;
-        AsyncWebHeader* h = req->getHeader("Accept");
+        const AsyncWebHeader* h = req->getHeader("Accept");
         if (!h) return false;
         const String v = h->value();
         return (v.indexOf("application/json") >= 0);
@@ -747,7 +747,7 @@ class CL_W10_WebConfig {
 
         // query override
         if (req->hasParam("envelope")) {
-            AsyncWebParameter* p = req->getParam("envelope");
+            const AsyncWebParameter* p = req->getParam("envelope");
             if (p) {
                 const String v = p->value();
                 if (v == "1") return true;
@@ -763,7 +763,7 @@ class CL_W10_WebConfig {
 
         // Accept based
         if (req->hasHeader("Accept")) {
-            AsyncWebHeader* h = req->getHeader("Accept");
+            const AsyncWebHeader* h = req->getHeader("Accept");
             if (h) {
                 const String a = h->value();
                 if (a.indexOf("application/vnd.snw.envelope+json") >= 0) return true;
@@ -1403,7 +1403,7 @@ class CL_W10_WebConfig {
         if (v_hasEtag) {
             // If-None-Match 지원 (간단 비교)
             if (req->hasHeader("If-None-Match")) {
-                AsyncWebHeader* h = req->getHeader("If-None-Match");
+                const AsyncWebHeader* h = req->getHeader("If-None-Match");
                 if (h) {
                     String v_inm = h->value();
                     char   v_tag[16];
@@ -1519,11 +1519,11 @@ class CL_W10_WebConfig {
         // - pretty=1 -> same as format=pretty
         bool v_pretty = false;
         if (req && req->hasParam("pretty")) {
-            AsyncWebParameter* p = req->getParam("pretty");
+            const AsyncWebParameter* p = req->getParam("pretty");
             if (p && p->value() == "1") v_pretty = true;
         }
         if (req && req->hasParam("format")) {
-            AsyncWebParameter* p = req->getParam("format");
+            const AsyncWebParameter* p = req->getParam("format");
             if (p) {
                 const String v = p->value();
                 if (v == "pretty") v_pretty = true;
@@ -1533,17 +1533,17 @@ class CL_W10_WebConfig {
 
         bool v_attach = true;
         if (req && req->hasParam("attachment")) {
-            AsyncWebParameter* p = req->getParam("attachment");
+            const AsyncWebParameter* p = req->getParam("attachment");
             if (p && p->value() == "0") v_attach = false;
         }
         if (req && req->hasParam("download")) {
-            AsyncWebParameter* p = req->getParam("download");
+            const AsyncWebParameter* p = req->getParam("download");
             if (p && p->value() == "0") v_attach = false;
         }
 
         String v_filename;
         if (req && req->hasParam("filename")) {
-            AsyncWebParameter* p = req->getParam("filename");
+            const AsyncWebParameter* p = req->getParam("filename");
             if (p) v_filename = p->value();
         }
         if (v_filename.length() == 0) {
@@ -1558,7 +1558,7 @@ class CL_W10_WebConfig {
         bool     v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
 
         if (v_hasEtag && req && req->hasHeader("If-None-Match")) {
-            AsyncWebHeader* h = req->getHeader("If-None-Match");
+            const AsyncWebHeader* h = req->getHeader("If-None-Match");
             if (h) {
                 String v_inm = h->value();
                 char   v_tag[16];
