@@ -1,3 +1,6 @@
+/* =======================================================
+   File: /www/style_0301.css
+======================================================= */
 :root{
   --bg:#0b0e14;
   --card:#121826;
@@ -111,7 +114,7 @@ h3{margin:10px 0 6px 0; font-size:14px; color:var(--mut);}
   min-width: 200px;
 }
 .inp.mini{min-width:0; width:92px; padding:6px 8px; border-radius:10px; font-size:12px;}
-.select.mini{min-width:0; width:110px; padding:6px 8px; border-radius:10px; font-size:12px;}
+.select.mini{min-width:0; width:130px; padding:6px 8px; border-radius:10px; font-size:12px;}
 
 .hint{color:var(--mut); font-size:13px;}
 .hint2{color:rgba(169,179,199,.85); font-size:12px;}

@@ -1,9 +1,14 @@
+<!-- =======================================================
+     File: /www/index_0301.html
+     Elite AirMouse WebConfig 0301 (backend-aligned full)
+======================================================= -->
+
 <!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Elite AirMouse WebConfig 0301</title>
+  <title>Elite AirMouse WebConfig 0302</title>
   <link rel="icon" href="/favicon.ico" />
   <link rel="stylesheet" href="./style_0301.css" />
 </head>
@@ -12,7 +17,7 @@
     <div class="brand">
       <div class="dot"></div>
       <div class="title">Elite AirMouse</div>
-      <div class="sub">WebConfig 0301</div>
+      <div class="sub">WebConfig 0302</div>
     </div>
 
     <div class="right">
@@ -35,30 +40,33 @@
     <!-- DASH -->
     <section class="card tabpane on" id="tab-dash">
       <h2>Status</h2>
-
       <div class="row">
         <div class="kv"><div class="k">Uptime</div><div class="v" id="stUptime">-</div></div>
         <div class="kv"><div class="k">Heap Free</div><div class="v" id="stHeap">-</div></div>
       </div>
-
       <div class="row">
         <div class="kv"><div class="k">WiFi</div><div class="v" id="stWiFi">-</div></div>
         <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
       </div>
-
       <div class="row">
         <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
-        <div class="kv"><div class="k">Precision Mode (runtime)</div><div class="v" id="stPrecMode">-</div></div>
+        <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
       </div>
 
       <div class="sep"></div>
 
       <h3>Quick Control</h3>
       <div class="row">
-        <label class="hint">Precision Mode</label>
-        <select id="ctlPrecMode" class="select mini"></select>
-        <button class="btn primary" id="btnCtlPrecApply">적용</button>
-        <div class="hint2">/api/control cmd=set_precision mode=uint8</div>
+        <button class="btn" id="btnCtlPptOn">PPT ON</button>
+        <button class="btn" id="btnCtlPptOff">PPT OFF</button>
+        <button class="btn" id="btnCtlPrecOff">Precision OFF</button>
+        <button class="btn primary" id="btnCtlPrecApply">Precision 적용</button>
+        <select class="select mini" id="ctlPrecMode"></select>
+        <label class="switch">
+          <input type="checkbox" id="ctlSnapshot" checked>
+          <span class="slider"></span>
+        </label>
+        <div class="hint">snapshot</div>
       </div>
 
       <div class="sep"></div>
@@ -214,8 +222,7 @@
 
       <div class="sep"></div>
 
-      <h3>Precision (Config)</h3>
-      <div class="hint2">여기는 설정 저장/적용용(e10.precision.*). 런타임 상태는 Dashboard에서 precision_mode로 표시됩니다.</div>
+      <h3>Precision</h3>
       <div class="form two">
         <div class="frow">
           <label class="flbl">Enable</label>
@@ -223,7 +230,13 @@
             <option value="true">true</option>
             <option value="false">false</option>
           </select>
-          <div class="fhelp">config: e10.precision.enable</div>
+          <div class="fhelp">기능 on/off</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Mode</label>
+          <select id="precMode" class="select"></select>
+          <div class="fhelp">/api/keycodes → precision_modes</div>
         </div>
 
         <div class="frow">
@@ -309,7 +322,7 @@
     <!-- PPT -->
     <section class="card tabpane" id="tab-ppt">
       <h2>PPT Keymap v2</h2>
-      <div class="hint2">page=kb(usage-id) / consumer(mask). mod는 kb에서만 사용</div>
+      <div class="hint2">page=kb(usage-id) / consumer(mask). mod는 kb에서만 사용. code는 10진/16진(0x..) 가능.</div>
 
       <div class="row">
         <button class="btn" id="btnPptReload">PPT 로드</button>
@@ -321,15 +334,19 @@
         <div class="hint">save=true</div>
       </div>
 
+      <!-- datalist: kb/consumer 추천 목록 -->
+      <datalist id="dlKb"></datalist>
+      <datalist id="dlConsumer"></datalist>
+
       <div class="tbl">
         <div class="tr head"><div>Action</div><div>Page</div><div>Mod</div><div>Code</div><div></div></div>
 
-        <div class="tr"><div>start</div><div><select id="pptStartPage" class="select mini"></select></div><div><select id="pptStartMod" class="select mini"></select></div><div><input id="pptStartCode" class="inp mini" /></div><div><button class="btn mini" data-test="start">Test</button></div></div>
-        <div class="tr"><div>exit</div><div><select id="pptExitPage" class="select mini"></select></div><div><select id="pptExitMod" class="select mini"></select></div><div><input id="pptExitCode" class="inp mini" /></div><div><button class="btn mini" data-test="exit">Test</button></div></div>
-        <div class="tr"><div>next</div><div><select id="pptNextPage" class="select mini"></select></div><div><select id="pptNextMod" class="select mini"></select></div><div><input id="pptNextCode" class="inp mini" /></div><div><button class="btn mini" data-test="next">Test</button></div></div>
-        <div class="tr"><div>prev</div><div><select id="pptPrevPage" class="select mini"></select></div><div><select id="pptPrevMod" class="select mini"></select></div><div><input id="pptPrevCode" class="inp mini" /></div><div><button class="btn mini" data-test="prev">Test</button></div></div>
-        <div class="tr"><div>black</div><div><select id="pptBlackPage" class="select mini"></select></div><div><select id="pptBlackMod" class="select mini"></select></div><div><input id="pptBlackCode" class="inp mini" /></div><div><button class="btn mini" data-test="black">Test</button></div></div>
-        <div class="tr"><div>laser</div><div><select id="pptLaserPage" class="select mini"></select></div><div><select id="pptLaserMod" class="select mini"></select></div><div><input id="pptLaserCode" class="inp mini" /></div><div><button class="btn mini" data-test="laser">Test</button></div></div>
+        <div class="tr"><div>start</div><div><select id="pptStartPage" class="select mini"></select></div><div><select id="pptStartMod" class="select mini"></select></div><div><input id="pptStartCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="start">Test</button></div></div>
+        <div class="tr"><div>exit</div><div><select id="pptExitPage" class="select mini"></select></div><div><select id="pptExitMod" class="select mini"></select></div><div><input id="pptExitCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="exit">Test</button></div></div>
+        <div class="tr"><div>next</div><div><select id="pptNextPage" class="select mini"></select></div><div><select id="pptNextMod" class="select mini"></select></div><div><input id="pptNextCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="next">Test</button></div></div>
+        <div class="tr"><div>prev</div><div><select id="pptPrevPage" class="select mini"></select></div><div><select id="pptPrevMod" class="select mini"></select></div><div><input id="pptPrevCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="prev">Test</button></div></div>
+        <div class="tr"><div>black</div><div><select id="pptBlackPage" class="select mini"></select></div><div><select id="pptBlackMod" class="select mini"></select></div><div><input id="pptBlackCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="black">Test</button></div></div>
+        <div class="tr"><div>laser</div><div><select id="pptLaserPage" class="select mini"></select></div><div><select id="pptLaserMod" class="select mini"></select></div><div><input id="pptLaserCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="laser">Test</button></div></div>
       </div>
 
       <div class="sep"></div>

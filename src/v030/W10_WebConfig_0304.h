@@ -811,8 +811,10 @@ class CL_W10_WebConfig {
         JsonArray pm = d["precision_modes"].to<JsonArray>();
         for (uint8_t m = 0; m < (uint8_t)EN_C10_E10_PREC_MAX; m++) {
             JsonObject o = pm.add<JsonObject>();
-            o["name"] = _precModeName(m);
-            o["mode"] = m;
+            const char* n = _precModeName(m);
+            if (!n) n = "unknown";
+            o["name"]  = n;
+            o["value"] = m;
         }
 
 

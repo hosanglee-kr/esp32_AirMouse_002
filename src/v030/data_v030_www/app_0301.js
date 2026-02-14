@@ -1,3 +1,15 @@
+/* =======================================================
+   File: /www/app_0301.js
+   Backend-aligned full (W10_WebConfig_0303.h)
+   - /api/status (no-store)
+   - /api/keycodes (mods/kb/consumer + precision_modes)
+   - /api/config /save /apply /export /import /rollback
+   - /api/control (cmd set_ppt / set_dpi / set_precision / set_safe_mode / set_ota_guard ...)
+   - /api/ppt (v2) + /api/ppt/test
+   - /api/ota, /api/ota/status
+======================================================= */
+
+
 function qs(id){ return document.getElementById(id); }
 function qsa(sel){ return document.querySelectorAll(sel); }
 
@@ -79,37 +91,305 @@ function bindPptRow(prefix){
 let g_keycodes = null;
 let g_config = null;
 let g_lastWifiFingerprint = "";
+let g_lastStatus = null;
 
-// precision enum (백엔드가 내려주면 우선 사용, 없으면 fallback)
-let g_precisionModes = [
-  {value:0, label:"0 (OFF)"},
-  {value:1, label:"1 (ON)"},
-];
-
-function wifiFingerprint(cfg){
-  const w = cfg?.wifi || {};
-  const s = w?.sta || {};
-  const a = w?.ap || {};
-  const m = w?.mdns || {};
-  return [ w.mode, s.ssid, s.pass, a.ssid, a.pass, m.host ]
-    .map(v=>String(v ?? "")).join("|");
+/** 10진/16진(0x..) 파싱 */
+function parseIntFlex(v, def=0){
+  if(v === null || v === undefined) return def;
+  const s = String(v).trim();
+  if(!s) return def;
+  // 0x.. 허용
+  if(/^0x[0-9a-f]+$/i.test(s)){
+    const n = parseInt(s, 16);
+    return Number.isFinite(n) ? n : def;
+  }
+  // 그냥 10진
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.trunc(n) : def;
 }
 
 function parseNum(v, def=0){
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 }
-
 function parseBool(v){
   if(v === true || v === false) return v;
   const s = String(v).toLowerCase();
   return (s === "true" || s === "1" || s === "on");
 }
 
+function wifiFingerprint(cfg){
+  const w = cfg?.wifi || {};
+  const s = w?.sta || {};
+  const a = w?.ap || {};
+  const m = w?.mdns || {};
+  return [ w.mode, s.ssid, s.pass, a.ssid, a.pass, m.host ].map(v=>String(v ?? "")).join("|");
+}
+
+function ensureDefaults(cfg){
+  cfg = cfg || {};
+  cfg.wifi = cfg.wifi || {};
+  cfg.wifi.sta = cfg.wifi.sta || {};
+  cfg.wifi.ap = cfg.wifi.ap || {};
+  cfg.wifi.mdns = cfg.wifi.mdns || {};
+
+  cfg.e10 = cfg.e10 || {};
+  cfg.e10.wheel = cfg.e10.wheel || {};
+  cfg.e10.gesture = cfg.e10.gesture || {};
+  cfg.e10.precision = cfg.e10.precision || {};
+  if(cfg.e10.precision_mode === undefined) cfg.e10.precision_mode = 0;
+  return cfg;
+}
+
+/* ---------------- Tabs ---------------- */
+function bindTabs(){
+  qsa(".tab").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      qsa(".tab").forEach(x=>x.classList.remove("on"));
+      qsa(".tabpane").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      const id = "tab-" + b.getAttribute("data-tab");
+      qs(id).classList.add("on");
+    });
+  });
+}
+
+/* ---------------- Status ---------------- */
+function formatPrecSummary(e10){
+  if(!e10) return "-";
+  const mode = (e10.precision_mode ?? "-");
+  return `mode:${mode}`;
+}
+
+async function refreshStatus(){
+  const r = await apiGet("/api/status");
+  if(!r.ok || !r.json){
+    qs("statusJson").textContent = r.text || "status failed";
+    return;
+  }
+  const j = r.json;
+  g_lastStatus = j;
+
+  qs("stUptime").textContent = `${j.uptime_ms ?? "-"} ms`;
+  qs("stHeap").textContent = `${j.heap_free ?? "-"} bytes`;
+
+  const net = j.net || {};
+  qs("stWiFi").textContent = `${net.mode ?? "-"} / ${net.ssid ?? "-"}`;
+  qs("stMdns").textContent = `${net.mdns ?? "-"}`;
+
+  const e10 = j.e10 || {};
+  qs("stPptMode").textContent = String(e10.ppt_mode ?? "-");
+  qs("stPrec").textContent = formatPrecSummary(e10);
+
+  const boot = j.boot || {};
+  setPill(qs("pillNet"), `NET: ${net.mode ?? "-"}`, true);
+  setPill(qs("pillBle"), `BLE: ${e10.ble_connected ? "ON" : "OFF"}`, !!e10.ble_connected);
+  setPill(qs("pillSafe"), `SAFE: ${boot.safe_mode ? "ON" : "OFF"}`, !!boot.safe_mode);
+
+  qs("statusJson").textContent = pretty(j);
+}
+
+/* ---------------- keycodes + datalist ---------------- */
+function buildDatalist(dlEl, items, kind){
+  // kind: "kb"(usage-id) or "consumer"(mask)
+  dlEl.innerHTML = "";
+  const max = 220; // 너무 많으면 브라우저가 버벅여서 상한
+  for(let i=0;i<items.length && i<max;i++){
+    const it = items[i];
+    const opt = document.createElement("option");
+    if(kind === "kb"){
+      const code = Number(it.code) || 0;
+      opt.value = `0x${code.toString(16).toUpperCase().padStart(2,"0")}`;
+      opt.label = `${it.name} (${opt.value})`;
+    }else{
+      const mask = Number(it.mask) >>> 0;
+      opt.value = `0x${mask.toString(16).toUpperCase()}`;
+      opt.label = `${it.name} (${opt.value})`;
+    }
+    dlEl.appendChild(opt);
+  }
+}
+
+function syncPptRowHints(row){
+  // page가 consumer면 mod는 의미 없음 -> 0 + disable
+  const isConsumer = (row.page.value === "consumer");
+  if(isConsumer){
+    row.mod.value = "0";
+    row.mod.disabled = true;
+    row.code.setAttribute("list", "dlConsumer");
+  }else{
+    row.mod.disabled = false;
+    row.code.setAttribute("list", "dlKb");
+  }
+}
+
+async function loadKeycodes(){
+  const r = await apiGet("/api/keycodes");
+  if(!r.ok || !r.json) throw new Error("keycodes load failed");
+  g_keycodes = r.json;
+
+  const mods = r.json.mods || [];
+  const modItems = mods.map(m => ({mask:m.mask, name:`${m.name} (0x${Number(m.mask).toString(16)})`}));
+
+  const modSelects = ["pptStartMod","pptExitMod","pptNextMod","pptPrevMod","pptBlackMod","pptLaserMod"];
+  for(const id of modSelects) fillSelect(qs(id), modItems, "mask", "name");
+
+  const pageSelects = ["pptStartPage","pptExitPage","pptNextPage","pptPrevPage","pptBlackPage","pptLaserPage"];
+  for(const id of pageSelects) fillPageSelect(qs(id));
+
+  // precision modes
+  const pmRaw = r.json.precision_modes || [];
+  const pmItems = pmRaw.map(x => ({
+    value: (x.value ?? x.mode ?? 0),
+    name:  String(x.name ?? `mode${x.value ?? x.mode ?? 0}`)
+  }));
+  if(pmItems.length === 0) pmItems.push({value:0, name:"0"});
+  fillSelect(qs("precMode"), pmItems, "value", "name");
+  fillSelect(qs("ctlPrecMode"), pmItems, "value", "name");
+
+  // datalist (추천)
+  buildDatalist(qs("dlKb"), r.json.kb || [], "kb");
+  buildDatalist(qs("dlConsumer"), r.json.consumer || [], "consumer");
+
+  // page change에 따른 mod/list 동기화
+  const rows = [
+    bindPptRow("pptStart"),
+    bindPptRow("pptExit"),
+    bindPptRow("pptNext"),
+    bindPptRow("pptPrev"),
+    bindPptRow("pptBlack"),
+    bindPptRow("pptLaser"),
+  ];
+  for(const row of rows){
+    syncPptRowHints(row);
+    row.page.addEventListener("change", ()=> syncPptRowHints(row));
+  }
+
+  return r.json;
+}
+
+/* ---------------- PPT ---------------- */
+function getPptPayload(){
+  const rows = {
+    start: bindPptRow("pptStart"),
+    exit:  bindPptRow("pptExit"),
+    next:  bindPptRow("pptNext"),
+    prev:  bindPptRow("pptPrev"),
+    black: bindPptRow("pptBlack"),
+    laser: bindPptRow("pptLaser"),
+  };
+
+  const map = {};
+  for(const k of Object.keys(rows)){
+    const r = rows[k];
+    const page = (r.page.value === "consumer") ? "consumer" : "kb";
+    const mod  = (page === "consumer") ? 0 : (parseIntFlex(r.mod.value, 0) & 0xFF);
+    const code = parseIntFlex(r.code.value, 0);
+    map[k] = { page, mod, code };
+  }
+  return { save: qs("swPptSave").checked, map };
+}
+
+function setPptForm(map){
+  const rows = {
+    start: bindPptRow("pptStart"),
+    exit:  bindPptRow("pptExit"),
+    next:  bindPptRow("pptNext"),
+    prev:  bindPptRow("pptPrev"),
+    black: bindPptRow("pptBlack"),
+    laser: bindPptRow("pptLaser"),
+  };
+
+  for(const k of Object.keys(rows)){
+    const r = rows[k];
+    const m = map[k] || {};
+    r.page.value = (m.page === "consumer") ? "consumer" : "kb";
+    r.mod.value  = String(m.mod ?? 0);
+    r.code.value = (m.code !== undefined && m.code !== null) ? String(m.code) : "0";
+    syncPptRowHints(r);
+  }
+  qs("pptJson").textContent = pretty({map});
+}
+
+async function pptReload(){
+  const r = await apiGet("/api/ppt");
+  if(!r.ok || !r.json){ alert("ppt load failed"); return; }
+  setPptForm(r.json.map || {});
+}
+
+async function pptSave(){
+  const payload = getPptPayload();
+  const r = await apiPostJson("/api/ppt", payload);
+  if(!r.ok){ alert("ppt save failed: " + (r.json?.err || r.text)); return; }
+  await pptReload();
+}
+
+async function pptTest(action){
+  const rows = {
+    start: bindPptRow("pptStart"),
+    exit:  bindPptRow("pptExit"),
+    next:  bindPptRow("pptNext"),
+    prev:  bindPptRow("pptPrev"),
+    black: bindPptRow("pptBlack"),
+    laser: bindPptRow("pptLaser"),
+  };
+  const r = rows[action];
+  const page = (r.page.value === "consumer") ? "consumer" : "kb";
+  const payload = {
+    page,
+    mod: (page === "consumer") ? 0 : (parseIntFlex(r.mod.value, 0) & 0xFF),
+    code: parseIntFlex(r.code.value, 0),
+  };
+  const res = await apiPostJson("/api/ppt/test", payload);
+  if(!res.ok) alert("test failed: " + (res.json?.err || res.text));
+}
+
+/* ---------------- Control ---------------- */
+async function ctlSetPpt(enable){
+  const payload = { cmd:"set_ppt", enable: !!enable, snapshot: qs("ctlSnapshot").checked };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("set_ppt failed: " + (r.json?.err || r.text));
+  await refreshStatus();
+}
+
+async function ctlSetPrecisionMode(mode){
+  const v = parseIntFlex(mode, 0);
+  const payload = { cmd:"set_precision", mode: v, snapshot: qs("ctlSnapshot").checked };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("set_precision failed: " + (r.json?.err || r.text));
+  await refreshStatus();
+}
+
+async function ctlPrecOff(){
+  await ctlSetPrecisionMode(0);
+}
+
+/* ---------------- SafeBoot/Reset/Reboot ---------------- */
+async function safeInfo(){
+  const r = await apiGet("/api/safeboot");
+  alert(pretty(r.json || r.text));
+}
+async function safeExit(){
+  const r = await apiPostJson("/api/safeboot", {exit:true});
+  alert(pretty(r.json || r.text));
+}
+async function factoryReset(){
+  if(!confirm("Factory Reset 진행? (재부팅됨)")) return;
+  const r = await fetch("/api/factory_reset", {method:"POST"});
+  const t = await r.text();
+  alert(t);
+}
+async function reboot(){
+  if(!confirm("재부팅 할까요?")) return;
+  await fetch("/api/reboot", {method:"POST"});
+}
+
+/* ---------------- Config Editor (0301 유지) ---------------- */
+/* NOTE: 여기 부분은 0301과 동일 로직 유지(검증/Apply/Save/Import/Export/Rollback) */
+
 function validateClient(cfg){
   const errs = [];
 
-  // WiFi
   const w = cfg.wifi || {};
   const mode = parseNum(w.mode, 0);
   if(!(mode === 0 || mode === 1 || mode === 2)) errs.push("wifi.mode must be 0|1|2");
@@ -120,7 +400,6 @@ function validateClient(cfg){
   const mdns = String(w?.mdns?.host ?? "");
   if(mdns.length > 32) errs.push("wifi.mdns.host len <= 32");
 
-  // E10 numeric ranges (서버 validate 범위에 맞춤)
   const e = cfg.e10 || {};
   const dpi = parseNum(e.dpi_level, 0);
   if(dpi < 0 || dpi > 2) errs.push("e10.dpi_level 0..2");
@@ -163,6 +442,7 @@ function validateClient(cfg){
   if(es < 0.1 || es > 20) errs.push("e10.precision.entry_still_deg 0.1..20");
   const xm2 = parseNum(p.exit_move_deg, 0);
   if(xm2 < 0.1 || xm2 > 50) errs.push("e10.precision.exit_move_deg 0.1..50");
+
   const pr = parseNum(p.profile, 0);
   if(pr < 0 || pr > 5) errs.push("e10.precision.profile 0..5");
 
@@ -170,22 +450,15 @@ function validateClient(cfg){
 }
 
 function uiToConfig(){
-  const cfg = JSON.parse(qs("cfgJsonArea").value || "{}");
+  const cfg = ensureDefaults(JSON.parse(qs("cfgJsonArea").value || "{}"));
 
-  // WiFi
-  cfg.wifi = cfg.wifi || {};
   cfg.wifi.mode = parseNum(qs("wifiMode").value, 0);
-  cfg.wifi.sta = cfg.wifi.sta || {};
   cfg.wifi.sta.ssid = String(qs("staSsid").value || "");
   cfg.wifi.sta.pass = String(qs("staPass").value || "");
-  cfg.wifi.ap = cfg.wifi.ap || {};
   cfg.wifi.ap.ssid = String(qs("apSsid").value || "");
   cfg.wifi.ap.pass = String(qs("apPass").value || "");
-  cfg.wifi.mdns = cfg.wifi.mdns || {};
   cfg.wifi.mdns.host = String(qs("mdnsHost").value || "");
 
-  // E10
-  cfg.e10 = cfg.e10 || {};
   cfg.e10.dpi_level = parseNum(qs("e10Dpi").value, 2);
   cfg.e10.hard_click_lock = parseBool(qs("e10HardClick").value);
 
@@ -201,17 +474,14 @@ function uiToConfig(){
   ];
   cfg.e10.accel_threshold = parseNum(qs("accelThreshold").value, 8.0);
 
-  cfg.e10.wheel = cfg.e10.wheel || {};
   cfg.e10.wheel.threshold_deg = parseNum(qs("wheelTh").value, 90.0);
   cfg.e10.wheel.step_max = parseNum(qs("wheelStepMax").value, 6);
 
-  cfg.e10.gesture = cfg.e10.gesture || {};
   cfg.e10.gesture.flick_deg = parseNum(qs("flickDeg").value, 200.0);
   cfg.e10.gesture.cooldown_ms = parseNum(qs("cooldownMs").value, 600);
 
   cfg.e10.scroll_cursor_damp = parseNum(qs("scrollDamp").value, 0.25);
 
-  cfg.e10.precision = cfg.e10.precision || {};
   cfg.e10.precision.enable = parseBool(qs("precEnable").value);
   cfg.e10.precision.deadzone = parseNum(qs("precDeadzone").value, 1.2);
   cfg.e10.precision.gain = parseNum(qs("precGain").value, 0.65);
@@ -224,20 +494,14 @@ function uiToConfig(){
   cfg.e10.precision.exit_move_deg = parseNum(qs("precExitMove").value, 3.5);
   cfg.e10.precision.profile = parseNum(qs("precProfile").value, 0);
 
+  cfg.e10.precision_mode = parseIntFlex(qs("precMode").value, 0);
+
   qs("cfgJsonArea").value = pretty(cfg);
   return cfg;
 }
 
 function configToUi(cfg){
-  // 안전 기본 구조
-  cfg.wifi = cfg.wifi || {};
-  cfg.wifi.sta = cfg.wifi.sta || {};
-  cfg.wifi.ap = cfg.wifi.ap || {};
-  cfg.wifi.mdns = cfg.wifi.mdns || {};
-  cfg.e10 = cfg.e10 || {};
-  cfg.e10.wheel = cfg.e10.wheel || {};
-  cfg.e10.gesture = cfg.e10.gesture || {};
-  cfg.e10.precision = cfg.e10.precision || {};
+  cfg = ensureDefaults(cfg);
 
   qs("wifiMode").value = String(cfg.wifi.mode ?? 0);
   qs("staSsid").value = String(cfg.wifi.sta.ssid ?? "");
@@ -281,9 +545,11 @@ function configToUi(cfg){
   qs("precExitMove").value = String(p.exit_move_deg ?? 3.5);
   qs("precProfile").value = String(p.profile ?? 0);
 
+  qs("precMode").value = String(cfg.e10.precision_mode ?? 0);
+  qs("ctlPrecMode").value = qs("precMode").value;
+
   qs("cfgJsonArea").value = pretty(cfg);
 
-  // WiFi 변경 감지
   const fp = wifiFingerprint(cfg);
   qs("swNeedReboot").checked = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
 }
@@ -293,219 +559,13 @@ function currentJsonFromArea(){
   return JSON.parse(t);
 }
 
-// ---------------- Status ----------------
-function _labelForPrecMode(mode){
-  const m = Number(mode);
-  const hit = g_precisionModes.find(x => Number(x.value) === m);
-  return hit ? hit.label : String(mode ?? "-");
-}
-
-async function refreshStatus(){
-  const r = await apiGet("/api/status");
-  if(!r.ok || !r.json){
-    qs("statusJson").textContent = r.text || "status failed";
-    return;
-  }
-
-  const j = r.json;
-  qs("stUptime").textContent = `${j.uptime_ms ?? "-"} ms`;
-  qs("stHeap").textContent = `${j.heap_free ?? "-"} bytes`;
-
-  const net = j.net || {};
-  qs("stWiFi").textContent = `${net.mode ?? "-"} / ${net.ssid ?? "-"}`;
-  qs("stMdns").textContent = `${net.mdns ?? "-"}`;
-
-  const e10 = j.e10 || {};
-  qs("stPptMode").textContent = String(e10.ppt_mode ?? "-");
-  // 백엔드 기준: precision_enable 없음, precision_mode만 표기
-  qs("stPrecMode").textContent = _labelForPrecMode(e10.precision_mode);
-
-  const boot = j.boot || {};
-  setPill(qs("pillNet"), `NET: ${net.mode ?? "-"}`, true);
-  setPill(qs("pillBle"), `BLE: ${e10.ble_connected ? "ON" : "OFF"}`, !!e10.ble_connected);
-  setPill(qs("pillSafe"), `SAFE: ${boot.safe_mode ? "ON" : "OFF"}`, !!boot.safe_mode);
-
-  // Quick Control 셀렉트에 현재값 반영(옵션이 있으면)
-  const cur = String(e10.precision_mode ?? "0");
-  if (qs("ctlPrecMode").value !== cur) qs("ctlPrecMode").value = cur;
-
-  qs("statusJson").textContent = pretty(j);
-}
-
-// ---------------- Tabs ----------------
-function bindTabs(){
-  qsa(".tab").forEach(b=>{
-    b.addEventListener("click", ()=>{
-      qsa(".tab").forEach(x=>x.classList.remove("on"));
-      qsa(".tabpane").forEach(x=>x.classList.remove("on"));
-      b.classList.add("on");
-      const id = "tab-" + b.getAttribute("data-tab");
-      qs(id).classList.add("on");
-    });
-  });
-}
-
-// ---------------- Keycodes (+ precision modes) ----------------
-function _fallbackPrecisionModes(){
-  return [
-    {value:0, label:"0 (OFF)"},
-    {value:1, label:"1 (ON)"},
-  ];
-}
-
-function _extractPrecisionModesFromKeycodes(kc){
-  // 기대 형태(향후 백엔드 확장 가정):
-  // { precision_modes: [ {value:0,name:"OFF"}, ... ] }
-  const pm = kc?.precision_modes;
-  if(Array.isArray(pm) && pm.length){
-    const out = [];
-    for(const it of pm){
-      const v = (it?.value ?? it?.mode ?? it?.id);
-      const n = (it?.name ?? it?.label ?? it?.text);
-      if(v === undefined || v === null) continue;
-      out.push({value:Number(v), label: n ? `${v} (${n})` : String(v)});
-    }
-    if(out.length) return out;
-  }
-  return _fallbackPrecisionModes();
-}
-
-function _fillPrecisionControlSelect(){
-  const el = qs("ctlPrecMode");
-  fillSelect(el, g_precisionModes, "value", "label");
-}
-
-async function loadKeycodes(){
-  const r = await apiGet("/api/keycodes");
-  if(!r.ok || !r.json) throw new Error("keycodes load failed");
-  g_keycodes = r.json;
-
-  // mods
-  const mods = r.json.mods || [];
-  const modItems = mods.map(m => ({mask:m.mask, name:`${m.name} (0x${Number(m.mask).toString(16)})`}));
-
-  const modSelects = ["pptStartMod","pptExitMod","pptNextMod","pptPrevMod","pptBlackMod","pptLaserMod"];
-  for(const id of modSelects) fillSelect(qs(id), modItems, "mask", "name");
-
-  // pages
-  const pageSelects = ["pptStartPage","pptExitPage","pptNextPage","pptPrevPage","pptBlackPage","pptLaserPage"];
-  for(const id of pageSelects) fillPageSelect(qs(id));
-
-  // precision enum (있으면 사용, 없으면 fallback)
-  g_precisionModes = _extractPrecisionModesFromKeycodes(r.json);
-  _fillPrecisionControlSelect();
-
-  return r.json;
-}
-
-// ---------------- Quick Control (precision mode) ----------------
-async function ctlPrecApply(){
-  const mode = Number(qs("ctlPrecMode").value) || 0;
-  const payload = { cmd:"set_precision", mode: mode, snapshot:true };
-  const r = await apiPostJson("/api/control", payload);
-  if(!r.ok){
-    alert("Precision apply failed: " + (r.json?.err || r.text));
-    return;
-  }
-  await refreshStatus();
-}
-
-// ---------------- PPT ----------------
-function getPptPayload(){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
-
-  const map = {};
-  for(const k of Object.keys(rows)){
-    const r = rows[k];
-    map[k] = { page: r.page.value, mod: Number(r.mod.value) || 0, code: Number(r.code.value) || 0 };
-  }
-  return { save: qs("swPptSave").checked, map };
-}
-
-function setPptForm(map){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
-  for(const k of Object.keys(rows)){
-    const r = rows[k];
-    const m = map[k] || {};
-    r.page.value = (m.page === "consumer") ? "consumer" : "kb";
-    r.mod.value  = String(m.mod ?? 0);
-    r.code.value = String(m.code ?? 0);
-  }
-  qs("pptJson").textContent = pretty({map});
-}
-
-async function pptReload(){
-  const r = await apiGet("/api/ppt");
-  if(!r.ok || !r.json){ alert("ppt load failed"); return; }
-  setPptForm(r.json.map || {});
-}
-
-async function pptSave(){
-  const payload = getPptPayload();
-  const r = await apiPostJson("/api/ppt", payload);
-  if(!r.ok){ alert("ppt save failed: " + (r.json?.err || r.text)); return; }
-  await pptReload();
-}
-
-async function pptTest(action){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
-  const r = rows[action];
-  const payload = { page: r.page.value, mod: Number(r.mod.value)||0, code: Number(r.code.value)||0 };
-  const res = await apiPostJson("/api/ppt/test", payload);
-  if(!res.ok) alert("test failed");
-}
-
-// ---------------- SafeBoot/Reset/Reboot ----------------
-async function safeInfo(){
-  const r = await apiGet("/api/safeboot");
-  alert(pretty(r.json || r.text));
-}
-async function safeExit(){
-  const r = await apiPostJson("/api/safeboot", {exit:true});
-  alert(pretty(r.json || r.text));
-}
-async function factoryReset(){
-  if(!confirm("Factory Reset 진행? (재부팅됨)")) return;
-  const r = await fetch("/api/factory_reset", {method:"POST"});
-  const t = await r.text();
-  alert(t);
-}
-async function reboot(){
-  if(!confirm("재부팅 할까요?")) return;
-  await fetch("/api/reboot", {method:"POST"});
-}
-
-// ---------------- Config Editor ----------------
 async function cfgLoad(){
   const r = await apiGet("/api/config");
   if(!r.ok || !r.json){
     setMsg("Config load failed: " + (r.json?.err || r.text), false);
     return;
   }
-  g_config = r.json;
-
-  // baseline
+  g_config = ensureDefaults(r.json);
   g_lastWifiFingerprint = wifiFingerprint(g_config);
   qs("swNeedReboot").checked = false;
 
@@ -514,22 +574,18 @@ async function cfgLoad(){
 }
 
 function cfgValidate(){
-  // UI → JSON 반영
   uiToConfig();
-
   let parsed = null;
   try{ parsed = currentJsonFromArea(); }
   catch(e){
     setMsg("JSON parse error: " + e.message, false);
     return false;
   }
-
   const errs = validateClient(parsed);
   if(errs.length){
     setMsg("검증 실패:\n- " + errs.join("\n- "), false);
     return false;
   }
-
   setMsg("검증 OK", true);
   return true;
 }
@@ -544,7 +600,12 @@ async function cfgApply(){
     setMsg("Apply failed: " + (r.json?.err || r.text), false);
     return;
   }
-  setMsg("Apply OK (not saved). WiFi fields validated only.", true);
+
+  // precision_mode는 runtime(C10 owned) 반영
+  const cfg = currentJsonFromArea();
+  await ctlSetPrecisionMode(cfg?.e10?.precision_mode ?? 0);
+
+  setMsg("Apply OK (not saved). Precision applied via /api/control.", true);
   await refreshStatus();
 }
 
@@ -559,20 +620,20 @@ async function cfgSave(){
     return;
   }
 
-  // WiFi 변경 여부 감지 → 재부팅 표시
   let savedCfg = null;
   try{ savedCfg = JSON.parse(text); }catch(e){}
   if(savedCfg){
     const fp = wifiFingerprint(savedCfg);
     const changed = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
     qs("swNeedReboot").checked = changed;
+    g_lastWifiFingerprint = fp;
     if(changed) setMsg("Save OK. WiFi changed -> reboot required.", true);
     else setMsg("Save OK.", true);
-    g_lastWifiFingerprint = fp;
   }else{
     setMsg("Save OK.", true);
   }
 
+  await ctlSetPrecisionMode(currentJsonFromArea()?.e10?.precision_mode ?? 0);
   await refreshStatus();
 }
 
@@ -612,7 +673,7 @@ async function cfgRollback(){
   await refreshStatus();
 }
 
-// ---------------- OTA ----------------
+/* ---------------- OTA ---------------- */
 async function otaUpload(){
   const f = qs("otaFile").files?.[0];
   if(!f){ alert("파일 선택"); return; }
@@ -629,18 +690,21 @@ async function otaStatus(){
   qs("otaJson").textContent = pretty(r.json || r.text);
 }
 
-// ---------------- Bind UI ----------------
+/* ---------------- Bind UI ---------------- */
 function bindUi(){
   bindTabs();
 
   qs("btnRefresh").addEventListener("click", refreshStatus);
   qs("btnReboot").addEventListener("click", reboot);
 
-  qs("btnCtlPrecApply").addEventListener("click", ctlPrecApply);
-
   qs("btnSafeInfo").addEventListener("click", safeInfo);
   qs("btnSafeExit").addEventListener("click", safeExit);
   qs("btnFactory").addEventListener("click", factoryReset);
+
+  qs("btnCtlPptOn").addEventListener("click", ()=>ctlSetPpt(true));
+  qs("btnCtlPptOff").addEventListener("click", ()=>ctlSetPpt(false));
+  qs("btnCtlPrecOff").addEventListener("click", ctlPrecOff);
+  qs("btnCtlPrecApply").addEventListener("click", ()=>ctlSetPrecisionMode(qs("ctlPrecMode").value));
 
   qs("btnPptReload").addEventListener("click", pptReload);
   qs("btnPptSave").addEventListener("click", pptSave);
@@ -664,12 +728,11 @@ function bindUi(){
     cfgImport(f);
   });
 
-  // UI 변경 시 JSON 반영 + WiFi 변경 감지
   const watchIds = [
     "wifiMode","staSsid","staPass","apSsid","apPass","mdnsHost",
     "e10Dpi","e10HardClick","accelThreshold","scrollDamp",
     "sb0","sb1","sb2","ag0","ag1","ag2","wheelTh","wheelStepMax","flickDeg","cooldownMs",
-    "precEnable","precDeadzone","precGain","precAccel","precMaxStep","precSmooth",
+    "precEnable","precMode","precDeadzone","precGain","precAccel","precMaxStep","precSmooth",
     "precEntryMs","precExitMs","precEntryStill","precExitMove","precProfile"
   ];
   for(const id of watchIds){
@@ -677,16 +740,27 @@ function bindUi(){
       const cfg = uiToConfig();
       const fp = wifiFingerprint(cfg);
       qs("swNeedReboot").checked = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
+      if(id === "precMode") qs("ctlPrecMode").value = qs("precMode").value;
+    });
+    qs(id).addEventListener("change", ()=>{
+      const cfg = uiToConfig();
+      const fp = wifiFingerprint(cfg);
+      qs("swNeedReboot").checked = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
+      if(id === "precMode") qs("ctlPrecMode").value = qs("precMode").value;
     });
   }
 
-  // JSON textarea 직접 수정 시
   qs("cfgJsonArea").addEventListener("input", ()=>{
     try{
-      const cfg = currentJsonFromArea();
+      const cfg = ensureDefaults(currentJsonFromArea());
       const fp = wifiFingerprint(cfg);
       qs("swNeedReboot").checked = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
       setMsg("JSON edited (not applied)", true);
+
+      if(cfg?.e10?.precision_mode !== undefined){
+        qs("precMode").value = String(cfg.e10.precision_mode);
+        qs("ctlPrecMode").value = String(cfg.e10.precision_mode);
+      }
     }catch(e){
       setMsg("JSON parse error: " + e.message, false);
     }
