@@ -791,9 +791,9 @@ class CL_W10_WebConfig {
 		return 500;
 	}
 
-	void _sendErr(AsyncWebServerRequest* req, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
-		_sendErr(req, _httpFromCode(p_code), p_code, p_msg, p_data);
-	}
+	// void _sendErr(AsyncWebServerRequest* req, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
+	//	_sendErr(req, _httpFromCode(p_code), p_code, p_msg, p_data);
+	// }
 
 	// ------------------------------------------------------
 	// Standard Error Sender (code → http 매핑 버전)
@@ -803,7 +803,7 @@ class CL_W10_WebConfig {
 	              const char* msg,
 	              ArduinoJson::JsonDocument* data = nullptr)
 	{
-	    int http = _httpFromCode(code);
+	    int v_http = _httpFromCode(code);
 	
 	    ArduinoJson::JsonDocument doc;
 	    doc["ok"]   = false;
@@ -814,7 +814,7 @@ class CL_W10_WebConfig {
 	        doc["data"] = *data;
 	    }
 	
-	    _sendJson(req, http, doc);
+	    _sendJson(req, doc, v_http);
 	}
 
 	
