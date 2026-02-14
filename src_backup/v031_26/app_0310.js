@@ -103,7 +103,7 @@ function unwrapApi(resp){
 }
 
 async function loadSchema(){
-  const r = await apiGet("/json/public/schema_0310.json");
+  const r = await apiGet("/json/public/schema.json");
   if(r.ok && r.json){
     g_schema = r.json;
     applySchemaToUi();

@@ -1,5 +1,10 @@
 {
-    "ver": 272,
+    "meta": {
+        "cfg_ver": 31,
+        "schema_ver": 1,
+        "etag": "optional",
+        "last_saved_ms": 0
+    },
     "wifi": {
         "mode": 0,
         "sta": {
