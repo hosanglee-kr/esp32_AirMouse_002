@@ -1518,16 +1518,16 @@ void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_
         // - format=minified(default) -> minified JSON output
         // - pretty=1 -> same as format=pretty
         bool v_pretty = false;
-        if (req && req->hasParam(\"pretty\")) {
-            AsyncWebParameter* p = req->getParam(\"pretty\");
+        if (req && req->hasParam("pretty")) {
+            AsyncWebParameter* p = req->getParam("pretty");
             if (p && p->value() == \"1\") v_pretty = true;
         }
-        if (req && req->hasParam(\"format\")) {
-            AsyncWebParameter* p = req->getParam(\"format\");
+        if (req && req->hasParam("format")) {
+            AsyncWebParameter* p = req->getParam("format");
             if (p) {
                 const String v = p->value();
-                if (v == \"pretty\") v_pretty = true;
-                else if (v == \"minified\") v_pretty = false;
+                if (v == "pretty") v_pretty = true;
+                else if (v == "minified") v_pretty = false;
             }
         }
 
