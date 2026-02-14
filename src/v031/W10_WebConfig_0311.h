@@ -795,31 +795,45 @@ class CL_W10_WebConfig {
 		_sendErr(req, _httpFromCode(p_code), p_code, p_msg, p_data);
 	}
 
-	void _sendErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
-		JsonDocument d;
-		d["ok"] = false;
-		d["code"] = (p_code ? p_code: "error");
-		d["msg"] = (p_msg ? p_msg: "");
-		if (p_data) {
-			d["data"] = (*p_data);
-		}
-
-
-		// =====================================================
-		// [W10] diag event push
-		// =====================================================
-		void _diagPush(const char* p_code) {
-			if (!p_code) return;
-			ST_W10_DiagEvt_t& e = _diagEvt[_diagEvtHead];
-			e.ms = (uint32_t)millis();
-			memset(e.code, 0, sizeof(e.code));
-			strlcpy(e.code, p_code, sizeof(e.code));
-			_diagEvtHead = (uint8_t)((_diagEvtHead + 1) % G_W10_DIAG_EVT_MAX);
-			if (_diagEvtCount < G_W10_DIAG_EVT_MAX) _diagEvtCount++;
-		}
-
-		_sendJson(req, d, p_http);
+	// ------------------------------------------------------
+	// Standard Error Sender (code → http 매핑 버전)
+	// ------------------------------------------------------
+	void _sendErr(AsyncWebServerRequest* req,
+	              const char* code,
+	              const char* msg,
+	              ArduinoJson::JsonDocument* data = nullptr)
+	{
+	    int http = _httpFromCode(code);
+	
+	    ArduinoJson::JsonDocument doc;
+	    doc["ok"]   = false;
+	    doc["code"] = code ? code : "error";
+	    doc["msg"]  = msg  ? msg  : "";
+	
+	    if (data) {
+	        doc["data"] = *data;
+	    }
+	
+	    _sendJson(req, http, doc);
 	}
+
+	
+	// ------------------------------------------------------
+	// Diagnostics Event Push (ring buffer)
+	// ------------------------------------------------------
+	void _diagPush(const char* p_code)
+	{
+	    if (!p_code) return;
+	
+	    uint32_t now = millis();
+	
+	    _diagEvt[_diagEvtHead].ms = now;
+	    strncpy(_diagEvt[_diagEvtHead].code, p_code, sizeof(_diagEvt[_diagEvtHead].code) - 1);
+	    _diagEvt[_diagEvtHead].code[sizeof(_diagEvt[_diagEvtHead].code) - 1] = '\0';
+	
+	    _diagEvtHead = (_diagEvtHead + 1) % G_W10_DIAG_EVT_MAX;
+	}
+
 
 	// =====================================================
 	// Static response helper (non-API)
