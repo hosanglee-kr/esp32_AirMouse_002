@@ -17,6 +17,8 @@ static CL_W10_WebConfig     g_w10;
 
 static ST_W10_E10If_t g_w10E10If;
 
+static bool g_bootOkDone = false;
+
 // ---- W10-E10 bridge callbacks ----
 static bool _w10_getStatus(void* ctx, ST_E10_Status_t* out) {
     if (!ctx || !out) return false;
@@ -92,7 +94,6 @@ static bool _holdAtBoot(int p_pin, uint32_t p_ms) {
     return true;
 }
 
-static bool g_bootOkDone = false;
 
 void setup() {
     Serial.begin(115200);

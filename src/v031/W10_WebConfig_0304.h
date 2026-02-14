@@ -643,39 +643,39 @@ class CL_W10_WebConfig {
     // Common JSON response helper (API는 무조건 no-store)
     // =====================================================
 
-// -----------------------
-// SafeMode API Gate Policy
-// - SafeMode에서도 "복구에 필요한 기능"은 허용
-// - 나머지는 차단 (특히 HID 제어/프리젠터 기능)
-// -----------------------
-bool _isSafeMode() const {
-    return (_cfg && _cfg->isSafeMode());
-}
-
-bool _isApiAllowedInSafeMode(const char* p_uri) const {
-    if (!p_uri) return false;
-
-    // 항상 허용
-    if (strcmp(p_uri, "/api/status") == 0) return true;
-    if (strcmp(p_uri, "/api/keycodes") == 0) return true;
-    if (strcmp(p_uri, "/api/safeboot") == 0) return true;
-
-    // OTA + 복구
-    if (strcmp(p_uri, "/api/ota/status") == 0) return true;
-    if (strcmp(p_uri, "/api/ota") == 0) return true;
-    if (strcmp(p_uri, "/api/import") == 0) return true;
-    if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
-    if (strcmp(p_uri, "/api/reboot") == 0) return true;
-
-    // config는 SafeMode에서도 허용 (복구/변경 필요)
-    if (strcmp(p_uri, "/api/config/save") == 0) return true;
-    if (strcmp(p_uri, "/api/config/apply") == 0) return true;
-    if (strcmp(p_uri, "/api/config/export") == 0) return true;
-    if (strcmp(p_uri, "/api/export") == 0) return true;
-
-    // 그 외는 SafeMode에서는 막음
-    return false;
-}
+    // -----------------------
+    // SafeMode API Gate Policy
+    // - SafeMode에서도 "복구에 필요한 기능"은 허용
+    // - 나머지는 차단 (특히 HID 제어/프리젠터 기능)
+    // -----------------------
+    bool _isSafeMode() const {
+        return (_cfg && _cfg->isSafeMode());
+    }
+    
+    bool _isApiAllowedInSafeMode(const char* p_uri) const {
+        if (!p_uri) return false;
+    
+        // 항상 허용
+        if (strcmp(p_uri, "/api/status") == 0) return true;
+        if (strcmp(p_uri, "/api/keycodes") == 0) return true;
+        if (strcmp(p_uri, "/api/safeboot") == 0) return true;
+    
+        // OTA + 복구
+        if (strcmp(p_uri, "/api/ota/status") == 0) return true;
+        if (strcmp(p_uri, "/api/ota") == 0) return true;
+        if (strcmp(p_uri, "/api/import") == 0) return true;
+        if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
+        if (strcmp(p_uri, "/api/reboot") == 0) return true;
+    
+        // config는 SafeMode에서도 허용 (복구/변경 필요)
+        if (strcmp(p_uri, "/api/config/save") == 0) return true;
+        if (strcmp(p_uri, "/api/config/apply") == 0) return true;
+        if (strcmp(p_uri, "/api/config/export") == 0) return true;
+        if (strcmp(p_uri, "/api/export") == 0) return true;
+    
+        // 그 외는 SafeMode에서는 막음
+        return false;
+    }
 
     void _sendJson(AsyncWebServerRequest* req, JsonDocument& d, int p_code = 200) {
         String out;
@@ -774,156 +774,156 @@ bool _isApiAllowedInSafeMode(const char* p_uri) const {
     
     
 
-// =====================================================
-// Body Collector (fixed slots) - common for POST JSON APIs
-// - chunk 누적 후, 마지막에만 String으로 변환(1회)
-// - 에러 시 즉시 응답하고 slot 정리
-// =====================================================
-bool _collectBodyOrReply(AsyncWebServerRequest* req,
-                         uint8_t* data, size_t len,
-                         size_t index, size_t total,
-                         String& p_outBody) {
-    if (total > G_W10_BODY_MAX) {
-        _cnt_body_too_large++;
-        JsonDocument data;
-        data["max"] = (uint32_t)G_W10_BODY_MAX;
-        data["total"] = (uint32_t)total;
-        _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
-        return false;
-    }
-
-    ST_W10_BodySlot* v_slot = _bodyGetSlot(req, index);
-    if (!v_slot) {
-        _cnt_body_no_slot++;
-        _sendErr(req, 503, "no_body_slot", "Server is busy. Try again.");
-        return false;
-    }
-
-    if ((v_slot->len + len) > G_W10_BODY_MAX) {
-        _cnt_body_too_large++;
-        JsonDocument data;
-        data["max"] = (uint32_t)G_W10_BODY_MAX;
-        data["total"] = (uint32_t)total;
+    // =====================================================
+    // Body Collector (fixed slots) - common for POST JSON APIs
+    // - chunk 누적 후, 마지막에만 String으로 변환(1회)
+    // - 에러 시 즉시 응답하고 slot 정리
+    // =====================================================
+    bool _collectBodyOrReply(AsyncWebServerRequest* req,
+                             uint8_t* data, size_t len,
+                             size_t index, size_t total,
+                             String& p_outBody) {
+        if (total > G_W10_BODY_MAX) {
+            _cnt_body_too_large++;
+            JsonDocument data;
+            data["max"] = (uint32_t)G_W10_BODY_MAX;
+            data["total"] = (uint32_t)total;
+            _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
+            return false;
+        }
+    
+        ST_W10_BodySlot* v_slot = _bodyGetSlot(req, index);
+        if (!v_slot) {
+            _cnt_body_no_slot++;
+            _sendErr(req, 503, "no_body_slot", "Server is busy. Try again.");
+            return false;
+        }
+    
+        if ((v_slot->len + len) > G_W10_BODY_MAX) {
+            _cnt_body_too_large++;
+            JsonDocument data;
+            data["max"] = (uint32_t)G_W10_BODY_MAX;
+            data["total"] = (uint32_t)total;
+            _bodyFree(req);
+            _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
+            return false;
+        }
+    
+        memcpy((void*)(v_slot->buf + v_slot->len), (const void*)data, len);
+        v_slot->len += len;
+        v_slot->lastMs = millis();
+        v_slot->buf[v_slot->len] = '\0';
+    
+        // 아직 전체 바디를 못 모았으면, 여기서 종료(응답 없음)
+        if (index + len < total) return false;
+    
+        // complete
+        p_outBody = String(v_slot->buf);
         _bodyFree(req);
-        _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
-        return false;
+        return true;
     }
-
-    memcpy((void*)(v_slot->buf + v_slot->len), (const void*)data, len);
-    v_slot->len += len;
-    v_slot->lastMs = millis();
-    v_slot->buf[v_slot->len] = '\0';
-
-    // 아직 전체 바디를 못 모았으면, 여기서 종료(응답 없음)
-    if (index + len < total) return false;
-
-    // complete
-    p_outBody = String(v_slot->buf);
-    _bodyFree(req);
-    return true;
-}
-
-
-// =====================================================
-// reboot reason helpers
-// =====================================================
-uint32_t _wifiDiffMask(const ST_C10_WiFiConfig_t& a, const ST_C10_WiFiConfig_t& b) {
-    uint32_t m = 0;
-    if (a.mode != b.mode) m |= G_W10_REBOOT_WIFI_MODE;
-    if (strncmp(a.sta_ssid, b.sta_ssid, sizeof(a.sta_ssid)) != 0 ||
-        strncmp(a.sta_pass, b.sta_pass, sizeof(a.sta_pass)) != 0) {
-        m |= G_W10_REBOOT_WIFI_STA;
+    
+    
+    // =====================================================
+    // reboot reason helpers
+    // =====================================================
+    uint32_t _wifiDiffMask(const ST_C10_WiFiConfig_t& a, const ST_C10_WiFiConfig_t& b) {
+        uint32_t m = 0;
+        if (a.mode != b.mode) m |= G_W10_REBOOT_WIFI_MODE;
+        if (strncmp(a.sta_ssid, b.sta_ssid, sizeof(a.sta_ssid)) != 0 ||
+            strncmp(a.sta_pass, b.sta_pass, sizeof(a.sta_pass)) != 0) {
+            m |= G_W10_REBOOT_WIFI_STA;
+        }
+        if (strncmp(a.ap_ssid, b.ap_ssid, sizeof(a.ap_ssid)) != 0 ||
+            strncmp(a.ap_pass, b.ap_pass, sizeof(a.ap_pass)) != 0) {
+            m |= G_W10_REBOOT_WIFI_AP;
+        }
+        if (strncmp(a.mdns_host, b.mdns_host, sizeof(a.mdns_host)) != 0) {
+            m |= G_W10_REBOOT_WIFI_MDNS;
+        }
+        return m;
     }
-    if (strncmp(a.ap_ssid, b.ap_ssid, sizeof(a.ap_ssid)) != 0 ||
-        strncmp(a.ap_pass, b.ap_pass, sizeof(a.ap_pass)) != 0) {
-        m |= G_W10_REBOOT_WIFI_AP;
+    
+    void _markNeedReboot(uint32_t reasonMask) {
+        _needReboot = true;
+        _needRebootMask |= (reasonMask ? reasonMask : G_W10_REBOOT_OTHER);
     }
-    if (strncmp(a.mdns_host, b.mdns_host, sizeof(a.mdns_host)) != 0) {
-        m |= G_W10_REBOOT_WIFI_MDNS;
+    
+    // (STEP17) 마지막 설정 적용 결과 기록
+    void _markLastApply(bool ok, const char* src, const char* code) {
+        _lastApplyOk = ok;
+        _lastApplyMs = (uint32_t)millis();
+        if (src) {
+            strlcpy(_lastApplySrc, src, sizeof(_lastApplySrc));
+        } else {
+            _lastApplySrc[0] = '\0';
+        }
+        if (code) {
+            strlcpy(_lastApplyCode, code, sizeof(_lastApplyCode));
+        } else {
+            _lastApplyCode[0] = '\0';
+        }
     }
-    return m;
-}
-
-void _markNeedReboot(uint32_t reasonMask) {
-    _needReboot = true;
-    _needRebootMask |= (reasonMask ? reasonMask : G_W10_REBOOT_OTHER);
-}
-
-// (STEP17) 마지막 설정 적용 결과 기록
-void _markLastApply(bool ok, const char* src, const char* code) {
-    _lastApplyOk = ok;
-    _lastApplyMs = (uint32_t)millis();
-    if (src) {
-        strlcpy(_lastApplySrc, src, sizeof(_lastApplySrc));
-    } else {
-        _lastApplySrc[0] = '\0';
+    
+    String _rebootReasonsString(uint32_t m) {
+        String s;
+        auto add = [&](const char* t) {
+            if (!s.isEmpty()) s += ",";
+            s += t;
+        };
+        if (m & G_W10_REBOOT_WIFI_MODE) add("wifi_mode");
+        if (m & G_W10_REBOOT_WIFI_STA)  add("wifi_sta");
+        if (m & G_W10_REBOOT_WIFI_AP)   add("wifi_ap");
+        if (m & G_W10_REBOOT_WIFI_MDNS) add("mdns");
+        if (m & G_W10_REBOOT_OTHER)     add("other");
+        return s;
     }
-    if (code) {
-        strlcpy(_lastApplyCode, code, sizeof(_lastApplyCode));
-    } else {
-        _lastApplyCode[0] = '\0';
-    }
-}
-
-String _rebootReasonsString(uint32_t m) {
-    String s;
-    auto add = [&](const char* t) {
-        if (!s.isEmpty()) s += ",";
-        s += t;
-    };
-    if (m & G_W10_REBOOT_WIFI_MODE) add("wifi_mode");
-    if (m & G_W10_REBOOT_WIFI_STA)  add("wifi_sta");
-    if (m & G_W10_REBOOT_WIFI_AP)   add("wifi_ap");
-    if (m & G_W10_REBOOT_WIFI_MDNS) add("mdns");
-    if (m & G_W10_REBOOT_OTHER)     add("other");
-    return s;
-}
-// =====================================================
-// /api/config/save, /api/import 공통 처리
-// =====================================================
-void _apiConfigSaveImportCommon(AsyncWebServerRequest* req,
-                               uint8_t* data, size_t len,
-                               size_t index, size_t total,
-                               const char* p_note,
-                               bool p_applyAfterSave) {
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-    // 변경 감지를 위해 이전 WiFi snapshot 저장
-    ST_C10_WiFiConfig_t v_prevWiFi = _wifi;
-
-    bool v_saved = false;
-    bool v_applied = false;
-
-    bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_applied));
-
-    // 저장 성공 시: 최신 config를 다시 로드하여 변경 감지
-    if (v_ok && v_saved && _cfg) {
-        (void)_cfg->loadAll(_wifi, _e10);
-        uint32_t v_m = _wifiDiffMask(v_prevWiFi, _wifi);
-        if (v_m != 0) {
-            _markNeedReboot(v_m);
+    // =====================================================
+    // /api/config/save, /api/import 공통 처리
+    // =====================================================
+    void _apiConfigSaveImportCommon(AsyncWebServerRequest* req,
+                                   uint8_t* data, size_t len,
+                                   size_t index, size_t total,
+                                   const char* p_note,
+                                   bool p_applyAfterSave) {
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+    
+        // 변경 감지를 위해 이전 WiFi snapshot 저장
+        ST_C10_WiFiConfig_t v_prevWiFi = _wifi;
+    
+        bool v_saved = false;
+        bool v_applied = false;
+    
+        bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_applied));
+    
+        // 저장 성공 시: 최신 config를 다시 로드하여 변경 감지
+        if (v_ok && v_saved && _cfg) {
+            (void)_cfg->loadAll(_wifi, _e10);
+            uint32_t v_m = _wifiDiffMask(v_prevWiFi, _wifi);
+            if (v_m != 0) {
+                _markNeedReboot(v_m);
+            }
+        }
+    
+        if (v_ok && v_saved && p_applyAfterSave && _applyFn) {
+            v_applied = _applyFn(_applyCtx);
+        }
+    
+        JsonDocument data;
+        data["saved"] = v_saved;
+        data["applied"] = v_applied;
+        data["note"] = (p_note ? p_note : "");
+        if (v_ok) {
+            _markLastApply(true, p_note ? p_note : "save", "config_save");
+            _sendOk(req, "config_save", "", &data, 200);
+        } else {
+            _markLastApply(false, p_note ? p_note : "save", "config_save_failed");
+            _sendErr(req, 400, "config_save_failed", "Save/import failed.", &data);
         }
     }
 
-    if (v_ok && v_saved && p_applyAfterSave && _applyFn) {
-        v_applied = _applyFn(_applyCtx);
-    }
-
-    JsonDocument data;
-    data["saved"] = v_saved;
-    data["applied"] = v_applied;
-    data["note"] = (p_note ? p_note : "");
-    if (v_ok) {
-        _markLastApply(true, p_note ? p_note : "save", "config_save");
-        _sendOk(req, "config_save", "", &data, 200);
-    } else {
-        _markLastApply(false, p_note ? p_note : "save", "config_save_failed");
-        _sendErr(req, 400, "config_save_failed", "Save/import failed.", &data);
-    }
-}
-
-void _fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
+    void _fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
         e["ble_connected"] = s.ble_connected;
         e["ppt_mode"]      = s.ppt_mode;
         e["dpi_level"]     = s.dpi_level;
@@ -1389,45 +1389,76 @@ void _fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
     // /api/config
     // =====================================================
     
-void apiGetConfig(AsyncWebServerRequest* req) {
-    // (STEP12) Optional envelope response selector
-    // - default: raw JSON (backward compatible)
-    // - envelope=1 / Accept: application/vnd.snw.envelope+json / envelope=auto
-    const bool v_envelope = _wantsEnvelope(req);
-
-    // ETag (config file hash) 지원: UI 캐시/갱신 안정화
-    uint32_t v_etag = 0;
-    size_t   v_size = 0;
-    bool     v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
-
-    if (v_hasEtag) {
-        // If-None-Match 지원 (간단 비교)
-        if (req->hasHeader("If-None-Match")) {
-            AsyncWebHeader* h = req->getHeader("If-None-Match");
-            if (h) {
-                String v_inm = h->value();
-                char   v_tag[16];
-                snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-                if (v_inm == String(v_tag)) {
-                    AsyncWebServerResponse* res304 = req->beginResponse(304);
-                    res304->addHeader("ETag", v_tag);
-                    res304->addHeader("Cache-Control", G_W10_CACHE_NOCACHE);
-                    req->send(res304);
-                    return;
+    void apiGetConfig(AsyncWebServerRequest* req) {
+        // (STEP12) Optional envelope response selector
+        // - default: raw JSON (backward compatible)
+        // - envelope=1 / Accept: application/vnd.snw.envelope+json / envelope=auto
+        const bool v_envelope = _wantsEnvelope(req);
+    
+        // ETag (config file hash) 지원: UI 캐시/갱신 안정화
+        uint32_t v_etag = 0;
+        size_t   v_size = 0;
+        bool     v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
+    
+        if (v_hasEtag) {
+            // If-None-Match 지원 (간단 비교)
+            if (req->hasHeader("If-None-Match")) {
+                AsyncWebHeader* h = req->getHeader("If-None-Match");
+                if (h) {
+                    String v_inm = h->value();
+                    char   v_tag[16];
+                    snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
+                    if (v_inm == String(v_tag)) {
+                        AsyncWebServerResponse* res304 = req->beginResponse(304);
+                        res304->addHeader("ETag", v_tag);
+                        res304->addHeader("Cache-Control", G_W10_CACHE_NOCACHE);
+                        req->send(res304);
+                        return;
+                    }
                 }
             }
         }
-    }
-
-    String json;
-    if (!_cfg || !_cfg->exportJson(json)) {
-        _sendErr(req, 500, "config_get_failed", "Failed to export config.");
-        return;
-    }
-
-    // (STEP11) envelope response uses stream to avoid double-encoding huge JSON
-    if (v_envelope) {
-        AsyncResponseStream* res = req->beginResponseStream("application/json");
+    
+        String json;
+        if (!_cfg || !_cfg->exportJson(json)) {
+            _sendErr(req, 500, "config_get_failed", "Failed to export config.");
+            return;
+        }
+    
+        // (STEP11) envelope response uses stream to avoid double-encoding huge JSON
+        if (v_envelope) {
+            AsyncResponseStream* res = req->beginResponseStream("application/json");
+            res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+            if (v_hasEtag) {
+                char v_tag[16];
+                snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
+                res->addHeader("ETag", v_tag);
+                res->addHeader("X-Config-Size", String((unsigned int)v_size));
+            }
+    
+            // { ok, code, msg, data:{ etag, size, config:<raw> } }
+            res->print("{\"ok\":true,\"code\":\"config_get\",\"msg\":\"\",\"data\":{");
+    
+            if (v_hasEtag) {
+                char v_tag2[16];
+                snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
+                res->print("\"etag\":\"");
+                res->print(v_tag2);
+                res->print("\",");
+                res->print("\"size\":");
+                res->print((unsigned int)v_size);
+                res->print(",");
+            }
+    
+            res->print("\"config\":");
+            res->print(json);
+            res->print("}}");
+            req->send(res);
+            return;
+        }
+    
+        // default: raw JSON response (backward compatible)
+        AsyncWebServerResponse* res = req->beginResponse(200, "application/json", json);
         res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
         if (v_hasEtag) {
             char v_tag[16];
@@ -1435,79 +1466,48 @@ void apiGetConfig(AsyncWebServerRequest* req) {
             res->addHeader("ETag", v_tag);
             res->addHeader("X-Config-Size", String((unsigned int)v_size));
         }
-
-        // { ok, code, msg, data:{ etag, size, config:<raw> } }
-        res->print("{\"ok\":true,\"code\":\"config_get\",\"msg\":\"\",\"data\":{");
-
-        if (v_hasEtag) {
-            char v_tag2[16];
-            snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
-            res->print("\"etag\":\"");
-            res->print(v_tag2);
-            res->print("\",");
-            res->print("\"size\":");
-            res->print((unsigned int)v_size);
-            res->print(",");
-        }
-
-        res->print("\"config\":");
-        res->print(json);
-        res->print("}}");
         req->send(res);
-        return;
     }
-
-    // default: raw JSON response (backward compatible)
-    AsyncWebServerResponse* res = req->beginResponse(200, "application/json", json);
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-    if (v_hasEtag) {
-        char v_tag[16];
-        snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)v_size));
-    }
-    req->send(res);
-}
 
 
     
-void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    _apiConfigSaveImportCommon(req, data, len, index, total,
-                               "WiFi changes require reboot.",
-                               true);
-}
+    void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        _apiConfigSaveImportCommon(req, data, len, index, total,
+                                   "WiFi changes require reboot.",
+                                   true);
+    }
 
     
-void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-    bool v_ok      = true;
-    bool v_applied = false;
-
-    if (!_cfg) {
-        v_ok = false;
-    } else {
-        ST_C10_E10Config_t v_e;
-        v_ok = _cfg->buildPatchedE10(v_body, v_e, true);
-
-        ST_W10_E10If_t* v_e10if = (ST_W10_E10If_t*)_applyCtx;
-        if (v_ok && v_e10if && v_e10if->applyRuntimeE10) {
-            v_applied = v_e10if->applyRuntimeE10(v_e10if->ctx, &v_e);
+    void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+    
+        bool v_ok      = true;
+        bool v_applied = false;
+    
+        if (!_cfg) {
+            v_ok = false;
+        } else {
+            ST_C10_E10Config_t v_e;
+            v_ok = _cfg->buildPatchedE10(v_body, v_e, true);
+    
+            ST_W10_E10If_t* v_e10if = (ST_W10_E10If_t*)_applyCtx;
+            if (v_ok && v_e10if && v_e10if->applyRuntimeE10) {
+                v_applied = v_e10if->applyRuntimeE10(v_e10if->ctx, &v_e);
+            }
+        }
+    
+        JsonDocument data;
+        data["applied"] = v_applied;
+        data["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
+        if (v_ok) {
+            _markLastApply(true, "apply", "config_apply");
+            _sendOk(req, "config_apply", "", &data, 200);
+        } else {
+            _markLastApply(false, "apply", "config_apply_failed");
+            _sendErr(req, 400, "config_apply_failed", "Apply failed.", &data);
         }
     }
-
-    JsonDocument data;
-    data["applied"] = v_applied;
-    data["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
-    if (v_ok) {
-        _markLastApply(true, "apply", "config_apply");
-        _sendOk(req, "config_apply", "", &data, 200);
-    } else {
-        _markLastApply(false, "apply", "config_apply_failed");
-        _sendErr(req, 400, "config_apply_failed", "Apply failed.", &data);
-    }
-}
 
     void apiExport(AsyncWebServerRequest* req) {
         // (STEP12) export supports raw/envelope and attachment toggle
@@ -1640,11 +1640,11 @@ void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_
     }
 
     
-void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    _apiConfigSaveImportCommon(req, data, len, index, total,
-                               "import: saved and applied (runtime). WiFi changes require reboot.",
-                               true);
-}
+    void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        _apiConfigSaveImportCommon(req, data, len, index, total,
+                                   "import: saved and applied (runtime). WiFi changes require reboot.",
+                                   true);
+    }
 
     void apiRollback(AsyncWebServerRequest* req) {
         bool ok      = (_cfg && _cfg->rollbackFromBak());
@@ -1667,21 +1667,21 @@ void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t ind
     // =====================================================
     void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
-if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-            _cnt_safe_blocked++;
-            _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
-            return;
+        if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
+                    _cnt_safe_blocked++;
+                    _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+                    return;
+                }
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+        
+        JsonDocument         d;
+        DeserializationError err = deserializeJson(d, v_body);
+        if (err) {
+                    _cnt_json_bad++;
+                    _sendErr(req, 400, "bad_json", "Invalid JSON.");
+                    return;
         }
-String v_body;
-if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-JsonDocument         d;
-DeserializationError err = deserializeJson(d, v_body);
-if (err) {
-            _cnt_json_bad++;
-            _sendErr(req, 400, "bad_json", "Invalid JSON.");
-            return;
-}
 
 
         ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
@@ -1811,21 +1811,21 @@ if (err) {
 
     void apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
-if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-            _cnt_safe_blocked++;
-            _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
-            return;
+        if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
+                    _cnt_safe_blocked++;
+                    _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+                    return;
+                }
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+        
+        JsonDocument         d;
+        DeserializationError err = deserializeJson(d, v_body);
+        if (err) {
+                    _cnt_json_bad++;
+                    _sendErr(req, 400, "bad_json", "Invalid JSON.");
+                    return;
         }
-String v_body;
-if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-JsonDocument         d;
-DeserializationError err = deserializeJson(d, v_body);
-if (err) {
-            _cnt_json_bad++;
-            _sendErr(req, 400, "bad_json", "Invalid JSON.");
-            return;
-}
 
 
         bool save = true;
@@ -1894,21 +1894,21 @@ if (err) {
 
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
-if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-            _cnt_safe_blocked++;
-            _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
-            return;
+        if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
+                    _cnt_safe_blocked++;
+                    _sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+                    return;
+                }
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+        
+        JsonDocument         d;
+        DeserializationError err = deserializeJson(d, v_body);
+        if (err) {
+                    _cnt_json_bad++;
+                    _sendErr(req, 400, "bad_json", "Invalid JSON.");
+                    return;
         }
-String v_body;
-if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-JsonDocument         d;
-DeserializationError err = deserializeJson(d, v_body);
-if (err) {
-            _cnt_json_bad++;
-            _sendErr(req, 400, "bad_json", "Invalid JSON.");
-            return;
-}
 
 
         uint8_t  page = (uint8_t)EN_C10_KEYPAGE_KB;
@@ -1934,25 +1934,25 @@ if (err) {
     // =====================================================
     void apiOtaUpload(AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
 
-// OTA Guard: E10 status 기반으로 OTA 차단 가능 (SafeMode에서는 항상 허용)
-if (!_isSafeMode()) {
-    ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
-    if (e10if && e10if->getStatus) {
-        ST_E10_Status_t s;
-        memset(&s, 0, sizeof(s));
-        if (e10if->getStatus(e10if->ctx, &s)) {
-            if (s.ota_guard) {
-                _cnt_ota_blocked++;
-                if (index == 0) {
-                    JsonDocument data;
-                    data["reason"] = "ota_guard";
-                    _sendErr(req, 403, "ota_guard_blocked", "OTA upload is blocked by guard.", &data);
+        // OTA Guard: E10 status 기반으로 OTA 차단 가능 (SafeMode에서는 항상 허용)
+        if (!_isSafeMode()) {
+            ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+            if (e10if && e10if->getStatus) {
+                ST_E10_Status_t s;
+                memset(&s, 0, sizeof(s));
+                if (e10if->getStatus(e10if->ctx, &s)) {
+                    if (s.ota_guard) {
+                        _cnt_ota_blocked++;
+                        if (index == 0) {
+                            JsonDocument data;
+                            data["reason"] = "ota_guard";
+                            _sendErr(req, 403, "ota_guard_blocked", "OTA upload is blocked by guard.", &data);
+                        }
+                        return;
+                    }
                 }
-                return;
             }
         }
-    }
-}
 
         (void)filename;
 
@@ -2035,16 +2035,16 @@ if (!_isSafeMode()) {
     }
 
     void apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-String v_body;
-if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-JsonDocument         d;
-DeserializationError err = deserializeJson(d, v_body);
-if (err) {
-            _cnt_json_bad++;
-            _sendErr(req, 400, "bad_json", "Invalid JSON.");
-            return;
-}
+        String v_body;
+        if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+        
+        JsonDocument         d;
+        DeserializationError err = deserializeJson(d, v_body);
+        if (err) {
+                    _cnt_json_bad++;
+                    _sendErr(req, 400, "bad_json", "Invalid JSON.");
+                    return;
+        }
 
     
         bool v_exit = false;
