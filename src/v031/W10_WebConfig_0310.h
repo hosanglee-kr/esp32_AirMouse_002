@@ -1719,18 +1719,6 @@ class CL_W10_WebConfig {
                 } else {
                     ok = ok && (e10if && e10if->setPrecisionMode ? e10if->setPrecisionMode(e10if->ctx, v_mode) : false);
                 }
-                
-            /*
-            } else if (strcmp(v_cmd, "set_precision") == 0) {
-                
-                uint8_t v_mode = 0;
-                // 1) mode 우선 (0이면 OFF, 그 외 ON)
-                if (!d["mode"].isNull()) {
-                    v_mode = (uint8_t)d["mode"];
-                }
-            
-                ok = ok && (e10if && e10if->setPrecisionMode ? e10if->setPrecisionMode(e10if->ctx, v_mode) : false);
-            */
 
             } else if (strcmp(v_cmd, "force_release") == 0) {
                 // SafeMode에서도 허용: 강제 릴리즈

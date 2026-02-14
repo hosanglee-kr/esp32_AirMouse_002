@@ -118,11 +118,11 @@ struct ST_E10_PrecProfile_t {
 };
 
 static constexpr ST_E10_PrecProfile_t G_E10_PREC_PROFILES[] = {
-    /* OFF  */ {1.00f,   0, 0.0f},
-    /* LOW  */ {0.85f,  64, 0.0f},
-    /* MED  */ {0.70f, 128, 0.0f},
-    /* HIGH */ {0.55f, 180, 0.0f},
-    /* PPT  */ {0.45f, 210, 1.5f},
+    {1.00f,   0, 0.0f},  // OFF
+    {0.85f,  64, 0.0f},  // LOW
+    {0.70f, 128, 0.0f},  // MED
+    {0.55f, 180, 0.0f},  // HIGH
+    {0.45f, 210, 1.5f},  // PPT
 };
 
 
@@ -160,8 +160,6 @@ struct ST_E10_Status_t {
     
 
     uint8_t precision_mode; //
-    // bool    precision_enable;
-    // bool    precision_mode;
     
     uint8_t fsm_state; // 디버깅용
     uint8_t fsm_sub;   // precision substate

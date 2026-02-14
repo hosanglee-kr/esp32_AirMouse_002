@@ -1632,7 +1632,7 @@ class CL_E10_EliteAirMouse {
                     _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
                 }
             }
-vTaskDelay(pdMS_TO_TICKS(7));
+            vTaskDelay(pdMS_TO_TICKS(7));
         }
     }
 

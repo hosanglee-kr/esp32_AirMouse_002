@@ -43,7 +43,6 @@ class CL_C10_Config {
             }
         }
 
-
         // fail threshold 도달 시 safe mode
         if (_boot.fail_count >= C10_DEF::SAFE_FAIL_THRESHOLD) {
             _boot.safe_mode = true;
