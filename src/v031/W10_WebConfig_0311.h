@@ -791,9 +791,9 @@ class CL_W10_WebConfig {
 		return 500;
 	}
 
-	// void _sendErr(AsyncWebServerRequest* req, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
-	//	_sendErr(req, _httpFromCode(p_code), p_code, p_msg, p_data);
-	// }
+	void _sendErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
+		_sendErr(req, p_code, p_msg, p_data);
+	}
 
 	// ------------------------------------------------------
 	// Standard Error Sender (code → http 매핑 버전)
