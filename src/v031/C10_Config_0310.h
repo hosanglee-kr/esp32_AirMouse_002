@@ -1,5 +1,5 @@
 // =======================================================
-// File: src/v010/C10_Config_0304.h
+// File: src/v010/C10_Config_0310.h
 // =======================================================
 #pragma once
 /*
@@ -14,7 +14,7 @@
 #include <strings.h>
 #include <esp_system.h> // esp_reset_reason()
 
-#include "C10_Def_0303.h"
+#include "C10_Def_0310.h"
 
 class CL_C10_Config {
   private:

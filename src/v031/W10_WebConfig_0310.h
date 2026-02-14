@@ -1,11 +1,11 @@
 // =======================================================
-// File: W10_WebConfig_0304.h
+// File: W10_WebConfig_0310.h
 // =======================================================
 #pragma once
 
 /*
  * ------------------------------------------------------
- * 소스명 : W10_WebConfig_0304.h
+ * 소스명 : W10_WebConfig_0310.h
  * 모듈약어 : W10
  * 모듈명 : Web Config/Status/UI/OTA Server (Dynamic Static Routing, No Asset Table)
  * ------------------------------------------------------
@@ -61,9 +61,9 @@
 #include <Update.h>
 #include <string.h>
 
-#include "C10_Config_0304.h"
-#include "E10_Def_0302.h"
-#include "W10_Def_0301.h"
+#include "C10_Config_0310.h"
+#include "E10_Def_0310.h"
+#include "W10_Def_0310.h"
 
 
 // =======================================================
@@ -291,11 +291,11 @@ class CL_W10_WebConfig {
             HTTP_POST,
             [this](AsyncWebServerRequest* req) {
                                 // 업로드 완료 후 응답 (C schema)
-                JsonDocument data;
-                data["written"] = (uint32_t)_otaWritten;
-                data["total"]   = (uint32_t)_otaTotal;
-                if (_otaOk) _sendOk(req, "ota", "ok", &data, 200);
-                else        _sendErr(req, 500, "ota_failed", _otaErr.c_str(), &data);
+                JsonDocument v_doc;
+                v_doc["written"] = (uint32_t)_otaWritten;
+                v_doc["total"]   = (uint32_t)_otaTotal;
+                if (_otaOk) _sendOk(req, "ota", "ok", &v_doc, 200);
+                else        _sendErr(req, 500, "ota_failed", _otaErr, &v_doc);
 
                 if (_otaOk) {
                     delay(200);
@@ -785,10 +785,10 @@ class CL_W10_WebConfig {
                              String& p_outBody) {
         if (total > G_W10_BODY_MAX) {
             _cnt_body_too_large++;
-            JsonDocument data;
-            data["max"] = (uint32_t)G_W10_BODY_MAX;
-            data["total"] = (uint32_t)total;
-            _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
+            JsonDocument v_doc;
+            v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
+            v_doc["total"] = (uint32_t)total;
+            _sendErr(req, 413, "body_too_large", "Request body too large.", &v_doc);
             return false;
         }
     
@@ -801,11 +801,11 @@ class CL_W10_WebConfig {
     
         if ((v_slot->len + len) > G_W10_BODY_MAX) {
             _cnt_body_too_large++;
-            JsonDocument data;
-            data["max"] = (uint32_t)G_W10_BODY_MAX;
-            data["total"] = (uint32_t)total;
+            JsonDocument v_doc;
+            v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
+            v_doc["total"] = (uint32_t)total;
             _bodyFree(req);
-            _sendErr(req, 413, "body_too_large", "Request body too large.", &data);
+            _sendErr(req, 413, "body_too_large", "Request body too large.", &v_doc);
             return false;
         }
     
@@ -910,16 +910,16 @@ class CL_W10_WebConfig {
             v_applied = _applyFn(_applyCtx);
         }
     
-        JsonDocument data;
-        data["saved"] = v_saved;
-        data["applied"] = v_applied;
-        data["note"] = (p_note ? p_note : "");
+        JsonDocument v_doc;
+        v_doc["saved"] = v_saved;
+        v_doc["applied"] = v_applied;
+        v_doc["note"] = (p_note ? p_note : "");
         if (v_ok) {
             _markLastApply(true, p_note ? p_note : "save", "config_save");
-            _sendOk(req, "config_save", "", &data, 200);
+            _sendOk(req, "config_save", "", &v_doc, 200);
         } else {
             _markLastApply(false, p_note ? p_note : "save", "config_save_failed");
-            _sendErr(req, 400, "config_save_failed", "Save/import failed.", &data);
+            _sendErr(req, 400, "config_save_failed", "Save/import failed.", &v_doc);
         }
     }
 
@@ -1497,15 +1497,15 @@ class CL_W10_WebConfig {
             }
         }
     
-        JsonDocument data;
-        data["applied"] = v_applied;
-        data["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
+        JsonDocument v_doc;
+        v_doc["applied"] = v_applied;
+        v_doc["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
         if (v_ok) {
             _markLastApply(true, "apply", "config_apply");
-            _sendOk(req, "config_apply", "", &data, 200);
+            _sendOk(req, "config_apply", "", &v_doc, 200);
         } else {
             _markLastApply(false, "apply", "config_apply_failed");
-            _sendErr(req, 400, "config_apply_failed", "Apply failed.", &data);
+            _sendErr(req, 400, "config_apply_failed", "Apply failed.", &v_doc);
         }
     }
 
