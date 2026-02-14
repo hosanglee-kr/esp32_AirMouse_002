@@ -1083,7 +1083,7 @@ class CL_W10_WebConfig {
             pol["reboot_required"]       = _needReboot;
             pol["reboot_reason_mask"]    = (uint32_t)_needRebootMask;
             pol["reboot_reasons"]        = _rebootReasonsString(_needRebootMask);
-            pol["reboot_reason_detail"]  = _rebootReasonsDetail(_needRebootMask, _needReboot);
+           
             pol["safe_mode_api_limited"] = bs.safe_mode;
             pol["ota_upload_blocked"]    = v_otaGuard;
 
@@ -1135,7 +1135,7 @@ class CL_W10_WebConfig {
                 gPol["reboot_required"]       = pol["reboot_required"];
                 gPol["reboot_reason_mask"]    = pol["reboot_reason_mask"];
                 gPol["reboot_reasons"]        = pol["reboot_reasons"];
-                gPol["reboot_reason_detail"]  = pol["reboot_reason_detail"];
+              
                 gPol["safe_mode_api_limited"] = pol["safe_mode_api_limited"];
                 gPol["ota_upload_blocked"]    = pol["ota_upload_blocked"];
 
