@@ -1520,7 +1520,7 @@ class CL_W10_WebConfig {
         bool v_pretty = false;
         if (req && req->hasParam("pretty")) {
             AsyncWebParameter* p = req->getParam("pretty");
-            if (p && p->value() == \"1\") v_pretty = true;
+            if (p && p->value() == "1") v_pretty = true;
         }
         if (req && req->hasParam("format")) {
             AsyncWebParameter* p = req->getParam("format");
