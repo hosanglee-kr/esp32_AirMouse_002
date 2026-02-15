@@ -344,7 +344,7 @@ class CL_W10_WebConfig {
 				v_doc["written"] = (uint32_t)_otaWritten;
 				v_doc["total"] = (uint32_t)_otaTotal;
 				if (_otaOk) _sendOk(req, "ota", "ok", &v_doc, 200);
-				else _sendErr(req, 500, "ota_failed", _otaErr, &v_doc);
+				else _sendErr(req, "ota_failed", _otaErr, &v_doc);
 
 				if (_otaOk) {
 					delay(200);
@@ -913,7 +913,7 @@ class CL_W10_WebConfig {
 			JsonDocument v_doc;
 			v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
 			v_doc["total"] = (uint32_t)total;
-			_sendErr(req, 413, "body_too_large", "Request body too large.", &v_doc);
+			_sendErr(req, "body_too_large", "Request body too large.", &v_doc);
 			return false;
 		}
 
@@ -921,7 +921,7 @@ class CL_W10_WebConfig {
 		if (!v_slot) {
 			_cnt_body_no_slot++;
 			_diagPush("no_body_slot");
-			_sendErr(req, 503, "no_body_slot", "Server is busy. Try again.");
+			_sendErr(req, "no_body_slot", "Server is busy. Try again.");
 			return false;
 		}
 
@@ -932,7 +932,7 @@ class CL_W10_WebConfig {
 			v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
 			v_doc["total"] = (uint32_t)total;
 			_bodyFree(req);
-			_sendErr(req, 413, "body_too_large", "Request body too large.", &v_doc);
+			_sendErr(req, "body_too_large", "Request body too large.", &v_doc);
 			return false;
 		}
 
@@ -1046,7 +1046,7 @@ class CL_W10_WebConfig {
 			_sendOk(req, "config_save", "", &v_doc, 200);
 		} else {
 			_markLastApply(false, p_note ? p_note: "save", "config_save_failed");
-			_sendErr(req, 400, "config_save_failed", "Save/import failed.", &v_doc);
+			_sendErr(req, "config_save_failed", "Save/import failed.", &v_doc);
 		}
 	}
 
@@ -1643,7 +1643,7 @@ class CL_W10_WebConfig {
 
 		String json;
 		if (!_cfg || !_cfg->exportJson(json)) {
-			_sendErr(req, 500, "config_get_failed", "Failed to export config.");
+			_sendErr(req, "config_get_failed", "Failed to export config.");
 			return;
 		}
 
@@ -1727,7 +1727,7 @@ class CL_W10_WebConfig {
 			_sendOk(req, "config_apply", "", &v_doc, 200);
 		} else {
 			_markLastApply(false, "apply", "config_apply_failed");
-			_sendErr(req, 400, "config_apply_failed", "Apply failed.", &v_doc);
+			_sendErr(req, "config_apply_failed", "Apply failed.", &v_doc);
 		}
 	}
 
@@ -1797,7 +1797,7 @@ class CL_W10_WebConfig {
 
 		String json;
 		if (!_cfg || !_cfg->exportJson(json)) {
-			_sendErr(req, 500, "config_export_failed", "Failed to export config.");
+			_sendErr(req, "config_export_failed", "Failed to export config.");
 			return;
 		}
 
@@ -1880,7 +1880,7 @@ class CL_W10_WebConfig {
 			_sendOk(req, "config_rollback", "", &v_doc, 200);
 		} else {
 			_markLastApply(false, "rollback", "config_rollback_failed");
-			_sendErr(req, 400, "config_rollback_failed", "Rollback failed.", &v_doc);
+			_sendErr(req, "config_rollback_failed", "Rollback failed.", &v_doc);
 		}
 	}
 
@@ -1892,7 +1892,7 @@ class CL_W10_WebConfig {
 		if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
 			_cnt_safe_blocked++;
 			_diagPush("safe_mode_blocked");
-			_sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+			_sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
 			return;
 		}
 		String v_body;
@@ -1903,7 +1903,7 @@ class CL_W10_WebConfig {
 		if (err) {
 			_cnt_json_bad++;
 			_diagPush("bad_json");
-			_sendErr(req, 400, "bad_json", "Invalid JSON.");
+			_sendErr(req, "bad_json", "Invalid JSON.");
 			return;
 		}
 
@@ -1992,7 +1992,7 @@ class CL_W10_WebConfig {
 			_fillE10Status(e, e10if);
 		}
 		if (ok) _sendOk(req, "control", "", &v_doc, 200);
-		else _sendErr(req, 400, "control_failed", "Control failed.", &v_doc);
+		else _sendErr(req, "control_failed", "Control failed.", &v_doc);
 	}
 
 	// =====================================================
@@ -2026,7 +2026,7 @@ class CL_W10_WebConfig {
 		if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
 			_cnt_safe_blocked++;
 			_diagPush("safe_mode_blocked");
-			_sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+			_sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
 			return;
 		}
 		String v_body;
@@ -2037,7 +2037,7 @@ class CL_W10_WebConfig {
 		if (err) {
 			_cnt_json_bad++;
 			_diagPush("bad_json");
-			_sendErr(req, 400, "bad_json", "Invalid JSON.");
+			_sendErr(req, "bad_json", "Invalid JSON.");
 			return;
 		}
 
@@ -2047,7 +2047,7 @@ class CL_W10_WebConfig {
 
 		JsonVariant map = d["map"];
 		if (map.isNull()) {
-			_sendErr(req, 400, "no_map", "Missing map field.");
+			_sendErr(req, "no_map", "Missing map field.");
 			return;
 		}
 
@@ -2103,7 +2103,7 @@ class CL_W10_WebConfig {
 		v_doc["saved"] = saved;
 		v_doc["applied"] = applied;
 		if (ok) _sendOk(req, "ppt_set", "", &v_doc, 200);
-		else _sendErr(req, 400, "ppt_set_failed", "Failed to update mapping.", &v_doc);
+		else _sendErr(req, "ppt_set_failed", "Failed to update mapping.", &v_doc);
 	}
 
 	void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
@@ -2111,7 +2111,7 @@ class CL_W10_WebConfig {
 		if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
 			_cnt_safe_blocked++;
 			_diagPush("safe_mode_blocked");
-			_sendErr(req, 403, "safe_mode_blocked", "Blocked in safe mode.");
+			_sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
 			return;
 		}
 		String v_body;
@@ -2122,7 +2122,7 @@ class CL_W10_WebConfig {
 		if (err) {
 			_cnt_json_bad++;
 			_diagPush("bad_json");
-			_sendErr(req, 400, "bad_json", "Invalid JSON.");
+			_sendErr(req, "bad_json", "Invalid JSON.");
 			return;
 		}
 
@@ -2142,7 +2142,7 @@ class CL_W10_WebConfig {
 		bool ok = (e10if && e10if->testPptKey2 ? e10if->testPptKey2(e10if->ctx, page, mod, code): false);
 
 		if (ok) _sendOk(req, "ppt_test", "", nullptr, 200);
-		else _sendErr(req, 500, "ppt_test_failed", "Test failed.");
+		else _sendErr(req, "ppt_test_failed", "Test failed.");
 	}
 
 	// =====================================================
@@ -2163,7 +2163,7 @@ class CL_W10_WebConfig {
 						if (index == 0) {
 							JsonDocument v_doc;
 							v_doc["reason"] = "ota_guard";
-							_sendErr(req, 403, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
+							_sendErr(req, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
 						}
 						return;
 					}
@@ -2248,7 +2248,7 @@ class CL_W10_WebConfig {
 			_sendOk(req, "safeboot", "", &v_doc, 200);
 			return;
 		}
-		_sendErr(req, 500, "no_config", "Config manager not ready.");
+		_sendErr(req, "no_config", "Config manager not ready.");
 	}
 
 	void apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
@@ -2260,7 +2260,7 @@ class CL_W10_WebConfig {
 		if (err) {
 			_cnt_json_bad++;
 			_diagPush("bad_json");
-			_sendErr(req, 400, "bad_json", "Invalid JSON.");
+			_sendErr(req, "bad_json", "Invalid JSON.");
 			return;
 		}
 
@@ -2277,7 +2277,7 @@ class CL_W10_WebConfig {
 		v_doc["exit"] = v_exit;
 		v_doc["note"] = "exit=true -> clears safe_mode and reboots.";
 		if (ok) _sendOk(req, "safeboot_exit", "", &v_doc, 200);
-		else _sendErr(req, 500, "safeboot_exit_failed", "Failed.", &v_doc);
+		else _sendErr(req, "safeboot_exit_failed", "Failed.", &v_doc);
 
 		if (ok && v_exit) {
 			delay(150);
@@ -2295,7 +2295,7 @@ class CL_W10_WebConfig {
 			_sendOk(req, "factory_reset", "", &v_doc, 200);
 		} else {
 			_markLastApply(false, "factory", "factory_reset_failed");
-			_sendErr(req, 500, "factory_reset_failed", "Failed.", &v_doc);
+			_sendErr(req, "factory_reset_failed", "Failed.", &v_doc);
 		}
 
 		if (ok) {
@@ -2331,7 +2331,7 @@ class CL_W10_WebConfig {
 			if (err) {
 				_cnt_json_bad++;
 				_diagPush("bad_json");
-				_sendErr(req, 400, "bad_json", "Invalid JSON.");
+				_sendErr(req, "bad_json", "Invalid JSON.");
 				return;
 			}
 
@@ -2354,7 +2354,7 @@ class CL_W10_WebConfig {
 				v_doc["need_reboot"] = _needReboot;
 				v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
 				v_doc["reboot_reasons"] = _rebootReasonsString(_needRebootMask);
-				_sendErr(req, 409, "no_reboot_needed", "Reboot is not required.", &v_doc);
+				_sendErr(req, "no_reboot_needed", "Reboot is not required.", &v_doc);
 				return;
 			}
 		}
@@ -2364,7 +2364,7 @@ class CL_W10_WebConfig {
 				JsonDocument v_doc;
 				v_doc["need_reboot"] = _needReboot;
 				v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
-				_sendErr(req, 409, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
+				_sendErr(req, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
 				return;
 			}
 		}
