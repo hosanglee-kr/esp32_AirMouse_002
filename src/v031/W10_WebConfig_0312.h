@@ -863,6 +863,30 @@ class CL_W10_WebConfig {
 	}
 
 	void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg) {
+	    if (!req) return;
+	
+	    // JSON 응답을 원하면: envelope는 유지하되 HTTP status는 p_http를 강제
+	    if (_wantsJson(req)) {
+	        JsonDocument doc;
+	        doc["ok"] = false;
+	        doc["code"] = (p_code ? p_code : "error");
+	        doc["msg"] = (p_msg ? p_msg : "error");
+	
+	        // (optional) static context
+	        JsonObject data = doc["data"].to<JsonObject>();
+	        data["http"] = (int)p_http;
+	        data["uri"] = req->url();
+	
+	        _sendJson(req, doc, p_http); // <-- 여기서 p_http 강제
+	        return;
+	    }
+	
+	    // 기본: text/plain (기존 정책)
+	    req->send(p_http, "text/plain", (p_msg ? p_msg : "error"));
+	}
+
+	/*
+	void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg) {
 		if (!req) return;
 		if (_wantsJson(req)) {
 			_sendErr(req, p_code, p_msg);
@@ -870,6 +894,7 @@ class CL_W10_WebConfig {
 		}
 		req->send(p_http, "text/plain", (p_msg ? p_msg: "error"));
 	}
+	*/
 
 	// (STEP12) Envelope selector helper
 	// - Query:
