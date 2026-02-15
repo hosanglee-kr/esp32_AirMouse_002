@@ -148,7 +148,7 @@ void setup() {
     g_w10E10If.clearDiagnostics    = _w10_clearDiagnostics;
     g_w10E10If.setOtaGuard     = _w10_setOtaGuard;
 
-    g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10, (void*)&g_w10E10If);
+    g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10, &g_w10E10If);
 
     D10_LOGI("[0274] started");
 
