@@ -1069,11 +1069,14 @@ class CL_W10_WebConfig {
 	// =====================================================
 	// /api/config/save, /api/import 공통 처리
 	// =====================================================
-	void _apiConfigSaveImportCommon(AsyncWebServerRequest* req,
+	void _apiConfigSaveImportCommon(
+		AsyncWebServerRequest* req,
 		uint8_t* data, size_t len,
 		size_t index, size_t total,
+		const char* p_src,
 		const char* p_note,
 		bool p_applyAfterSave) {
+			
 		String v_body;
 		if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
@@ -1101,14 +1104,16 @@ class CL_W10_WebConfig {
 		JsonDocument v_doc;
 		v_doc["saved"] = v_saved;
 		v_doc["applied"] = v_applied;
+		
 		v_doc["note"] = (p_note ? p_note: "");
 		if (v_ok) {
-			_markLastApply(true, p_note ? p_note: "save", "config_save");
-			_sendOk(req, "config_save", "", &v_doc, 200);
+		    _markLastApply(true, (p_src ? p_src : "save"), "config_save");
+		    _sendOk(req, "config_save", "", &v_doc, 200);
 		} else {
-			_markLastApply(false, p_note ? p_note: "save", "config_save_failed");
-			_sendErr(req, "config_save_failed", "Save/import failed.", &v_doc);
+		    _markLastApply(false, (p_src ? p_src : "save"), "config_save_failed");
+		    _sendErr(req, "config_save_failed", "Save/import failed.", &v_doc);
 		}
+
 	}
 
 	void _fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
@@ -1126,16 +1131,16 @@ class CL_W10_WebConfig {
 		// ---- gates (E10_Status_t 기반) ----
 		e["safe_mode"] = s.safe_mode;
 
-		JsonObject gate = e["gate"].to < JsonObject > ();
+		JsonObject gate = e["gate"].to<JsonObject>();
 		gate["ota_guard"] = s.ota_guard;
 		gate["ota_guard_count"] = (uint32_t)s.ota_guard_count;
 		gate["ota_guard_uptime_ms"] = (uint32_t)s.ota_guard_uptime_ms;
 
-		JsonObject h = e["health"].to < JsonObject > ();
+		JsonObject h = e["health"].to<JsonObject>();
 		h["state"] = s.health;
 		h["score"] = s.health_score;
 
-		JsonObject gyro = e["gyro"].to < JsonObject > ();
+		JsonObject gyro = e["gyro"].to<JsonObject>();
 		gyro["bias_x"] = s.gyro_bias_x;
 		gyro["bias_y"] = s.gyro_bias_y;
 		gyro["bias_z"] = s.gyro_bias_z;
@@ -1144,26 +1149,26 @@ class CL_W10_WebConfig {
 		e["cursor_rms"] = s.cursor_rms;
 		e["temp_c"] = s.temp_c;
 
-		JsonObject samp = e["sampling"].to < JsonObject > ();
+		JsonObject samp = e["sampling"].to<JsonObject>();
 		samp["ms_target"] = (uint32_t)s.sampling_ms_target;
 		samp["ms_avg"] = s.sampling_ms_avg;
 
-		JsonObject i2c = e["i2c"].to < JsonObject > ();
+		JsonObject i2c = e["i2c"].to<JsonObject>();
 		i2c["recover_count"] = (uint32_t)s.i2c_recover_count;
 		i2c["recover_last_ok"] = s.i2c_recover_last_ok;
 
-		JsonObject err = e["err"].to < JsonObject > ();
+		JsonObject err = e["err"].to<JsonObject>();
 		err["mpu_nan"] = (uint32_t)s.err_mpu_nan;
 		err["mutex_miss"] = (uint32_t)s.err_mutex_miss;
 		err["task_overrun"] = (uint32_t)s.err_task_overrun;
 
-		JsonObject an = e["anomaly"].to < JsonObject > ();
+		JsonObject an = e["anomaly"].to<JsonObject>();
 		an["spike_count_10s"] = (uint32_t)s.spike_count_10s;
 		an["consecutive_fail"] = (uint32_t)s.consecutive_fail;
 		an["consecutive_recover_fail"] = (uint32_t)s.consecutive_recover_fail;
 
 
-		JsonObject obs = e["obs"].to < JsonObject > ();
+		JsonObject obs = e["obs"].to<JsonObject>();
 		obs["task_stack_sensor_min_words"] = (uint32_t)s.task_stack_sensor_min_words;
 		obs["task_stack_comm_min_words"] = (uint32_t)s.task_stack_comm_min_words;
 		obs["sensor_dt_max_ms"] = s.sensor_dt_max_ms;
@@ -1220,30 +1225,30 @@ class CL_W10_WebConfig {
 		v_doc["api_ver"] = (uint16_t)G_W10_API_VER;
 
 		// grouped(UI-friendly)
-		JsonObject sys = v_doc["sys"].to < JsonObject > ();
+		JsonObject sys = v_doc["sys"].to<JsonObject>();
 		sys["uptime_ms"] = v_uptime;
 		sys["api_ver"] = (uint16_t)G_W10_API_VER;
 
-		JsonObject mem = v_doc["mem"].to < JsonObject > ();
+		JsonObject mem = v_doc["mem"].to<JsonObject>();
 		mem["heap_free"] = v_heapFree;
 		mem["heap_min_free"] = v_heapMin;
 		mem["heap_max_alloc"] = v_heapMaxA;
 
-		JsonObject feat = v_doc["features"].to < JsonObject > ();
+		JsonObject feat = v_doc["features"].to<JsonObject>();
 		feat["etag_config"] = true;
 		feat["reboot_api"] = true;
 		feat["safe_mode_policy"] = true;
 		feat["ota_guard"] = true;
 		feat["e10_observability"] = true;
 
-		JsonObject diag = v_doc["diag"].to < JsonObject > ();
+		JsonObject diag = v_doc["diag"].to<JsonObject>();
 		diag["body_too_large"] = (uint32_t)_cnt_body_too_large;
 		diag["body_no_slot"] = (uint32_t)_cnt_body_no_slot;
 		diag["json_bad"] = (uint32_t)_cnt_json_bad;
 		diag["safe_blocked"] = (uint32_t)_cnt_safe_blocked;
 		diag["ota_blocked"] = (uint32_t)_cnt_ota_blocked;
 
-		JsonObject net = v_doc["net"].to < JsonObject > ();
+		JsonObject net = v_doc["net"].to<JsonObject>();
 		net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP": "STA";
 		net["ip"] = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString(): WiFi.localIP().toString();
 		net["ssid"] = (WiFi.getMode() == WIFI_AP) ? String(_wifi.ap_ssid): WiFi.SSID();
@@ -1255,14 +1260,14 @@ class CL_W10_WebConfig {
 		if (e10if) {
 			ST_E10_Status_t s;
 			if (e10if->getStatus && e10if->getStatus(e10if->ctx, &s)) {
-				JsonObject e = v_doc["e10"].to < JsonObject > ();
+				JsonObject e = v_doc["e10"].to<JsonObject>();
 				_fillE10StatusFromSnapshot(e, s);
 				// policy 요약(배너용)
 				v_otaGuard = s.ota_guard;
 			}
 		}
 
-		JsonObject ota = v_doc["ota"].to < JsonObject > ();
+		JsonObject ota = v_doc["ota"].to<JsonObject>();
 		ota["in_progress"] = _otaInProgress;
 		ota["total"] = (uint32_t)_otaTotal;
 		ota["written"] = (uint32_t)_otaWritten;
@@ -1272,14 +1277,14 @@ class CL_W10_WebConfig {
 		if (_cfg) {
 			ST_C10_BootState_t bs;
 			_cfg->getBootState(bs);
-			JsonObject b = v_doc["boot"].to < JsonObject > ();
+			JsonObject b = v_doc["boot"].to<JsonObject>();
 			b["safe_mode"] = bs.safe_mode;
 			b["fail_count"] = bs.fail_count;
 			b["pending"] = bs.pending;
 			b["last_reset_reason"] = bs.last_reset_reason;
 
 			// 정책/배너 노출 (중복 제거: root.policy만 제공)
-			JsonObject pol = v_doc["policy"].to < JsonObject > ();
+			JsonObject pol = v_doc["policy"].to<JsonObject>();
 			pol["reboot_required"] = _needReboot;
 			pol["reboot_reason_mask"] = (uint32_t)_needRebootMask;
 			pol["reboot_reasons"] = _rebootReasonsString(_needRebootMask);
@@ -1290,7 +1295,7 @@ class CL_W10_WebConfig {
 			uint32_t v_etag = 0;
 			size_t v_cfgSize = 0;
 			bool v_etagOk = _cfg->getConfigEtag(v_etag, &v_cfgSize);
-			JsonObject cfg = v_doc["config"].to < JsonObject > ();
+			JsonObject cfg = v_doc["config"].to<JsonObject>();
 			cfg["ver"] = (uint16_t)G_C10_CFG_VER;
 			cfg["etag_ok"] = v_etagOk;
 			cfg["etag"] = (uint32_t)v_etag;
@@ -1304,31 +1309,31 @@ class CL_W10_WebConfig {
 		}
 
 		// groups(UI-friendly, single root)
-		JsonObject groups = v_doc["groups"].to < JsonObject > ();
+		JsonObject groups = v_doc["groups"].to<JsonObject>();
 		{
-			JsonObject gSys = groups["sys"].to < JsonObject > ();
+			JsonObject gSys = groups["sys"].to<JsonObject>();
 			gSys["uptime_ms"] = v_uptime;
 			gSys["api_ver"] = (uint16_t)G_W10_API_VER;
 
-			JsonObject gMem = groups["mem"].to < JsonObject > ();
+			JsonObject gMem = groups["mem"].to<JsonObject>();
 			gMem["heap_free"] = v_heapFree;
 			gMem["heap_min_free"] = v_heapMin;
 			gMem["heap_max_alloc"] = v_heapMaxA;
 
-			JsonObject gNet = groups["net"].to < JsonObject > ();
+			JsonObject gNet = groups["net"].to<JsonObject>();
 			gNet["mode"] = net["mode"];
 			gNet["ip"] = net["ip"];
 			gNet["ssid"] = net["ssid"];
 			gNet["mdns"] = net["mdns"];
 
-			JsonObject gDiag = groups["diag"].to < JsonObject > ();
+			JsonObject gDiag = groups["diag"].to<JsonObject>();
 			gDiag["body_too_large"] = diag["body_too_large"];
 			gDiag["body_no_slot"] = diag["body_no_slot"];
 			gDiag["json_bad"] = diag["json_bad"];
 			gDiag["safe_blocked"] = diag["safe_blocked"];
 			gDiag["ota_blocked"] = diag["ota_blocked"];
 
-			JsonObject gFeat = groups["features"].to < JsonObject > ();
+			JsonObject gFeat = groups["features"].to<JsonObject>();
 			gFeat["etag_config"] = feat["etag_config"];
 			gFeat["reboot_api"] = feat["reboot_api"];
 			gFeat["safe_mode_policy"] = feat["safe_mode_policy"];
@@ -1339,14 +1344,14 @@ class CL_W10_WebConfig {
 				// policy는 root.policy에만 존재(중복 제거). UI는 policy_ref를 따라가면 됨.
 				groups["policy_ref"] = "/policy";
 
-				JsonObject gBoot = groups["boot"].to < JsonObject > ();
+				JsonObject gBoot = groups["boot"].to<JsonObject>();
 				JsonObject boot = v_doc["boot"].as < JsonObject > ();
 				gBoot["safe_mode"] = boot["safe_mode"];
 				gBoot["fail_count"] = boot["fail_count"];
 				gBoot["pending"] = boot["pending"];
 				gBoot["last_reset_reason"] = boot["last_reset_reason"];
 
-				JsonObject gCfg = groups["config"].to < JsonObject > ();
+				JsonObject gCfg = groups["config"].to<JsonObject>();
 				JsonObject cfg = v_doc["config"].as < JsonObject > ();
 				gCfg["ver"] = cfg["ver"];
 				gCfg["etag_ok"] = cfg["etag_ok"];
@@ -1359,7 +1364,7 @@ class CL_W10_WebConfig {
 				gCfg["last_apply_src"] = cfg["last_apply_src"];
 			}
 
-			JsonObject gOta = groups["ota"].to < JsonObject > ();
+			JsonObject gOta = groups["ota"].to<JsonObject>();
 			gOta["in_progress"] = ota["in_progress"];
 			gOta["total"] = ota["total"];
 			gOta["written"] = ota["written"];
@@ -1446,14 +1451,14 @@ class CL_W10_WebConfig {
 	void _apiDiag(AsyncWebServerRequest* req) {
 		JsonDocument v_doc;
 
-		JsonObject diag = v_doc["diag"].to < JsonObject > ();
+		JsonObject diag = v_doc["diag"].to<JsonObject>();
 		diag["body_too_large"] = (uint32_t)_cnt_body_too_large;
 		diag["body_no_slot"] = (uint32_t)_cnt_body_no_slot;
 		diag["json_bad"] = (uint32_t)_cnt_json_bad;
 		diag["safe_blocked"] = (uint32_t)_cnt_safe_blocked;
 		diag["ota_blocked"] = (uint32_t)_cnt_ota_blocked;
 
-		JsonObject apply = v_doc["last_apply"].to < JsonObject > ();
+		JsonObject apply = v_doc["last_apply"].to<JsonObject>();
 		const uint32_t v_uptime = (uint32_t)millis();
 		apply["ok"] = _lastApplyOk;
 		apply["ms"] = (uint32_t)_lastApplyMs;
@@ -1775,11 +1780,11 @@ class CL_W10_WebConfig {
 	}
 
 
-
-	void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-		_apiConfigSaveImportCommon(req, data, len, index, total,
-			"WiFi changes require reboot.",
-			true);
+    void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+	    _apiConfigSaveImportCommon(req, data, len, index, total,
+	        "save",
+	        "WiFi changes require reboot.",
+	        true);
 	}
 
 
@@ -1804,13 +1809,15 @@ class CL_W10_WebConfig {
 
 		JsonDocument v_doc;
 		v_doc["applied"] = v_applied;
+		
 		v_doc["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
+
 		if (v_ok) {
-			_markLastApply(true, "apply", "config_apply");
-			_sendOk(req, "config_apply", "", &v_doc, 200);
+		  _markLastApply(true, "apply", "config_apply");
+		  _sendOk(req, "config_apply", "", &v_doc, 200);
 		} else {
-			_markLastApply(false, "apply", "config_apply_failed");
-			_sendErr(req, "config_apply_failed", "Apply failed.", &v_doc);
+		  _markLastApply(false, "apply", "config_apply_failed");
+		  _sendErr(req, "config_apply_failed", "Apply failed.", &v_doc);
 		}
 	}
 
@@ -1946,9 +1953,10 @@ class CL_W10_WebConfig {
 
 
 	void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-		_apiConfigSaveImportCommon(req, data, len, index, total,
-			"import: saved and applied (runtime). WiFi changes require reboot.",
-			true);
+	    _apiConfigSaveImportCommon(req, data, len, index, total,
+	        "import",
+	        "import: saved and applied (runtime). WiFi changes require reboot.",
+	        true);
 	}
 
 	void apiRollback(AsyncWebServerRequest* req) {
@@ -1958,12 +1966,14 @@ class CL_W10_WebConfig {
 
 		JsonDocument v_doc;
 		v_doc["applied"] = applied;
+		v_doc["note"] = "rollback: restored from .bak and applied.";
+
 		if (ok) {
-			_markLastApply(true, "rollback", "config_rollback");
-			_sendOk(req, "config_rollback", "", &v_doc, 200);
+		  _markLastApply(true, "rollback", "config_rollback");
+		  _sendOk(req, "config_rollback", "", &v_doc, 200);
 		} else {
-			_markLastApply(false, "rollback", "config_rollback_failed");
-			_sendErr(req, "config_rollback_failed", "Rollback failed.", &v_doc);
+		  _markLastApply(false, "rollback", "config_rollback_failed");
+		  _sendErr(req, "config_rollback_failed", "Rollback failed.", &v_doc);
 		}
 	}
 
@@ -2071,7 +2081,7 @@ class CL_W10_WebConfig {
 		JsonDocument v_doc;
 		v_doc["cmd"] = (v_cmd ? v_cmd: "");
 		if (v_snapshot && e10if) {
-			JsonObject e = v_doc["e10"].to < JsonObject > ();
+			JsonObject e = v_doc["e10"].to<JsonObject>();
 			_fillE10Status(e, e10if);
 		}
 		if (ok) _sendOk(req, "control", "", &v_doc, 200);
@@ -2085,10 +2095,10 @@ class CL_W10_WebConfig {
 		if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
 
 		JsonDocument d;
-		JsonObject map = d["map"].to < JsonObject > ();
+		JsonObject map = d["map"].to<JsonObject>();
 
 		auto put = [&](const char* n, const ST_C10_PptKey2_t& k) {
-			JsonObject o = map[n].to < JsonObject > ();
+			JsonObject o = map[n].to<JsonObject>();
 			o["page"] = (k.page == (uint8_t)EN_C10_KEYPAGE_CONSUMER) ? "consumer": "kb";
 			o["mod"] = k.mod;
 			o["code"] = k.code;
@@ -2359,8 +2369,13 @@ class CL_W10_WebConfig {
 		JsonDocument v_doc;
 		v_doc["exit"] = v_exit;
 		v_doc["note"] = "exit=true -> clears safe_mode and reboots.";
-		if (ok) _sendOk(req, "safeboot_exit", "", &v_doc, 200);
-		else _sendErr(req, "safeboot_exit_failed", "Failed.", &v_doc);
+		if (ok) {
+		  _markLastApply(true, "safeboot", "safeboot_exit");
+		  _sendOk(req, "safeboot_exit", "", &v_doc, 200);
+		} else {
+		  _markLastApply(false, "safeboot", "safeboot_exit_failed");
+		  _sendErr(req, "safeboot_exit_failed", "Failed.", &v_doc);
+		}
 
 		if (ok && v_exit) {
 			delay(150);
