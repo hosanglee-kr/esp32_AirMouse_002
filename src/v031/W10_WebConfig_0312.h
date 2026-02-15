@@ -1,11 +1,11 @@
 // =======================================================
-// File: W10_WebConfig_0311.h
+// File: W10_WebConfig_0312.h
 // =======================================================
 #pragma once
 
 /*
  * ------------------------------------------------------
- * 소스명 : W10_WebConfig_0311.h
+ * 소스명 : W10_WebConfig_0312.h
  * 모듈약어 : W10
  * 모듈명 : Web Config/Status/UI/OTA Server (Dynamic Static Routing, No Asset Table)
  * ------------------------------------------------------
@@ -719,31 +719,33 @@ class CL_W10_WebConfig {
 	}
 
 	bool _isApiAllowedInSafeMode(const char* p_uri) const {
-		if (!p_uri) return false;
-
-		// 항상 허용
-		if (strcmp(p_uri, "/api/status") == 0) return true;
-		if (strcmp(p_uri, "/api/diag") == 0) return true;
-		if (strcmp(p_uri, "/api/diag/clear") == 0) return true;
-		if (strcmp(p_uri, "/api/keycodes") == 0) return true;
-		if (strcmp(p_uri, "/api/safeboot") == 0) return true;
-
-		// OTA + 복구
-		if (strcmp(p_uri, "/api/ota/status") == 0) return true;
-		if (strcmp(p_uri, "/api/ota") == 0) return true;
-		if (strcmp(p_uri, "/api/import") == 0) return true;
-		if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
-		if (strcmp(p_uri, "/api/reboot") == 0) return true;
-		if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
-
-		// config는 SafeMode에서도 허용 (복구/변경 필요)
-		if (strcmp(p_uri, "/api/config/save") == 0) return true;
-		if (strcmp(p_uri, "/api/config/apply") == 0) return true;
-		if (strcmp(p_uri, "/api/config/export") == 0) return true;
-		if (strcmp(p_uri, "/api/export") == 0) return true;
-
-		// 그 외는 SafeMode에서는 막음
-		return false;
+	    if (!p_uri) return false;
+	
+	    // always allowed
+	    if (strcmp(p_uri, "/api/status") == 0) return true;
+	    if (strcmp(p_uri, "/api/diag") == 0) return true;
+	    if (strcmp(p_uri, "/api/diag/clear") == 0) return true;
+	    if (strcmp(p_uri, "/api/keycodes") == 0) return true;
+	    if (strcmp(p_uri, "/api/safeboot") == 0) return true;
+	
+	    // OTA + recovery
+	    if (strcmp(p_uri, "/api/ota/status") == 0) return true;
+	    if (strcmp(p_uri, "/api/ota") == 0) return true;
+	    if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
+	    if (strcmp(p_uri, "/api/reboot") == 0) return true;
+	    if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
+	
+	    // config: allowed in safe mode for recovery/change
+	    if (strcmp(p_uri, "/api/config") == 0) return true;              // GET
+	    if (strcmp(p_uri, "/api/config/save") == 0) return true;
+	    if (strcmp(p_uri, "/api/config/apply") == 0) return true;
+	    if (strcmp(p_uri, "/api/config/export") == 0) return true;
+	    if (strcmp(p_uri, "/api/export") == 0) return true;
+	    if (strcmp(p_uri, "/api/config/import") == 0) return true;       // FIX
+	    if (strcmp(p_uri, "/api/config/rollback") == 0) return true;     // recovery
+	
+	    // others blocked in safe mode
+	    return false;
 	}
 
 	void _sendJson(AsyncWebServerRequest* req, JsonDocument& d, int p_code = 200) {
@@ -771,24 +773,34 @@ class CL_W10_WebConfig {
 
 
 	int _httpFromCode(const char* p_code) {
-		if(!p_code) return 500;
-		// 400
-		if(!strcmp(p_code, "bad_json")) return 400;
-		if(!strcmp(p_code, "validation_failed")) return 400;
-		if(!strcmp(p_code, "no_map")) return 400;
-		// 403
-		if(!strcmp(p_code, "safe_mode_blocked")) return 403;
-		if(!strcmp(p_code, "ota_guard_blocked")) return 403;
-		// 404
-		if(!strcmp(p_code, "api_not_found")) return 404;
-		// 409
-		if(!strcmp(p_code, "no_reboot_needed")) return 409;
-		if(!strcmp(p_code, "reason_mask_mismatch")) return 409;
-		// 413
-		if(!strcmp(p_code, "body_too_large")) return 413;
-		// 503
-		if(!strcmp(p_code, "no_body_slot")) return 503;
-		return 500;
+	    if (!p_code) return 500;
+	
+	    // 400
+	    if (!strcmp(p_code, "bad_json")) return 400;
+	    if (!strcmp(p_code, "validation_failed")) return 400;
+	    if (!strcmp(p_code, "no_map")) return 400;
+	    if (!strcmp(p_code, "config_get_failed")) return 500; // export fail is server-side usually
+	
+	    // 403
+	    if (!strcmp(p_code, "safe_mode_blocked")) return 403;
+	    if (!strcmp(p_code, "ota_guard_blocked")) return 403;
+	    if (!strcmp(p_code, "static_forbidden")) return 403;
+	
+	    // 404
+	    if (!strcmp(p_code, "api_not_found")) return 404;
+	    if (!strcmp(p_code, "static_not_found")) return 404;
+	
+	    // 409
+	    if (!strcmp(p_code, "no_reboot_needed")) return 409;
+	    if (!strcmp(p_code, "reason_mask_mismatch")) return 409;
+	
+	    // 413
+	    if (!strcmp(p_code, "body_too_large")) return 413;
+	
+	    // 503
+	    if (!strcmp(p_code, "no_body_slot")) return 503;
+	
+	    return 500;
 	}
 
     // 제거 
@@ -826,13 +838,13 @@ class CL_W10_WebConfig {
 	{
 	    if (!p_code) return;
 	
-	    uint32_t now = millis();
+	    const uint32_t v_now = (uint32_t)millis();
 	
-	    _diagEvt[_diagEvtHead].ms = now;
-	    strncpy(_diagEvt[_diagEvtHead].code, p_code, sizeof(_diagEvt[_diagEvtHead].code) - 1);
-	    _diagEvt[_diagEvtHead].code[sizeof(_diagEvt[_diagEvtHead].code) - 1] = '\0';
+	    _diagEvt[_diagEvtHead].ms = v_now;
+	    strlcpy(_diagEvt[_diagEvtHead].code, p_code, sizeof(_diagEvt[_diagEvtHead].code));
 	
-	    _diagEvtHead = (_diagEvtHead + 1) % G_W10_DIAG_EVT_MAX;
+	    _diagEvtHead = (uint8_t)((_diagEvtHead + 1) % G_W10_DIAG_EVT_MAX);
+	    if (_diagEvtCount < G_W10_DIAG_EVT_MAX) _diagEvtCount++;
 	}
 
 
@@ -853,7 +865,7 @@ class CL_W10_WebConfig {
 	void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg) {
 		if (!req) return;
 		if (_wantsJson(req)) {
-			_sendErr(req, p_http, p_code, p_msg);
+			_sendErr(req, p_code, p_msg);
 			return;
 		}
 		req->send(p_http, "text/plain", (p_msg ? p_msg: "error"));
@@ -1309,6 +1321,52 @@ class CL_W10_WebConfig {
 			// e10 group (optional)
 			JsonVariant e10v = v_doc["e10"];
 			if (!e10v.isNull()) {
+			    JsonObject gE10 = groups["e10"].to<JsonObject>();
+			    JsonObject e10 = e10v.as<JsonObject>();
+			
+			    // core fields (match _fillE10StatusFromSnapshot keys)
+			    JsonVariant v;
+			    v = e10["ble_connected"];   if (!v.isNull()) gE10["ble_connected"] = v;
+			    v = e10["ppt_mode"];        if (!v.isNull()) gE10["ppt_mode"] = v;
+			    v = e10["dpi_level"];       if (!v.isNull()) gE10["dpi_level"] = v;
+			    v = e10["precision_mode"];  if (!v.isNull()) gE10["precision_mode"] = v;
+			    v = e10["fsm_state"];       if (!v.isNull()) gE10["fsm_state"] = v;
+			    v = e10["btn_mask"];        if (!v.isNull()) gE10["btn_mask"] = v;
+			
+			    // safe/guard summary
+			    v = e10["safe_mode"];       if (!v.isNull()) gE10["safe_mode"] = v;
+			
+			    JsonVariant gate = e10["gate"];
+			    if (!gate.isNull()) {
+			        JsonObject gg = gE10["gate"].to<JsonObject>();
+			        JsonObject gsrc = gate.as<JsonObject>();
+			        JsonVariant gv;
+			        gv = gsrc["ota_guard"];           if (!gv.isNull()) gg["ota_guard"] = gv;
+			        gv = gsrc["ota_guard_count"];     if (!gv.isNull()) gg["ota_guard_count"] = gv;
+			        gv = gsrc["ota_guard_uptime_ms"]; if (!gv.isNull()) gg["ota_guard_uptime_ms"] = gv;
+			    }
+			
+			    // observability (nested under obs)
+			    JsonVariant obs = e10["obs"];
+			    if (!obs.isNull()) {
+			        JsonObject go = gE10["obs"].to<JsonObject>();
+			        JsonObject os = obs.as<JsonObject>();
+			        JsonVariant ov;
+			        ov = os["task_stack_sensor_min_words"]; if (!ov.isNull()) go["task_stack_sensor_min_words"] = ov;
+			        ov = os["task_stack_comm_min_words"];   if (!ov.isNull()) go["task_stack_comm_min_words"] = ov;
+			        ov = os["sensor_dt_max_ms"];            if (!ov.isNull()) go["sensor_dt_max_ms"] = ov;
+			        ov = os["sensor_overrun_count"];        if (!ov.isNull()) go["sensor_overrun_count"] = ov;
+			        ov = os["comm_dt_avg_ms"];              if (!ov.isNull()) go["comm_dt_avg_ms"] = ov;
+			        ov = os["comm_dt_max_ms"];              if (!ov.isNull()) go["comm_dt_max_ms"] = ov;
+			        ov = os["comm_overrun_count"];          if (!ov.isNull()) go["comm_overrun_count"] = ov;
+			        ov = os["failsafe_release_count"];      if (!ov.isNull()) go["failsafe_release_count"] = ov;
+			    }
+			}
+
+			/*
+			// e10 group (optional)
+			JsonVariant e10v = v_doc["e10"];
+			if (!e10v.isNull()) {
 				JsonObject gE10 = groups["e10"].to < JsonObject > ();
 				JsonObject e10 = e10v.as < JsonObject > ();
 
@@ -1329,6 +1387,7 @@ class CL_W10_WebConfig {
 				v = e10["comm_overrun_count"]; if (!v.isNull()) gE10["comm_overrun_count"] = v;
 				v = e10["failsafe_release_count"]; if (!v.isNull()) gE10["failsafe_release_count"] = v;
 			}
+			*/
 		}
 
 
@@ -2365,7 +2424,8 @@ class CL_W10_WebConfig {
 				JsonDocument v_doc;
 				v_doc["need_reboot"] = _needReboot;
 				v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
-				_sendErr(req, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
+				_sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);_sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
+				// _sendErr(req, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
 				return;
 			}
 		}
