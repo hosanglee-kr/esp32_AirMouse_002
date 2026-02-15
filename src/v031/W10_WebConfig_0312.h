@@ -209,7 +209,7 @@ class CL_W10_WebConfig {
 	void begin(CL_C10_Config* p_cfg,
            bool (*p_applyFn)(void*),
            void* p_applyCtx,
-           ST_W10_E10If_t* p_e10if)
+           ST_W10_E10If_t* p_e10if;
     // void begin(CL_C10_Config* p_cfg, bool (*p_applyFn)(void*), void* p_applyCtx) {
 		_cfg = p_cfg;
 		_applyFn = p_applyFn;
