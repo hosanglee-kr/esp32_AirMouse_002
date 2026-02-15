@@ -104,6 +104,7 @@ class CL_W10_WebConfig {
 	CL_C10_Config* _cfg = nullptr;
 	bool (*_applyFn)(void*) = nullptr;
 	void* _applyCtx = nullptr;
+	ST_W10_E10If_t* _e10if = nullptr; // (NEW) E10 interface pointer (no cast from _applyCtx)
 
 	ST_C10_WiFiConfig_t _wifi;
 	ST_C10_E10Config_t _e10;
@@ -205,10 +206,15 @@ class CL_W10_WebConfig {
 		strlcpy(_otaErr, "none", sizeof(_otaErr));
 	}
 
-	void begin(CL_C10_Config* p_cfg, bool (*p_applyFn)(void*), void* p_applyCtx) {
+	void begin(CL_C10_Config* p_cfg,
+           bool (*p_applyFn)(void*),
+           void* p_applyCtx,
+           ST_W10_E10If_t* p_e10if)
+    // void begin(CL_C10_Config* p_cfg, bool (*p_applyFn)(void*), void* p_applyCtx) {
 		_cfg = p_cfg;
 		_applyFn = p_applyFn;
 		_applyCtx = p_applyCtx;
+		_e10if = p_e10if;
 
 		WiFi.onEvent(s_wifiEvent);
 		// C10 config.begin()에서 초기화 (void)LittleFS.begin(true);
@@ -803,11 +809,6 @@ class CL_W10_WebConfig {
 	    return 500;
 	}
 
-    // 제거 
-	// void _sendErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg, JsonDocument* p_data = nullptr) {
-    //		_sendErr(req, p_code, p_msg, p_data);
-	// }
-
 	// ------------------------------------------------------
 	// Standard Error Sender (code → http 매핑 버전)
 	// ------------------------------------------------------
@@ -885,16 +886,6 @@ class CL_W10_WebConfig {
 	    req->send(p_http, "text/plain", (p_msg ? p_msg : "error"));
 	}
 
-	/*
-	void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg) {
-		if (!req) return;
-		if (_wantsJson(req)) {
-			_sendErr(req, p_code, p_msg);
-			return;
-		}
-		req->send(p_http, "text/plain", (p_msg ? p_msg: "error"));
-	}
-	*/
 
 	// (STEP12) Envelope selector helper
 	// - Query:
@@ -1228,7 +1219,7 @@ class CL_W10_WebConfig {
 
 		// E10 status snapshot
 		bool v_otaGuard = false;
-		ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+		ST_W10_E10If_t* e10if = _e10if;
 		if (e10if) {
 			ST_E10_Status_t s;
 			if (e10if->getStatus && e10if->getStatus(e10if->ctx, &s)) {
@@ -1388,31 +1379,6 @@ class CL_W10_WebConfig {
 			    }
 			}
 
-			/*
-			// e10 group (optional)
-			JsonVariant e10v = v_doc["e10"];
-			if (!e10v.isNull()) {
-				JsonObject gE10 = groups["e10"].to < JsonObject > ();
-				JsonObject e10 = e10v.as < JsonObject > ();
-
-				JsonVariant v;
-				v = e10["connected"]; if (!v.isNull()) gE10["connected"] = v;
-				v = e10["mode"]; if (!v.isNull()) gE10["mode"] = v;
-				v = e10["dpi"]; if (!v.isNull()) gE10["dpi"] = v;
-				v = e10["precision"]; if (!v.isNull()) gE10["precision"] = v;
-				v = e10["ota_guard"]; if (!v.isNull()) gE10["ota_guard"] = v;
-
-				// observability fields (may exist)
-				v = e10["task_stack_sensor_min_words"]; if (!v.isNull()) gE10["task_stack_sensor_min_words"] = v;
-				v = e10["task_stack_comm_min_words"]; if (!v.isNull()) gE10["task_stack_comm_min_words"] = v;
-				v = e10["sensor_dt_max_ms"]; if (!v.isNull()) gE10["sensor_dt_max_ms"] = v;
-				v = e10["comm_dt_avg_ms"]; if (!v.isNull()) gE10["comm_dt_avg_ms"] = v;
-				v = e10["comm_dt_max_ms"]; if (!v.isNull()) gE10["comm_dt_max_ms"] = v;
-				v = e10["sensor_overrun_count"]; if (!v.isNull()) gE10["sensor_overrun_count"] = v;
-				v = e10["comm_overrun_count"]; if (!v.isNull()) gE10["comm_overrun_count"] = v;
-				v = e10["failsafe_release_count"]; if (!v.isNull()) gE10["failsafe_release_count"] = v;
-			}
-			*/
 		}
 
 
@@ -1798,7 +1764,7 @@ class CL_W10_WebConfig {
 			ST_C10_E10Config_t v_e;
 			v_ok = _cfg->buildPatchedE10(v_body, v_e, true);
 
-			ST_W10_E10If_t* v_e10if = (ST_W10_E10If_t*)_applyCtx;
+			ST_W10_E10If_t* v_e10if = _e10if;
 			if (v_ok && v_e10if && v_e10if->applyRuntimeE10) {
 				v_applied = v_e10if->applyRuntimeE10(v_e10if->ctx, &v_e);
 			}
@@ -1993,7 +1959,7 @@ class CL_W10_WebConfig {
 		}
 
 
-		ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+		ST_W10_E10If_t* e10if = _e10if;
 		bool ok = true;
 
 		// D+ 옵션: snapshot
@@ -2178,7 +2144,7 @@ class CL_W10_WebConfig {
 				saved = ok;
 			}
 
-			ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+			ST_W10_E10If_t* e10if = _e10if;
 			if (ok && e10if && e10if->applyRuntimeE10) {
 				applied = e10if->applyRuntimeE10(e10if->ctx, &e);
 			}
@@ -2223,7 +2189,7 @@ class CL_W10_WebConfig {
 		if (!d["mod"].isNull()) mod = (uint8_t)d["mod"];
 		if (!d["code"].isNull()) code = (uint32_t)d["code"];
 
-		ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+		ST_W10_E10If_t* e10if = _e10if;
 		bool ok = (e10if && e10if->testPptKey2 ? e10if->testPptKey2(e10if->ctx, page, mod, code): false);
 
 		if (ok) _sendOk(req, "ppt_test", "", nullptr, 200);
@@ -2237,7 +2203,7 @@ class CL_W10_WebConfig {
 
 		// OTA Guard: E10 status 기반으로 OTA 차단 가능 (SafeMode에서는 항상 허용)
 		if (!_isSafeMode()) {
-			ST_W10_E10If_t* e10if = (ST_W10_E10If_t*)_applyCtx;
+			ST_W10_E10If_t* e10if = _e10if;
 			if (e10if && e10if->getStatus) {
 				ST_E10_Status_t s;
 				memset(&s, 0, sizeof(s));
@@ -2449,7 +2415,7 @@ class CL_W10_WebConfig {
 				JsonDocument v_doc;
 				v_doc["need_reboot"] = _needReboot;
 				v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
-				_sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);_sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
+				_sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
 				// _sendErr(req, "mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
 				return;
 			}
