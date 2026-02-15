@@ -161,6 +161,7 @@ class CL_W10_WebConfig {
 	};
 
 	static constexpr uint8_t G_W10_BODY_SLOTS = 4; // step19: increase POST body slots for concurrency
+	static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500; // slot steal 방지: 일정 시간 안 지난 요청은 busy 처리
 	inline static ST_W10_BodySlot s_bodySlots[G_W10_BODY_SLOTS];
 
 	// (AB) observability counters
@@ -516,35 +517,46 @@ class CL_W10_WebConfig {
 	// Request Body (fixed slots)
 	// =====================================================
 	ST_W10_BodySlot* _bodySlotAlloc(AsyncWebServerRequest* req) {
-		// 1) 기존 슬롯
-		for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
-			if (s_bodySlots[i].req == req) return &s_bodySlots[i];
-		}
-		// 2) 빈 슬롯
-		for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
-			if (s_bodySlots[i].req == nullptr) {
-				s_bodySlots[i].req = req;
-				s_bodySlots[i].len = 0;
-				s_bodySlots[i].lastMs = millis();
-				memset(s_bodySlots[i].buf, 0, sizeof(s_bodySlots[i].buf));
-				return &s_bodySlots[i];
-			}
-		}
-		// 3) 가장 오래된 슬롯 재사용(비정상/동시요청 대비)
-		uint8_t v_oldIdx = 0;
-		uint32_t v_oldMs = s_bodySlots[0].lastMs;
-		for (uint8_t i = 1; i < G_W10_BODY_SLOTS; i++) {
-			if (s_bodySlots[i].lastMs < v_oldMs) {
-				v_oldMs = s_bodySlots[i].lastMs;
-				v_oldIdx = i;
-			}
-		}
-		s_bodySlots[v_oldIdx].req = req;
-		s_bodySlots[v_oldIdx].len = 0;
-		s_bodySlots[v_oldIdx].lastMs = millis();
-		memset(s_bodySlots[v_oldIdx].buf, 0, sizeof(s_bodySlots[v_oldIdx].buf));
-		return &s_bodySlots[v_oldIdx];
+	    // 1) 기존 슬롯
+	    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+	        if (s_bodySlots[i].req == req) return &s_bodySlots[i];
+	    }
+	
+	    // 2) 빈 슬롯
+	    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+	        if (s_bodySlots[i].req == nullptr) {
+	            s_bodySlots[i].req = req;
+	            s_bodySlots[i].len = 0;
+	            s_bodySlots[i].lastMs = millis();
+	            memset(s_bodySlots[i].buf, 0, sizeof(s_bodySlots[i].buf));
+	            return &s_bodySlots[i];
+	        }
+	    }
+	
+	    // 3) 가장 오래된 슬롯 찾기
+	    uint8_t v_oldIdx = 0;
+	    uint32_t v_oldMs = s_bodySlots[0].lastMs;
+	    for (uint8_t i = 1; i < G_W10_BODY_SLOTS; i++) {
+	        if (s_bodySlots[i].lastMs < v_oldMs) {
+	            v_oldMs = s_bodySlots[i].lastMs;
+	            v_oldIdx = i;
+	        }
+	    }
+	
+	    // 4) stale이 아니면 busy(슬롯 탈취 방지)
+	    const uint32_t v_now = millis();
+	    if ((v_now - v_oldMs) < G_W10_BODY_SLOT_STALE_MS) {
+	        return nullptr; // -> _collectBodyOrReply()에서 no_body_slot 처리
+	    }
+	
+	    // 5) stale 슬롯만 재사용
+	    s_bodySlots[v_oldIdx].req = req;
+	    s_bodySlots[v_oldIdx].len = 0;
+	    s_bodySlots[v_oldIdx].lastMs = v_now;
+	    memset(s_bodySlots[v_oldIdx].buf, 0, sizeof(s_bodySlots[v_oldIdx].buf));
+	    return &s_bodySlots[v_oldIdx];
 	}
+
 
 	ST_W10_BodySlot* _bodyGetSlot(AsyncWebServerRequest* req, size_t index) {
 		if (index == 0) {
@@ -781,30 +793,44 @@ class CL_W10_WebConfig {
 	int _httpFromCode(const char* p_code) {
 	    if (!p_code) return 500;
 	
-	    // 400
+	    // 400: client input
 	    if (!strcmp(p_code, "bad_json")) return 400;
 	    if (!strcmp(p_code, "validation_failed")) return 400;
 	    if (!strcmp(p_code, "no_map")) return 400;
-	    if (!strcmp(p_code, "config_get_failed")) return 500; // export fail is server-side usually
 	
-	    // 403
+	    // 403: policy/guard
 	    if (!strcmp(p_code, "safe_mode_blocked")) return 403;
 	    if (!strcmp(p_code, "ota_guard_blocked")) return 403;
 	    if (!strcmp(p_code, "static_forbidden")) return 403;
 	
-	    // 404
+	    // 404: not found
 	    if (!strcmp(p_code, "api_not_found")) return 404;
 	    if (!strcmp(p_code, "static_not_found")) return 404;
 	
-	    // 409
+	    // 409: conflict
 	    if (!strcmp(p_code, "no_reboot_needed")) return 409;
 	    if (!strcmp(p_code, "reason_mask_mismatch")) return 409;
 	
-	    // 413
+	    // 413: payload too large
 	    if (!strcmp(p_code, "body_too_large")) return 413;
 	
-	    // 503
+	    // 503: busy (server load)
 	    if (!strcmp(p_code, "no_body_slot")) return 503;
+	
+	    // 500: server-side failures (FS/apply/control)
+	    if (!strcmp(p_code, "config_get_failed")) return 500;
+	    if (!strcmp(p_code, "config_save_failed")) return 500;
+	    if (!strcmp(p_code, "config_apply_failed")) return 500;
+	    if (!strcmp(p_code, "config_export_failed")) return 500;
+	    if (!strcmp(p_code, "config_import_failed")) return 500;
+	    if (!strcmp(p_code, "config_rollback_failed")) return 500;
+	
+	    if (!strcmp(p_code, "control_failed")) return 500;
+	    if (!strcmp(p_code, "ppt_set_failed")) return 500;
+	    if (!strcmp(p_code, "ppt_test_failed")) return 500;
+	    if (!strcmp(p_code, "ota_failed")) return 500;
+	    if (!strcmp(p_code, "factory_reset_failed")) return 500;
+	    if (!strcmp(p_code, "safeboot_exit_failed")) return 500;
 	
 	    return 500;
 	}
@@ -948,10 +974,16 @@ class CL_W10_WebConfig {
 
 		ST_W10_BodySlot* v_slot = _bodyGetSlot(req, index);
 		if (!v_slot) {
-			_cnt_body_no_slot++;
-			_diagPush("no_body_slot");
-			_sendErr(req, "no_body_slot", "Server is busy. Try again.");
-			return false;
+		    _cnt_body_no_slot++;
+		    _diagPush("no_body_slot");
+		
+		    JsonDocument v_doc;
+		    v_doc["slots"] = (uint8_t)G_W10_BODY_SLOTS;
+		    v_doc["stale_ms"] = (uint32_t)G_W10_BODY_SLOT_STALE_MS;
+		    v_doc["hint"] = "too many concurrent POST; retry";
+		
+		    _sendErr(req, "no_body_slot", "Server is busy. Try again.", &v_doc);
+		    return false;
 		}
 
 		if ((v_slot->len + len) > G_W10_BODY_MAX) {
