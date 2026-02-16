@@ -2,18 +2,17 @@
 // File: W10_Def_0314.h
 // =======================================================
 #pragma once
-
 /*
  * ------------------------------------------------------
  * 소스명 : W10_Def_0314.h
  * 모듈약어 : W10
- * 모듈명 : WebConfig Definitions (Split Support, Static Helpers, Tables)
+ * 모듈명 : Web Defs (Types/Consts/Keycodes/Cache Rules)
  * ------------------------------------------------------
  * 기능 요약
- *  - (0314) W10_WebConfig_0314 분할 구조에 맞춘 공용 정의/헬퍼
- *  - 정적서빙 보안 유틸(경로 안전성/확장자 화이트리스트)
- *  - Content-Type / Cache-Control 분류
- *  - Body Slot / Diag Event / Reboot Mask / Keycode Tables
+ *  - W10 공용 타입/상수/고정 문자열/키코드 프리셋 분리
+ *  - 정적파일 캐시 정책 자동 분류 규칙(immutable/no-store/short)
+ *  - 동적 서빙 허용 확장자 목록(보안) 정의
+ *  - Content-Type 매핑 + gzip 후보 확장자 정의
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -48,97 +47,129 @@
 #include <string.h>
 #include <strings.h>
 
-// E10 status/type interface (must match your E10_Def_0310.h)
+// forward declare (avoid forcing ESPAsyncWebServer include here)
+class AsyncWebServerRequest;
+
+// E10/C10 types are expected from your existing headers
 #include "E10_Def_0310.h"
+#include "C10_Config_0310.h"
 
-// =======================================================
-// Version / API
-// =======================================================
-static const uint16_t G_W10_API_VER = 314;
+// -------------------------------------------------------
+// URI/Path Prefix (W10 라우팅 화이트리스트 핵심)
+// -------------------------------------------------------
+static constexpr const char* G_W10_URI_WWW_PREFIX         = "/www/";
+static constexpr const char* G_W10_URI_JSON_PUBLIC_PREFIX = "/json/public/";
 
-// =======================================================
-// Static Routes / Prefix
-// =======================================================
-static const char* G_W10_URI_WWW_PREFIX          = "/www/";
-static const char* G_W10_URI_JSON_PUBLIC_PREFIX  = "/json/public/";
-static const char* G_W10_DEFAULT_INDEX_PATH      = "/www/index.html";
+static constexpr const char* G_W10_PATH_WWW_PREFIX         = "/www/";
+static constexpr const char* G_W10_PATH_JSON_PUBLIC_PREFIX = "/json/public/";
 
-// =======================================================
+// 루트 접속 시 기본 index (프로젝트 빌드/배포 규칙에 맞게 고정)
+// - 예: /www/index_0276.html
+static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0301.html";
+
+// -------------------------------------------------------
 // Cache-Control presets
-// =======================================================
-static const char* G_W10_CACHE_NOSTORE   = "no-store";
-static const char* G_W10_CACHE_NOCACHE   = "no-cache";
-static const char* G_W10_CACHE_IMMUTABLE = "public, max-age=31536000, immutable";
-static const char* G_W10_CACHE_SHORT     = "public, max-age=3600";
+// -------------------------------------------------------
+static constexpr const char* G_W10_CACHE_NOSTORE   = "no-store";
+static constexpr const char* G_W10_CACHE_NOCACHE   = "no-cache";
+static constexpr const char* G_W10_CACHE_IMMUTABLE = "public, max-age=31536000, immutable";
+static constexpr const char* G_W10_CACHE_SHORT     = "public, max-age=3600";
 
-// =======================================================
-// Reboot reason masks (policy)
-// =======================================================
-static const uint32_t G_W10_REBOOT_WIFI_MODE  = 0x00000001UL;
-static const uint32_t G_W10_REBOOT_WIFI_STA   = 0x00000002UL;
-static const uint32_t G_W10_REBOOT_WIFI_AP    = 0x00000004UL;
-static const uint32_t G_W10_REBOOT_WIFI_MDNS  = 0x00000008UL;
-static const uint32_t G_W10_REBOOT_OTHER      = 0x80000000UL;
+// -------------------------------------------------------
+// 버전 토큰 규칙(파일명에 포함되면 immutable 후보)
+// - 예: app_0279.js, style-0279.css, logo_v0279.webp ...
+// -------------------------------------------------------
+static constexpr const char* G_W10_VER_TOKEN_A = "_03";
+static constexpr const char* G_W10_VER_TOKEN_B = "-03";
+static constexpr const char* G_W10_VER_TOKEN_C = "v03";
 
-// =======================================================
-// Body Slot (POST collector)
-// =======================================================
-static const uint8_t  G_W10_BODY_SLOTS          = 3;          // 동시 POST 수용 슬롯
-static const uint32_t G_W10_BODY_MAX            = 8192;       // 최대 바디(문자열) 크기
-static const uint32_t G_W10_BODY_SLOT_STALE_MS  = 15000;      // 오래된 슬롯 강제 회수 기준(ms)
+static constexpr size_t G_W10_BODY_MAX = 8192;
+static constexpr size_t G_W10_BODY_MAP_MAX = 8;
+
+// ----------------------------------------------------
+// Reboot reason bits
+// ----------------------------------------------------
+static constexpr uint32_t G_W10_REBOOT_WIFI_MODE = 0x00000001;
+static constexpr uint32_t G_W10_REBOOT_WIFI_STA  = 0x00000002;
+static constexpr uint32_t G_W10_REBOOT_WIFI_AP   = 0x00000004;
+static constexpr uint32_t G_W10_REBOOT_WIFI_MDNS = 0x00000008;
+static constexpr uint32_t G_W10_REBOOT_OTHER     = 0x80000000;
+
+// (C) API schema version
+static constexpr uint16_t G_W10_API_VER = 304;
+
+static constexpr uint8_t  G_W10_BODY_SLOTS = 4;           // step19: increase POST body slots for concurrency
+static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500; // slot steal 방지: 일정 시간 안 지난 요청은 busy 처리
+
+static const uint8_t G_W10_DIAG_EVT_MAX = 16;
 
 struct ST_W10_BodySlot {
-    AsyncWebServerRequest* req;   // owner request
-    size_t len;                   // bytes written
-    uint32_t lastMs;              // last update time
-    char buf[G_W10_BODY_MAX + 1]; // fixed buffer (+null)
+    AsyncWebServerRequest* req;
+    size_t len;
+    uint32_t lastMs;
+    char buf[G_W10_BODY_MAX + 1];
 };
-
-// =======================================================
-// Diagnostics event ring
-// =======================================================
-static const uint8_t G_W10_DIAG_EVT_MAX = 16;
 
 struct ST_W10_DiagEvt_t {
     uint32_t ms;
     char code[24];
 };
 
-// =======================================================
-// Keycode tables
-// =======================================================
-struct ST_W10_ModRow_t {
+// -------------------------------------------------------
+// PPT keycodes presets (W10 /api/keycodes)
+// - mod mask == HID modifier byte (E10 정책과 1:1)
+// -------------------------------------------------------
+struct ST_W10_Mod_t {
     const char* name;
-    uint8_t mask;
+    uint8_t     mask;
+};
+static constexpr ST_W10_Mod_t G_W10_MODS[] = {
+    {  "None", 0x00},
+    { "LCtrl", 0x01},
+    {"LShift", 0x02},
+    {  "LAlt", 0x04},
+    { "LMeta", 0x08},
+    { "RCtrl", 0x10},
+    {"RShift", 0x20},
+    {  "RAlt", 0x40},
+    { "RMeta", 0x80},
 };
 
-struct ST_W10_ConsumerRow_t {
+struct ST_W10_Consumer_t {
     const char* name;
-    uint32_t mask;
+    uint32_t    mask;
 };
-
-// HID modifier masks (USB HID keyboard modifier byte)
-static const ST_W10_ModRow_t G_W10_MODS[] = {
-    { "LCTRL",  0x01 }, { "LSHIFT", 0x02 }, { "LALT",   0x04 }, { "LGUI",  0x08 },
-    { "RCTRL",  0x10 }, { "RSHIFT", 0x20 }, { "RALT",   0x40 }, { "RGUI",  0x80 },
-};
-
-// Consumer page masks (common subset)
-static const ST_W10_ConsumerRow_t G_W10_CONSUMER[] = {
-    { "MUTE",        0x0001 },
-    { "VOL_UP",      0x0002 },
-    { "VOL_DOWN",    0x0004 },
-    { "PLAY_PAUSE",  0x0008 },
-    { "SCAN_NEXT",   0x0010 },
-    { "SCAN_PREV",   0x0020 },
-    { "STOP",        0x0040 },
-    { "WWW_HOME",    0x0080 },
+static constexpr ST_W10_Consumer_t G_W10_CONSUMER[] = {
+    {        "None", 0x00000000},
+    {        "Play", 0x00000001},
+    {       "Pause", 0x00000002},
+    {      "Record", 0x00000004},
+    { "FastForward", 0x00000008},
+    {      "Rewind", 0x00000010},
+    {   "NextTrack", 0x00000020},
+    {   "PrevTrack", 0x00000040},
+    {        "Stop", 0x00000080},
+    {       "Eject", 0x00000100},
+    {  "RandomPlay", 0x00000200},
+    {      "Repeat", 0x00000400},
+    {   "PlayPause", 0x00000800},
+    {        "Mute", 0x00001000},
+    {    "VolumeUp", 0x00002000},
+    {  "VolumeDown", 0x00004000},
+    {     "WWWHome", 0x00008000},
+    {  "MyComputer", 0x00010000},
+    {  "Calculator", 0x00020000},
+    {"WWWFavorites", 0x00040000},
+    {   "WWWSearch", 0x00080000},
+    {     "WWWStop", 0x00100000},
+    {     "WWWBack", 0x00200000},
+    { "MediaSelect", 0x00400000},
+    {        "Mail", 0x00800000},
 };
 
 // =======================================================
-// E10 Interface (W10 -> E10)
-// - ctx + function pointers
-// - must match W10_WebConfig_0314 usage
+// [W10-E10 Interface] (decouple include dependency)
+// - W10은 E10 class header를 include하지 않고, 함수 포인터 인터페이스로만 호출
 // =======================================================
 struct ST_W10_E10If_t {
     void* ctx;
@@ -146,204 +177,118 @@ struct ST_W10_E10If_t {
     // status snapshot
     bool (*getStatus)(void* ctx, ST_E10_Status_t* out);
 
-    // runtime apply (E10 config only)
-    bool (*applyRuntimeE10)(void* ctx, const ST_C10_E10Config_t* e10cfg);
+    // runtime apply-only (no persist)
+    bool (*applyRuntimeE10)(void* ctx, const ST_C10_E10Config_t* e10);
 
-    // controls
+    // runtime controls
     bool (*setPptMode)(void* ctx, bool en);
     bool (*setDpiLevel)(void* ctx, uint8_t level);
     bool (*setPrecisionMode)(void* ctx, uint8_t mode);
+    bool (*setHardClickLock)(void* ctx, bool en);
+
+    bool (*setSafeMode)(void* ctx, bool en);
+    bool (*setOtaGuard)(void* ctx, bool en);
 
     bool (*forceReleaseButtons)(void* ctx);
     bool (*requestGyroCalibration)(void* ctx);
     bool (*requestI2CRecover)(void* ctx);
     bool (*clearDiagnostics)(void* ctx);
 
-    bool (*setSafeMode)(void* ctx, bool en);
-    bool (*setOtaGuard)(void* ctx, bool en);
-
-    // ppt test
+    // PPT test
     bool (*testPptKey2)(void* ctx, uint8_t page, uint8_t mod, uint32_t code);
 };
 
-// =======================================================
-// Helper: safe path (reject traversal / invalid)
-// - allow only '/', '.', '-', '_', digits/letters and minimal symbols
-// - block: "..", backslash, control chars, "//", "/./", "/../"
-// =======================================================
-static inline bool W10_isPathSafe(const char* p_path) {
-    if (!p_path) return false;
-
-    // must start with '/'
-    if (p_path[0] != '/') return false;
-
-    // control chars and backslash block
-    for (const char* c = p_path; *c; c++) {
-        const uint8_t ch = (uint8_t)(*c);
-        if (ch < 0x20 || ch == 0x7F) return false;
-        if (ch == '\\') return false;
-    }
-
-    // traversal block
-    if (strstr(p_path, "..") != nullptr) return false;
-
-    // normalize-ish block: double slash, /./, /../
-    if (strstr(p_path, "//") != nullptr) return false;
-    if (strstr(p_path, "/./") != nullptr) return false;
-    if (strstr(p_path, "/../") != nullptr) return false;
-
-    // reject query or fragment in filesystem path
-    if (strchr(p_path, '?') != nullptr) return false;
-    if (strchr(p_path, '#') != nullptr) return false;
-
-    return true;
-}
-
-// =======================================================
-// Helper: lower extension extractor
-// - returns pointer to v_outLowerExt buffer (or nullptr if none)
-// =======================================================
-static inline const char* W10_getLowerExt(const char* p_path, char* p_outLowerExt, size_t p_outSz) {
-    if (!p_path || !p_outLowerExt || p_outSz == 0) return nullptr;
-
-    const char* dot = strrchr(p_path, '.');
-    if (!dot || dot == p_path) return nullptr;
-
-    dot++; // skip '.'
-    if (*dot == '\0') return nullptr;
-
-    size_t n = strlcpy(p_outLowerExt, dot, p_outSz);
-    if (n == 0 || n >= p_outSz) return nullptr;
-
-    for (size_t i = 0; p_outLowerExt[i]; i++) {
-        char ch = p_outLowerExt[i];
-        if (ch >= 'A' && ch <= 'Z') p_outLowerExt[i] = (char)(ch - 'A' + 'a');
-    }
-    return p_outLowerExt;
-}
-
-// =======================================================
-// Allowed extensions
-// - /www/*
-// =======================================================
+// -------------------------------------------------------
+// 허용 확장자(동적 서빙 보안 규칙)
+// - /www/* : html/css/js/svg/png/webp/ico 만 허용
+// - /json/public/* : json 만 허용
+// - gzip 대상: html/css/js 만 (.gz 존재 + Accept-Encoding:gzip)
+// -------------------------------------------------------
 static inline bool W10_isAllowedWwwExt(const char* p_extLower) {
     if (!p_extLower) return false;
-
-    // web assets
-    if (strcmp(p_extLower, "html") == 0) return true;
-    if (strcmp(p_extLower, "css")  == 0) return true;
-    if (strcmp(p_extLower, "js")   == 0) return true;
-
-    // images / icons
-    if (strcmp(p_extLower, "svg")  == 0) return true;
-    if (strcmp(p_extLower, "png")  == 0) return true;
-    if (strcmp(p_extLower, "webp") == 0) return true;
-    if (strcmp(p_extLower, "ico")  == 0) return true;
-
-    // misc
-    if (strcmp(p_extLower, "txt")  == 0) return true;
-    if (strcmp(p_extLower, "map")  == 0) return true;
-
-    return false;
+    return (strcmp(p_extLower, "html") == 0) || (strcmp(p_extLower, "css") == 0) || (strcmp(p_extLower, "js") == 0) ||
+           (strcmp(p_extLower, "svg") == 0) || (strcmp(p_extLower, "png") == 0) || (strcmp(p_extLower, "webp") == 0) ||
+           (strcmp(p_extLower, "ico") == 0);
 }
-
-// =======================================================
-// Allowed extensions
-// - /json/public/*
-// =======================================================
 static inline bool W10_isAllowedPublicJsonExt(const char* p_extLower) {
     if (!p_extLower) return false;
     return (strcmp(p_extLower, "json") == 0);
 }
-
-// =======================================================
-// gzip target extensions (only these can be served as .gz)
-// =======================================================
 static inline bool W10_isGzipTargetExt(const char* p_extLower) {
     if (!p_extLower) return false;
-    if (strcmp(p_extLower, "html") == 0) return true;
-    if (strcmp(p_extLower, "css")  == 0) return true;
-    if (strcmp(p_extLower, "js")   == 0) return true;
-    return false;
+    return (strcmp(p_extLower, "html") == 0) || (strcmp(p_extLower, "css") == 0) || (strcmp(p_extLower, "js") == 0);
 }
 
-// =======================================================
-// Content-Type by extension
-// =======================================================
+// -------------------------------------------------------
+// 파일명 버전 토큰 판별(immutable 후보)
+// -------------------------------------------------------
+static inline bool W10_hasVersionToken(const char* p_pathOrName) {
+    if (!p_pathOrName) return false;
+    return (strstr(p_pathOrName, G_W10_VER_TOKEN_A) != nullptr) ||
+           (strstr(p_pathOrName, G_W10_VER_TOKEN_B) != nullptr) ||
+           (strstr(p_pathOrName, G_W10_VER_TOKEN_C) != nullptr);
+}
+
+// -------------------------------------------------------
+// Content-Type mapping (확장자 소문자 기준)
+// -------------------------------------------------------
 static inline const char* W10_contentTypeFromExt(const char* p_extLower) {
     if (!p_extLower) return "application/octet-stream";
-
     if (strcmp(p_extLower, "html") == 0) return "text/html";
-    if (strcmp(p_extLower, "css")  == 0) return "text/css";
-    if (strcmp(p_extLower, "js")   == 0) return "application/javascript";
-
-    if (strcmp(p_extLower, "svg")  == 0) return "image/svg+xml";
-    if (strcmp(p_extLower, "png")  == 0) return "image/png";
+    if (strcmp(p_extLower, "css") == 0) return "text/css";
+    if (strcmp(p_extLower, "js") == 0) return "application/javascript";
+    if (strcmp(p_extLower, "svg") == 0) return "image/svg+xml";
+    if (strcmp(p_extLower, "png") == 0) return "image/png";
     if (strcmp(p_extLower, "webp") == 0) return "image/webp";
-    if (strcmp(p_extLower, "ico")  == 0) return "image/x-icon";
-
-    if (strcmp(p_extLower, "txt")  == 0) return "text/plain";
-    if (strcmp(p_extLower, "map")  == 0) return "application/json";
+    if (strcmp(p_extLower, "ico") == 0) return "image/x-icon";
     if (strcmp(p_extLower, "json") == 0) return "application/json";
-
+    if (strcmp(p_extLower, "txt") == 0) return "text/plain";
     return "application/octet-stream";
 }
 
-// =======================================================
-// Version token detection (immutable heuristic)
-// - ex) app.8f3a1c2d.js , main-v20260216.css , vendor.v0123.js
-// =======================================================
-static inline bool W10_hasVersionToken(const char* p_path) {
-    if (!p_path) return false;
-
-    // quick checks for common patterns
-    if (strstr(p_path, "-v") != nullptr) return true;
-    if (strstr(p_path, ".v") != nullptr) return true;
-
-    // detect ".<8 hex>." pattern (simple)
-    const char* s = p_path;
-    while ((s = strchr(s, '.')) != nullptr) {
-        s++; // after '.'
-        int hexCount = 0;
-        const char* t = s;
-        while (*t) {
-            const char c = *t;
-            const bool isHex = ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
-            if (!isHex) break;
-            hexCount++;
-            t++;
-            if (hexCount > 12) break;
-        }
-        if (hexCount >= 8 && *t == '.') return true;
-    }
-    return false;
+// -------------------------------------------------------
+// Cache-Control auto rule
+// - no-store: html, /json/public/*, /api/*
+// - immutable: 버전 토큰 포함한 정적 리소스
+// - short: 나머지 정적 리소스
+// -------------------------------------------------------
+static inline const char* W10_cacheControlForStatic(const char* p_path, const char* p_extLower, bool p_isPublicJson) {
+    if (p_isPublicJson) return G_W10_CACHE_NOSTORE;
+    if (p_extLower && strcmp(p_extLower, "html") == 0) return G_W10_CACHE_NOSTORE;
+    if (W10_hasVersionToken(p_path)) return G_W10_CACHE_IMMUTABLE;
+    return G_W10_CACHE_SHORT;
 }
 
-// =======================================================
-// Cache-Control classifier for static
-// - html : no-store
-// - json (public) : no-store
-// - versioned assets : immutable
-// - else : short
-// =======================================================
-static inline const char* W10_cacheControlForStatic(const char* p_path, const char* p_extLower, bool p_isPublicJson) {
-    (void)p_isPublicJson;
+// -------------------------------------------------------
+// Path safety (최소한의 디렉토리 트래버설 방지)
+// -------------------------------------------------------
+static inline bool W10_isPathSafe(const char* p_path) {
+    if (!p_path) return false;
+    if (strstr(p_path, "..")) return false;
+    if (strstr(p_path, "//")) return false;
+    return true;
+}
 
-    if (!p_extLower) return G_W10_CACHE_SHORT;
+// -------------------------------------------------------
+// 확장자 추출(소문자) : p_outExt 버퍼에 기록
+// - 반환값: p_outExt (성공) / nullptr (실패)
+// -------------------------------------------------------
+static inline const char* W10_getLowerExt(const char* p_path, char* p_outExt, size_t p_outSize) {
+    if (!p_path || !p_outExt || p_outSize < 2) return nullptr;
+    p_outExt[0] = '\0';
 
-    // html / json: no-store (policy)
-    if (strcmp(p_extLower, "html") == 0) return G_W10_CACHE_NOSTORE;
-    if (strcmp(p_extLower, "json") == 0) return G_W10_CACHE_NOSTORE;
+    const char* v_dot = strrchr(p_path, '.');
+    if (!v_dot || v_dot == p_path) return nullptr;
 
-    // for /www assets: if versioned => immutable for common static types
-    if (p_path && W10_hasVersionToken(p_path)) {
-        if (strcmp(p_extLower, "css")  == 0) return G_W10_CACHE_IMMUTABLE;
-        if (strcmp(p_extLower, "js")   == 0) return G_W10_CACHE_IMMUTABLE;
-        if (strcmp(p_extLower, "svg")  == 0) return G_W10_CACHE_IMMUTABLE;
-        if (strcmp(p_extLower, "png")  == 0) return G_W10_CACHE_IMMUTABLE;
-        if (strcmp(p_extLower, "webp") == 0) return G_W10_CACHE_IMMUTABLE;
-        if (strcmp(p_extLower, "ico")  == 0) return G_W10_CACHE_IMMUTABLE;
+    const char* v_ext = v_dot + 1;
+    size_t      v_len = strlen(v_ext);
+    if (v_len == 0 || v_len >= p_outSize) return nullptr;
+
+    for (size_t i = 0; i < v_len; i++) {
+        char c = v_ext[i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        p_outExt[i] = c;
     }
-
-    return G_W10_CACHE_SHORT;
+    p_outExt[v_len] = '\0';
+    return p_outExt;
 }
