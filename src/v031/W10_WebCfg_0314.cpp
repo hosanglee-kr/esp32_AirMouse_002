@@ -146,8 +146,19 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             JsonDocument v_doc;
             v_doc["written"] = (uint32_t)_otaWritten;
             v_doc["total"]   = (uint32_t)_otaTotal;
-            if (_otaOk) _sendOk(req, "ota", "ok", &v_doc, 200);
-            else _sendErr(req, "ota_failed", _otaErr, &v_doc);
+            
+            if (_otaOk) {
+                _sendOk(req, "ota", "ok", &v_doc, 200);
+            } else {
+                // _otaErr가 "ota_guard"면 코드/HTTP를 정책대로
+                if (!strcmp(_otaErr, "ota_guard")) {
+                    _sendErr(req, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
+                } else if (!strcmp(_otaErr, "busy")) {
+                    _sendErr(req, "ota_failed", "busy", &v_doc);
+                } else {
+                    _sendErr(req, "ota_failed", _otaErr, &v_doc);
+                }
+            }
 
             if (_otaOk) {
                 delay(200);

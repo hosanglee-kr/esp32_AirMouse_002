@@ -252,6 +252,34 @@ void CL_W10_WebConfig::_apiConfigSaveImportCommon(
     ST_C10_WiFiConfig_t v_prevWiFi = _wifi;
 
     bool v_saved = false;
+    
+    // importJson() 내부 applied 결과는 "import 내부 처리"로만 따로 받음(표기용/참고용)
+    bool v_importApplied = false;
+    
+    // API가 말하는 applied는 "우리가 applyFn 호출했는지"로만 결정
+    bool v_applied = false;
+    
+    bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_importApplied));
+    
+    if (v_ok && v_saved && _cfg) {
+        (void)_cfg->loadAll(_wifi, _e10);
+        uint32_t v_m = _wifiDiffMask(v_prevWiFi, _wifi);
+        if (v_m != 0) _markNeedReboot(v_m);
+    }
+    
+    // 실제 applied는 p_applyAfterSave에 의해 결정
+    if (v_ok && v_saved && p_applyAfterSave && _applyFn) {
+        v_applied = _applyFn(_applyCtx);
+    }
+    
+    JsonDocument v_doc;
+    v_doc["saved"] = v_saved;
+    v_doc["applied"] = v_applied;
+    v_doc["import_applied"] = v_importApplied; // (선택) 디버깅/호환에 도움
+    v_doc["note"] = (p_note ? p_note : "");
+
+    /*
+    bool v_saved = false;
     bool v_applied = false;
 
     bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_applied));
@@ -270,6 +298,7 @@ void CL_W10_WebConfig::_apiConfigSaveImportCommon(
     v_doc["saved"] = v_saved;
     v_doc["applied"] = v_applied;
     v_doc["note"] = (p_note ? p_note : "");
+    */
 
     if (v_ok) {
         _markLastApply(true, (p_src ? p_src : "save"), "config_save");
@@ -1298,6 +1327,22 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
                 if (s.ota_guard) {
                     _cnt_ota_blocked++;
                     _diagPush("ota_guard_blocked");
+                
+                    // 업로드 콜백에서는 send 금지. 상태만 기록.
+                    if (index == 0) {
+                        _otaInProgress = false;
+                        _otaOk = false;
+                        _otaWritten = 0;
+                        _otaTotal = (uint32_t)req->contentLength();
+                        strlcpy(_otaErr, "ota_guard", sizeof(_otaErr));
+                    }
+                    return;
+                }
+
+                /*
+                if (s.ota_guard) {
+                    _cnt_ota_blocked++;
+                    _diagPush("ota_guard_blocked");
                     if (index == 0) {
                         JsonDocument v_doc;
                         v_doc["reason"] = "ota_guard";
@@ -1305,6 +1350,7 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
                     }
                     return;
                 }
+                */
             }
         }
     }
