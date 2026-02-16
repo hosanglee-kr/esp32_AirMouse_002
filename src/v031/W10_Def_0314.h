@@ -101,7 +101,7 @@ static constexpr uint16_t G_W10_API_VER = 304;
 static constexpr uint8_t  G_W10_BODY_SLOTS = 4;           // step19: increase POST body slots for concurrency
 static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500; // slot steal 방지: 일정 시간 안 지난 요청은 busy 처리
 
-static const uint8_t G_W10_DIAG_EVT_MAX = 16;
+static constexpr uint8_t G_W10_DIAG_EVT_MAX = 16;
 
 struct ST_W10_BodySlot {
     AsyncWebServerRequest* req;

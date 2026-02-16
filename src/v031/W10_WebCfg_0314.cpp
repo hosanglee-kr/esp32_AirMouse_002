@@ -59,14 +59,16 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
                             bool (*p_applyFn)(void*),
                             void* p_applyCtx,
                             ST_W10_E10If_t* p_e10if) {
-    _cfg = p_cfg;
-    _applyFn = p_applyFn;
+    _cfg      = p_cfg;
+    _applyFn  = p_applyFn;
     _applyCtx = p_applyCtx;
-    _e10if = p_e10if;
+    _e10if    = p_e10if;
 
     WiFi.onEvent(s_wifiEvent);
 
-    if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
+    if (_cfg) {
+        (void)_cfg->loadAll(_wifi, _e10);
+    }
 
     _setupWiFi();
 
