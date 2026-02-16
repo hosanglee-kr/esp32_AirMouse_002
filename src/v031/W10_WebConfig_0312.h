@@ -784,7 +784,7 @@ class CL_W10_WebConfig {
 		d["code"] = (p_code ? p_code: "ok");
 		d["msg"] = (p_msg ? p_msg: "");
 		if (p_data) {
-			d["data"] = (*p_data);
+			d["data"].set(p_data->as<JsonVariantConst>());
 		}
 		_sendJson(req, d, p_http);
 	}
@@ -816,6 +816,8 @@ class CL_W10_WebConfig {
 	
 	    // 503: busy (server load)
 	    if (!strcmp(p_code, "no_body_slot")) return 503;
+	    
+	    if (!strcmp(p_code, "no_config")) return 503; // or 500 (정책 선택)
 	
 	    // 500: server-side failures (FS/apply/control)
 	    if (!strcmp(p_code, "config_get_failed")) return 500;
@@ -841,11 +843,11 @@ class CL_W10_WebConfig {
 	void _sendErr(AsyncWebServerRequest* req,
 	              const char* code,
 	              const char* msg,
-	              ArduinoJson::JsonDocument* data = nullptr)
+	              JsonDocument* data = nullptr)
 	{
 	    int v_http = _httpFromCode(code);
 	
-	    ArduinoJson::JsonDocument doc;
+	    JsonDocument doc;
 	    doc["ok"]   = false;
 	    doc["code"] = code ? code : "error";
 	    doc["msg"]  = msg  ? msg  : "";
@@ -1178,7 +1180,7 @@ class CL_W10_WebConfig {
 		obs["comm_overrun_count"] = (uint32_t)s.comm_overrun_count;
 		obs["failsafe_release_count"] = (uint32_t)s.failsafe_release_count;
 
-		JsonArray hist = e["err_hist"].to < JsonArray > ();
+		JsonArray hist = e["err_hist"].to<JsonArray>();
 		for (uint8_t i = 0; i < s.err_hist_n; i++) {
 			JsonObject o = hist.add < JsonObject > ();
 			o["ts_ms"] = (uint32_t)s.err_hist[i].ts_ms;
@@ -1303,7 +1305,7 @@ class CL_W10_WebConfig {
 			// (STEP17) last apply report
 			cfg["last_apply_ok"] = _lastApplyOk;
 			cfg["last_apply_ms"] = _lastApplyMs;
-			cfg["last_apply_age_ms"] = (_lastApplyMs == 0) ? (uint32_t)0: (uint32_t)((uint32_t)v_uptime - (uint32_t)_lastApplyMs);
+			cfg["last_apply_age_ms"] = (_lastApplyMs == 0) ? 0 : (uint32_t)(v_uptime - _lastApplyMs);
 			cfg["last_apply_code"] = _lastApplyCode;
 			cfg["last_apply_src"] = _lastApplySrc;
 		}
@@ -1345,14 +1347,14 @@ class CL_W10_WebConfig {
 				groups["policy_ref"] = "/policy";
 
 				JsonObject gBoot = groups["boot"].to<JsonObject>();
-				JsonObject boot = v_doc["boot"].as < JsonObject > ();
+				JsonObject boot = v_doc["boot"].as<JsonObject>();;
 				gBoot["safe_mode"] = boot["safe_mode"];
 				gBoot["fail_count"] = boot["fail_count"];
 				gBoot["pending"] = boot["pending"];
 				gBoot["last_reset_reason"] = boot["last_reset_reason"];
 
 				JsonObject gCfg = groups["config"].to<JsonObject>();
-				JsonObject cfg = v_doc["config"].as < JsonObject > ();
+				JsonObject cfg = v_doc["config"].as<JsonObject>();;
 				gCfg["ver"] = cfg["ver"];
 				gCfg["etag_ok"] = cfg["etag_ok"];
 				gCfg["etag"] = cfg["etag"];
@@ -1469,7 +1471,7 @@ class CL_W10_WebConfig {
 
 
 		// 최근 이벤트 히스토리 (oldest -> newest)
-		JsonArray ev = v_doc["events"].to < JsonArray > ();
+		JsonArray ev = v_doc["events"].to<JsonArray>();
 		if (_diagEvtCount > 0) {
 			const uint8_t start = (uint8_t)((_diagEvtHead + G_W10_DIAG_EVT_MAX - _diagEvtCount) % G_W10_DIAG_EVT_MAX);
 			for (uint8_t i = 0; i < _diagEvtCount; i++) {
@@ -1638,14 +1640,14 @@ class CL_W10_WebConfig {
 	void apiKeycodes(AsyncWebServerRequest* req) {
 		JsonDocument d;
 
-		JsonArray mods = d["mods"].to < JsonArray > ();
+		JsonArray mods = d["mods"].to<JsonArray>();
 		for (size_t i = 0; i < sizeof(G_W10_MODS) / sizeof(G_W10_MODS[0]); i++) {
 			JsonObject o = mods.add < JsonObject > ();
 			o["name"] = G_W10_MODS[i].name;
 			o["mask"] = G_W10_MODS[i].mask;
 		}
 
-		JsonArray kb = d["kb"].to < JsonArray > ();
+		JsonArray kb = d["kb"].to<JsonArray>();
 		char nameBuf[8];
 		for (uint16_t code = 0; code <= 0xE7; code++) {
 			const char* n = _kbName(code);
@@ -1658,7 +1660,7 @@ class CL_W10_WebConfig {
 			o["code"] = code;
 		}
 
-		JsonArray con = d["consumer"].to < JsonArray > ();
+		JsonArray con = d["consumer"].to<JsonArray>();
 		for (size_t i = 0; i < sizeof(G_W10_CONSUMER) / sizeof(G_W10_CONSUMER[0]); i++) {
 			JsonObject o = con.add < JsonObject > ();
 			o["name"] = G_W10_CONSUMER[i].name;
@@ -1668,7 +1670,7 @@ class CL_W10_WebConfig {
 		// ---------------------------
 		// precision modes (owned by C10)
 		// ---------------------------
-		JsonArray pm = d["precision_modes"].to < JsonArray > ();
+		JsonArray pm = d["precision_modes"].to<JsonArray>();
 		for (uint8_t m = 0; m < (uint8_t)EN_C10_E10_PREC_MAX; m++) {
 			JsonObject o = pm.add < JsonObject > ();
 			const char* n = _precModeName(m);
