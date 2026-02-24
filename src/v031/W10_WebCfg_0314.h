@@ -164,6 +164,14 @@ private:
     // Envelope streaming safe string writer (Option-2)
     void _resPrintJsonString(AsyncResponseStream* res, const String& v);
     void _resPrintJsonString(AsyncResponseStream* res, const char* v);
+    
+    // =====================================================
+    // ETag/If-None-Match 최소 호환
+    //  - 따옴표/Weak ETag/콤마 리스트 대응
+    // =====================================================
+    bool _ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const;
+    void _formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_outSize) const;
+    
 
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,
