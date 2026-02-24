@@ -129,8 +129,6 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
         // 이제 tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
         if (tok.equalsIgnoreCase(v_tagRaw)) return true;
 
-        // 혹시 클라이언트가 따옴표 포함 토큰을 그대로 보냈는데 위에서 제거가 안 된 경우 대비
-        if (tok == String(v_tagQuoted)) return true;
     }
     return false;
 }
@@ -952,10 +950,10 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
         if (v_hasEtag) {
             char v_tag2[16];
             snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
-            res->print("\"etag\":\"");
-            _resPrintJsonString(res, v_tag2);
-            // res->print(v_tag2);
-            res->print("\",");
+            res->print("\"etag\":");
+            _resPrintJsonString(res, v_tag2);   // 따옴표 포함 문자열 리터럴이 출력됨
+            res->print(",");
+            
             res->print("\"size\":");
             res->print((unsigned int)v_size);
             res->print(",");
@@ -973,10 +971,19 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
     if (v_hasEtag) {
         char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+        res->addHeader("X-Config-Size", String((unsigned int)v_size));
+    }
+    /*
+    if (v_hasEtag) {
+        char v_tag[16];
         snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
         res->addHeader("ETag", v_tag);
         res->addHeader("X-Config-Size", String((unsigned int)v_size));
     }
+    */
     res->print(json);
     req->send(res);
 }
@@ -1138,18 +1145,18 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
         }
 
         res->print("{\"ok\":true,\"code\":\"config_export\",\"msg\":\"\",\"data\":{");
-        res->print("\"filename\":\"");
+        res->print("\"filename\":");
         _resPrintJsonString(res, v_filename);
-        // res->print(v_filename);
-        res->print("\",");
+        res->print(",");
 
         if (v_hasEtag) {
             char v_tag2[16];
             snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
-            res->print("\"etag\":\"");
+            
+            res->print("\"etag\":");
             _resPrintJsonString(res, v_tag2);
-            // res->print(v_tag2);
-            res->print("\",");
+            res->print(",");
+            
             res->print("\"size\":");
             res->print((unsigned int)v_size);
             res->print(",");
@@ -1169,13 +1176,22 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
         res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
     }
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-
+    
+    if (v_hasEtag) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+        res->addHeader("X-Config-Size", String((unsigned int)v_size));
+    }
+    /*
     if (v_hasEtag) {
         char v_tag[16];
         snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
         res->addHeader("ETag", v_tag);
         res->addHeader("X-Config-Size", String((unsigned int)v_size));
     }
+    */
 
     res->print(json);
     req->send(res);
