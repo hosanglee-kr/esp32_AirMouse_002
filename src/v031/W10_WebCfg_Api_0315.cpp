@@ -372,28 +372,6 @@ void CL_W10_WebConfig::_apiConfigSaveImportCommon(
     v_doc["import_applied"] = v_importApplied; // (선택) 디버깅/호환에 도움
     v_doc["note"] = (p_note ? p_note : "");
 
-    /*
-    bool v_saved = false;
-    bool v_applied = false;
-
-    bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_applied));
-
-    if (v_ok && v_saved && _cfg) {
-        (void)_cfg->loadAll(_wifi, _e10);
-        uint32_t v_m = _wifiDiffMask(v_prevWiFi, _wifi);
-        if (v_m != 0) _markNeedReboot(v_m);
-    }
-
-    if (v_ok && v_saved && p_applyAfterSave && _applyFn) {
-        v_applied = _applyFn(_applyCtx);
-    }
-
-    JsonDocument v_doc;
-    v_doc["saved"] = v_saved;
-    v_doc["applied"] = v_applied;
-    v_doc["note"] = (p_note ? p_note : "");
-    */
-
     if (v_ok) {
         _markLastApply(true, (p_src ? p_src : "save"), "config_save");
         _sendOk(req, "config_save", "", &v_doc, 200);
@@ -911,25 +889,6 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
             return;
         }
     }
-    /*
-    if (v_hasEtag) {
-        if (req->hasHeader("If-None-Match")) {
-            const AsyncWebHeader* h = req->getHeader("If-None-Match");
-            if (h) {
-                String v_inm = h->value();
-                char v_tag[16];
-                snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-                if (v_inm == String(v_tag)) {
-                    AsyncWebServerResponse* res304 = req->beginResponse(304);
-                    res304->addHeader("ETag", v_tag);
-                    res304->addHeader("Cache-Control", G_W10_CACHE_NOCACHE);
-                    req->send(res304);
-                    return;
-                }
-            }
-        }
-    }
-    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {
@@ -950,14 +909,6 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
             res->addHeader("ETag", v_tag);
             res->addHeader("X-Config-Size", String((unsigned int)v_size));
         }
-        /*
-        if (v_hasEtag) {
-            char v_tag[16];
-            snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-            res->addHeader("ETag", v_tag);
-            res->addHeader("X-Config-Size", String((unsigned int)v_size));
-        }
-        */
 
         res->print("{\"ok\":true,\"code\":\"config_get\",\"msg\":\"\",\"data\":{");
         if (v_hasEtag) {
@@ -989,14 +940,7 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
         res->addHeader("ETag", v_tag);
         res->addHeader("X-Config-Size", String((unsigned int)v_size));
     }
-    /*
-    if (v_hasEtag) {
-        char v_tag[16];
-        snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)v_size));
-    }
-    */
+    
     res->print(json);
     req->send(res);
 }
@@ -1106,24 +1050,6 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
             return;
         }
     }
-    
-    /*
-    if (v_hasEtag && req && req->hasHeader("If-None-Match")) {
-        const AsyncWebHeader* h = req->getHeader("If-None-Match");
-        if (h) {
-            String v_inm = h->value();
-            char v_tag[16];
-            snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-            if (v_inm == String(v_tag)) {
-                AsyncWebServerResponse* res304 = req->beginResponse(304);
-                res304->addHeader("ETag", v_tag);
-                res304->addHeader("Cache-Control", G_W10_CACHE_NOCACHE);
-                req->send(res304);
-                return;
-            }
-        }
-    }
-    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {
@@ -1154,14 +1080,6 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
             res->addHeader("X-Config-Size", String((unsigned int)v_size));
         }
     
-        /*
-        if (v_hasEtag) {
-            char v_tag[16];
-            snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-            res->addHeader("ETag", v_tag);
-            res->addHeader("X-Config-Size", String((unsigned int)v_size));
-        }
-        */
         if (v_attach) {
             res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
         }
@@ -1206,14 +1124,6 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
         res->addHeader("ETag", v_tag);
         res->addHeader("X-Config-Size", String((unsigned int)v_size));
     }
-    /*
-    if (v_hasEtag) {
-        char v_tag[16];
-        snprintf(v_tag, sizeof(v_tag), "%08X", (unsigned int)v_etag);
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)v_size));
-    }
-    */
 
     res->print(json);
     req->send(res);
@@ -1518,19 +1428,6 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
                     }
                     return;
                 }
-
-                /*
-                if (s.ota_guard) {
-                    _cnt_ota_blocked++;
-                    _diagPush("ota_guard_blocked");
-                    if (index == 0) {
-                        JsonDocument v_doc;
-                        v_doc["reason"] = "ota_guard";
-                        _sendErr(req, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
-                    }
-                    return;
-                }
-                */
             }
         }
     }
