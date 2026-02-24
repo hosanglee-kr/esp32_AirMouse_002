@@ -415,32 +415,32 @@ bool buildPatchedE10(const String& p_patchJson,
         return true;
     }
 
-bool exportJson(String& p_out) {
-        File v_f = LittleFS.open(C10_DEF::CFG_PATH, "r");
-        if (!v_f) return false;
-        p_out = v_f.readString();
-        v_f.close();
-        return (p_out.length() > 0);
-    }
-
+    bool exportJson(String& p_out) {
+            File v_f = LittleFS.open(C10_DEF::CFG_PATH, "r");
+            if (!v_f) return false;
+            p_out = v_f.readString();
+            v_f.close();
+            return (p_out.length() > 0);
+        }
     
-bool importJson(const String& p_json, bool& p_saved, bool& p_applied) {
-    p_saved = false;
-    p_applied = false;
-
-    // 빠른 JSON 유효성 검사
-    { JsonDocument v_doc; if (deserializeJson(v_doc, p_json)) return false; }
-
-    ST_C10_WiFiConfig_t v_w;
-    ST_C10_E10Config_t  v_e;
-
-    // defaults + (옵션)현재 파일 로드 + patch + validate
-    if (!buildPatchedAll(p_json, v_w, v_e, true)) return false;
-
-    p_saved = saveAll(v_w, v_e);
-    p_applied = p_saved; // 현재 정책상 저장 성공 == 적용 가능 상태로 표기
-    return p_saved;
-}
+        
+    bool importJson(const String& p_json, bool& p_saved, bool& p_applied) {
+        p_saved = false;
+        p_applied = false;
+    
+        // 빠른 JSON 유효성 검사
+        { JsonDocument v_doc; if (deserializeJson(v_doc, p_json)) return false; }
+    
+        ST_C10_WiFiConfig_t v_w;
+        ST_C10_E10Config_t  v_e;
+    
+        // defaults + (옵션)현재 파일 로드 + patch + validate
+        if (!buildPatchedAll(p_json, v_w, v_e, true)) return false;
+    
+        p_saved = saveAll(v_w, v_e);
+        p_applied = p_saved; // 현재 정책상 저장 성공 == 적용 가능 상태로 표기
+        return p_saved;
+    }
 
     // ---------- Patchers ----------
     bool patchFromJsonWiFi(const String& p_json, ST_C10_WiFiConfig_t& p_wifi) {

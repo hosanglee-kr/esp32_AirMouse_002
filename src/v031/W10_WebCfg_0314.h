@@ -160,6 +160,10 @@ private:
     // JSON stream helpers (AsyncResponseStream)
     // =====================================================
     void _sendJsonStream(AsyncWebServerRequest* req, JsonDocument& d, int p_code = 200);
+    
+    // Envelope streaming safe string writer (Option-2)
+    void _resPrintJsonString(AsyncResponseStream* res, const String& v);
+    void _resPrintJsonString(AsyncResponseStream* res, const char* v);
 
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,
