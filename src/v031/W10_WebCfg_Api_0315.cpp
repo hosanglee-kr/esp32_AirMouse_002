@@ -95,12 +95,12 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
     const AsyncWebHeader* h = req->getHeader("If-None-Match");
     if (!h) return false;
 
-    char v_tagQuoted[16];
+    // char v_tagQuoted[16];
     char v_tagRaw[12];
-    memset(v_tagQuoted, 0, sizeof(v_tagQuoted));
+    // memset(v_tagQuoted, 0, sizeof(v_tagQuoted));
     memset(v_tagRaw, 0, sizeof(v_tagRaw));
 
-    _formatEtagQuoted(p_etag, v_tagQuoted, sizeof(v_tagQuoted));
+    // _formatEtagQuoted(p_etag, v_tagQuoted, sizeof(v_tagQuoted));
     snprintf(v_tagRaw, sizeof(v_tagRaw), "%08X", (unsigned int)p_etag);
 
     String v_inm = h->value();
@@ -128,6 +128,9 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 
         // 이제 tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
         if (tok.equalsIgnoreCase(v_tagRaw)) return true;
+        
+        // If-None-Match: *  (리소스가 존재하면 매치로 간주)
+        if (tok == "*") return true;
 
     }
     return false;
@@ -227,8 +230,9 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
     if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
 
     if (strcmp(p_uri, "/api/config") == 0) return true;
-    if (strcmp(p_uri, "/api/config/save") == 0) return true;
-    if (strcmp(p_uri, "/api/config/apply") == 0) return true;
+    // save/apply/control/ppt 등은 SafeMode에선 차단(최소 정책)
+    // if (strcmp(p_uri, "/api/config/save") == 0) return true;
+    // if (strcmp(p_uri, "/api/config/apply") == 0) return true;
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
     if (strcmp(p_uri, "/api/export") == 0) return true;
     if (strcmp(p_uri, "/api/config/import") == 0) return true;
@@ -326,6 +330,15 @@ void CL_W10_WebConfig::_apiConfigSaveImportCommon(
     const char* p_src,
     const char* p_note,
     bool p_applyAfterSave) {
+        
+    // [PATCH] SafeMode Gate (save는 차단, import는 허용)
+    if (_isSafeMode() && !_isApiAllowedInSafeMode(req ? req->url().c_str() : nullptr)) {
+        _cnt_safe_blocked++;
+        _diagPush("safe_mode_blocked");
+        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
+        return;
+    }
+    
 
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
@@ -996,6 +1009,15 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, 
 }
 
 void CL_W10_WebConfig::apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+    
+    // [PATCH] SafeMode Gate (apply는 SafeMode에서 차단)
+    if (_isSafeMode() && !_isApiAllowedInSafeMode(req ? req->url().c_str() : nullptr)) {
+        _cnt_safe_blocked++;
+        _diagPush("safe_mode_blocked");
+        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
+        return;
+    }
+    
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
