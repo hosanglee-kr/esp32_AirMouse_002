@@ -136,7 +136,28 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 
     }
     return false;
+} 
+
+// =====================================================
+// 304 공통 응답 헬퍼 (no-store + ETag)
+// - Cache-Control: no-store 를 304에도 강제 적용
+// - ETag는 따옴표 포함 표준 형태로 응답
+// =====================================================
+void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
+    if (!req) return;
+
+    AsyncWebServerResponse* res304 = req->beginResponse(304);
+
+    char v_tag[16];
+    memset(v_tag, 0, sizeof(v_tag));
+    _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+
+    // 304에도 no-store 적용(요구사항)
+    res304->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    res304->addHeader("ETag", v_tag);
+    req->send(res304);
 }
+
 
 
 
@@ -898,6 +919,14 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
 
     if (v_hasEtag) {
         if (_ifNoneMatchHit(req, v_etag)) {
+            _send304NoStoreEtag(req, v_etag);
+            return;
+        }
+    }
+
+    /*
+    if (v_hasEtag) {
+        if (_ifNoneMatchHit(req, v_etag)) {
             AsyncWebServerResponse* res304 = req->beginResponse(304);
 
             char v_tag[16];
@@ -911,6 +940,7 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
             return;
         }
     }
+    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {
@@ -1054,6 +1084,14 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
 
     if (v_hasEtag) {
         if (_ifNoneMatchHit(req, v_etag)) {
+            _send304NoStoreEtag(req, v_etag);
+            return;
+        }
+    }
+
+    /*
+    if (v_hasEtag) {
+        if (_ifNoneMatchHit(req, v_etag)) {
             AsyncWebServerResponse* res304 = req->beginResponse(304);
 
             char v_tag[16];
@@ -1067,6 +1105,7 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
             return;
         }
     }
+    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {

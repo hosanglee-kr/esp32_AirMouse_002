@@ -179,6 +179,8 @@ private:
     bool _ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const;
     void _formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_outSize) const;
     
+    // 304 공통 응답 헬퍼 (no-store + ETag)
+    void _send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag);
 
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,
