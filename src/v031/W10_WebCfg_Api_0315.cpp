@@ -108,6 +108,8 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
     // 공백 제거(대략)
     v_inm.replace(" ", "");
     v_inm.replace("\t", "");
+    v_inm.replace("\r", "");
+    v_inm.replace("\n", "");
 
     // 여러 ETag가 콤마로 올 수 있음: "a","b",W/"c"
     int start = 0;
@@ -118,19 +120,19 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 
         if (tok.length() == 0) continue;
 
-        // Weak ETag 접두 제거: W/
-        if (tok.startsWith("W/")) tok = tok.substring(2);
+        // Weak ETag 접두 제거: W/ 또는 w/
+        if (tok.startsWith("W/") || tok.startsWith("w/")) tok = tok.substring(2);
 
         // 따옴표 제거: "ABCD" -> ABCD
         if (tok.startsWith("\"") && tok.endsWith("\"") && tok.length() >= 2) {
             tok = tok.substring(1, tok.length() - 1);
         }
-
-        // 이제 tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
-        if (tok.equalsIgnoreCase(v_tagRaw)) return true;
         
         // If-None-Match: *  (리소스가 존재하면 매치로 간주)
         if (tok == "*") return true;
+        
+        // 이제 tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
+        if (tok.equalsIgnoreCase(v_tagRaw)) return true;
 
     }
     return false;
@@ -242,6 +244,31 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
 }
 
 // =====================================================
+// SafeMode Gate (공통)
+// - SafeMode이고 허용 목록이 아니면:
+//   * 카운터/진단 기록
+//   * 표준 에러 응답
+//   * true 반환(호출부에서 return 처리)
+// =====================================================
+bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
+    if (!_isSafeMode()) return false;
+
+    const char* v_uri = nullptr;
+    if (req) {
+        // req->url()은 String 반환이므로 c_str() 포인터는 이 함수 내부에서만 사용
+        v_uri = req->url().c_str();
+    }
+
+    if (_isApiAllowedInSafeMode(v_uri)) return false;
+
+    _cnt_safe_blocked++;
+    _diagPush("safe_mode_blocked");
+    _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
+    return true;
+}
+
+
+// =====================================================
 // (STEP12) Envelope selector helper
 // =====================================================
 bool CL_W10_WebConfig::_wantsEnvelope(AsyncWebServerRequest* req) {
@@ -331,13 +358,8 @@ void CL_W10_WebConfig::_apiConfigSaveImportCommon(
     const char* p_note,
     bool p_applyAfterSave) {
         
-    // [PATCH] SafeMode Gate (save는 차단, import는 허용)
-    if (_isSafeMode() && !_isApiAllowedInSafeMode(req ? req->url().c_str() : nullptr)) {
-        _cnt_safe_blocked++;
-        _diagPush("safe_mode_blocked");
-        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
-        return;
-    }
+    // SafeMode Gate (허용 목록(_isApiAllowedInSafeMode) 기준으로 save/import 모두 공통 차단/허용)
+    if (_gateSafeModeOrReply(req)) return;
     
 
     String v_body;
@@ -955,12 +977,7 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, 
 void CL_W10_WebConfig::apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
     
     // [PATCH] SafeMode Gate (apply는 SafeMode에서 차단)
-    if (_isSafeMode() && !_isApiAllowedInSafeMode(req ? req->url().c_str() : nullptr)) {
-        _cnt_safe_blocked++;
-        _diagPush("safe_mode_blocked");
-        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
-        return;
-    }
+    if (_gateSafeModeOrReply(req)) return;
     
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
@@ -1158,12 +1175,8 @@ void CL_W10_WebConfig::apiRollback(AsyncWebServerRequest* req) {
 // /api/control
 // =====================================================
 void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-        _cnt_safe_blocked++;
-        _diagPush("safe_mode_blocked");
-        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
-        return;
-    }
+    
+    if (_gateSafeModeOrReply(req)) return;
 
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
@@ -1260,6 +1273,9 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
 // /api/ppt
 // =====================================================
 void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
+    // SafeMode Gate (ppt 조회도 SafeMode에서 차단: 최소 정책)
+    if (_gateSafeModeOrReply(req)) return;
+    
     if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
 
     JsonDocument d;
@@ -1283,12 +1299,8 @@ void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
 }
 
 void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-        _cnt_safe_blocked++;
-        _diagPush("safe_mode_blocked");
-        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
-        return;
-    }
+    
+    if (_gateSafeModeOrReply(req)) return;
 
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
@@ -1367,12 +1379,8 @@ void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, siz
 }
 
 void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (_isSafeMode() && !_isApiAllowedInSafeMode(req->url().c_str())) {
-        _cnt_safe_blocked++;
-        _diagPush("safe_mode_blocked");
-        _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
-        return;
-    }
+    
+    if (_gateSafeModeOrReply(req)) return;
 
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;

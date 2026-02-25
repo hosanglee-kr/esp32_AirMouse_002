@@ -155,6 +155,13 @@ private:
     // =====================================================
     bool _isSafeMode() const;
     bool _isApiAllowedInSafeMode(const char* p_uri) const;
+    
+    // =====================================================
+    // SafeMode Gate (공통)
+    //  - SafeMode + 비허용 API면 표준 에러 응답 후 true 반환
+    // =====================================================
+    bool _gateSafeModeOrReply(AsyncWebServerRequest* req);
+    
 
     // =====================================================
     // JSON stream helpers (AsyncResponseStream)
