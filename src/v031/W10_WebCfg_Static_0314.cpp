@@ -43,53 +43,132 @@
 #include "W10_WebCfg_0314.h"
 
 // =====================================================
-// CRC32 helper (polynomial 0xEDB88320)
+// CRC32 (bitwise) - small payload only (samples)
 // =====================================================
-static uint32_t W10_crc32_update(uint32_t crc, const uint8_t* data, size_t len) {
-    uint32_t c = crc;
-    for (size_t i = 0; i < len; i++) {
-        c ^= (uint32_t)data[i];
+static uint32_t W10_crc32_update(uint32_t p_crc, const uint8_t* p_data, size_t p_len) {
+    uint32_t v_crc = ~p_crc;
+    for (size_t i = 0; i < p_len; i++) {
+        v_crc ^= (uint32_t)p_data[i];
         for (uint8_t b = 0; b < 8; b++) {
-            if (c & 1) c = (c >> 1) ^ 0xEDB88320UL;
-            else       c = (c >> 1);
+            const uint32_t v_mask = (uint32_t)-(int32_t)(v_crc & 1u);
+            v_crc = (v_crc >> 1) ^ (0xEDB88320u & v_mask);
         }
     }
-    return c;
+    return ~v_crc;
+}
+
+static uint32_t W10_mix32(uint32_t x) {
+    // lightweight mixing
+    x ^= x >> 16;
+    x *= 0x7FEB352Du;
+    x ^= x >> 15;
+    x *= 0x846CA68Bu;
+    x ^= x >> 16;
+    return x;
 }
 
 // =====================================================
-// Static file ETag (CRC32 of content)
-// - returns false if file open/read fails
+// Static용: 파일 ETag 계산(32-bit) + 파일 크기(optional)
+// - mix: size + mtime + sample_crc
+// - sample: head/mid/tail (each up to 64 bytes)
 // =====================================================
 bool CL_W10_WebConfig::_calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize) {
     p_outEtag = 0;
     if (p_outSize) *p_outSize = 0;
     if (!p_path) return false;
 
-    File f = LittleFS.open(p_path, "r");
-    if (!f) return false;
+    File v_f = LittleFS.open(p_path, "r");
+    if (!v_f) return false;
 
-    size_t v_size = (size_t)f.size();
+    const size_t v_size = (size_t)v_f.size();
     if (p_outSize) *p_outSize = v_size;
 
-    uint8_t buf[512];
-    memset(buf, 0, sizeof(buf));
+    // ---- mtime (best-effort) ----
+    uint32_t v_mtime = 0;
+#if defined(ARDUINO_ARCH_ESP32)
+    // ESP32 Arduino FS: depending on core, File may support getLastWrite()
+    // If unavailable, this still compiles because it's inside try-like macro guards?
+    // 현실적으로 컴파일 에러를 막기 위해 아래는 "존재할 때만" 사용 권장.
+    // 사용 환경에서 getLastWrite()가 확실히 있으면 이 블록을 활성화하세요.
+    // v_mtime = (uint32_t)v_f.getLastWrite();
+#endif
 
-    uint32_t crc = 0xFFFFFFFFUL;
-    while (f.available()) {
-        size_t n = f.read(buf, sizeof(buf));
-        if (n == 0) break;
-        crc = W10_crc32_update(crc, buf, n);
+    // ---- sample crc ----
+    uint8_t v_buf[64];
+    memset(v_buf, 0, sizeof(v_buf));
+
+    uint32_t v_crc = 0;
+
+    auto readAt = [&](size_t off) {
+        if (v_size == 0) return;
+        if (off >= v_size) off = 0;
+        v_f.seek(off, SeekSet);
+        const size_t want = (v_size - off < sizeof(v_buf)) ? (v_size - off) : sizeof(v_buf);
+        if (want == 0) return;
+        const size_t got = (size_t)v_f.read(v_buf, want);
+        if (got > 0) v_crc = W10_crc32_update(v_crc, v_buf, got);
+    };
+
+    if (v_size <= 128) {
+        // small file: read all (still cheap)
+        v_f.seek(0, SeekSet);
+        while (true) {
+            const size_t got = (size_t)v_f.read(v_buf, sizeof(v_buf));
+            if (got == 0) break;
+            v_crc = W10_crc32_update(v_crc, v_buf, got);
+        }
+    } else {
+        // head/mid/tail samples
+        readAt(0);
+        readAt(v_size / 2);
+        readAt((v_size > 64) ? (v_size - 64) : 0);
     }
-    f.close();
 
-    crc ^= 0xFFFFFFFFUL;
+    v_f.close();
 
-    // size와 섞어서 우연충돌 약간 더 낮춤(단순)
-    // (규칙적으로 쓰기 좋게 32-bit 유지)
-    p_outEtag = (uint32_t)(crc ^ ((uint32_t)v_size * 2654435761UL));
+    // ---- mix ----
+    uint32_t v_e = 0xA5C3F19Bu;
+    v_e ^= W10_mix32((uint32_t)v_size);
+    v_e ^= W10_mix32((uint32_t)v_mtime);
+    v_e ^= W10_mix32(v_crc);
+
+    p_outEtag = v_e;
     return true;
 }
+
+
+// =====================================================
+// 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
+// - Cache-Control은 200과 "동일 값"으로 넣어 일관성 유지
+// - Vary는 "실제로 gzip variant를 사용한 경우에만" 넣기 위한 옵션
+// =====================================================
+void CL_W10_WebConfig::_send304StaticWithCacheControl(
+    AsyncWebServerRequest* req,
+    uint32_t p_etag,
+    const char* p_cacheControl,
+    bool p_varyAcceptEncoding) {
+
+    if (!req) return;
+
+    AsyncWebServerResponse* v_res = req->beginResponse(304);
+
+    // Cache-Control: 200과 동일 정책 적용(정적 캐시정책을 304에서도 유지)
+    v_res->addHeader("Cache-Control", (p_cacheControl ? p_cacheControl : G_W10_CACHE_NOSTORE));
+
+    // ETag
+    char v_tag[16];
+    memset(v_tag, 0, sizeof(v_tag));
+    _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+    v_res->addHeader("ETag", v_tag);
+
+    // Vary (정책: 정적에서 gzip을 "실제로" 사용한 경우만)
+    if (p_varyAcceptEncoding) {
+        v_res->addHeader("Vary", "Accept-Encoding");
+    }
+
+    req->send(v_res);
+}
+
 
 
 // =====================================================
@@ -314,6 +393,129 @@ void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
 }
 
 void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p_path) {
+    if (!req) return;
+
+    if (!p_path) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
+
+    char v_ext[12];
+    memset(v_ext, 0, sizeof(v_ext));
+    const char* v_extLower = W10_getLowerExt(p_path, v_ext, sizeof(v_ext));
+
+    if (!v_extLower || !W10_isAllowedWwwExt(v_extLower)) {
+        _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+        return;
+    }
+
+    bool v_useGz = false;
+    String v_gzPath;
+
+    // gzip: html/css/js 만 (.gz 존재 + Accept-Encoding:gzip) 시 사용
+    if (W10_isGzipTargetExt(v_extLower)) {
+        v_gzPath = String(p_path) + ".gz";
+        if (LittleFS.exists(v_gzPath) && _acceptsGzip(req)) {
+            v_useGz = true;
+        }
+    }
+
+    const char* v_sendPath = p_path;
+    if (v_useGz) v_sendPath = v_gzPath.c_str();
+
+    if (!LittleFS.exists(v_sendPath)) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
+
+    const char* v_ct = W10_contentTypeFromExt(v_extLower);
+
+    // Cache-Control: 200 정책을 먼저 확정
+    const char* v_cc = W10_cacheControlForStatic(p_path, v_extLower, false);
+
+    // ETag 계산은 "실제 보내는 파일"(gz면 gz) 기준
+    uint32_t v_etag = 0;
+    size_t v_size = 0;
+    const bool v_etagOk = _calcFileEtag32(v_sendPath, v_etag, &v_size);
+
+    // 304 (정적): Cache-Control=200과 동일 값, Vary는 "실제로 gzip 사용한 경우"만
+    if (v_etagOk && _ifNoneMatchHit(req, v_etag)) {
+        _send304StaticWithCacheControl(req, v_etag, v_cc, v_useGz);
+        return;
+    }
+
+    AsyncWebServerResponse* res = req->beginResponse(LittleFS, v_sendPath, v_ct);
+
+    if (v_useGz) {
+        res->addHeader("Content-Encoding", "gzip");
+        // Vary는 gzip 실제 사용 시에만
+        res->addHeader("Vary", "Accept-Encoding");
+    }
+
+    res->addHeader("Cache-Control", v_cc);
+
+    // ETag (200)
+    if (v_etagOk) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+    }
+
+    req->send(res);
+}
+
+void CL_W10_WebConfig::_servePublicJson(AsyncWebServerRequest* req, const char* p_path) {
+    if (!req) return;
+
+    if (!p_path) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
+
+    char v_ext[12];
+    memset(v_ext, 0, sizeof(v_ext));
+    const char* v_extLower = W10_getLowerExt(p_path, v_ext, sizeof(v_ext));
+
+    if (!v_extLower || !W10_isAllowedPublicJsonExt(v_extLower)) {
+        _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+        return;
+    }
+
+    if (!LittleFS.exists(p_path)) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
+
+    // public json: 정책상 no-store
+    // ETag+304는 동일 패턴으로 추가, 단 Vary는 넣지 않음(정책: Vary는 정적 gzip만)
+    uint32_t v_etag = 0;
+    size_t v_size = 0;
+    const bool v_etagOk = _calcFileEtag32(p_path, v_etag, &v_size);
+
+    if (v_etagOk && _ifNoneMatchHit(req, v_etag)) {
+        // public json 304는 no-store 유지 + ETag
+        _send304NoStoreEtag(req, v_etag);
+        return;
+    }
+
+    AsyncWebServerResponse* res = req->beginResponse(LittleFS, p_path, "application/json");
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+
+    if (v_etagOk) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+    }
+
+    // (옵션/요구) public json 200에서는 Vary 제거(더 엄격)
+    req->send(res);
+}
+
+
+/*
+void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p_path) {
     if (!p_path) {
         _sendStaticErr(req, 404, "static_not_found", "not found");
         return;
@@ -381,3 +583,4 @@ void CL_W10_WebConfig::_servePublicJson(AsyncWebServerRequest* req, const char* 
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
     req->send(res);
 }
+*/

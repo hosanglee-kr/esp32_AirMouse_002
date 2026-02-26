@@ -80,13 +80,14 @@ void CL_W10_WebConfig::_resPrintJsonString(AsyncResponseStream* res, const char*
 // =====================================================
 void CL_W10_WebConfig::_formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_outSize) const {
     if (!p_out || p_outSize < 4) return;
-    // 표준 ETag는 따옴표 포함이 일반적
     snprintf(p_out, p_outSize, "\"%08X\"", (unsigned int)p_etag);
 }
 
 // =====================================================
 // If-None-Match 호환 체크 (최소 대응)
 // - "abcd", abcd, W/"abcd", W/abcd, 콤마 리스트 모두 대응
+// - 공백/개행 제거
+// - "*" 지원
 // =====================================================
 bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const {
     if (!req) return false;
@@ -95,94 +96,62 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
     const AsyncWebHeader* h = req->getHeader("If-None-Match");
     if (!h) return false;
 
-    // char v_tagQuoted[16];
     char v_tagRaw[12];
-    // memset(v_tagQuoted, 0, sizeof(v_tagQuoted));
     memset(v_tagRaw, 0, sizeof(v_tagRaw));
-
-    // _formatEtagQuoted(p_etag, v_tagQuoted, sizeof(v_tagQuoted));
     snprintf(v_tagRaw, sizeof(v_tagRaw), "%08X", (unsigned int)p_etag);
 
     String v_inm = h->value();
 
-    // 공백 제거(대략)
+    // 공백/개행 제거(대략)
     v_inm.replace(" ", "");
     v_inm.replace("\t", "");
     v_inm.replace("\r", "");
     v_inm.replace("\n", "");
 
     // 여러 ETag가 콤마로 올 수 있음: "a","b",W/"c"
-    int start = 0;
-    while (start < v_inm.length()) {
-        int comma = v_inm.indexOf(',', start);
-        String tok = (comma < 0) ? v_inm.substring(start) : v_inm.substring(start, comma);
-        start = (comma < 0) ? v_inm.length() : (comma + 1);
+    int v_start = 0;
+    while (v_start < v_inm.length()) {
+        const int v_comma = v_inm.indexOf(',', v_start);
+        String v_tok = (v_comma < 0) ? v_inm.substring(v_start) : v_inm.substring(v_start, v_comma);
+        v_start = (v_comma < 0) ? v_inm.length() : (v_comma + 1);
 
-        if (tok.length() == 0) continue;
+        if (v_tok.length() == 0) continue;
+
+        // If-None-Match: *
+        if (v_tok == "*") return true;
 
         // Weak ETag 접두 제거: W/ 또는 w/
-        if (tok.startsWith("W/") || tok.startsWith("w/")) tok = tok.substring(2);
+        if (v_tok.startsWith("W/") || v_tok.startsWith("w/")) v_tok = v_tok.substring(2);
 
         // 따옴표 제거: "ABCD" -> ABCD
-        if (tok.startsWith("\"") && tok.endsWith("\"") && tok.length() >= 2) {
-            tok = tok.substring(1, tok.length() - 1);
+        if (v_tok.startsWith("\"") && v_tok.endsWith("\"") && v_tok.length() >= 2) {
+            v_tok = v_tok.substring(1, v_tok.length() - 1);
         }
-        
-        // If-None-Match: *  (리소스가 존재하면 매치로 간주)
-        if (tok == "*") return true;
-        
-        // 이제 tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
-        if (tok.equalsIgnoreCase(v_tagRaw)) return true;
 
+        if (v_tok.equalsIgnoreCase(v_tagRaw)) return true;
     }
     return false;
-} 
-
-// =====================================================
-// 304 공통 응답 헬퍼 (Cache-Control + ETag)
-// =====================================================
-void CL_W10_WebConfig::_send304Etag(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl) {
-    if (!req) return;
-
-    AsyncWebServerResponse* res304 = req->beginResponse(304);
-
-    char v_tag[16];
-    memset(v_tag, 0, sizeof(v_tag));
-    _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
-
-    res304->addHeader("Cache-Control", (p_cacheControl ? p_cacheControl : G_W10_CACHE_NOSTORE));
-    res304->addHeader("ETag", v_tag);
-    req->send(res304);
-}
-
-void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
-    _send304Etag(req, p_etag, G_W10_CACHE_NOSTORE);
 }
 
 
-/*
 
 // =====================================================
-// 304 공통 응답 헬퍼 (no-store + ETag)
-// - Cache-Control: no-store 를 304에도 강제 적용
-// - ETag는 따옴표 포함 표준 형태로 응답
+// 304 공통 (API/public json): no-store + ETag
+// - Vary는 여기서 넣지 않음(정책: Vary는 정적(gzip)에서만)
 // =====================================================
 void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
     if (!req) return;
 
-    AsyncWebServerResponse* res304 = req->beginResponse(304);
+    AsyncWebServerResponse* v_res = req->beginResponse(304);
+    v_res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
 
     char v_tag[16];
     memset(v_tag, 0, sizeof(v_tag));
     _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+    v_res->addHeader("ETag", v_tag);
 
-    // 304에도 no-store 적용(요구사항)
-    res304->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-    res304->addHeader("ETag", v_tag);
-    req->send(res304);
+    req->send(v_res);
 }
-*/
-
 
 
 // =====================================================

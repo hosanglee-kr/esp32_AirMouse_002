@@ -179,14 +179,14 @@ private:
     bool _ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const;
     void _formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_outSize) const;
     
-    // 304 공통 응답 헬퍼 (no-store + ETag)
+    // 공통 응답 헬퍼 (no-store + ETag) : API/public json에서 사용
     void _send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag);
     
-    // [NEW] 304 공통 (Cache-Control 지정 가능)
-    void _send304Etag(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl);
-    
-    // [NEW] Static용: 파일 ETag 계산(32-bit)
+    // Static용: 파일 ETag 계산(32-bit) + 파일 크기(optional)
     bool _calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize);
+    
+    // 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
+    void _send304StaticWithCacheControl(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl, bool p_varyAcceptEncoding);
     
 
     void _sendOk(AsyncWebServerRequest* req,
