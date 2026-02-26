@@ -181,6 +181,13 @@ private:
     
     // 304 공통 응답 헬퍼 (no-store + ETag)
     void _send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag);
+    
+    // [NEW] 304 공통 (Cache-Control 지정 가능)
+    void _send304Etag(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl);
+    
+    // [NEW] Static용: 파일 ETag 계산(32-bit)
+    bool _calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize);
+    
 
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,

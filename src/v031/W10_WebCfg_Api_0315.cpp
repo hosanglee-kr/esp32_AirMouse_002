@@ -139,6 +139,30 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 } 
 
 // =====================================================
+// 304 공통 응답 헬퍼 (Cache-Control + ETag)
+// =====================================================
+void CL_W10_WebConfig::_send304Etag(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl) {
+    if (!req) return;
+
+    AsyncWebServerResponse* res304 = req->beginResponse(304);
+
+    char v_tag[16];
+    memset(v_tag, 0, sizeof(v_tag));
+    _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+
+    res304->addHeader("Cache-Control", (p_cacheControl ? p_cacheControl : G_W10_CACHE_NOSTORE));
+    res304->addHeader("ETag", v_tag);
+    req->send(res304);
+}
+
+void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
+    _send304Etag(req, p_etag, G_W10_CACHE_NOSTORE);
+}
+
+
+/*
+
+// =====================================================
 // 304 공통 응답 헬퍼 (no-store + ETag)
 // - Cache-Control: no-store 를 304에도 강제 적용
 // - ETag는 따옴표 포함 표준 형태로 응답
@@ -157,7 +181,7 @@ void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t 
     res304->addHeader("ETag", v_tag);
     req->send(res304);
 }
-
+*/
 
 
 

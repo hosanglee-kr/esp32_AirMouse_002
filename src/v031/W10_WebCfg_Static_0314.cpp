@@ -43,6 +43,56 @@
 #include "W10_WebCfg_0314.h"
 
 // =====================================================
+// CRC32 helper (polynomial 0xEDB88320)
+// =====================================================
+static uint32_t W10_crc32_update(uint32_t crc, const uint8_t* data, size_t len) {
+    uint32_t c = crc;
+    for (size_t i = 0; i < len; i++) {
+        c ^= (uint32_t)data[i];
+        for (uint8_t b = 0; b < 8; b++) {
+            if (c & 1) c = (c >> 1) ^ 0xEDB88320UL;
+            else       c = (c >> 1);
+        }
+    }
+    return c;
+}
+
+// =====================================================
+// Static file ETag (CRC32 of content)
+// - returns false if file open/read fails
+// =====================================================
+bool CL_W10_WebConfig::_calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize) {
+    p_outEtag = 0;
+    if (p_outSize) *p_outSize = 0;
+    if (!p_path) return false;
+
+    File f = LittleFS.open(p_path, "r");
+    if (!f) return false;
+
+    size_t v_size = (size_t)f.size();
+    if (p_outSize) *p_outSize = v_size;
+
+    uint8_t buf[512];
+    memset(buf, 0, sizeof(buf));
+
+    uint32_t crc = 0xFFFFFFFFUL;
+    while (f.available()) {
+        size_t n = f.read(buf, sizeof(buf));
+        if (n == 0) break;
+        crc = W10_crc32_update(crc, buf, n);
+    }
+    f.close();
+
+    crc ^= 0xFFFFFFFFUL;
+
+    // size와 섞어서 우연충돌 약간 더 낮춤(단순)
+    // (규칙적으로 쓰기 좋게 32-bit 유지)
+    p_outEtag = (uint32_t)(crc ^ ((uint32_t)v_size * 2654435761UL));
+    return true;
+}
+
+
+// =====================================================
 // POST body slots
 // =====================================================
 ST_W10_BodySlot* CL_W10_WebConfig::_bodySlotAlloc(AsyncWebServerRequest* req) {
