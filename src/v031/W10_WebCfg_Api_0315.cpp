@@ -83,10 +83,11 @@ void CL_W10_WebConfig::_formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_
     snprintf(p_out, p_outSize, "\"%08X\"", (unsigned int)p_etag);
 }
 
+
 // =====================================================
 // If-None-Match 호환 체크 (최소 대응)
 // - "abcd", abcd, W/"abcd", W/abcd, 콤마 리스트 모두 대응
-// - 공백/개행 제거
+// - 공백/CRLF 제거
 // - "*" 지원
 // =====================================================
 bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const {
@@ -109,26 +110,27 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
     v_inm.replace("\n", "");
 
     // 여러 ETag가 콤마로 올 수 있음: "a","b",W/"c"
-    int v_start = 0;
-    while (v_start < v_inm.length()) {
-        const int v_comma = v_inm.indexOf(',', v_start);
-        String v_tok = (v_comma < 0) ? v_inm.substring(v_start) : v_inm.substring(v_start, v_comma);
-        v_start = (v_comma < 0) ? v_inm.length() : (v_comma + 1);
+    int start = 0;
+    while (start < v_inm.length()) {
+        int comma = v_inm.indexOf(',', start);
+        String tok = (comma < 0) ? v_inm.substring(start) : v_inm.substring(start, comma);
+        start = (comma < 0) ? v_inm.length() : (comma + 1);
 
-        if (v_tok.length() == 0) continue;
-
-        // If-None-Match: *
-        if (v_tok == "*") return true;
+        if (tok.length() == 0) continue;
 
         // Weak ETag 접두 제거: W/ 또는 w/
-        if (v_tok.startsWith("W/") || v_tok.startsWith("w/")) v_tok = v_tok.substring(2);
+        if (tok.startsWith("W/") || tok.startsWith("w/")) tok = tok.substring(2);
 
         // 따옴표 제거: "ABCD" -> ABCD
-        if (v_tok.startsWith("\"") && v_tok.endsWith("\"") && v_tok.length() >= 2) {
-            v_tok = v_tok.substring(1, v_tok.length() - 1);
+        if (tok.startsWith("\"") && tok.endsWith("\"") && tok.length() >= 2) {
+            tok = tok.substring(1, tok.length() - 1);
         }
 
-        if (v_tok.equalsIgnoreCase(v_tagRaw)) return true;
+        // If-None-Match: * (리소스가 존재하면 매치로 간주)
+        if (tok == "*") return true;
+
+        // tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
+        if (tok.equalsIgnoreCase(v_tagRaw)) return true;
     }
     return false;
 }
@@ -142,17 +144,16 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
     if (!req) return;
 
-    AsyncWebServerResponse* v_res = req->beginResponse(304);
-    v_res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    AsyncWebServerResponse* res304 = req->beginResponse(304);
 
     char v_tag[16];
     memset(v_tag, 0, sizeof(v_tag));
     _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
-    v_res->addHeader("ETag", v_tag);
 
-    req->send(v_res);
+    res304->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    res304->addHeader("ETag", v_tag);
+    req->send(res304);
 }
-
 
 // =====================================================
 // (C) Standard API response helpers
@@ -259,6 +260,7 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
 
 // =====================================================
 // SafeMode Gate (공통)
+//  - SafeMode + 비허용 API면 표준 에러 응답 후 true 반환
 // - SafeMode이고 허용 목록이 아니면:
 //   * 카운터/진단 기록
 //   * 표준 에러 응답
@@ -268,10 +270,7 @@ bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
     const char* v_uri = nullptr;
-    if (req) {
-        // req->url()은 String 반환이므로 c_str() 포인터는 이 함수 내부에서만 사용
-        v_uri = req->url().c_str();
-    }
+    if (req) v_uri = req->url().c_str();
 
     if (_isApiAllowedInSafeMode(v_uri)) return false;
 
@@ -280,7 +279,6 @@ bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
     return true;
 }
-
 
 // =====================================================
 // (STEP12) Envelope selector helper
@@ -910,30 +908,11 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
     size_t v_size = 0;
     bool v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
 
-    if (v_hasEtag) {
-        if (_ifNoneMatchHit(req, v_etag)) {
-            _send304NoStoreEtag(req, v_etag);
-            return;
-        }
+    if (v_hasEtag && _ifNoneMatchHit(req, v_etag)) {
+        _send304NoStoreEtag(req, v_etag);
+        return;
     }
 
-    /*
-    if (v_hasEtag) {
-        if (_ifNoneMatchHit(req, v_etag)) {
-            AsyncWebServerResponse* res304 = req->beginResponse(304);
-
-            char v_tag[16];
-            memset(v_tag, 0, sizeof(v_tag));
-            _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-
-            // 304에도 no-store 적용(요구사항)
-            res304->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-            res304->addHeader("ETag", v_tag);
-            req->send(res304);
-            return;
-        }
-    }
-    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {
@@ -944,16 +923,8 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
     if (v_envelope) {
         AsyncResponseStream* res = req->beginResponseStream("application/json");
         res->setCode(200);
-        res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
         
-        
-        if (v_hasEtag) {
-            char v_tag[16];
-            memset(v_tag, 0, sizeof(v_tag));
-            _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-            res->addHeader("ETag", v_tag);
-            res->addHeader("X-Config-Size", String((unsigned int)v_size));
-        }
+        _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
 
         res->print("{\"ok\":true,\"code\":\"config_get\",\"msg\":\"\",\"data\":{");
         if (v_hasEtag) {
@@ -977,14 +948,8 @@ void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
     // raw JSON도 stream
     AsyncResponseStream* res = req->beginResponseStream("application/json");
     res->setCode(200);
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-    if (v_hasEtag) {
-        char v_tag[16];
-        memset(v_tag, 0, sizeof(v_tag));
-        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)v_size));
-    }
+    
+    _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
     
     res->print(json);
     req->send(res);
@@ -1075,30 +1040,11 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
     size_t v_size = 0;
     bool v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
 
-    if (v_hasEtag) {
-        if (_ifNoneMatchHit(req, v_etag)) {
-            _send304NoStoreEtag(req, v_etag);
-            return;
-        }
+    if (v_hasEtag && _ifNoneMatchHit(req, v_etag)) {
+        _send304NoStoreEtag(req, v_etag);
+        return;
     }
 
-    /*
-    if (v_hasEtag) {
-        if (_ifNoneMatchHit(req, v_etag)) {
-            AsyncWebServerResponse* res304 = req->beginResponse(304);
-
-            char v_tag[16];
-            memset(v_tag, 0, sizeof(v_tag));
-            _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-
-            // 304에도 no-store 적용(요구사항)
-            res304->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-            res304->addHeader("ETag", v_tag);
-            req->send(res304);
-            return;
-        }
-    }
-    */
 
     String json;
     if (!_cfg || !_cfg->exportJson(json)) {
@@ -1119,15 +1065,8 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
     if (v_envelope) {
         AsyncResponseStream* res = req->beginResponseStream("application/json");
         res->setCode(200);
-        res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-
-        if (v_hasEtag) {
-            char v_tag[16];
-            memset(v_tag, 0, sizeof(v_tag));
-            _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-            res->addHeader("ETag", v_tag);
-            res->addHeader("X-Config-Size", String((unsigned int)v_size));
-        }
+        
+        _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
     
         if (v_attach) {
             res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
@@ -1164,15 +1103,8 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
     if (v_attach) {
         res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
     }
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
     
-    if (v_hasEtag) {
-        char v_tag[16];
-        memset(v_tag, 0, sizeof(v_tag));
-        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)v_size));
-    }
+    _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
 
     res->print(json);
     req->send(res);

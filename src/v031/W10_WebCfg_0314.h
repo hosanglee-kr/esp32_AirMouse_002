@@ -188,6 +188,22 @@ private:
     // 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
     void _send304StaticWithCacheControl(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl, bool p_varyAcceptEncoding);
     
+        // 200 공통 (정적): Cache-Control + (선택) Content-Encoding:gzip + (선택) Vary + ETag/X-Size
+    // - p_varyAcceptEncoding은 "실제로 gzip을 사용한 경우에만 true"로 넣는 것을 권장(더 엄격)
+    void _sendStaticWithCacheControlEtag(AsyncWebServerRequest* req,
+                                         const char* p_sendPath,
+                                         const char* p_contentType,
+                                         const char* p_cacheControl,
+                                         bool p_useGz,
+                                         bool p_varyAcceptEncoding,
+                                         bool p_hasEtag,
+                                         uint32_t p_etag,
+                                         size_t p_size);
+
+    // 200 공통 (API/config/export): no-store + ETag(+size) 헤더 부착
+    void _addEtagHeadersNoStore(AsyncWebServerResponse* res, bool p_hasEtag, uint32_t p_etag, size_t p_size);
+
+
 
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,
