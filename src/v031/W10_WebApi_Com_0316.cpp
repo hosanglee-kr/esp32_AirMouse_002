@@ -53,3 +53,41 @@
 // - _isSafeMode / _isApiAllowedInSafeMode / _gateSafeModeOrReply
 // - _wantsEnvelope
 // - _wifiDiffMask / _markNeedReboot / _markLastApply / _rebootReasonsString
+
+
+// =====================================================
+// Common JSON response helper (API는 무조건 no-store)
+// =====================================================
+void CL_W10_WebConfig::_sendJsonStream(AsyncWebServerRequest* req, JsonDocument& d, int p_code) {
+    AsyncResponseStream* res = req->beginResponseStream("application/json");
+    res->setCode(p_code);
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    serializeJson(d, *res);
+    req->send(res);
+}
+
+
+
+// =====================================================
+// 200 공통 (API/config/export): no-store + ETag + X-Config-Size
+// - 정적과 달리 gzip variant가 없으므로 Vary 필요 없음(정적만 Vary 표준화)
+// =====================================================
+void CL_W10_WebConfig::_addEtagHeadersNoStore(AsyncWebServerResponse* res,
+                                             bool p_hasEtag,
+                                             uint32_t p_etag,
+                                             size_t p_size) {
+    if (!res) return;
+
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+
+    if (p_hasEtag) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+        res->addHeader("X-Config-Size", String((unsigned int)p_size));
+    }
+}
+
+
+
