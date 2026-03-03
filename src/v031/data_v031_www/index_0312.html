@@ -1,0 +1,400 @@
+<!-- =======================================================
+     File: /www/index_0312.html
+     Elite AirMouse WebConfig 0301 (backend-aligned full)
+======================================================= -->
+
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse WebConfig 0302</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="./style_0310.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="title">Elite AirMouse</div>
+      <div class="sub">WebConfig 0302</div>
+    </div>
+
+    <div class="right">
+      <div class="pill" id="pillNet">NET: -</div>
+      <div class="pill" id="pillBle">BLE: -</div>
+      <div class="pill" id="pillSafe">SAFE: -</div>
+      <button class="btn" id="btnRefresh">새로고침</button>
+      <button class="btn warn" id="btnReboot">재부팅</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="tabs">
+      <button class="tab on" data-tab="dash">Dashboard</button>
+      <button class="tab" data-tab="config">Config (WiFi/E10)</button>
+      <button class="tab" data-tab="ppt">PPT Keymap</button>
+      <button class="tab" data-tab="diag">Diagnostics</button>
+      <button class="tab" data-tab="ota">OTA</button>
+    </nav>
+
+    <!-- DASH -->
+    <section class="card tabpane on" id="tab-dash">
+      <h2>Status</h2>
+      <div class="row">
+        <div class="kv"><div class="k">Uptime</div><div class="v" id="stUptime">-</div></div>
+        <div class="kv"><div class="k">Heap Free</div><div class="v" id="stHeap">-</div></div>
+      </div>
+      <div class="row">
+        <div class="kv"><div class="k">WiFi</div><div class="v" id="stWiFi">-</div></div>
+        <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
+      </div>
+      <div class="row">
+        <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
+        <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>Quick Control</h3>
+      <div class="row">
+        <button class="btn" id="btnCtlPptOn">PPT ON</button>
+        <button class="btn" id="btnCtlPptOff">PPT OFF</button>
+        <button class="btn" id="btnCtlPrecOff">Precision OFF</button>
+        <button class="btn primary" id="btnCtlPrecApply">Precision 적용</button>
+        <select class="select mini" id="ctlPrecMode"></select>
+        <label class="switch">
+          <input type="checkbox" id="ctlSnapshot" checked>
+          <span class="slider"></span>
+        </label>
+        <div class="hint">snapshot</div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <button class="btn" id="btnSafeInfo">SafeBoot 상태</button>
+        <button class="btn" id="btnSafeExit">SafeBoot 해제</button>
+        <button class="btn danger" id="btnFactory">Factory Reset</button>
+      </div>
+
+      <pre class="log" id="statusJson">loading...</pre>
+    </section>
+
+    <!-- CONFIG -->
+    <section class="card tabpane" id="tab-config">
+      <h2>Config Editor (WiFi / E10)</h2>
+      <div class="hint2">GET/EDIT → 검증 → Apply(저장없음) 또는 Save(저장+적용). WiFi 변경은 재부팅 필요.</div>
+
+      <div class="row">
+        <button class="btn" id="btnCfgLoad">Config 로드</button>
+        <button class="btn" id="btnCfgValidate">검증</button>
+        <button class="btn primary" id="btnCfgApply">Apply (no save)</button>
+        <button class="btn primary" id="btnCfgSave">Save</button>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btnCfgExport">Export</button>
+        <label class="btn filebtn">
+          Import <input type="file" id="cfgImportFile" accept=".json,application/json" />
+        </label>
+        <button class="btn warn" id="btnCfgRollback">Rollback (.bak)</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>WiFi</h3>
+      <div class="form">
+        <div class="frow">
+          <label class="flbl">Mode</label>
+          <select id="wifiMode" class="select">
+            <option value="0">AUTO</option>
+            <option value="1">AP</option>
+            <option value="2">STA</option>
+          </select>
+          <div class="fhelp">AUTO=STA 시도 후 실패하면 AP</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">STA SSID</label>
+          <input id="staSsid" class="inp" maxlength="32" />
+          <div class="fhelp">비어있으면 STA 미사용</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">STA PASS</label>
+          <input id="staPass" class="inp" maxlength="64" />
+          <div class="fhelp">WPA2 기준</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">AP SSID</label>
+          <input id="apSsid" class="inp" maxlength="32" />
+          <div class="fhelp">SafeBoot 시 “-SAFE” suffix 가능</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">AP PASS</label>
+          <input id="apPass" class="inp" maxlength="64" />
+          <div class="fhelp">빈 값이면 Open AP, 아니면 8자 이상</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">mDNS Host</label>
+          <input id="mdnsHost" class="inp" maxlength="32" />
+          <div class="fhelp">예: elite-airmouse</div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>E10 Core</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">DPI Level</label>
+          <select id="e10Dpi" class="select">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+          <div class="fhelp">0~2</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Hard Click Lock</label>
+          <select id="e10HardClick" class="select">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+          <div class="fhelp">클릭 락</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Accel Threshold</label>
+          <input id="accelThreshold" class="inp" type="number" step="0.1" />
+          <div class="fhelp">0~50</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Scroll Cursor Damp</label>
+          <input id="scrollDamp" class="inp" type="number" step="0.01" />
+          <div class="fhelp">0~1</div>
+        </div>
+      </div>
+
+      <h3>Arrays</h3>
+      <div class="form three">
+        <div class="frow">
+          <label class="flbl">Scale Base [3]</label>
+          <div class="arr">
+            <input id="sb0" class="inp mini" type="number" step="0.01" />
+            <input id="sb1" class="inp mini" type="number" step="0.01" />
+            <input id="sb2" class="inp mini" type="number" step="0.01" />
+          </div>
+          <div class="fhelp">float 3개</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Accel Gain [3]</label>
+          <div class="arr">
+            <input id="ag0" class="inp mini" type="number" step="0.01" />
+            <input id="ag1" class="inp mini" type="number" step="0.01" />
+            <input id="ag2" class="inp mini" type="number" step="0.01" />
+          </div>
+          <div class="fhelp">float 3개</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Wheel</label>
+          <div class="arr">
+            <input id="wheelTh" class="inp mini" type="number" step="0.1" />
+            <input id="wheelStepMax" class="inp mini" type="number" step="1" />
+          </div>
+          <div class="fhelp">threshold_deg / step_max</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Gesture</label>
+          <div class="arr">
+            <input id="flickDeg" class="inp mini" type="number" step="1" />
+            <input id="cooldownMs" class="inp mini" type="number" step="10" />
+          </div>
+          <div class="fhelp">flick_deg / cooldown_ms</div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>Precision</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Enable</label>
+          <select id="precEnable" class="select">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+          <div class="fhelp">기능 on/off</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Mode</label>
+          <select id="precMode" class="select"></select>
+          <div class="fhelp">/api/keycodes → precision_modes</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Deadzone</label>
+          <input id="precDeadzone" class="inp" type="number" step="0.1" />
+          <div class="fhelp">0~50</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Gain</label>
+          <input id="precGain" class="inp" type="number" step="0.01" />
+          <div class="fhelp">0~5</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Accel</label>
+          <input id="precAccel" class="inp" type="number" step="0.01" />
+          <div class="fhelp">0~5</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Max Step</label>
+          <input id="precMaxStep" class="inp" type="number" step="1" />
+          <div class="fhelp">1~200</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Smooth</label>
+          <input id="precSmooth" class="inp" type="number" step="0.01" />
+          <div class="fhelp">0~1</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Entry MS</label>
+          <input id="precEntryMs" class="inp" type="number" step="10" />
+          <div class="fhelp">50~5000</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Exit MS</label>
+          <input id="precExitMs" class="inp" type="number" step="10" />
+          <div class="fhelp">50~5000</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Entry Still (deg/s)</label>
+          <input id="precEntryStill" class="inp" type="number" step="0.1" />
+          <div class="fhelp">0.1~20</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Exit Move (deg/s)</label>
+          <input id="precExitMove" class="inp" type="number" step="0.1" />
+          <div class="fhelp">0.1~50</div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Profile</label>
+          <input id="precProfile" class="inp" type="number" step="1" />
+          <div class="fhelp">0~5</div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <h3>Config JSON (미리보기/직접편집)</h3>
+      <div class="hint2">UI 입력은 아래 JSON에 반영됩니다. 필요 시 JSON 직접 편집 후 Apply/Save 가능.</div>
+      <textarea class="ta" id="cfgJsonArea" spellcheck="false"></textarea>
+
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="swNeedReboot">
+          <span class="slider"></span>
+        </label>
+        <div class="hint">WiFi 변경했음(재부팅 필요 표시)</div>
+      </div>
+
+      <div class="row">
+        <div class="msg" id="cfgMsg">-</div>
+      </div>
+    </section>
+
+    <!-- PPT -->
+    <section class="card tabpane" id="tab-ppt">
+      <h2>PPT Keymap v2</h2>
+      <div class="hint2">page=kb(usage-id) / consumer(mask). mod는 kb에서만 사용. code는 10진/16진(0x..) 가능.</div>
+
+      <div class="row">
+        <button class="btn" id="btnPptReload">PPT 로드</button>
+        <button class="btn primary" id="btnPptSave">PPT 저장</button>
+        <label class="switch">
+          <input type="checkbox" id="swPptSave" checked>
+          <span class="slider"></span>
+        </label>
+        <div class="hint">save=true</div>
+      </div>
+
+      <!-- datalist: kb/consumer 추천 목록 -->
+      <datalist id="dlKb"></datalist>
+      <datalist id="dlConsumer"></datalist>
+
+      <div class="tbl">
+        <div class="tr head"><div>Action</div><div>Page</div><div>Mod</div><div>Code</div><div></div></div>
+
+        <div class="tr"><div>start</div><div><select id="pptStartPage" class="select mini"></select></div><div><select id="pptStartMod" class="select mini"></select></div><div><input id="pptStartCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="start">Test</button></div></div>
+        <div class="tr"><div>exit</div><div><select id="pptExitPage" class="select mini"></select></div><div><select id="pptExitMod" class="select mini"></select></div><div><input id="pptExitCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="exit">Test</button></div></div>
+        <div class="tr"><div>next</div><div><select id="pptNextPage" class="select mini"></select></div><div><select id="pptNextMod" class="select mini"></select></div><div><input id="pptNextCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="next">Test</button></div></div>
+        <div class="tr"><div>prev</div><div><select id="pptPrevPage" class="select mini"></select></div><div><select id="pptPrevMod" class="select mini"></select></div><div><input id="pptPrevCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="prev">Test</button></div></div>
+        <div class="tr"><div>black</div><div><select id="pptBlackPage" class="select mini"></select></div><div><select id="pptBlackMod" class="select mini"></select></div><div><input id="pptBlackCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="black">Test</button></div></div>
+        <div class="tr"><div>laser</div><div><select id="pptLaserPage" class="select mini"></select></div><div><select id="pptLaserMod" class="select mini"></select></div><div><input id="pptLaserCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="laser">Test</button></div></div>
+      </div>
+
+      <div class="sep"></div>
+      <pre class="log" id="pptJson">-</pre>
+    </section>
+
+    <!-- DIAG -->
+    <section class="card tabpane" id="tab-diag">
+      <h2>Diagnostics</h2>
+      <div class="hint2">운영/테스트용 진단 카운터/이벤트. 문제 재현 후 events를 먼저 확인하세요.</div>
+
+      <div class="row">
+        <button class="btn" id="btnDiagRefresh">새로고침</button>
+        <button class="btn danger" id="btnDiagClear">카운터 초기화</button>
+        <input class="inp" id="diagFilter" placeholder="event code filter (e.g. bad_json)" style="max-width:320px" />
+      </div>
+
+      <div class="row" id="diagCounters" style="flex-wrap:wrap; gap:8px;"></div>
+
+      <div class="sep"></div>
+      <div class="hint2">Recent events (newest first)</div>
+      <div class="log" id="diagEvents" style="max-height:240px; overflow:auto; padding:10px;"></div>
+
+      <div class="sep"></div>
+      <details>
+        <summary class="hint2">raw json</summary>
+        <pre class="log" id="diagJson">loading...</pre>
+      </details>
+    </section>
+
+    <!-- OTA -->
+    <section class="card tabpane" id="tab-ota">
+      <h2>OTA</h2>
+      <div class="row">
+        <input type="file" id="otaFile" class="file" />
+        <button class="btn primary" id="btnOta">업로드</button>
+        <button class="btn" id="btnOtaStatus">상태</button>
+      </div>
+      <div class="hint2" id="otaHint">-</div>
+      <pre class="log" id="otaJson">-</pre>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div>Cache: HTML=no-store / versioned assets=immutable / public json=no-store / images=no gzip</div>
+  </footer>
+
+  <script src="./app_0311.js"></script>
+</body>
+</html>
