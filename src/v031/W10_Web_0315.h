@@ -64,8 +64,8 @@
 #include <ESPAsyncWebServer.h>
 #include <Update.h>
 
-#include "C10_Config_0310.h"
-#include "E10_Def_0310.h"
+// #include "C10_Config_0310.h"  // W10_Def_0xxx.h에서 include
+// #include "E10_Def_0310.h"     // W10_Def_0xxx.h에서 include
 #include "W10_Def_0315.h"
 
 class CL_W10_WebConfig {
@@ -188,7 +188,7 @@ private:
     // 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
     void _send304StaticWithCacheControl(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl, bool p_varyAcceptEncoding);
 
-        // 200 공통 (정적): Cache-Control + (선택) Content-Encoding:gzip + (선택) Vary + ETag/X-Size
+    // 200 공통 (정적): Cache-Control + (선택) Content-Encoding:gzip + (선택) Vary + ETag/X-Size
     // - p_varyAcceptEncoding은 "실제로 gzip을 사용한 경우에만 true"로 넣는 것을 권장(더 엄격)
     void _sendStaticWithCacheControlEtag(AsyncWebServerRequest* req,
                                          const char* p_sendPath,
