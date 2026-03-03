@@ -65,26 +65,24 @@ static constexpr const char* G_W10_PATH_JSON_PUBLIC_PREFIX = "/json/public/";
 
 // 루트 접속 시 기본 index (프로젝트 빌드/배포 규칙에 맞게 고정)
 // - 예: /www/index_0276.html
-static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0301.html";
+static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0313.html";
 
 // -------------------------------------------------------
 // Cache-Control presets
 // -------------------------------------------------------
 static constexpr const char* G_W10_CACHE_NOSTORE   = "no-store";
-static constexpr const char* G_W10_CACHE_NOCACHE   = "no-cache";
+// static constexpr const char* G_W10_CACHE_NOCACHE   = "no-cache";
 static constexpr const char* G_W10_CACHE_IMMUTABLE = "public, max-age=31536000, immutable";
 static constexpr const char* G_W10_CACHE_SHORT     = "public, max-age=3600";
 
 // -------------------------------------------------------
 // 버전 토큰 규칙(파일명에 포함되면 immutable 후보)
-// - 예: app_0279.js, style-0279.css, logo_v0279.webp ...
+// - 표준: "_NNNN" (언더스코어 + 4자리 숫자)
+// - 예: app_0315.js, vendor_1203.css, logo_0007.webp
 // -------------------------------------------------------
-static constexpr const char* G_W10_VER_TOKEN_A = "_03";
-static constexpr const char* G_W10_VER_TOKEN_B = "-03";
-static constexpr const char* G_W10_VER_TOKEN_C = "v03";
 
 static constexpr size_t G_W10_BODY_MAX = 8192;
-static constexpr size_t G_W10_BODY_MAP_MAX = 8;
+// static constexpr size_t G_W10_BODY_MAP_MAX = 8;
 
 // ----------------------------------------------------
 // Reboot reason bits
@@ -96,7 +94,7 @@ static constexpr uint32_t G_W10_REBOOT_WIFI_MDNS = 0x00000008;
 static constexpr uint32_t G_W10_REBOOT_OTHER     = 0x80000000;
 
 // (C) API schema version
-static constexpr uint16_t G_W10_API_VER = 304;
+static constexpr uint16_t G_W10_API_VER = 316;
 
 static constexpr uint8_t  G_W10_BODY_SLOTS = 4;           // step19: increase POST body slots for concurrency
 static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500; // slot steal 방지: 일정 시간 안 지난 요청은 busy 처리
@@ -206,9 +204,14 @@ struct ST_W10_E10If_t {
 // -------------------------------------------------------
 static inline bool W10_isAllowedWwwExt(const char* p_extLower) {
     if (!p_extLower) return false;
-    return (strcmp(p_extLower, "html") == 0) || (strcmp(p_extLower, "css") == 0) || (strcmp(p_extLower, "js") == 0) ||
-           (strcmp(p_extLower, "svg") == 0) || (strcmp(p_extLower, "png") == 0) || (strcmp(p_extLower, "webp") == 0) ||
-           (strcmp(p_extLower, "ico") == 0);
+    return (strcmp(p_extLower, "html") == 0) 
+        || (strcmp(p_extLower, "css") == 0) 
+        || (strcmp(p_extLower, "js") == 0) 
+        || (strcmp(p_extLower, "svg") == 0) 
+        || (strcmp(p_extLower, "png") == 0) 
+        || (strcmp(p_extLower, "webp") == 0) 
+        || (strcmp(p_extLower, "ico") == 0) 
+        || (strcmp(p_extLower, "txt") == 0); // [ADD] robots.txt 지원
 }
 static inline bool W10_isAllowedPublicJsonExt(const char* p_extLower) {
     if (!p_extLower) return false;
@@ -221,13 +224,62 @@ static inline bool W10_isGzipTargetExt(const char* p_extLower) {
 
 // -------------------------------------------------------
 // 파일명 버전 토큰 판별(immutable 후보)
+// - 규칙: "_NNNN" 이 "원본 확장자" 바로 앞에 위치해야 true
+// - .gz가 붙으면 "원본 확장자"는 .gz 바로 앞의 확장자(html/css/js 등)
+//   예) index_0313.html.gz -> 원본 확장자 html 기준으로 검사 -> true
+//       app_0315_min.js.gz -> false
 // -------------------------------------------------------
 static inline bool W10_hasVersionToken(const char* p_pathOrName) {
     if (!p_pathOrName) return false;
-    return (strstr(p_pathOrName, G_W10_VER_TOKEN_A) != nullptr) ||
-           (strstr(p_pathOrName, G_W10_VER_TOKEN_B) != nullptr) ||
-           (strstr(p_pathOrName, G_W10_VER_TOKEN_C) != nullptr);
+
+    const char* v_dot = strrchr(p_pathOrName, '.');
+    if (!v_dot) return false;
+
+    // 1) .gz면 한 번 더 이전 '.'을 찾아 "원본 확장자"의 '.' 위치로 이동
+    //    (확장자 비교는 case-insensitive로)
+    if (strcasecmp(v_dot + 1, "gz") == 0) {
+        // v_dot은 ".gz"의 점. 그 앞에서 다시 '.'을 찾는다.
+        size_t v_prefixLen = (size_t)(v_dot - p_pathOrName);
+        if (v_prefixLen == 0) return false;
+
+        // 안전하게 앞부분만 복사해서 strrchr 사용
+        // (p_pathOrName을 직접 변형하지 않기 위함)
+        // 파일 경로가 길어도 여기서는 토큰 판정만 하므로 적당한 버퍼
+        char v_tmp[256];
+        memset(v_tmp, 0, sizeof(v_tmp));
+
+        if (v_prefixLen >= sizeof(v_tmp)) v_prefixLen = sizeof(v_tmp) - 1;
+        memcpy(v_tmp, p_pathOrName, v_prefixLen);
+        v_tmp[v_prefixLen] = '\0';
+
+        const char* v_dot2 = strrchr(v_tmp, '.');
+        if (!v_dot2) return false;
+
+        // v_dot2는 v_tmp 내부 포인터라서, 원본 문자열의 대응 위치로 환산
+        ptrdiff_t off = (ptrdiff_t)(v_dot2 - v_tmp);
+        v_dot = p_pathOrName + off;
+    }
+
+    // 2) 이제 v_dot는 "원본 확장자"의 '.' 위치
+    //    v_dot 앞에 "_NNNN"가 정확히 있어야 함
+    if (v_dot <= (p_pathOrName + 4)) return false;
+
+    const char* v_u = v_dot - 5; // '_' 위치
+    if (*v_u != '_') return false;
+
+    const char c1 = v_u[1];
+    const char c2 = v_u[2];
+    const char c3 = v_u[3];
+    const char c4 = v_u[4];
+
+    if (c1 < '0' || c1 > '9') return false;
+    if (c2 < '0' || c2 > '9') return false;
+    if (c3 < '0' || c3 > '9') return false;
+    if (c4 < '0' || c4 > '9') return false;
+
+    return true;
 }
+
 
 // -------------------------------------------------------
 // Content-Type mapping (확장자 소문자 기준)
@@ -265,7 +317,7 @@ static inline const char* W10_cacheControlForStatic(const char* p_path, const ch
 static inline bool W10_isPathSafe(const char* p_path) {
     if (!p_path) return false;
     if (strstr(p_path, "..")) return false;
-    if (strstr(p_path, "//")) return false;
+    // if (strstr(p_path, "//")) return false;
     return true;
 }
 
