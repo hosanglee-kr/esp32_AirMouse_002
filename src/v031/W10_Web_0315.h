@@ -66,7 +66,7 @@
 
 #include "C10_Config_0310.h"
 #include "E10_Def_0310.h"
-#include "W10_Def_0314.h"
+#include "W10_Def_0315.h"
 
 class CL_W10_WebConfig {
 private:
@@ -155,39 +155,39 @@ private:
     // =====================================================
     bool _isSafeMode() const;
     bool _isApiAllowedInSafeMode(const char* p_uri) const;
-    
+
     // =====================================================
     // SafeMode Gate (공통)
     //  - SafeMode + 비허용 API면 표준 에러 응답 후 true 반환
     // =====================================================
     bool _gateSafeModeOrReply(AsyncWebServerRequest* req);
-    
+
 
     // =====================================================
     // JSON stream helpers (AsyncResponseStream)
     // =====================================================
     void _sendJsonStream(AsyncWebServerRequest* req, JsonDocument& d, int p_code = 200);
-    
+
     // Envelope streaming safe string writer (Option-2)
     void _resPrintJsonString(AsyncResponseStream* res, const String& v);
     void _resPrintJsonString(AsyncResponseStream* res, const char* v);
-    
+
     // =====================================================
     // ETag/If-None-Match 최소 호환
     //  - 따옴표/Weak ETag/콤마 리스트 대응
     // =====================================================
     bool _ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const;
     void _formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_outSize) const;
-    
+
     // 공통 응답 헬퍼 (no-store + ETag) : API/public json에서 사용
     void _send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag);
-    
+
     // Static용: 파일 ETag 계산(32-bit) + 파일 크기(optional)
     bool _calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize);
-    
+
     // 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
     void _send304StaticWithCacheControl(AsyncWebServerRequest* req, uint32_t p_etag, const char* p_cacheControl, bool p_varyAcceptEncoding);
-    
+
         // 200 공통 (정적): Cache-Control + (선택) Content-Encoding:gzip + (선택) Vary + ETag/X-Size
     // - p_varyAcceptEncoding은 "실제로 gzip을 사용한 경우에만 true"로 넣는 것을 권장(더 엄격)
     void _sendStaticWithCacheControlEtag(AsyncWebServerRequest* req,

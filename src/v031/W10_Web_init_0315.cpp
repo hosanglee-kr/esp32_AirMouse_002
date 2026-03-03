@@ -146,7 +146,7 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             JsonDocument v_doc;
             v_doc["written"] = (uint32_t)_otaWritten;
             v_doc["total"]   = (uint32_t)_otaTotal;
-            
+
             if (_otaOk) {
                 _sendOk(req, "ota", "ok", &v_doc, 200);
             } else {
@@ -215,10 +215,10 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
 void CL_W10_WebConfig::_setupWiFi() {
     WiFi.mode(WIFI_MODE_NULL);
 
-    const bool v_hasSta = (_wifi.sta_ssid[0] != '\0');
-    const bool v_autoMode = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
-    const bool v_forceAp = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
-    const bool v_forceSta = (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
+    const bool v_hasSta 	= (_wifi.sta_ssid[0] != '\0');
+    const bool v_autoMode 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
+    const bool v_forceAp 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
+    const bool v_forceSta 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
 
     // SafeBoot: 무조건 AP
     if (_cfg && _cfg->isSafeMode()) {

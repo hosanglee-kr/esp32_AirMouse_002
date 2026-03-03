@@ -71,17 +71,6 @@ static uint32_t W10_rotl32(uint32_t x, uint8_t r) {
     return (x << r) | (x >> (32 - r));
 }
 
-/*
-static uint32_t W10_mix32(uint32_t x) {
-    // lightweight mixing
-    x ^= x >> 16;
-    x *= 0x7FEB352Du;
-    x ^= x >> 15;
-    x *= 0x846CA68Bu;
-    x ^= x >> 16;
-    return x;
-}
-*/
 
 // =====================================================
 // Static용: 파일 ETag 계산(32-bit) + 파일 크기(optional)
@@ -100,10 +89,11 @@ bool CL_W10_WebConfig::_calcFileEtag32(const char* p_path, uint32_t& p_outEtag, 
 
     // mtime(가능하면) - 코어 버전에 따라 없을 수 있어 조건부
     uint32_t v_mtime = 0;
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
-    // 일부 코어에서만 제공. 없으면 컴파일이 안 날 수 있어 위 조건으로 제한.
-    v_mtime = (uint32_t)f.getLastWrite();
-#endif
+
+	#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+		// 일부 코어에서만 제공. 없으면 컴파일이 안 날 수 있어 위 조건으로 제한.
+		v_mtime = (uint32_t)f.getLastWrite();
+	#endif
 
     uint32_t v_crc = 0xFFFFFFFFUL;
 
@@ -224,27 +214,6 @@ void CL_W10_WebConfig::_sendStaticWithCacheControlEtag(AsyncWebServerRequest* re
     req->send(res);
 }
 
-
-// =====================================================
-// 200 공통 (API/config/export): no-store + ETag + X-Config-Size
-// - 정적과 달리 gzip variant가 없으므로 Vary 필요 없음(정적만 Vary 표준화)
-// =====================================================
-void CL_W10_WebConfig::_addEtagHeadersNoStore(AsyncWebServerResponse* res,
-                                             bool p_hasEtag,
-                                             uint32_t p_etag,
-                                             size_t p_size) {
-    if (!res) return;
-
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-
-    if (p_hasEtag) {
-        char v_tag[16];
-        memset(v_tag, 0, sizeof(v_tag));
-        _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)p_size));
-    }
-}
 
 
 
