@@ -10,11 +10,34 @@
 * ------------------------------------------------------
 * 기능 요약
 * - (0316) /api/control, /api/ppt 분리
-* ------------------------------------------------------
-* [구현 규칙] ... (동일)
-* ------------------------------------------------------
-* [코드 네이밍 규칙] ... (동일)
-* ------------------------------------------------------
+ * ------------------------------------------------------
+ * [구현 규칙]
+ *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
+ *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
+ *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - JsonDocument 단일 타입만 사용
+ *  - createNestedArray/Object/containsKey 사용 금지
+ *  - memset + strlcpy 기반 안전 초기화
+ *  - 주석/필드명은 JSON 구조와 동일하게 유지
+ *  - 변수명은 가능한 해석 가능하게
+ * ------------------------------------------------------
+ * [코드 네이밍 규칙]
+ *   - namespace 명        : 모듈약어_ 접두사
+ *   - namespace 내 상수    : 모둘약어 접두시 미사용
+ *   - 전역 상수,매크로      : G_모듈약어_ 접두사
+ *   - 전역 변수             : g_모듈약어_ 접두사
+ *   - 전역 함수             : 모듈약어_ 접두사
+ *   - type                  : T_모듈약어_ 접두사
+ *   - typedef               : _t  접미사
+ *   - enum 상수             : EN_모듈약어_ 접두사
+ *   - 구조체                : ST_모듈약어_ 접두사
+ *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
+ *   - 클래스 private 멤버 함수/변수   : _ 접두사
+ *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
+ *   - 클래스 정적 멤버      : s_ 접두사
+ *   - 함수 로컬 변수        : v_ 접두사
+ *   - 함수 인자             : p_ 접두사
+ * ------------------------------------------------------
 */
 
 #include "W10_Web_0315.h"
@@ -37,9 +60,9 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    JsonDocument d;
-    DeserializationError err = deserializeJson(d, v_body);
-    if (err) {
+    JsonDocument v_jsonDoc;
+    DeserializationError v_err = deserializeJson(v_jsonDoc, v_body);
+    if (v_err) {
         _cnt_json_bad++;
         _diagPush("bad_json");
         _sendErr(req, "bad_json", "Invalid JSON.");
@@ -49,27 +72,27 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
     ST_W10_E10If_t* e10if = _e10if;
     bool ok = true;
 
-    const bool v_snapshot = (!d["snapshot"].isNull()) ? (bool)d["snapshot"] : false;
+    const bool v_snapshot = (!v_jsonDoc["snapshot"].isNull()) ? (bool)v_jsonDoc["snapshot"] : false;
 
     const char* v_cmd = nullptr;
-    if (!d["cmd"].isNull()) v_cmd = (const char*)d["cmd"];
+    if (!v_jsonDoc["cmd"].isNull()) v_cmd = (const char*)v_jsonDoc["cmd"];
 
     if (!e10if) ok = false;
 
     if (ok && v_cmd && v_cmd[0] != '\0') {
         if (strcmp(v_cmd, "set_ppt") == 0) {
             bool v_en = false;
-            if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+            if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setPptMode ? e10if->setPptMode(e10if->ctx, v_en) : false);
 
         } else if (strcmp(v_cmd, "set_dpi") == 0) {
             uint8_t v_lv = 2;
-            if (!d["level"].isNull()) v_lv = (uint8_t)d["level"];
+            if (!v_jsonDoc["level"].isNull()) v_lv = (uint8_t)v_jsonDoc["level"];
             ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, v_lv) : false);
 
         } else if (strcmp(v_cmd, "set_precision") == 0) {
             uint8_t v_mode = (uint8_t)EN_C10_E10_PREC_OFF;
-            if (!d["mode"].isNull()) v_mode = (uint8_t)d["mode"];
+            if (!v_jsonDoc["mode"].isNull()) v_mode = (uint8_t)v_jsonDoc["mode"];
 
             if (v_mode >= (uint8_t)EN_C10_E10_PREC_MAX) {
                 ok = false;
@@ -91,12 +114,12 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
 
         } else if (strcmp(v_cmd, "set_safe_mode") == 0) {
             bool v_en = false;
-            if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+            if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, v_en) : false);
 
         } else if (strcmp(v_cmd, "set_ota_guard") == 0) {
             bool v_en = false;
-            if (!d["enable"].isNull()) v_en = (bool)d["enable"];
+            if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setOtaGuard ? e10if->setOtaGuard(e10if->ctx, v_en) : false);
 
         } else {
@@ -104,15 +127,15 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
         }
 
     } else if (ok) {
-        if (!d["ppt_mode"].isNull()) ok = ok && (e10if && e10if->setPptMode ? e10if->setPptMode(e10if->ctx, (bool)d["ppt_mode"]) : false);
-        if (!d["dpi_level"].isNull()) ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, (uint8_t)d["dpi_level"]) : false);
+        if (!v_jsonDoc["ppt_mode"].isNull()) ok = ok && (e10if && e10if->setPptMode ? e10if->setPptMode(e10if->ctx, (bool)v_jsonDoc["ppt_mode"]) : false);
+        if (!v_jsonDoc["dpi_level"].isNull()) ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, (uint8_t)v_jsonDoc["dpi_level"]) : false);
 
-        if (!d["precision_mode"].isNull()) {
-            uint8_t v_mode = (uint8_t)d["precision_mode"];
+        if (!v_jsonDoc["precision_mode"].isNull()) {
+            uint8_t v_mode = (uint8_t)v_jsonDoc["precision_mode"];
             if (v_mode >= (uint8_t)EN_C10_E10_PREC_MAX) ok = false;
             else ok = ok && (e10if && e10if->setPrecisionMode ? e10if->setPrecisionMode(e10if->ctx, v_mode) : false);
         }
-        if (!d["safe_mode"].isNull()) ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, (bool)d["safe_mode"]) : false);
+        if (!v_jsonDoc["safe_mode"].isNull()) ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, (bool)v_jsonDoc["safe_mode"]) : false);
     }
 
     JsonDocument v_doc;
@@ -134,11 +157,11 @@ void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
 
     if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
 
-    JsonDocument d;
-    JsonObject map = d["map"].to<JsonObject>();
+    JsonDocument v_jsonDoc;
+    JsonObject v_jsonObj_map = v_jsonDoc["map"].to<JsonObject>();
 
     auto put = [&](const char* n, const ST_C10_PptKey2_t& k) {
-        JsonObject o = map[n].to<JsonObject>();
+        JsonObject o = v_jsonObj_map[n].to<JsonObject>();
         o["page"] = (k.page == (uint8_t)EN_C10_KEYPAGE_CONSUMER) ? "consumer" : "kb";
         o["mod"] = k.mod;
         o["code"] = k.code;
@@ -151,7 +174,7 @@ void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
     put("black", _e10.ppt2_black);
     put("laser", _e10.ppt2_laser);
 
-    _sendOk(req, "ppt", "", &d, 200);
+    _sendOk(req, "ppt", "", &v_jsonDoc, 200);
 }
 
 void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
@@ -161,9 +184,9 @@ void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, siz
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    JsonDocument d;
-    DeserializationError err = deserializeJson(d, v_body);
-    if (err) {
+    JsonDocument v_jsonDoc;
+    DeserializationError v_err = deserializeJson(v_jsonDoc, v_body);
+    if (v_err) {
         _cnt_json_bad++;
         _diagPush("bad_json");
         _sendErr(req, "bad_json", "Invalid JSON.");
@@ -171,10 +194,10 @@ void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, siz
     }
 
     bool save = true;
-    if (!d["save"].isNull()) save = (bool)d["save"];
+    if (!v_jsonDoc["save"].isNull()) save = (bool)v_jsonDoc["save"];
 
-    JsonVariant map = d["map"];
-    if (map.isNull()) {
+    JsonVariant v_jsonObj_map = v_jsonDoc["map"];
+    if (v_jsonObj_map.isNull()) {
         _sendErr(req, "no_map", "Missing map field.");
         return;
     }
@@ -193,7 +216,7 @@ void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, siz
         (void)_cfg->loadAll(w, e);
 
         auto loadK = [&](const char* n, ST_C10_PptKey2_t& k) {
-            JsonVariant o = map[n];
+            JsonVariant o = v_jsonObj_map[n];
             if (o.isNull()) return;
 
             if (!o["page"].isNull()) {
@@ -241,9 +264,9 @@ void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, siz
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    JsonDocument d;
-    DeserializationError err = deserializeJson(d, v_body);
-    if (err) {
+    JsonDocument v_jsonDoc;
+    DeserializationError v_err = deserializeJson(v_jsonDoc, v_body);
+    if (v_err) {
         _cnt_json_bad++;
         _diagPush("bad_json");
         _sendErr(req, "bad_json", "Invalid JSON.");
@@ -254,12 +277,12 @@ void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, siz
     uint8_t mod = 0;
     uint32_t code = 0;
 
-    if (!d["page"].isNull()) {
-        const char* s = (const char*)d["page"];
+    if (!v_jsonDoc["page"].isNull()) {
+        const char* s = (const char*)v_jsonDoc["page"];
         if (s && strcasecmp(s, "consumer") == 0) page = (uint8_t)EN_C10_KEYPAGE_CONSUMER;
     }
-    if (!d["mod"].isNull()) mod = (uint8_t)d["mod"];
-    if (!d["code"].isNull()) code = (uint32_t)d["code"];
+    if (!v_jsonDoc["mod"].isNull()) mod = (uint8_t)v_jsonDoc["mod"];
+    if (!v_jsonDoc["code"].isNull()) code = (uint32_t)v_jsonDoc["code"];
 
     ST_W10_E10If_t* e10if = _e10if;
     bool ok = (e10if && e10if->testPptKey2 ? e10if->testPptKey2(e10if->ctx, page, mod, code) : false);
