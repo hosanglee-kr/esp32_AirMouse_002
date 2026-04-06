@@ -1,0 +1,320 @@
+{
+  "meta": {
+    "schema_ver": 1,
+    "cfg_ver": 31,
+    "generated_for": "v0310",
+    "notes": "UI range/options schema for /api/config patch and validation."
+  },
+  "wifi": {
+    "mode": {
+      "type": "u8",
+      "min": 0,
+      "max": 2,
+      "default": 0,
+      "enum": [
+        {
+          "v": 0,
+          "t": "STA"
+        },
+        {
+          "v": 1,
+          "t": "AP"
+        },
+        {
+          "v": 2,
+          "t": "STA+AP"
+        }
+      ]
+    },
+    "sta": {
+      "ssid": {
+        "type": "str",
+        "max_len": 32,
+        "default": ""
+      },
+      "pass": {
+        "type": "str",
+        "max_len": 63,
+        "default": ""
+      }
+    },
+    "ap": {
+      "ssid": {
+        "type": "str",
+        "max_len": 32,
+        "default": "EliteAirMouse"
+      },
+      "pass": {
+        "type": "str",
+        "max_len": 63,
+        "min_len": 8,
+        "default": "12345678"
+      }
+    },
+    "mdns": {
+      "host": {
+        "type": "str",
+        "max_len": 32,
+        "default": "elite-airmouse"
+      }
+    },
+    "sta_ssid": {
+      "type": "str",
+      "max_len": 32,
+      "default": ""
+    },
+    "sta_pass": {
+      "type": "str",
+      "max_len": 63,
+      "default": ""
+    },
+    "ap_ssid": {
+      "type": "str",
+      "max_len": 32,
+      "default": "EliteAirMouse"
+    },
+    "ap_pass": {
+      "type": "str",
+      "max_len": 63,
+      "min_len": 8,
+      "default": "12345678"
+    },
+    "mdns_host": {
+      "type": "str",
+      "max_len": 32,
+      "default": "elite-airmouse"
+    }
+  },
+  "e10": {
+    "dpi_level": {
+      "type": "u8",
+      "min": 0,
+      "max": 4,
+      "default": 2
+    },
+    "precision_mode": {
+      "type": "u16",
+      "min": 0,
+      "max": 65535,
+      "default": 0
+    },
+    "hard_click_lock": {
+      "type": "bool",
+      "default": true
+    },
+    "scale_base": {
+      "type": "f32_array",
+      "len": 3,
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.05,
+      "default": [
+        0.55,
+        0.75,
+        1.0
+      ]
+    },
+    "accel_gain": {
+      "type": "f32_array",
+      "len": 3,
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.05,
+      "default": [
+        0.35,
+        0.55,
+        0.85
+      ]
+    },
+    "accel_threshold": {
+      "type": "f32",
+      "min": 0.0,
+      "max": 30.0,
+      "step": 0.5,
+      "default": 8.0
+    },
+    "scroll_cursor_damp": {
+      "type": "f32",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "default": 0.25
+    },
+    "wheel": {
+      "threshold_deg": {
+        "type": "f32",
+        "min": 10.0,
+        "max": 360.0,
+        "step": 1.0,
+        "default": 90.0
+      },
+      "step_max": {
+        "type": "u8",
+        "min": 1,
+        "max": 30,
+        "default": 6
+      }
+    },
+    "gesture": {
+      "flick_deg": {
+        "type": "f32",
+        "min": 10.0,
+        "max": 2000.0,
+        "step": 1.0,
+        "default": 200.0
+      },
+      "cooldown_ms": {
+        "type": "u16",
+        "min": 0,
+        "max": 20000,
+        "default": 600
+      }
+    },
+    "precision": {
+      "enable": {
+        "type": "bool",
+        "default": false
+      },
+      "deadzone": {
+        "type": "f32",
+        "min": 0.0,
+        "max": 50.0,
+        "step": 0.1,
+        "default": 1.2
+      },
+      "gain": {
+        "type": "f32",
+        "min": 0.0,
+        "max": 5.0,
+        "step": 0.05,
+        "default": 0.65
+      },
+      "accel": {
+        "type": "f32",
+        "min": 0.0,
+        "max": 5.0,
+        "step": 0.05,
+        "default": 0.25
+      },
+      "max_step": {
+        "type": "u16",
+        "min": 1,
+        "max": 200,
+        "default": 18
+      },
+      "smooth": {
+        "type": "f32",
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.01,
+        "default": 0.85
+      },
+      "entry_ms": {
+        "type": "u16",
+        "min": 50,
+        "max": 5000,
+        "default": 450
+      },
+      "exit_ms": {
+        "type": "u16",
+        "min": 50,
+        "max": 5000,
+        "default": 300
+      },
+      "entry_still_deg": {
+        "type": "f32",
+        "min": 0.1,
+        "max": 20.0,
+        "step": 0.1,
+        "default": 1.2
+      },
+      "exit_move_deg": {
+        "type": "f32",
+        "min": 0.1,
+        "max": 50.0,
+        "step": 0.1,
+        "default": 3.5
+      },
+      "profile": {
+        "type": "u8",
+        "min": 0,
+        "max": 5,
+        "default": 0
+      }
+    },
+    "scale_base_0": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 0.55
+    },
+    "scale_base_1": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 0.75
+    },
+    "scale_base_2": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 1.0
+    },
+    "accel_gain_0": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 0.35
+    },
+    "accel_gain_1": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 0.55
+    },
+    "accel_gain_2": {
+      "type": "f32",
+      "len": 3,
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.05,
+      "default": 0.85
+    },
+    "wheel_threshold_deg": {
+      "type": "f32",
+      "min": 10.0,
+      "max": 360.0,
+      "step": 1.0,
+      "default": 90.0
+    },
+    "wheel_step_max": {
+      "type": "u8",
+      "min": 1,
+      "max": 30,
+      "default": 6
+    },
+    "gesture_flick_deg": {
+      "type": "f32",
+      "min": 10.0,
+      "max": 2000.0,
+      "step": 1.0,
+      "default": 200.0
+    },
+    "gesture_cooldown_ms": {
+      "type": "u16",
+      "min": 0,
+      "max": 20000,
+      "default": 600
+    }
+  }
+}

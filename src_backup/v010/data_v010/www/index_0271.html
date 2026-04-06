@@ -1,0 +1,245 @@
+<!-- =======================================================
+File: src/v0271/data_v0271/www/index_0271.html
+======================================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.7.1)</title>
+  <link rel="stylesheet" href="./style_0271.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.7.1 Field Dashboard + PPT + Full Config(WiFi/E10) + OTA</div>
+</header>
+
+<main class="grid">
+  <!-- Dashboard -->
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div id="healthBanner" class="banner ok">OK</div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+  </section>
+
+  <!-- PPT -->
+  <section class="card">
+    <h2>PPT Keymap Editor</h2>
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">kb(0x07) full list + consumer presets + raw mask / mods=modifier byte</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <!-- Full Config -->
+  <section class="card">
+    <div class="cardHead">
+      <h2>Config Editor (WiFi / E10)</h2>
+      <div class="headRight">
+        <button id="btnCfgReload">Reload</button>
+        <button id="btnCfgApply">Apply</button>
+        <button id="btnCfgSave" class="danger">Save</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="pill" id="cfgMsg">-</span>
+      <span class="hint" id="cfgHint">WiFi changed → reboot needed</span>
+    </div>
+
+    <div class="split">
+      <div class="panel">
+        <h3>WiFi</h3>
+
+        <div class="formRow">
+          <label>Mode</label>
+          <select id="wifiMode">
+            <option value="0">AUTO</option>
+            <option value="1">AP</option>
+            <option value="2">STA</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label>STA SSID</label>
+          <input id="staSsid" placeholder="(empty ok)" />
+        </div>
+        <div class="formRow">
+          <label>STA PASS</label>
+          <input id="staPass" placeholder="(empty ok)" />
+        </div>
+
+        <div class="formRow">
+          <label>AP SSID</label>
+          <input id="apSsid" />
+        </div>
+        <div class="formRow">
+          <label>AP PASS (min8)</label>
+          <input id="apPass" />
+        </div>
+
+        <div class="formRow">
+          <label>mDNS Host</label>
+          <input id="mdnsHost" placeholder="elite-airmouse" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>E10</h3>
+
+        <div class="formRow">
+          <label>DPI</label>
+          <select id="dpiLevel">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label>Hard Click Lock</label>
+          <label class="inline"><input type="checkbox" id="hardClickLock" /> enable</label>
+        </div>
+
+        <div class="formRow">
+          <label>Scale Base (1/2/3)</label>
+          <div class="triple">
+            <input type="number" step="0.01" id="scale1" />
+            <input type="number" step="0.01" id="scale2" />
+            <input type="number" step="0.01" id="scale3" />
+          </div>
+        </div>
+
+        <div class="formRow">
+          <label>Accel Gain (1/2/3)</label>
+          <div class="triple">
+            <input type="number" step="0.01" id="accg1" />
+            <input type="number" step="0.01" id="accg2" />
+            <input type="number" step="0.01" id="accg3" />
+          </div>
+        </div>
+
+        <div class="formRow">
+          <label>Accel Threshold</label>
+          <input type="number" step="0.1" id="accTh" />
+        </div>
+
+        <div class="formRow">
+          <label>Wheel Threshold(deg)</label>
+          <input type="number" step="1" id="wheelTh" />
+        </div>
+        <div class="formRow">
+          <label>Wheel Step Max</label>
+          <input type="number" step="1" id="wheelStep" />
+        </div>
+
+        <div class="formRow">
+          <label>Flick Threshold(deg/s)</label>
+          <input type="number" step="1" id="flickDeg" />
+        </div>
+        <div class="formRow">
+          <label>Gesture Cooldown(ms)</label>
+          <input type="number" step="10" id="cooldownMs" />
+        </div>
+
+        <div class="formRow">
+          <label>Scroll Cursor Damp</label>
+          <input type="number" step="0.01" id="damp" />
+        </div>
+
+        <hr class="sep"/>
+
+        <div class="formRow">
+          <label>Precision</label>
+          <label class="inline"><input type="checkbox" id="precEnable" /> enable</label>
+        </div>
+        <div class="formRow">
+          <label>Deadzone</label>
+          <input type="number" step="0.1" id="precDead" />
+        </div>
+        <div class="formRow">
+          <label>Gain</label>
+          <input type="number" step="0.01" id="precGain" />
+        </div>
+        <div class="formRow">
+          <label>Accel</label>
+          <input type="number" step="0.01" id="precAcc" />
+        </div>
+        <div class="formRow">
+          <label>Max Step</label>
+          <input type="number" step="1" id="precStep" />
+        </div>
+        <div class="formRow">
+          <label>Smooth</label>
+          <input type="number" step="0.01" id="precSmooth" />
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>Config raw</summary>
+      <pre id="cfgRaw" class="box">-</pre>
+    </details>
+  </section>
+
+  <!-- System / OTA -->
+  <section class="card">
+    <h2>System / OTA</h2>
+    <div class="row">
+      <button id="btnExport">Export</button>
+      <input type="file" id="fileImport" accept=".json,application/json" />
+      <button id="btnImport">Import</button>
+      <button id="btnRollback" class="danger">Rollback (.bak)</button>
+      <button id="btnReboot" class="danger">Reboot</button>
+    </div>
+
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+    </div>
+
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+</main>
+
+<script src="./app_0271.js"></script>
+</body>
+</html>
+

@@ -5,19 +5,17 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-#include "v031/A40_ComFunc_070.h" // 내부에서 D10_Logger_060.h 포함
-#include "v031/C10_Config_0310.h"
-#include "v031/E10_AirMouse_0310.h"
-#include "v031/W10_Web_0315.h"
+#include "v010/A40_ComFunc_070.h" // 내부에서 D10_Logger_060.h 포함
+#include "v030/C10_Config_0304.h"
+#include "v030/E10_AirMouse_0309.h"
+#include "v030/W10_WebConfig_0304.h"
 
 static CL_C10_Config        g_cfg;
 static CL_E10_EliteAirMouse g_e10;
 static CL_W10_WebConfig     g_w10;
 
 
-static ST_W10_E10If_t       g_w10E10If;
-
-static bool g_bootOkDone = false;
+static ST_W10_E10If_t g_w10E10If;
 
 // ---- W10-E10 bridge callbacks ----
 static bool _w10_getStatus(void* ctx, ST_E10_Status_t* out) {
@@ -94,6 +92,7 @@ static bool _holdAtBoot(int p_pin, uint32_t p_ms) {
     return true;
 }
 
+static bool g_bootOkDone = false;
 
 void setup() {
     Serial.begin(115200);
@@ -117,7 +116,7 @@ void setup() {
     // 3) Safe Boot 상태 확인
     if (g_cfg.isSafeMode()) {
         D10_LOGW("[0274] SAFE BOOT MODE ACTIVE");
-
+    
         // A-4: SAFE 진입 시 config.bak 자동 롤백 1회 시도
         bool v_rb = g_cfg.rollbackFromBak();
         if (v_rb) {
@@ -131,7 +130,7 @@ void setup() {
     // 4) 모듈 시작
     g_e10.begin(&g_cfg);
     g_e10.setSafeMode(g_cfg.isSafeMode());
-
+    
         // W10-E10 interface bind
     g_w10E10If.ctx            = (void*)&g_e10;
     g_w10E10If.getStatus       = _w10_getStatus;
@@ -148,7 +147,7 @@ void setup() {
     g_w10E10If.clearDiagnostics    = _w10_clearDiagnostics;
     g_w10E10If.setOtaGuard     = _w10_setOtaGuard;
 
-    g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10, &g_w10E10If);
+    g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_w10E10If);
 
     D10_LOGI("[0274] started");
 

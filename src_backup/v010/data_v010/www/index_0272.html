@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.7.2)</title>
+  <link rel="stylesheet" href="./style_0272.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.7.2 — Field Dashboard + PPT Editor + Full Config (WiFi/E10)</div>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div id="healthBanner" class="banner ok">OK</div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+      <div class="kpi"><div class="k">FSM</div><div class="v" id="kFsm">-</div></div>
+      <div class="kpi"><div class="k">Heap</div><div class="v" id="kHeap">-</div></div>
+      <div class="kpi"><div class="k">IP</div><div class="v" id="kIp">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>PPT Keymap Editor</h2>
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">kb(0x07) full list + consumer presets + raw mask</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Full Config Editor (WiFi / E10)</h2>
+
+    <div class="row">
+      <button id="btnCfgLoad">Load config</button>
+      <button id="btnCfgApply">Apply only</button>
+      <button id="btnCfgSave" class="danger">Save</button>
+      <span id="cfgMsg" class="pill">-</span>
+    </div>
+
+    <div class="split">
+      <div class="pane">
+        <h3>WiFi</h3>
+        <div class="form">
+          <label>Mode
+            <select id="wifiMode">
+              <option value="0">AUTO</option>
+              <option value="1">AP</option>
+              <option value="2">STA</option>
+            </select>
+          </label>
+          <label>STA SSID <input id="staSsid" /></label>
+          <label>STA PASS <input id="staPass" type="password" /></label>
+          <div class="hint">PASS는 8자 이상 권장(미만이면 저장 거부)</div>
+          <label>AP SSID <input id="apSsid" /></label>
+          <label>AP PASS <input id="apPass" type="password" /></label>
+          <label>mDNS host <input id="mdnsHost" /></label>
+          <div class="hint">WiFi 변경은 재부팅 필요</div>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h3>E10 Motion</h3>
+        <div class="form">
+          <label>DPI
+            <input id="dpi" type="range" min="1" max="3" step="1" />
+            <span id="dpiV" class="pill">-</span>
+          </label>
+
+          <label>Accel Threshold
+            <input id="accTh" type="range" min="1" max="25" step="0.1" />
+            <span id="accThV" class="pill">-</span>
+          </label>
+
+          <label>Wheel Th (deg)
+            <input id="wheelTh" type="range" min="30" max="200" step="1" />
+            <span id="wheelThV" class="pill">-</span>
+          </label>
+
+          <label>Wheel Step Max
+            <input id="wheelStep" type="range" min="1" max="12" step="1" />
+            <span id="wheelStepV" class="pill">-</span>
+          </label>
+
+          <label>Gesture Flick (deg/s)
+            <input id="flick" type="range" min="80" max="600" step="5" />
+            <span id="flickV" class="pill">-</span>
+          </label>
+
+          <label>Gesture Cooldown (ms)
+            <input id="cool" type="range" min="50" max="3000" step="10" />
+            <span id="coolV" class="pill">-</span>
+          </label>
+
+          <label>Scroll Cursor Damp
+            <input id="damp" type="range" min="0.05" max="1.0" step="0.01" />
+            <span id="dampV" class="pill">-</span>
+          </label>
+
+          <h3 style="margin-top:10px;">Precision (Joystick-like FSM)</h3>
+          <label><input id="precEnable" type="checkbox" /> Enable precision mode</label>
+
+          <label>Deadzone
+            <input id="precDead" type="range" min="0" max="8" step="0.1" />
+            <span id="precDeadV" class="pill">-</span>
+          </label>
+
+          <label>Gain
+            <input id="precGain" type="range" min="0.1" max="2.0" step="0.05" />
+            <span id="precGainV" class="pill">-</span>
+          </label>
+
+          <label>Smooth
+            <input id="precSmooth" type="range" min="0" max="0.99" step="0.01" />
+            <span id="precSmoothV" class="pill">-</span>
+          </label>
+
+          <label>Entry ms
+            <input id="precEntryMs" type="range" min="50" max="800" step="10" />
+            <span id="precEntryMsV" class="pill">-</span>
+          </label>
+
+          <label>Exit ms
+            <input id="precExitMs" type="range" min="50" max="800" step="10" />
+            <span id="precExitMsV" class="pill">-</span>
+          </label>
+
+          <label>Entry still(deg/s)
+            <input id="precStill" type="range" min="0.5" max="6.0" step="0.1" />
+            <span id="precStillV" class="pill">-</span>
+          </label>
+
+          <label>Exit move(deg/s)
+            <input id="precMove" type="range" min="3.0" max="20.0" step="0.1" />
+            <span id="precMoveV" class="pill">-</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <details style="margin-top:10px;">
+      <summary>Raw config json</summary>
+      <pre id="cfgBox" class="box">-</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Config / OTA (Ops)</h2>
+    <div class="row">
+      <button id="btnExport">Export</button>
+      <input type="file" id="fileImport" accept=".json,application/json" />
+      <button id="btnImport">Import</button>
+      <button id="btnRollback" class="danger">Rollback (.bak)</button>
+      <button id="btnReboot" class="danger">Reboot</button>
+    </div>
+
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+    </div>
+
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+
+</main>
+
+<script src="./app_0272.js"></script>
+</body>
+</html>
+
