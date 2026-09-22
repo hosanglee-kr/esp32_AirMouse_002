@@ -4,8 +4,8 @@
 # PlatformIO PR 빌드 및 에이전트 친화적 실패 마커 생성 파이프라인
 #  - 대상 프로젝트: AirMouse Elite S3 (v0.31.x)
 #  - 대상 env: esp32-s3-zero  (default_envs)
-#  - data_dir: src/v031/data_v031
-#  - gzip 스크립트: src/v031/tools/pio_gzip_0312.py (pre:buildfs)
+#  - data_dir: src/v032/data_v032
+#  - gzip 스크립트: src/v032/tools/pio_gzip_0320.py (pre:buildfs)
 #
 # [설계 및 보안 원칙]
 #   1. 보안 격리 (read-only):
@@ -38,7 +38,7 @@ on:
   pull_request:
     branches: [main, main-standalone]
     # - 웹 소스 staging과 공개 JSON staging은 LittleFS 번들에 포함되므로 회귀 감지를 위해 포함.
-    # - 최종 buildfs 산출물(data_v031/**)은 스크립트가 생성하는 파생물이라 제외.
+    # - 최종 buildfs 산출물(data_v032/**)은 스크립트가 생성하는 파생물이라 제외.
     paths:
       - 'platformio.ini'
       - 'lib/**'
@@ -48,11 +48,11 @@ on:
       - 'src/**/*.h'
       - 'src/**/*.ino'
       - 'src/**/*.py'
-      - 'src/v031/data_v031_www/**'
-      - 'src/v031/data_v031_json_public/**'
+      - 'src/v032/data_v032_www/**'
+      - 'src/v032/data_v032_json_public/**'
       - '.github/workflows/*.yml'
       - '!**/*.md'
-      - '!src/v031/data_v031/**'
+      - '!src/v032/data_v032/**'
       - '!src/**/*_backup/**'
 
 permissions:
@@ -263,17 +263,17 @@ jobs:
           fi
 
           echo "=== [2/3] Web 소스 staging 폴더 확인 ==="
-          if [ ! -d "src/v031/data_v031_www" ] && [ ! -d "src/v031/data_v031_json_public" ]; then
+          if [ ! -d "src/v031/data_v031_www" ] && [ ! -d "src/v032/data_v032_json_public" ]; then
             echo "::error::Web 소스 staging 폴더가 모두 없습니다."
             exit 1
           fi
-          [ -d "src/v031/data_v031_www" ]         && echo "  OK: src/v031/data_v031_www"
-          [ -d "src/v031/data_v031_json_public" ] && echo "  OK: src/v031/data_v031_json_public"
+          [ -d "src/v032/data_v032_www" ]         && echo "  OK: src/v032/data_v032_www"
+          [ -d "src/v032/data_v032_json_public" ] && echo "  OK: src/v032/data_v032_json_public"
 
           echo "=== [3/3] gzip 스크립트 참조 프로젝트 버전 확인 ==="
-          grep -rq "data_v031_www" src/v031/tools/ 2>/dev/null \
-            && echo "  OK: tools 내 v031 staging 참조 확인" \
-            || echo "::warning::tools 내 data_v031_www 참조 미검출 (버전 불일치 가능)"
+          grep -rq "data_v032_www" src/v032/tools/ 2>/dev/null \
+            && echo "  OK: tools 내 v032 staging 참조 확인" \
+            || echo "::warning::tools 내 data_v032_www 참조 미검출 (버전 불일치 가능)"
 
       # ---------------------------------------------------------------
       # 펌웨어 빌드
@@ -303,12 +303,12 @@ jobs:
           status=${PIPESTATUS[0]}
 
           if [ "$status" -eq 0 ]; then
-            if [ ! -d "src/v031/data_v031/www" ] && [ ! -d "src/v031/data_v031/json" ]; then
+            if [ ! -d "src/v032/data_v032/www" ] && [ ! -d "src/v032/data_v032/json" ]; then
               echo "::error::buildfs 성공했지만 data_dir 하위에 www/json 이 생성되지 않았습니다."
               status=1
             else
               echo "[OK] data_dir 산출물 확인:"
-              ls -laR src/v031/data_v031 | head -n 80 || true
+              ls -laR src/v032/data_v032 | head -n 80 || true
             fi
           fi
           exit $status
