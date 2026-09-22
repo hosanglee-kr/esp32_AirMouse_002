@@ -1,10 +1,26 @@
 # =======================================================
 # File: src/v032/tools_v032/pio_gzip_0320.py
-# - AirMouse Elite S3 v0.32.x — LittleFS staging + gzip 생성
-# - (반영) DST(data_v032/) 클린 후 재생성
-# - (반영) .txt / robots.txt 복사 허용
-# - (반영) gzip.open mtime 인자 미사용(호환성)
-# - (반영) 소스(VCS) / 산출물(.gitignore) 완전 분리
+# ---------------------------------------------------------------------
+# AirMouse Elite S3 v0.32.x — LittleFS www staging + gzip 생성
+#
+# [방식 A] 소스/파생물 최소 분리
+#   - data_v032/json/**  : 소스(VCS)     — 본 스크립트가 손대지 않음
+#   - data_v032/www/**   : 파생물(.gitignore) — 매 buildfs마다 클린 후 재생성
+#
+# [설계 요약]
+#   1) SRC(원본):  <PROJECT>/src/v032/data_v032_www/**
+#   2) DST(빌드fs): <PROJECT>/src/v032/data_v032/www/** (= PROJECT_DATA_DIR/www)
+#   3) 규칙
+#      - html/css/js : DST에 .gz 생성(원본은 DST에 두지 않음 → LittleFS 절약)
+#      - svg/png/webp/ico/txt/json : DST에 원본 복사( gzip 생성 X )
+#      - 하위 폴더 구조 동일 유지, 동일 파일 존재 시 overwrite
+#   4) buildfs 직전 DST/www 전체 삭제 → 구파일 잔존으로 인한 잘못된 서빙 방지
+#
+# [정책 메모]
+#   - platformio.ini: data_dir = ./src/v032/data_v032
+#   - extra_scripts : pre:src/v032/tools_v032/pio_gzip_0320.py
+#   - json/config_0320.json, json/boot_state_0320.json, json/public/*.json 은
+#     VCS 커밋 대상이며, 이 스크립트는 관여하지 않는다.
 # =======================================================
 Import("env")
 import os
@@ -12,141 +28,125 @@ import gzip
 import shutil
 
 # -------------------------------------------------------
-# [설계 요약]
-#  SRC (VCS, 수정 대상)                      DST (buildfs, 파생물)
-#  src/v032/data_v032_www/            →  data_v032/www/           (gz + copy)
-#  src/v032/data_v032_json_public/    →  data_v032/json/public/   (copy only)
-#  src/v032/data_v032_json_boot/      →  data_v032/json/          (copy only)
-#
-#  - data_dir = ./src/v032/data_v032  (platformio.ini)
-#  - data_v032/ 전체는 .gitignore 대상
+# [경로 정의]
 # -------------------------------------------------------
+# SRC: version-controlled 웹 소스
+SRC_WWW_DIR = os.path.join(
+    env["PROJECT_DIR"], env["PROJECT_SRC_DIR"],
+    "v032", "data_v032_www"
+)
 
-# --- SRC (version-controlled) ---
-SRC_WWW_DIR    = os.path.join(env["PROJECT_DIR"], env["PROJECT_SRC_DIR"], "v032", "data_v032_www")
-SRC_JSONPUB_DIR= os.path.join(env["PROJECT_DIR"], env["PROJECT_SRC_DIR"], "v032", "data_v032_json_public")
-SRC_JSONBOOT_DIR= os.path.join(env["PROJECT_DIR"], env["PROJECT_SRC_DIR"], "v032", "data_v032_json_boot")
+# DST: buildfs 스테이징 (data_dir 기준 www/)
+DST_WWW_DIR = os.path.join(env["PROJECT_DATA_DIR"], "www")
 
-# --- DST (buildfs staging, gitignored) ---
-DST_ROOT_DIR   = env["PROJECT_DATA_DIR"]              # .../src/v032/data_v032
-DST_WWW_DIR    = os.path.join(DST_ROOT_DIR, "www")
-DST_JSONPUB_DIR= os.path.join(DST_ROOT_DIR, "json", "public")
-DST_JSONBOOT_DIR= os.path.join(DST_ROOT_DIR, "json")
+# -------------------------------------------------------
+# [확장자 정책]
+# -------------------------------------------------------
+# gzip 생성 대상 (텍스트)
+GZ_EXTS = {".html", ".css", ".js"}
 
-# --- 정책 ---
-GZ_EXTS        = {".html", ".css", ".js"}
+# 복사만 대상 (바이너리/정적 + txt + json)
 COPY_ONLY_EXTS = {".svg", ".png", ".webp", ".ico", ".txt", ".json"}
-COPY_ONLY_NAMES= {"robots.txt", "favicon.ico"}
+
+# 이름 기반 화이트리스트 (확장자 없는 케이스 대비)
+COPY_ONLY_NAMES = {"robots.txt", "favicon.ico"}
 
 
+# =======================================================
+# [유틸]
+# =======================================================
 def ensure_dir(path):
     if path and not os.path.isdir(path):
         os.makedirs(path, exist_ok=True)
 
 
 def relpath_safe(path, base):
+    """경로를 base 기준 상대경로(슬래시 통일)로 반환."""
     return os.path.relpath(path, base).replace("\\", "/")
 
 
 def gzip_file(src_path, dst_gz_path):
+    """src_path를 gzip 압축하여 dst_gz_path에 저장. mtime 인자 미사용(호환성)."""
     ensure_dir(os.path.dirname(dst_gz_path))
+
     with open(src_path, "rb") as f_in:
         with gzip.open(dst_gz_path, "wb", compresslevel=9) as f_out:
             shutil.copyfileobj(f_in, f_out)
 
-    orig = os.path.getsize(src_path)
-    gz   = os.path.getsize(dst_gz_path)
-    ratio = (1 - (gz / orig)) * 100 if orig > 0 else 0
-    print(f"  [GZIP] {os.path.basename(src_path)}: {orig} -> {gz} bytes ({ratio:.1f}% saved)")
+    orig_size = os.path.getsize(src_path)
+    gz_size   = os.path.getsize(dst_gz_path)
+    ratio     = (1 - (gz_size / orig_size)) * 100 if orig_size > 0 else 0
+    print(f"  [GZIP] {os.path.basename(src_path)}: "
+          f"{orig_size} -> {gz_size} bytes ({ratio:.1f}% saved)")
 
 
 def copy_file(src_path, dst_path):
+    """src_path를 dst_path로 복사(메타데이터 보존)."""
     ensure_dir(os.path.dirname(dst_path))
     shutil.copy2(src_path, dst_path)
-    print(f"  [COPY] {os.path.basename(src_path)} -> {relpath_safe(dst_path, DST_ROOT_DIR)}")
+    print(f"  [COPY] {os.path.basename(src_path)} -> "
+          f"{relpath_safe(dst_path, env['PROJECT_DATA_DIR'])}")
 
 
-def clean_dst_all():
-    # data_v032/ 전체를 삭제 후 재생성 — 구파일 잔존으로 인한 잘못된 서빙 방지
-    if os.path.isdir(DST_ROOT_DIR):
-        shutil.rmtree(DST_ROOT_DIR, ignore_errors=True)
-    ensure_dir(DST_ROOT_DIR)
+# =======================================================
+# [DST 클린]
+# -------------------------------------------------------
+# data_v032/www/ 아래의 예전 파일(.gz 포함)이 다음 빌드에 그대로 포함되면
+# "구버전 파일 서빙" 문제가 발생한다. buildfs 직전에 www 전체를 삭제하고,
+# SRC 기준으로만 다시 구성한다.
+# -------------------------------------------------------
+# 주의: data_v032/json/** 은 소스이므로 절대 손대지 않는다.
+# =======================================================
+def clean_dst_www():
+    if os.path.isdir(DST_WWW_DIR):
+        shutil.rmtree(DST_WWW_DIR, ignore_errors=True)
+    ensure_dir(DST_WWW_DIR)
 
 
+# =======================================================
+# [SYNC] data_v032_www → data_v032/www
+# =======================================================
 def sync_www():
     if not os.path.isdir(SRC_WWW_DIR):
         print(f"[WWW] SRC missing: {SRC_WWW_DIR}")
         return
+
     ensure_dir(DST_WWW_DIR)
 
-    for root, _, files in os.walk(SRC_WWW_DIR):
+    for root, _dirs, files in os.walk(SRC_WWW_DIR):
         for fn in files:
             src_path = os.path.join(root, fn)
-            ext = os.path.splitext(fn)[1].lower()
-            rel = relpath_safe(src_path, SRC_WWW_DIR)
+            ext      = os.path.splitext(fn)[1].lower()
+
+            rel      = relpath_safe(src_path, SRC_WWW_DIR)
             dst_path = os.path.join(DST_WWW_DIR, rel.replace("/", os.sep))
 
+            # 1) gzip 대상 (html/css/js) — 원본은 DST에 두지 않음
             if ext in GZ_EXTS:
                 gzip_file(src_path, dst_path + ".gz")
-                # 원본은 DST에 두지 않음(LittleFS 절약)
                 continue
 
+            # 2) 복사만 대상 (이미지/txt/json 등)
             if ext in COPY_ONLY_EXTS or fn.lower() in COPY_ONLY_NAMES:
                 copy_file(src_path, dst_path)
                 continue
 
+            # 3) 기타 파일은 무시 (원치 않는 파일 유입 방지)
             # print(f"  [SKIP] {rel}")
 
 
-def sync_json_public():
-    if not os.path.isdir(SRC_JSONPUB_DIR):
-        print(f"[JSONPUB] SRC missing: {SRC_JSONPUB_DIR}")
-        return
-    ensure_dir(DST_JSONPUB_DIR)
-
-    for root, _, files in os.walk(SRC_JSONPUB_DIR):
-        for fn in files:
-            if os.path.splitext(fn)[1].lower() != ".json":
-                continue
-            src_path = os.path.join(root, fn)
-            rel = relpath_safe(src_path, SRC_JSONPUB_DIR)
-            dst_path = os.path.join(DST_JSONPUB_DIR, rel.replace("/", os.sep))
-            copy_file(src_path, dst_path)
-
-
-def sync_json_boot():
-    # config / boot_state 초기값 → DST/json/ 루트
-    if not os.path.isdir(SRC_JSONBOOT_DIR):
-        print(f"[JSONBOOT] SRC missing (optional): {SRC_JSONBOOT_DIR}")
-        return
-    ensure_dir(DST_JSONBOOT_DIR)
-
-    for root, _, files in os.walk(SRC_JSONBOOT_DIR):
-        for fn in files:
-            if os.path.splitext(fn)[1].lower() != ".json":
-                continue
-            src_path = os.path.join(root, fn)
-            rel = relpath_safe(src_path, SRC_JSONBOOT_DIR)
-            dst_path = os.path.join(DST_JSONBOOT_DIR, rel.replace("/", os.sep))
-            copy_file(src_path, dst_path)
-
-
+# =======================================================
+# [PRE-ACTION] buildfs 직전 실행
+# =======================================================
 def before_buildfs(source, target, env):
-    print("[STAGE] Clean data_v032/ start")
-    clean_dst_all()
-    print("[STAGE] Clean done")
+    print("[WWW] Clean start")
+    clean_dst_www()
+    print("[WWW] Clean done")
 
-    print("[STAGE] WWW sync+gzip start")
+    print("[WWW] Sync+Gzip start")
     sync_www()
-    print("[STAGE] WWW done")
-
-    print("[STAGE] JSON public sync start")
-    sync_json_public()
-    print("[STAGE] JSON public done")
-
-    print("[STAGE] JSON boot (config/boot_state) sync start")
-    sync_json_boot()
-    print("[STAGE] JSON boot done")
+    print("[WWW] Sync+Gzip done")
 
 
+# buildfs(=LittleFS 이미지 생성) 직전에 실행
 env.AddPreAction("buildfs", before_buildfs)
