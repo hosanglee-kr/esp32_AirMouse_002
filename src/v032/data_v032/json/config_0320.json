@@ -1,10 +1,5 @@
 {
-    "meta": {
-        "cfg_ver": 31,
-        "schema_ver": 1,
-        "etag": "optional",
-        "last_saved_ms": 0
-    },
+    "ver": 320,
     "wifi": {
         "mode": 0,
         "sta": {
@@ -41,11 +36,11 @@
             "accel": 0.25,
             "max_step": 18,
             "smooth": 0.85,
-			"entry_ms": 450,
-			"exit_ms": 300,
-			"entry_still_deg": 1.2,
-			"exit_move_deg": 3.5,
-			"profile": 0
+            "entry_ms": 450,
+            "exit_ms": 300,
+            "entry_still_deg": 1.2,
+            "exit_move_deg": 3.5,
+            "profile": 0
         },
         "ppt_keys2": {
             "start": { "page": "kb", "mod": 2, "code": 62 },

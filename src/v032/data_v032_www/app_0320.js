@@ -8,6 +8,11 @@
    - /api/control
    - /api/ppt /test
    - /api/ota /status
+
+   [Track 2 반영]
+   - J-2 : schema 경로 오타 (schema_0310 → schema_0320)
+   - J-4 : precision.enable 제거 (백엔드 미지원)
+   - J-4b: precision_mode → precision.mode (JSON 경로 단일화)
 ======================================================= */
 
 function qs(id){ return document.getElementById(id); }
@@ -125,8 +130,9 @@ function unwrapApi(resp){
   };
 }
 
+// [J-2] schema_0320.json 경로
 async function loadSchema(){
-  const r = await apiGet("/json/public/schema_0310.json");
+  const r = await apiGet("/json/public/schema_0320.json");
   if(r.ok && r.json){
     g_schema = r.json;
     applySchemaToUi();
@@ -214,6 +220,7 @@ function wifiFingerprint(cfg){
   return [w.mode, s.ssid, s.pass, a.ssid, a.pass, m.host].map(v => String(v ?? "")).join("|");
 }
 
+// [J-4b] precision.mode 로 통일
 function ensureDefaults(cfg){
   cfg = cfg || {};
 
@@ -226,7 +233,7 @@ function ensureDefaults(cfg){
   cfg.e10.wheel = cfg.e10.wheel || {};
   cfg.e10.gesture = cfg.e10.gesture || {};
   cfg.e10.precision = cfg.e10.precision || {};
-  if(cfg.e10.precision_mode === undefined) cfg.e10.precision_mode = 0;
+  if(cfg.e10.precision.mode === undefined) cfg.e10.precision.mode = 0;
 
   return cfg;
 }
@@ -275,6 +282,7 @@ function getByPath(obj, path){
   return n;
 }
 
+// [J-4b] precision.mode 경로
 function validateBySchema(cfg){
   const errs = [];
   if(!g_schema) return errs;
@@ -309,7 +317,7 @@ function validateBySchema(cfg){
 
     {label:"e10.accel_threshold", path:["e10","accel_threshold"], schema:["e10","accel_threshold"]},
     {label:"e10.scroll_cursor_damp", path:["e10","scroll_cursor_damp"], schema:["e10","scroll_cursor_damp"]},
-    {label:"e10.precision_mode", path:["e10","precision_mode"], schema:["e10","precision_mode"]},
+    {label:"e10.precision.mode", path:["e10","precision","mode"], schema:["e10","precision","mode"]},
 
     {label:"e10.wheel.threshold_deg", path:["e10","wheel","threshold_deg"], schema:["e10","wheel_threshold_deg"]},
     {label:"e10.wheel.step_max", path:["e10","wheel","step_max"], schema:["e10","wheel_step_max"]},
@@ -349,7 +357,6 @@ function bindTabs(){
 
       const nowDiagOn = isTabOn("diag");
       if(!prevDiagOn && nowDiagOn){
-        // Diagnostics 탭 진입 시 1회 갱신(auto ON/OFF 공통)
         refreshDiag().catch(console.error);
       }
     });
@@ -490,7 +497,7 @@ function bindDiag(){
   if(f){
     f.addEventListener("input", () => {
       g_diagTypingUntilMs = nowMs() + 1200;
-      refreshDiag().catch(console.error); // auto OFF여도 즉시 반영
+      refreshDiag().catch(console.error);
     });
 
     f.addEventListener("focus", () => {
@@ -761,6 +768,7 @@ function validateClient(cfg){
   return validateBySchema(cfg);
 }
 
+// [J-4b] precision.mode 경로
 function uiToConfig(){
   const cfg = ensureDefaults(JSON.parse(qs("cfgJsonArea").value || "{}"));
 
@@ -796,7 +804,8 @@ function uiToConfig(){
 
   cfg.e10.scroll_cursor_damp = parseNum(qs("scrollDamp").value, 0.25);
 
-  cfg.e10.precision.enable = parseBool(qs("precEnable").value);
+  // [J-4] enable 제거, [J-4b] mode 경로
+  cfg.e10.precision.mode = parseIntFlex(qs("precMode").value, 0);
   cfg.e10.precision.deadzone = parseNum(qs("precDeadzone").value, 1.2);
   cfg.e10.precision.gain = parseNum(qs("precGain").value, 0.65);
   cfg.e10.precision.accel = parseNum(qs("precAccel").value, 0.25);
@@ -808,12 +817,11 @@ function uiToConfig(){
   cfg.e10.precision.exit_move_deg = parseNum(qs("precExitMove").value, 3.5);
   cfg.e10.precision.profile = parseNum(qs("precProfile").value, 0);
 
-  cfg.e10.precision_mode = parseIntFlex(qs("precMode").value, 0);
-
   qs("cfgJsonArea").value = pretty(cfg);
   return cfg;
 }
 
+// [J-4] enable 제거, [J-4b] mode 경로
 function configToUi(cfg){
   cfg = ensureDefaults(cfg);
 
@@ -847,7 +855,6 @@ function configToUi(cfg){
   qs("cooldownMs").value = String(cfg.e10.gesture.cooldown_ms ?? 600);
 
   const p = cfg.e10.precision || {};
-  qs("precEnable").value = String((p.enable ?? false) ? "true" : "false");
   qs("precDeadzone").value = String(p.deadzone ?? 1.2);
   qs("precGain").value = String(p.gain ?? 0.65);
   qs("precAccel").value = String(p.accel ?? 0.25);
@@ -859,7 +866,7 @@ function configToUi(cfg){
   qs("precExitMove").value = String(p.exit_move_deg ?? 3.5);
   qs("precProfile").value = String(p.profile ?? 0);
 
-  qs("precMode").value = String(cfg.e10.precision_mode ?? 0);
+  qs("precMode").value = String(p.mode ?? 0);
   qs("ctlPrecMode").value = qs("precMode").value;
 
   qs("cfgJsonArea").value = pretty(cfg);
@@ -929,8 +936,9 @@ async function cfgApply(){
     return;
   }
 
+  // [J-4b] precision.mode 경로
   const cfg = currentJsonFromArea();
-  await ctlSetPrecisionMode(cfg?.e10?.precision_mode ?? 0);
+  await ctlSetPrecisionMode(cfg?.e10?.precision?.mode ?? 0);
 
   setMsg("Apply OK (not saved). Precision applied via /api/control.", true);
   await refreshStatus();
@@ -975,7 +983,8 @@ async function cfgSave(){
     setMsg("Save OK.", true);
   }
 
-  await ctlSetPrecisionMode(currentJsonFromArea()?.e10?.precision_mode ?? 0);
+  // [J-4b] precision.mode 경로
+  await ctlSetPrecisionMode(currentJsonFromArea()?.e10?.precision?.mode ?? 0);
   await refreshStatus();
 }
 
@@ -1094,11 +1103,12 @@ function bindUi(){
     cfgImport(f);
   });
 
+  // [J-4] precEnable 제거
   const watchIds = [
     "wifiMode","staSsid","staPass","apSsid","apPass","mdnsHost",
     "e10Dpi","e10HardClick","accelThreshold","scrollDamp",
     "sb0","sb1","sb2","ag0","ag1","ag2","wheelTh","wheelStepMax","flickDeg","cooldownMs",
-    "precEnable","precMode","precDeadzone","precGain","precAccel","precMaxStep","precSmooth",
+    "precMode","precDeadzone","precGain","precAccel","precMaxStep","precSmooth",
     "precEntryMs","precExitMs","precEntryStill","precExitMove","precProfile"
   ];
 
@@ -1121,6 +1131,7 @@ function bindUi(){
     });
   }
 
+  // [J-4b] precision.mode 경로
   qs("cfgJsonArea")?.addEventListener("input", () => {
     try{
       const cfg = ensureDefaults(currentJsonFromArea());
@@ -1128,9 +1139,9 @@ function bindUi(){
       qs("swNeedReboot").checked = (g_lastWifiFingerprint && fp !== g_lastWifiFingerprint);
       setMsg("JSON edited (not applied)", true);
 
-      if(cfg?.e10?.precision_mode !== undefined){
-        qs("precMode").value = String(cfg.e10.precision_mode);
-        qs("ctlPrecMode").value = String(cfg.e10.precision_mode);
+      if(cfg?.e10?.precision?.mode !== undefined){
+        qs("precMode").value = String(cfg.e10.precision.mode);
+        qs("ctlPrecMode").value = String(cfg.e10.precision.mode);
       }
     }catch(e){
       setMsg("JSON parse error: " + e.message, false);

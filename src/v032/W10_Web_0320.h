@@ -110,6 +110,7 @@ private:
     volatile uint32_t _otaWritten = 0;
     volatile bool _otaOk = false;
     char _otaErr[64];
+    uint32_t _otaStartedMs = 0;
 
     static void s_wifiEvent(WiFiEvent_t p_e, WiFiEventInfo_t p_info);
 

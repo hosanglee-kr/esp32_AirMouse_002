@@ -132,7 +132,7 @@
         <div class="frow">
           <label class="flbl">AP SSID</label>
           <input id="apSsid" class="inp" maxlength="32" />
-          <div class="fhelp">SafeBoot 시 “-SAFE” suffix 가능</div>
+          <div class="fhelp">SafeBoot 시 "-SAFE" suffix 가능</div>
         </div>
         <div class="frow">
           <label class="flbl">AP PASS</label>
@@ -154,11 +154,11 @@
         <div class="frow">
           <label class="flbl">DPI Level</label>
           <select id="e10Dpi" class="select">
-            <option value="0">0</option>
             <option value="1">1</option>
             <option value="2">2</option>
+            <option value="3">3</option>
           </select>
-          <div class="fhelp">0~2</div>
+          <div class="fhelp">1~3</div>
         </div>
 
         <div class="frow">
@@ -229,18 +229,9 @@
       <h3>Precision</h3>
       <div class="form two">
         <div class="frow">
-          <label class="flbl">Enable</label>
-          <select id="precEnable" class="select">
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-          <div class="fhelp">기능 on/off</div>
-        </div>
-
-        <div class="frow">
           <label class="flbl">Mode</label>
           <select id="precMode" class="select"></select>
-          <div class="fhelp">/api/keycodes → precision_modes</div>
+          <div class="fhelp">0=OFF / 1~3 / 4=PPT &nbsp;·&nbsp; /api/keycodes → precision_modes</div>
         </div>
 
         <div class="frow">

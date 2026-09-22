@@ -54,6 +54,7 @@
 // =====================================================
 // OTA
 // =====================================================
+
 void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
     if (!_isSafeMode()) {
         ST_W10_E10If_t* e10if = _e10if;
@@ -82,12 +83,22 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
     (void)filename;
 
     if (index == 0) {
+        const uint32_t v_now = (uint32_t)millis();
+        
+        // [H-W2] in-progress여도 마지막 진행 후 30초 넘었으면 stale로 간주
         if (_otaInProgress) {
-            _otaOk = false;
-            strlcpy(_otaErr, "busy", sizeof(_otaErr));
-            return;
+            if ((v_now - _otaStartedMs) < 30000u) {
+                _otaOk = false;
+                strlcpy(_otaErr, "busy", sizeof(_otaErr));
+                return;
+            }
+            // stale 회수
+            Update.abort();
+            _otaInProgress = false;
+            _otaWritten = 0;
         }
 
+        _otaStartedMs = v_now;
         _otaInProgress = true;
         _otaWritten = 0;
         _otaTotal = (uint32_t)req->contentLength();
