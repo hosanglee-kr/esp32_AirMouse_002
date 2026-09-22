@@ -15,6 +15,7 @@
 #include <esp_system.h> // esp_reset_reason()
 
 #include "C10_Def_0320.h"
+#include "D10_Logger_0320.h"
 
 class CL_C10_Config {
   private:
