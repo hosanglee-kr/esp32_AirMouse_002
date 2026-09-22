@@ -56,7 +56,7 @@
 #include <memory>
 #include <new>
 
-#include "D10_Logger_061.h"
+#include "D10_Logger_0320.h"
 
 // ------------------------------------------------------
 // 기본 정책/상수
