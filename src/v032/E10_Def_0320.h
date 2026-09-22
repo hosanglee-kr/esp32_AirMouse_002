@@ -57,10 +57,6 @@ namespace E10_CONST {
     // class-static fixed pins (board wiring)
     static constexpr int      PIN_I2C_SDA = 4;
     static constexpr int      PIN_I2C_SCL = 5;
-     
-    
-
-    // static constexpr uint8_t  MOUSE_BTN_LEFT = 0x01;
 
     static constexpr uint32_t CALIB_MS       = 1000;
     static constexpr float    CALIB_STILL_TH = 3.0f;
@@ -77,6 +73,8 @@ enum EN_E10_Health_t : uint8_t {
     EN_E10_HEALTH_DEGRADED = 2
 };
 
+// [M-4] OTA/SAFE 진입·이탈을 전용 코드로 분리
+//       (이전: EN_E10_ERR_OTA_GUARD + value(0/1/2/3) 조합)
 enum EN_E10_ErrCode_t : uint8_t {
     EN_E10_ERR_NONE             = 0,
     EN_E10_ERR_MPU_NAN          = 1,
@@ -84,7 +82,10 @@ enum EN_E10_ErrCode_t : uint8_t {
     EN_E10_ERR_TASK_OVERRUN     = 3,
     EN_E10_ERR_I2C_RECOVER_OK   = 4,
     EN_E10_ERR_I2C_RECOVER_FAIL = 5,
-    EN_E10_ERR_OTA_GUARD        = 6
+    EN_E10_ERR_OTA_GUARD_ENTER  = 6,
+    EN_E10_ERR_OTA_GUARD_EXIT   = 7,
+    EN_E10_ERR_SAFE_MODE_ENTER  = 8,
+    EN_E10_ERR_SAFE_MODE_EXIT   = 9
 };
 
 // -------- Motion FSM --------
@@ -110,7 +111,6 @@ enum EN_E10_MouseBtnMask_t : uint8_t {
     EN_E10_BTN_MIDDLE = 0x04 
 };
 
-
 struct ST_E10_PrecProfile_t {
     float   gain;
     uint8_t alpha;       // 0=필터없음, 255=최대 스무딩
@@ -124,7 +124,6 @@ static constexpr ST_E10_PrecProfile_t G_E10_PREC_PROFILES[] = {
     {0.55f, 180, 0.0f},  // HIGH
     {0.45f, 210, 1.5f},  // PPT
 };
-
 
 struct ST_E10_ErrEvt_t {
     uint32_t ts_ms;
@@ -157,9 +156,8 @@ struct ST_E10_Status_t {
     bool    ota_guard;          // OTA Guard 게이트
     uint32_t ota_guard_count;   // OTA guard 진입 횟수
     uint32_t ota_guard_uptime_ms; // 마지막 OTA guard 진입 후 경과(ms)
-    
 
-    uint8_t precision_mode; //
+    uint8_t precision_mode;
     
     uint8_t fsm_state; // 디버깅용
     uint8_t fsm_sub;   // precision substate
@@ -196,6 +194,7 @@ struct ST_E10_Status_t {
     float gyro_bias_dyn_x, gyro_bias_dyn_y, gyro_bias_dyn_z;
     bool  drift_still_active;
     float out_smooth;
+
     // (AB) Task stack / loop timing diagnostics (observability)
     uint32_t task_stack_sensor_min_words;
     uint32_t task_stack_comm_min_words;
@@ -208,6 +207,4 @@ struct ST_E10_Status_t {
     uint32_t comm_overrun_count;
 
     uint32_t failsafe_release_count;
-
 };
-

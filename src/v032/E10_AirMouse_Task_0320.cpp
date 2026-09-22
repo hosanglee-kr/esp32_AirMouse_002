@@ -19,6 +19,34 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
     if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
 
     for (;;) {
+        // ------------------------------------------------------------
+        // [C-4] motion-critical config 스냅샷
+        //   - 그룹으로 읽히는 필드만 스냅샷 (dpi+scale+accel, wheel)
+        //   - 나머지(_isPptMode/_precision_mode/_accelTh/_scrollCursorDamp 등)는
+        //     단일 워드 원자 read로 충분, eventually consistent 허용
+        // ------------------------------------------------------------
+        struct {
+            int   dpiLevel;
+            float scaleBase[3];
+            float accelGain[3];
+            float accelTh;
+            float wheelThDeg;
+            int   wheelStepMax;
+            float scrollCursorDamp;
+        } v_cfg;
+
+        v_m->_lock();
+        v_cfg.dpiLevel = v_m->_dpiLevel;
+        for (int v_i = 0; v_i < 3; v_i++) {
+            v_cfg.scaleBase[v_i] = v_m->_scaleBase[v_i];
+            v_cfg.accelGain[v_i] = v_m->_accelGain[v_i];
+        }
+        v_cfg.accelTh          = v_m->_accelTh;
+        v_cfg.wheelThDeg       = v_m->_wheelThDeg;
+        v_cfg.wheelStepMax     = v_m->_wheelStepMax;
+        v_cfg.scrollCursorDamp = v_m->_scrollCursorDamp;
+        v_m->_unlock();
+
         // ---- async requests ----
         if (v_m->_reqClearDiag) {
             v_m->_reqClearDiag = false;
@@ -154,15 +182,15 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         int v_ty = 0;
         v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
 
-        // ---- accel shaping ----
-        float v_base = v_m->_scaleBase[v_m->_dpiLevel - 1];
-        float v_accg = v_m->_accelGain[v_m->_dpiLevel - 1];
+        // ---- accel shaping (C-4: v_cfg 스냅샷 사용) ----
+        float v_base = v_cfg.scaleBase[v_cfg.dpiLevel - 1];
+        float v_accg = v_cfg.accelGain[v_cfg.dpiLevel - 1];
 
         float v_mag = sqrtf((float)v_tx * (float)v_tx + (float)v_ty * (float)v_ty);
         float v_acc = 1.0f;
 
-        if (v_mag > v_m->_accelTh) {
-            float v_ex = (v_mag - v_m->_accelTh);
+        if (v_mag > v_cfg.accelTh) {
+            float v_ex = (v_mag - v_cfg.accelTh);
             v_acc = 1.0f + (v_accg * (v_ex / (v_ex + 18.0f)));
         }
 
@@ -173,18 +201,18 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         if (v_m->_fsm == EN_FSM_SCROLL) {
             int v_wheel = 0;
 
-            if (v_gy > v_m->_wheelThDeg) {
-                float v_n = (v_gy - v_m->_wheelThDeg) / 120.0f;
+            if (v_gy > v_cfg.wheelThDeg) {
+                float v_n = (v_gy - v_cfg.wheelThDeg) / 120.0f;
                 if (v_n > 1.0f) v_n = 1.0f;
-                v_wheel = (int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
-            } else if (v_gy < -v_m->_wheelThDeg) {
-                float v_n = (-v_gy - v_m->_wheelThDeg) / 120.0f;
+                v_wheel = (int)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
+            } else if (v_gy < -v_cfg.wheelThDeg) {
+                float v_n = (-v_gy - v_cfg.wheelThDeg) / 120.0f;
                 if (v_n > 1.0f) v_n = 1.0f;
-                v_wheel = -(int)(1 + (v_n * (v_m->_wheelStepMax - 1)));
+                v_wheel = -(int)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
             }
 
-            v_fx *= v_m->_scrollCursorDamp;
-            v_fy *= v_m->_scrollCursorDamp;
+            v_fx *= v_cfg.scrollCursorDamp;
+            v_fy *= v_cfg.scrollCursorDamp;
 
             const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
             const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
@@ -327,7 +355,8 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
 
         // disconnect edge
         if (!v_conn && v_prevConn) {
-            (void)v_m->forceReleaseButtons();
+            // [Phase2] commTask는 자기 큐에 enqueue하지 않고 직접 실행
+            v_m->_doForceReleaseNow();
             v_m->_failsafeReleaseCount++;
             v_lastBtnMask = 0;
         }
@@ -354,8 +383,12 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         const bool v_gate = (v_m->_safeMode || v_m->_otaGuard);
 
         if (v_gate) {
+            // [Phase2] gate 동안 커맨드는 전부 drop (큐 overflow 방지)
+            ST_E10_HidCmd_t v_drop;
+            while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_drop, 0) == pdTRUE) { }
+
             if (!v_releasedOnSafe) {
-                (void)v_m->forceReleaseButtons();
+                v_m->_doForceReleaseNow();
                 v_m->_failsafeReleaseCount++;
                 v_lastBtnMask    = 0;
                 v_releasedOnSafe = true;
@@ -365,6 +398,33 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             continue;
         } else {
             v_releasedOnSafe = false;
+        }
+
+        // ---- [Phase2] HID commands 우선 처리 ----
+        {
+            ST_E10_HidCmd_t v_cmd;
+            while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_cmd, 0) == pdTRUE) {
+                switch (v_cmd.cmd) {
+                    case EN_E10_HIDCMD_RELEASE_ALL:
+                        v_m->_doReleaseAllButtons();
+                        v_lastBtnMask = 0;
+                        break;
+
+                    case EN_E10_HIDCMD_TEST_CLICK:
+                        v_m->_doTestMouseClick(v_cmd.arg0, v_cmd.holdMs);
+                        // 테스트는 양 끝이 release 상태로 종료되므로 다음 diff 기준 리셋
+                        v_lastBtnMask = 0;
+                        break;
+
+                    case EN_E10_HIDCMD_TEST_PPT:
+                        // [H-4] 실제 시퀀스는 commTask에서 수행 (vTaskDelay 포함)
+                        v_m->_sendPptKey2(v_cmd.arg0, v_cmd.arg1, v_cmd.code);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
         }
 
         // ---- normal path ----

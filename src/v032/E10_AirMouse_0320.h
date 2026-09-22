@@ -10,10 +10,23 @@
  *  - HID modifier 정책 확정: mod mask == HID modifier byte (W10와 1:1)
  *  - status: gyro/cursor RMS + spike + consecutive fail + err hist + i2c recover
  *
- * [Phase 1 반영]
+ * [Phase 1]
  *  - C-1: sensorTask 정상 경로에서 _pushFrame() 호출 (HID 전달 큐 활성화)
  *  - C-2: _pushErr/_pushSpike 락 보호 + recursive mutex
  *  - C-5: 캘리브 중 프레임 유지(강제 릴리즈 + 버튼 샘플링)
+ *
+ * [Phase 2]
+ *  - C-3: HID 실행을 commTask 단독으로 (웹/sensor는 _qHidCmd enqueue)
+ *  - H-2: forceReleaseButtons/forceReleaseAllButtons 통일
+ *  - H-4: testPptKey2/testMouseClick 논블로킹
+ *
+ * [Phase 3]
+ *  - H-3: setDpiLevel/setPrecisionMode/setHardClickLock RMW 원자화
+ *  - C-4: sensorTask loop 시작에 motion-critical config 스냅샷
+ *
+ * [Phase 4]
+ *  - M-2: _recoverI2C 카운터 락 통일
+ *  - M-4: SAFE/OTA gate 진입·이탈 전용 에러코드 (E10_Def_0320.h)
  *
  * [분할]
  *  - E10_AirMouse_Core_0320.cpp   : 초기화/런타임 적용
@@ -70,6 +83,28 @@ class CL_E10_EliteAirMouse {
     } ST_E10_Frame_t;
 
     QueueHandle_t _qFrame = nullptr;
+
+    // ----------------------------------------------------
+    // HID Command Queue (Phase 2: C-3 / H-2 / H-4)
+    // - 웹/sensor 태스크가 _mouse/_keyboard를 직접 만지지 않는다
+    // - commTask가 유일한 HID 실행자
+    // ----------------------------------------------------
+    enum EN_E10_HidCmd_t : uint8_t {
+        EN_E10_HIDCMD_NONE        = 0,
+        EN_E10_HIDCMD_RELEASE_ALL = 1,
+        EN_E10_HIDCMD_TEST_CLICK  = 2,
+        EN_E10_HIDCMD_TEST_PPT    = 3,
+    };
+
+    typedef struct ST_E10_HidCmd_t {
+        uint8_t  cmd;
+        uint8_t  arg0;    // mouse mask or key page
+        uint8_t  arg1;    // key mod
+        uint16_t holdMs;  // TEST_CLICK hold
+        uint32_t code;    // TEST_PPT code
+    } ST_E10_HidCmd_t;
+
+    QueueHandle_t _qHidCmd = nullptr;
 
     // gyro calib
     float _gyroBiasX = 0.0f;
@@ -213,13 +248,13 @@ class CL_E10_EliteAirMouse {
 
     bool isSafeMode() const { return _safeMode; }
 
-    // -------- diagnostics / control --------
+    // -------- diagnostics --------
     void getStatus(ST_E10_Status_t& p_out);
     bool requestGyroCalibration();
     bool requestI2CRecover();
     bool clearDiagnostics();
 
-    // 버튼 stuck 강제 해제(진단/복구용)
+    // [H-2] 공개 API는 동일 동작(호환용 alias). 모두 enqueue.
     bool forceReleaseButtons();
     bool forceReleaseAllButtons();
 
@@ -236,8 +271,11 @@ class CL_E10_EliteAirMouse {
     void _snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out);
     void _applyE10ToRuntime(const ST_C10_E10Config_t& p_e);
 
+    // [H-3] 락 보유 상태에서 실행. caller가 _lock() 잡고 호출.
+    void _applyRuntimeLocked(const ST_C10_E10Config_t& p_e);
+
     // -----------------------
-    // HID helpers
+    // HID helpers (실행 primitives)
     // -----------------------
     void _tapComboUsageKb(uint8_t p_modMask, uint8_t p_usage, uint16_t p_ms = 22);
     void _tapUsageKb(uint8_t p_usage, uint16_t p_ms = 12);
@@ -245,6 +283,14 @@ class CL_E10_EliteAirMouse {
     void _sendPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
     void _sendPptKey2FromCfg(const ST_C10_PptKey2_t& p_k);
     void _processGesturesDeg(float p_gzDeg);
+
+    // ---- HID cmd queue (producer: any task) ----
+    bool _enqueueHidCmd(const ST_E10_HidCmd_t& p_cmd);
+
+    // ---- HID exec primitives (consumer: commTask ONLY) ----
+    void _doReleaseAllButtons();
+    void _doTestMouseClick(uint8_t p_mask, uint16_t p_holdMs);
+    void _doForceReleaseNow();
 
     // -----------------------
     // Motion helpers

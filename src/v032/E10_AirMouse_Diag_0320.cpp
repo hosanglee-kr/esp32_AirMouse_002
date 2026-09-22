@@ -61,6 +61,8 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
         _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
     }
 
+    // [M-2] getStatus/clearDiagnostics와 공유하는 카운터는 락 안에서 갱신
+    _lock();
     _i2cRecoverCount++;
     _i2cRecoverLastOk = v_ok;
 
@@ -70,6 +72,7 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
         _consecutiveRecoverFail++;
         _consecutiveFail++;
     }
+    _unlock();
 
     _pushErr(v_ok ? EN_E10_ERR_I2C_RECOVER_OK : EN_E10_ERR_I2C_RECOVER_FAIL, 0);
     return v_ok;

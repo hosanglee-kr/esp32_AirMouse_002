@@ -19,10 +19,14 @@
 class CL_C10_Config {
   private:
     ST_C10_BootState_t _boot;
+    
+    // [M-1] bootMarkOkIfGracePassed 실패 시 재시도 백오프용
+    uint32_t _bootOkRetryAtMs = 0;
 
   public:
     CL_C10_Config() { 
         memset(&_boot, 0, sizeof(_boot)); 
+        _bootOkRetryAtMs = 0;
     }
 
     void begin(bool p_formatOnFail = true) {
@@ -203,6 +207,11 @@ class CL_C10_Config {
             return false; // 아직 그레이스 미통과
         }
     
+        // [M-1] 실패 후 백오프: loop(200ms)마다 반복 저장 → flash 마모 방지
+        if (_bootOkRetryAtMs != 0 && (int32_t)(v_now - _bootOkRetryAtMs) < 0) {
+            return false;
+        }
+    
         // 그레이스 통과 => 이번 부팅 정상 판정
         _boot.pending = false;
     
@@ -212,57 +221,62 @@ class CL_C10_Config {
         }
     
         // safe_mode 리셋은 사용자가 clearSafeMode()로만 하게 유지(정책 고정)
-        // 원하면 자동 해제 옵션을 여기서 추가 가능
     
-        return _saveBootState(_boot);
+        const bool v_ok = _saveBootState(_boot);
+        if (v_ok) {
+            _bootOkRetryAtMs = 0;
+        } else {
+            // 다음 재시도까지 30초
+            _bootOkRetryAtMs = v_now + 30000u;
+        }
+        return v_ok;
     }
-
 
     // ---------- Config Load/Save ----------
 
-// ---------- Build Patched/Validated Configs ----------
-// - defaults를 깔고 (옵션)현재 파일을 로드한 뒤,
-//   patch JSON을 적용하고 validate까지 수행한다.
-// - 성공 시 p_wifi/p_e10에 "검증 통과한 결과"가 남는다.
-bool buildPatchedAll(const String& p_patchJson,
-                     ST_C10_WiFiConfig_t& p_wifi,
-                     ST_C10_E10Config_t&  p_e10,
-                     bool p_loadCurrent = true) {
-    makeDefaultsWiFi(p_wifi);
-    makeDefaultsE10(p_e10);
-
-    if (p_loadCurrent) {
-        (void)loadAll(p_wifi, p_e10); // 실패해도 defaults 유지
+    // ---------- Build Patched/Validated Configs ----------
+    // - defaults를 깔고 (옵션)현재 파일을 로드한 뒤,
+    //   patch JSON을 적용하고 validate까지 수행한다.
+    // - 성공 시 p_wifi/p_e10에 "검증 통과한 결과"가 남는다.
+    bool buildPatchedAll(const String& p_patchJson,
+                         ST_C10_WiFiConfig_t& p_wifi,
+                         ST_C10_E10Config_t&  p_e10,
+                         bool p_loadCurrent = true) {
+        makeDefaultsWiFi(p_wifi);
+        makeDefaultsE10(p_e10);
+    
+        if (p_loadCurrent) {
+            (void)loadAll(p_wifi, p_e10); // 실패해도 defaults 유지
+        }
+    
+        bool v_ok = true;
+        v_ok = v_ok && patchFromJsonWiFi(p_patchJson, p_wifi);
+        v_ok = v_ok && patchFromJsonE10(p_patchJson,  p_e10);
+        v_ok = v_ok && validateWiFi(p_wifi);
+        v_ok = v_ok && validateE10(p_e10);
+        return v_ok;
     }
-
-    bool v_ok = true;
-    v_ok = v_ok && patchFromJsonWiFi(p_patchJson, p_wifi);
-    v_ok = v_ok && patchFromJsonE10(p_patchJson,  p_e10);
-    v_ok = v_ok && validateWiFi(p_wifi);
-    v_ok = v_ok && validateE10(p_e10);
-    return v_ok;
-}
-
-bool buildPatchedE10(const String& p_patchJson,
-                     ST_C10_E10Config_t&  p_e10,
-                     bool p_loadCurrent = true) {
-    ST_C10_WiFiConfig_t v_dummy;
-    makeDefaultsWiFi(v_dummy);
-    makeDefaultsE10(p_e10);
-
-    if (p_loadCurrent) {
-        ST_C10_E10Config_t v_loaded;
-        makeDefaultsE10(v_loaded);
-        // loadAll은 WiFi/E10을 같이 로드하므로, dummy도 같이 넘긴다.
-        (void)loadAll(v_dummy, v_loaded);
-        p_e10 = v_loaded;
+    
+    bool buildPatchedE10(const String& p_patchJson,
+                         ST_C10_E10Config_t&  p_e10,
+                         bool p_loadCurrent = true) {
+        ST_C10_WiFiConfig_t v_dummy;
+        makeDefaultsWiFi(v_dummy);
+        makeDefaultsE10(p_e10);
+    
+        if (p_loadCurrent) {
+            ST_C10_E10Config_t v_loaded;
+            makeDefaultsE10(v_loaded);
+            // loadAll은 WiFi/E10을 같이 로드하므로, dummy도 같이 넘긴다.
+            (void)loadAll(v_dummy, v_loaded);
+            p_e10 = v_loaded;
+        }
+    
+        bool v_ok = true;
+        v_ok = v_ok && patchFromJsonE10(p_patchJson, p_e10);
+        v_ok = v_ok && validateE10(p_e10);
+        return v_ok;
     }
-
-    bool v_ok = true;
-    v_ok = v_ok && patchFromJsonE10(p_patchJson, p_e10);
-    v_ok = v_ok && validateE10(p_e10);
-    return v_ok;
-}
 
     bool loadAll(ST_C10_WiFiConfig_t& p_wifi, ST_C10_E10Config_t& p_e10) {
         File v_f = LittleFS.open(C10_DEF::CFG_PATH, "r");
@@ -357,11 +371,19 @@ bool buildPatchedE10(const String& p_patchJson,
     bool rollbackFromBak() {
         if (!LittleFS.exists(C10_DEF::CFG_BAK)) return false;
         if (!_verifyJsonFile(C10_DEF::CFG_BAK)) return false;
+    
+        // [M-5] bak를 유지한 채 main만 교체 → 재롤백 여지 보존.
+        //       (rename 우선이면 bak가 사라져 재롤백 불가)
         if (LittleFS.exists(C10_DEF::CFG_PATH)) (void)LittleFS.remove(C10_DEF::CFG_PATH);
-        if (LittleFS.rename(C10_DEF::CFG_BAK, C10_DEF::CFG_PATH)) return true;
-        // rename 실패 시 copy로 복구
+    
+        // copy 우선: bak 유지
         if (_copyFile(C10_DEF::CFG_BAK, C10_DEF::CFG_PATH)) {
-            (void)LittleFS.remove(C10_DEF::CFG_BAK);
+            return true;
+        }
+    
+        // copy 실패 시 rename fallback (bak 상실 감수, 최후의 복구)
+        if (LittleFS.rename(C10_DEF::CFG_BAK, C10_DEF::CFG_PATH)) {
+            D10_LOGW("[C10] rollbackFromBak: copy failed, used rename (bak lost)");
             return true;
         }
         return false;

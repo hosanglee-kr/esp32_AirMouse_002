@@ -58,6 +58,9 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
         xQueueOverwrite(_qFrame, &v_init);
     }
 
+    // [Phase2] HID command queue (C-3)
+    _qHidCmd = xQueueCreate(4, sizeof(ST_E10_HidCmd_t));
+
     _safeMode = (_cfg && _cfg->isSafeMode());
 
     (void)_applyFromConfig();
@@ -79,11 +82,27 @@ bool CL_E10_EliteAirMouse::E10_W10Apply(void* p_ctx) {
 }
 
 // =======================================================
+// HID cmd enqueue (producer: any task)
+// - timeout 0: 웹 태스크 블로킹 금지
+// - 큐 full이면 drop(false)
+// =======================================================
+bool CL_E10_EliteAirMouse::_enqueueHidCmd(const ST_E10_HidCmd_t& p_cmd) {
+    if (!_qHidCmd) return false;
+    return (xQueueSend(_qHidCmd, &p_cmd, 0) == pdTRUE);
+}
+
+// =======================================================
 // apply-only (저장 없이 UI에서 반영)
 // =======================================================
 bool CL_E10_EliteAirMouse::applyRuntimeE10(const ST_C10_E10Config_t& p_e) {
     _lock();
+    _applyRuntimeLocked(p_e);
+    _unlock();
+    return true;
+}
 
+// [H-3] caller가 _lock() 보유 상태에서 호출 (recursive mutex)
+void CL_E10_EliteAirMouse::_applyRuntimeLocked(const ST_C10_E10Config_t& p_e) {
     _applyE10ToRuntime(p_e);
 
     _snapshotRuntimeToE10Config(_cfgE10Runtime);
@@ -103,9 +122,6 @@ bool CL_E10_EliteAirMouse::applyRuntimeE10(const ST_C10_E10Config_t& p_e) {
     }
 
     _state.updated = true;
-
-    _unlock();
-    return true;
 }
 
 // =======================================================
@@ -123,27 +139,48 @@ bool CL_E10_EliteAirMouse::setDpiLevel(uint8_t p_level) {
     if (v_lv < 1) v_lv = 1;
     if (v_lv > 3) v_lv = 3;
 
-    ST_C10_E10Config_t v_e;
-    _getE10RuntimeConfig(v_e);
+    // [H-3] read-modify-write 원자화 (get과 apply 사이에 다른 요청 끼어들기 방지)
+    _lock();
+    if (!_cfgE10RuntimeValid) {
+        _snapshotRuntimeToE10Config(_cfgE10Runtime);
+        _cfgE10RuntimeValid = true;
+    }
+    ST_C10_E10Config_t v_e = _cfgE10Runtime;
     v_e.dpi_level = v_lv;
-    return applyRuntimeE10(v_e);
+    _applyRuntimeLocked(v_e);
+    _unlock();
+    return true;
 }
 
 bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
     uint8_t v_mode = p_mode;
     if (v_mode > (uint8_t)EN_C10_E10_PREC_PPT) v_mode = (uint8_t)EN_C10_E10_PREC_PPT;
 
-    ST_C10_E10Config_t v_e;
-    _getE10RuntimeConfig(v_e);
+    // [H-3] RMW 원자화
+    _lock();
+    if (!_cfgE10RuntimeValid) {
+        _snapshotRuntimeToE10Config(_cfgE10Runtime);
+        _cfgE10RuntimeValid = true;
+    }
+    ST_C10_E10Config_t v_e = _cfgE10Runtime;
     v_e.precision_mode = v_mode;
-    return applyRuntimeE10(v_e);
+    _applyRuntimeLocked(v_e);
+    _unlock();
+    return true;
 }
 
 bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
-    ST_C10_E10Config_t v_e;
-    _getE10RuntimeConfig(v_e);
+    // [H-3] RMW 원자화
+    _lock();
+    if (!_cfgE10RuntimeValid) {
+        _snapshotRuntimeToE10Config(_cfgE10Runtime);
+        _cfgE10RuntimeValid = true;
+    }
+    ST_C10_E10Config_t v_e = _cfgE10Runtime;
     v_e.hard_click_lock = p_enable;
-    return applyRuntimeE10(v_e);
+    _applyRuntimeLocked(v_e);
+    _unlock();
+    return true;
 }
 
 bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
@@ -153,7 +190,8 @@ bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     _state.btn_mask = 0;
     _state.updated  = true;
 
-    _pushErr(EN_E10_ERR_OTA_GUARD, p_enable ? 2 : 3);
+    // [M-4] 전용 코드
+    _pushErr(p_enable ? EN_E10_ERR_SAFE_MODE_ENTER : EN_E10_ERR_SAFE_MODE_EXIT, 0);
 
     _unlock();
     return true;
@@ -167,14 +205,14 @@ bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
             _otaGuard = true;
             _otaGuardCount++;
             _otaGuardT0Ms = (uint32_t)(millis() - _uptime0);
-            _pushErr(EN_E10_ERR_OTA_GUARD, 1);
+            _pushErr(EN_E10_ERR_OTA_GUARD_ENTER, 0);
         }
         _state.btn_mask = 0;
         _state.updated  = true;
     } else {
         if (_otaGuard) {
             _otaGuard = false;
-            _pushErr(EN_E10_ERR_OTA_GUARD, 0);
+            _pushErr(EN_E10_ERR_OTA_GUARD_EXIT, 0);
         }
         _state.updated = true;
     }

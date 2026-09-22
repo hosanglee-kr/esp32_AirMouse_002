@@ -62,15 +62,19 @@ void CL_E10_EliteAirMouse::_fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle
     if (p_btnModeLongToggle) {
         const uint32_t v_nowMs = (uint32_t)millis();
         if ((v_nowMs - _lastModeToggleMs) >= _modeToggleCooldownMs) {
+            // [C-4] 웹(setPptMode / applyRuntimeE10)과 공유하는 필드는 락 안에서 갱신
+            _lock();
             _isPptMode = !_isPptMode;
+            _precSub   = EN_PREC_OFF;
+            _precSmX   = 0.0f;
+            _precSmY   = 0.0f;
+            _unlock();
+
             _lastModeToggleMs = v_nowMs;
 
+            // forceReleaseButtons()는 내부에서 자체적으로 lock/unlock + enqueue
             (void)forceReleaseButtons();
             _failsafeReleaseCount++;
-
-            _precSub = EN_PREC_OFF;
-            _precSmX = 0.0f;
-            _precSmY = 0.0f;
         }
     }
 

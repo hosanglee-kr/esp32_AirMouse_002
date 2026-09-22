@@ -268,15 +268,17 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
     if (strcmp(p_uri, "/api/reboot") == 0) return true;
     if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
 
+    
     if (strcmp(p_uri, "/api/config") == 0) return true;
-    // save/apply/control/ppt 등은 SafeMode에선 차단(최소 정책)
-    // if (strcmp(p_uri, "/api/config/save") == 0) return true;
-    // if (strcmp(p_uri, "/api/config/apply") == 0) return true;
+
+    // [H-1] SafeMode 정책: write 계열은 save/apply/import 모두 차단.
+    //       복구 경로(export/rollback/factory_reset)만 허용.
+    //       - import는 _apiConfigSaveImportCommon 경유로 config를 덮어쓰므로 write로 취급.
+    //       - save/apply는 아래 목록에 없으므로 자동 차단.
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
     if (strcmp(p_uri, "/api/export") == 0) return true;
-    if (strcmp(p_uri, "/api/config/import") == 0) return true;
     if (strcmp(p_uri, "/api/config/rollback") == 0) return true;
-
+    
     return false;
 }
 
