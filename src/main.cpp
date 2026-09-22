@@ -5,10 +5,10 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-#include "v031/A40_ComFunc_020.h" // 내부에서 D10_Logger_060.h 포함
-#include "v031/C10_Config_0320.h"
-#include "v031/E10_AirMouse_0320.h"
-#include "v031/W10_Web_0320.h"
+#include "v032/A40_ComFunc_0320.h" // 내부에서 D10_Logger_060.h 포함
+#include "v032/C10_Config_0320.h"
+#include "v032/E10_AirMouse_0320.h"
+#include "v032/W10_Web_0320.h"
 
 static CL_C10_Config        g_cfg;
 static CL_E10_EliteAirMouse g_e10;
