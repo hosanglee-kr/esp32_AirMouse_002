@@ -29,17 +29,14 @@ on:
       - 'src/**/*.h'
       - 'src/**/*.ino'
       - 'src/**/*.py'
-      # Web staging 소스
+      # Web 소스 (VCS 대상)
       - 'src/v032/data_v032_www/**'
-      # 공개 JSON (스크린샷 기준 위치)
-      - 'src/v032/data_v032/public/**'
-      # 설정/부팅 상태 JSON (스크린샷 기준 위치)
-      - 'src/v032/data_v032/*.json'
+      # 설정 및 스키마 JSON 소스 (VCS 대상)
+      - 'src/v032/data_v032/json/**'
       - '.github/workflows/*.yml'
       - '!**/*.md'
-      # buildfs 파생물 (gzip 스크립트가 재생성하는 위치)
+      # buildfs 파생물만 제외 (gzip 스크립트가 재생성하는 위치)
       - '!src/v032/data_v032/www/**'
-      - '!src/v032/data_v032/json/**'
       - '!src/**/*_backup/**'
 
 permissions:
@@ -212,7 +209,7 @@ jobs:
       # ---------------------------------------------------------------
       - name: Clean PlatformIO build directory
         shell: bash
-        run: pio run -t clean
+        run: pio run -e ${{ matrix.environments }} -t clean || rm -rf .pio/build/${{ matrix.environments }}
 
       # ---------------------------------------------------------------
       # [선행 검증] extra_scripts / staging / tools 무결성

@@ -26,14 +26,14 @@ Import("env")
 import os
 import gzip
 import shutil
+from SCons.Script import COMMAND_LINE_TARGETS
 
 # -------------------------------------------------------
 # [경로 정의]
 # -------------------------------------------------------
 # SRC: version-controlled 웹 소스
 SRC_WWW_DIR = os.path.join(
-    env["PROJECT_DIR"], env["PROJECT_SRC_DIR"],
-    "v032", "data_v032_www"
+    env["PROJECT_DIR"], "src", "v032", "data_v032_www"
 )
 
 # DST: buildfs 스테이징 (data_dir 기준 www/)
@@ -66,7 +66,7 @@ def relpath_safe(path, base):
 
 
 def gzip_file(src_path, dst_gz_path):
-    """src_path를 gzip 압축하여 dst_gz_path에 저장. mtime 인자 미사용(호환성)."""
+    """src_path를 gzip 압축하여 dst_gz_path에 저장. mtime=0으로 결정론적 빌드 지원."""
     ensure_dir(os.path.dirname(dst_gz_path))
 
     with open(src_path, "rb") as f_in:
@@ -136,9 +136,16 @@ def sync_www():
 
 
 # =======================================================
-# [PRE-ACTION] buildfs 직전 실행
+# [PRE-ACTION] buildfs / uploadfs 직전 실행 보장
 # =======================================================
-def before_buildfs(source, target, env):
+_has_run_sync = False
+
+def run_www_sync(source=None, target=None, env=None):
+    global _has_run_sync
+    if _has_run_sync:
+        return
+    _has_run_sync = True
+
     print("[WWW] Clean start")
     clean_dst_www()
     print("[WWW] Clean done")
@@ -148,5 +155,14 @@ def before_buildfs(source, target, env):
     print("[WWW] Sync+Gzip done")
 
 
-# buildfs(=LittleFS 이미지 생성) 직전에 실행
-env.AddPreAction("buildfs", before_buildfs)
+# 1) CLI 또는 IDE에서 buildfs / uploadfs 타깃이 요청된 경우, 빌드 시작 전 즉시 동기화 실행
+if any(t in COMMAND_LINE_TARGETS for t in ["buildfs", "uploadfs"]):
+    run_www_sync()
+
+# 2) SCons의 LittleFS 바이너리 빌드 타깃 노드에 PreAction 등록 (mklittlefs 실행 직전 보장)
+fs_bin_name = env.subst("${ESP32_FS_IMAGE_NAME}.bin") if "${ESP32_FS_IMAGE_NAME}" in env else "littlefs.bin"
+fs_bin_path = os.path.join(env.subst("$BUILD_DIR"), fs_bin_name)
+env.AddPreAction(fs_bin_path, run_www_sync)
+
+# 3) 하위 호환성을 위해 buildfs 타깃에도 등록
+env.AddPreAction("buildfs", run_www_sync)
