@@ -1,0 +1,456 @@
+# =====================================================================
+# .github/workflows/ci_1_build_009.yml
+# ---------------------------------------------------------------------
+# PlatformIO PR 빌드 및 에이전트 친화적 실패 마커 생성 파이프라인
+#  - 대상: AirMouse Elite S3 (v0.32.x)
+#  - env : esp32-s3-zero
+#  - data_dir     : src/v032/data_v032
+#  - extra_scripts: src/v032/tools_v032/pio_gzip_0320.py
+#
+# [v010 주요 갱신]
+#   1. 실제 폴더 구조 반영: data_v032_www / data_v032/public / tools_v032
+#   2. paths 필터에 공개 JSON·설정 JSON·WWW 소스 추가
+#   3. 검증 스텝의 오타(v031/tools) 수정
+#   4. stale .o 방지를 위한 clean 스텝 추가
+#   5. buildfs 산출물 검증 조건 완화(스크립트가 만들 수 있는 실제 위치 기준)
+# =====================================================================
+
+name: PR Build
+
+on:
+  pull_request:
+    branches: [main, main-standalone]
+    paths:
+      - 'platformio.ini'
+      - 'lib/**'
+      - 'include/**'
+      - 'src/**/*.c'
+      - 'src/**/*.cpp'
+      - 'src/**/*.h'
+      - 'src/**/*.ino'
+      - 'src/**/*.py'
+      # Web 소스 (VCS 대상)
+      - 'src/v032/data_v032_www/**'
+      # 설정 및 스키마 JSON 소스 (VCS 대상)
+      - 'src/v032/data_v032/json/**'
+      - '.github/workflows/*.yml'
+      - '!**/*.md'
+      # buildfs 파생물만 제외 (gzip 스크립트가 재생성하는 위치)
+      - '!src/v032/data_v032/www/**'
+      - '!src/**/*_backup/**'
+
+permissions:
+  contents: read
+
+jobs:
+  # =====================================================================
+  # 1단계: PR 메타데이터 조기 저장 및 빌드 대상 환경 동적 추출
+  # =====================================================================
+  get_environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.read_output.outputs.envs }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Save PR metadata
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE:  ${{ github.event.pull_request.title }}
+          PR_URL:    ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA:  ${{ github.event.pull_request.head.sha }}
+          BASE_REF:  ${{ github.base_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p pr-meta
+          python3 - <<'PY' > pr-meta/pr_meta.json
+          import json, os
+          head = os.environ.get("HEAD_REPO", "") or ""
+          base = os.environ.get("BASE_REPO", "") or ""
+          print(json.dumps({
+              "pr_number": os.environ.get("PR_NUMBER"),
+              "pr_title":  os.environ.get("PR_TITLE"),
+              "pr_url":    os.environ.get("PR_URL"),
+              "pr_author": os.environ.get("PR_AUTHOR"),
+              "head_sha":  os.environ.get("HEAD_SHA"),
+              "base_ref":  os.environ.get("BASE_REF"),
+              "head_repo": head,
+              "base_repo": base,
+              "is_fork":   head != base,
+          }))
+          PY
+
+      - name: Upload PR metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-meta
+          path: pr-meta/pr_meta.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Set up Python for parsing
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: List PlatformIO environments
+        id: list_envs
+        shell: bash
+        run: |
+          python - <<'PY' > envs.json
+          import configparser, json
+          config = configparser.ConfigParser(interpolation=None)
+          config.read('platformio.ini')
+          all_envs = [s.split(':', 1)[1] for s in config.sections() if s.startswith('env:')]
+          PREFERRED = ['esp32-s3-zero']
+          envs = [e for e in all_envs if e in PREFERRED]
+          if not envs and 'platformio' in config:
+              default = config['platformio'].get('default_envs', '')
+              if default:
+                  envs = [e.strip() for e in default.split(',') if e.strip()]
+          if not envs:
+              envs = all_envs
+          print(json.dumps(envs))
+          PY
+
+      - name: Read environments to output
+        id: read_output
+        shell: bash
+        run: |
+          ENVS=$(<envs.json)
+          if [ "$ENVS" == "[]" ] || [ -z "$ENVS" ]; then
+            echo "Error: No environments found to build!"
+            exit 1
+          fi
+          echo "envs=${ENVS}" >> $GITHUB_OUTPUT
+
+      - name: Prepare env failure marker
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .ci-failure-env
+          echo "get_environments" > .ci-failure-env/env_name.txt
+          echo "NONE" > .ci-failure-env/error_files.txt
+          echo "platformio.ini 파싱 또는 빌드 타깃 환경 식별 실패" > .ci-failure-env/agent_errors.txt
+          {
+            echo "=== get_environments 단계 실행 오류 ==="
+            echo "점검 항목:"
+            echo "  - platformio.ini 문법 및 섹션 네이밍"
+            echo "  - [env:*] 섹션 정의 여부 (기대: env:esp32-s3-zero)"
+            echo "  - default_envs 파라미터 유효성"
+            echo "--- 러너 환경 정보 ---"
+            uname -a
+            python3 --version || true
+          } > .ci-failure-env/failure.log
+
+      - name: Upload env failure marker
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-get-environments
+          path: |
+            .ci-failure-env/env_name.txt
+            .ci-failure-env/error_files.txt
+            .ci-failure-env/agent_errors.txt
+            .ci-failure-env/failure.log
+          retention-days: 7
+          if-no-files-found: warn
+
+  # =====================================================================
+  # 2단계: 환경별 매트릭스 병렬 컴파일
+  # =====================================================================
+  build:
+    runs-on: ubuntu-latest
+    needs: get_environments
+    strategy:
+      fail-fast: false
+      matrix:
+        environments: ${{ fromJson(needs.get_environments.outputs.environments) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---------------------------------------------------------------
+      # [restore 단계] PlatformIO 캐시 복원
+      # ---------------------------------------------------------------
+      - name: Restore PlatformIO caches
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+            .pio/libdeps
+            .pio/cache
+          key: ${{ runner.os }}-pio-${{ matrix.environments }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-${{ matrix.environments }}-
+            ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+
+      # ---------------------------------------------------------------
+      # [clean] stale .o 제거 (src_filter 변경 후에도 이전 .o가 링커에
+      #         남아 multiple definition 을 유발하는 문제 방지)
+      # - .pio/build/ 만 삭제. .pio/cache/ 는 보존되어 재컴파일 비용 최소.
+      # ---------------------------------------------------------------
+      - name: Clean PlatformIO build directory
+        shell: bash
+        run: pio run -e ${{ matrix.environments }} -t clean || rm -rf .pio/build/${{ matrix.environments }}
+
+      # ---------------------------------------------------------------
+      # [선행 검증] extra_scripts / staging / tools 무결성
+      # ---------------------------------------------------------------
+      - name: Verify extra_scripts and staging integrity
+        shell: bash
+        run: |
+          set -e
+          echo "=== [1/3] extra_scripts 참조 파일 확인 ==="
+          awk '
+            /^[[:space:]]*extra_scripts[[:space:]]*=/ { in_block=1; next }
+            in_block && /^[[:space:]]*[^[:space:]]/ && $0 !~ /^[[:space:]]*$/ {
+              if ($0 !~ /^[[:space:]]+/) { in_block=0; next }
+            }
+            in_block && /^[[:space:]]+(pre|post):/ {
+              gsub(/^[[:space:]]+(pre|post):/, "");
+              gsub(/[[:space:]]+$/, "");
+              print
+            }
+          ' platformio.ini > /tmp/extra_scripts.txt || true
+
+          if [ ! -s /tmp/extra_scripts.txt ]; then
+            echo "::warning::extra_scripts 블록을 파싱하지 못했습니다. (수동 확인 필요)"
+          fi
+
+          MISSING=0
+          while IFS= read -r s; do
+            [ -z "$s" ] && continue
+            if [ ! -f "$s" ]; then
+              echo "::error::extra_scripts 참조 파일 누락: $s"
+              MISSING=1
+            else
+              echo "  OK: $s"
+            fi
+          done < /tmp/extra_scripts.txt
+          if [ "$MISSING" -ne 0 ]; then
+            echo "platformio.ini의 extra_scripts 경로를 확인하세요."
+            exit 1
+          fi
+
+          echo "=== [2/3] staging 소스 폴더 확인 (v032) ==="
+          MISSING_DIR=0
+          if [ ! -d "src/v032/data_v032_www" ]; then
+            echo "::error::Web staging 소스 누락: src/v032/data_v032_www"
+            MISSING_DIR=1
+          else
+            echo "  OK: src/v032/data_v032_www"
+          fi
+
+          # 공개 JSON staging: 현재 위치(public) 또는 재편 위치(json/public) 중 하나는 있어야 함
+          if [ -d "src/v032/data_v032/json/public" ]; then
+            echo "  OK: src/v032/data_v032/json/public (권장 위치)"
+          elif [ -d "src/v032/data_v032/public" ]; then
+            echo "::warning::src/v032/data_v032/public 발견. LittleFS 경로는 /public/ 이 되어"
+            echo "           프론트엔드의 /json/public/ 요청과 어긋납니다."
+            echo "           권장: src/v032/data_v032/json/public/ 로 이동."
+          else
+            echo "::error::공개 JSON staging 소스 누락 (public 또는 json/public)"
+            MISSING_DIR=1
+          fi
+
+          # 설정/부팅 JSON: 루트 또는 json/ 하위
+          if [ -d "src/v032/data_v032/json" ]; then
+            echo "  OK: src/v032/data_v032/json (설정/부팅 json 위치)"
+          elif ls src/v032/data_v032/*.json >/dev/null 2>&1; then
+            echo "::warning::설정/부팅 json이 data_v032 루트에 있음."
+            echo "           코드의 CFG_PATH/BOOT_PATH가 /json/... 이면 로드 실패."
+            echo "           권장: src/v032/data_v032/json/ 로 이동."
+          fi
+
+          if [ "$MISSING_DIR" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "=== [3/3] gzip 스크립트의 v032 참조 확인 ==="
+          if grep -rq "data_v032_www" src/v032/tools_v032/ 2>/dev/null; then
+            echo "  OK: tools_v032 내 v032 staging 참조 확인"
+          else
+            echo "::warning::tools_v032 내 data_v032_www 참조 미검출 (버전 불일치 가능)"
+          fi
+
+      # ---------------------------------------------------------------
+      # 펌웨어 빌드
+      # ---------------------------------------------------------------
+      - name: Run PlatformIO build for ${{ matrix.environments }}
+        id: pio_build
+        shell: bash
+        env:
+          PLATFORMIO_BUILD_CACHE_DIR: /home/runner/.platformio/.cache
+        run: |
+          set +e
+          pio run -e ${{ matrix.environments }} 2>&1 | tee pio-build.log
+          status=${PIPESTATUS[0]}
+          echo "exit_status=${status}" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      # ---------------------------------------------------------------
+      # 파일시스템 이미지 빌드 (gzip pre-action 트리거)
+      # - 성공 시 data_dir 하위에 최소 하나 이상의 자원(www 또는 json)이
+      #   생성되었는지 확인. 정확한 하위 경로는 gzip 스크립트 정책에 의존.
+      # ---------------------------------------------------------------
+      - name: Build filesystem image
+        if: success()
+        shell: bash
+        run: |
+          set +e
+          echo -e "\n=== Starting buildfs target ===" | tee -a pio-build.log
+          pio run -e ${{ matrix.environments }} --target buildfs 2>&1 | tee -a pio-build.log
+          status=${PIPESTATUS[0]}
+
+          if [ "$status" -eq 0 ]; then
+            HAVE_WWW=0
+            HAVE_JSON=0
+            [ -d "src/v032/data_v032/www" ] && HAVE_WWW=1
+            [ -d "src/v032/data_v032/json" ] && HAVE_JSON=1
+
+            if [ "$HAVE_WWW" -eq 0 ] && [ "$HAVE_JSON" -eq 0 ]; then
+              echo "::error::buildfs 성공했지만 data_dir 하위에 www/json 이 생성되지 않았습니다."
+              echo "  → pio_gzip_0320.py 의 SRC/DST 상수와 staging 위치를 확인하세요."
+              status=1
+            else
+              echo "[OK] data_dir 산출물:"
+              echo "  www  present: $HAVE_WWW"
+              echo "  json present: $HAVE_JSON"
+              ls -laR src/v032/data_v032 | head -n 80 || true
+            fi
+
+            # littlefs.bin 자체도 확인 (아티팩트 업로드 전 검증)
+            if [ ! -f ".pio/build/${{ matrix.environments }}/littlefs.bin" ]; then
+              echo "::error::littlefs.bin 이 생성되지 않았습니다."
+              status=1
+            fi
+          fi
+          exit $status
+
+      # ---------------------------------------------------------------
+      # 실패 마커 생성
+      # ---------------------------------------------------------------
+      - name: Prepare failure marker
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .ci-failure
+          printf '%s' "${{ matrix.environments }}" > .ci-failure/env_name.txt
+
+          if [ -s pio-build.log ]; then
+            grep -E '^[^:]+:[0-9]+(:[0-9]+)?: (fatal )?error:' pio-build.log 2>/dev/null \
+              | sed -E 's/:[0-9]+(:[0-9]+)?: (fatal )?error:.*$//' \
+              | sort -u \
+              | awk '
+                  /^(\/|\.pio\/libdeps\/|\.platformio\/)/ { print "EXT::" $0; next }
+                  { print "PRJ::" $0 }
+                ' \
+              > .ci-failure/error_files.txt || true
+            [ -s .ci-failure/error_files.txt ] || echo "NONE" > .ci-failure/error_files.txt
+
+            grep -E -C 3 \
+              -e '^[^:]+:[0-9]+(:[0-9]+)?: (fatal )?error:' \
+              -e 'undefined reference to' \
+              -e 'multiple definition of' \
+              -e 'error: ld returned' \
+              -e 'failed to format' \
+              pio-build.log 2>/dev/null \
+              | head -n 400 \
+              | awk '!seen[$0]++ || !/^--$/' \
+              > .ci-failure/agent_errors.txt || true
+            [ -s .ci-failure/agent_errors.txt ] || echo "특정 컴파일러 에러 키워드 미탐지 (전체 로그 참조 요망)" > .ci-failure/agent_errors.txt
+
+            tail -n 500 pio-build.log > .ci-failure/failure.log
+          else
+            echo "NONE" > .ci-failure/error_files.txt
+            echo "pio-build.log 미생성 (파이썬/의존성 패키지 설치 단계 오류)" > .ci-failure/agent_errors.txt
+            {
+              echo "=== pio-build.log not produced (early failure) ==="
+              echo "--- runner diagnostics ---"
+              uname -a
+              python --version || true
+              pip --version || true
+              which pio || echo "pio not installed"
+              echo "--- storage usage ---"
+              df -h . || true
+            } > .ci-failure/failure.log
+          fi
+
+          ls -la .ci-failure/
+
+      - name: Compute safe failure artifact name
+        id: safe_name
+        if: failure()
+        shell: bash
+        run: |
+          SLUG=$(printf '%s' "${{ matrix.environments }}" | tr -c 'A-Za-z0-9._-' '-')
+          HASH=$(printf '%s' "${{ matrix.environments }}" | md5sum | cut -c1-8)
+          echo "slug=${SLUG}-${HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-${{ steps.safe_name.outputs.slug }}
+          path: |
+            .ci-failure/env_name.txt
+            .ci-failure/error_files.txt
+            .ci-failure/agent_errors.txt
+            .ci-failure/failure.log
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Compute safe bundle artifact name
+        id: safe_bundle
+        if: success()
+        shell: bash
+        run: |
+          SLUG=$(printf '%s' "${{ matrix.environments }}" | tr -c 'A-Za-z0-9._-' '-')
+          HASH=$(printf '%s' "${{ matrix.environments }}" | md5sum | cut -c1-8)
+          echo "slug=${SLUG}-${HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Unified Artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.safe_bundle.outputs.slug }}-build-bundle
+          path: |
+            .pio/build/${{ matrix.environments }}/firmware.bin
+            .pio/build/${{ matrix.environments }}/partitions.bin
+            .pio/build/${{ matrix.environments }}/bootloader.bin
+            .pio/build/${{ matrix.environments }}/littlefs.bin
+          if-no-files-found: error
+
+      # ---------------------------------------------------------------
+      # [save 단계] PlatformIO 캐시 저장 (실패 시에도 저장)
+      # ---------------------------------------------------------------
+      - name: Save PlatformIO caches (even on failure)
+        id: cache-save
+        if: ${{ !cancelled() && steps.cache-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+            .pio/libdeps
+            .pio/cache
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+          

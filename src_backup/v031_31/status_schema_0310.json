@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "name": "status_schema",
+    "schema_ver": 1,
+    "fw_ver": "0310"
+  },
+  "endpoint": "/api/status",
+  "params": {
+    "compact": {
+      "type": "bool",
+      "default": 1
+    },
+    "flat": {
+      "type": "bool",
+      "default": 1
+    }
+  },
+  "data": {
+    "policy": {
+      "reboot_required": "bool",
+      "reboot_reason_mask": "u32",
+      "reboot_reasons": "str",
+      "safe_mode_api_limited": "bool",
+      "ota_upload_blocked": "bool"
+    },
+    "groups": {
+      "sys": {
+        "uptime_ms": "u32",
+        "api_ver": "str"
+      },
+      "mem": {
+        "heap_free": "u32",
+        "heap_min_free": "u32",
+        "heap_max_alloc": "u32"
+      },
+      "diag": {
+        "post_body_no_slot": "u32",
+        "post_body_too_large": "u32",
+        "json_bad": "u32",
+        "safe_blocked": "u32",
+        "ota_blocked": "u32"
+      },
+      "config": {
+        "etag": "str",
+        "size": "u32",
+        "last_apply_ok": "bool",
+        "last_apply_ms": "u32",
+        "last_apply_age_ms": "u32",
+        "last_apply_code": "str",
+        "last_apply_src": "str"
+      },
+      "features": "object"
+    }
+  }
+}

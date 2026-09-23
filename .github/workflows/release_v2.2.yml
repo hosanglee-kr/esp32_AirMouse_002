@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 릴리스 자산(Assets)을 업로드하기 위해 필수
 
     steps:
       - uses: actions/checkout@v4

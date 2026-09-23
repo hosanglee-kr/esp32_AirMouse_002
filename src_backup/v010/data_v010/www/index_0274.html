@@ -1,0 +1,321 @@
+<!-- =======================================================
+File: src/v010/data_v010/www/index_0274.html
+======================================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.7.4)</title>
+  <link rel="stylesheet" href="./style_0274.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.7.4 • Field Dashboard + PPT Keymap + WiFi/E10 Config + SafeBoot/FactoryReset + OTA</div>
+</header>
+
+<main class="grid">
+
+  <!-- ---------- Status / Dashboard ---------- -->
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div id="healthBanner" class="banner ok">OK</div>
+      <div class="pill" id="netPill">-</div>
+      <div class="pill" id="bootPill">-</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+
+    <div class="split">
+      <div class="miniCard">
+        <div class="miniTitle">Runtime Control</div>
+        <div class="row">
+          <label class="inline"><input type="checkbox" id="ctlPptMode" /> PPT mode</label>
+          <label class="inline"><input type="checkbox" id="ctlPrecMode" /> Precision mode</label>
+          <span class="hint">apply 즉시 (save 없음)</span>
+        </div>
+        <div class="row">
+          <label class="lbl2">DPI</label>
+          <select id="ctlDpi">
+            <option value="0">0 (Low)</option>
+            <option value="1">1 (Mid)</option>
+            <option value="2" selected>2 (High)</option>
+          </select>
+          <button id="btnCtlApply">Apply</button>
+          <span id="ctlMsg" class="pill">-</span>
+        </div>
+      </div>
+
+      <div class="miniCard">
+        <div class="miniTitle">SafeBoot / Factory</div>
+        <div class="row">
+          <button id="btnSafeGet">SafeBoot 상태</button>
+          <button id="btnSafeExit">SafeBoot 해제</button>
+          <button id="btnFactory" class="danger">Factory Reset</button>
+        </div>
+        <div class="row">
+          <button id="btnReboot" class="danger">Reboot</button>
+          <span id="safeMsg" class="pill">-</span>
+        </div>
+        <div class="hint">
+          SafeBoot: AP 강제 진입(-SAFE).<br/>
+          FactoryReset: config 초기화 후 재부팅.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- PPT ---------- -->
+  <section class="card">
+    <h2>PPT Keymap Editor (v2)</h2>
+
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">kb(0x07) full list + consumer presets + raw mask</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <!-- ---------- Config (WiFi + E10) ---------- -->
+  <section class="card">
+    <div class="cardHead">
+      <h2>Config Editor (WiFi + E10)</h2>
+      <div class="headRight">
+        <button id="btnCfgLoad">Load</button>
+        <button id="btnCfgApply">Apply only</button>
+        <button id="btnCfgSave" class="danger">Save</button>
+        <span id="cfgMsg" class="pill">-</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-tab="wifiTab">WiFi</button>
+      <button class="tab" data-tab="e10Tab">E10</button>
+      <button class="tab" data-tab="rawTab">Raw</button>
+    </div>
+
+    <!-- WiFi -->
+    <div id="wifiTab" class="tabBody on">
+      <div class="formGrid">
+        <div class="field">
+          <div class="k">mode</div>
+          <select id="wifi_mode">
+            <option value="0">AUTO</option>
+            <option value="1">AP</option>
+            <option value="2">STA</option>
+          </select>
+          <div class="hint">AUTO: STA 시도 후 실패 시 AP</div>
+        </div>
+
+        <div class="field">
+          <div class="k">mDNS host</div>
+          <input id="wifi_mdns_host" placeholder="elite-airmouse" />
+          <div class="hint">STA 연결 시 http://HOST.local</div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">STA SSID / PASS</div>
+          <div class="row">
+            <input id="wifi_sta_ssid" placeholder="STA SSID" />
+            <input id="wifi_sta_pass" placeholder="STA PASS" />
+          </div>
+          <div class="hint">SSID 비어있으면 STA 불가</div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">AP SSID / PASS</div>
+          <div class="row">
+            <input id="wifi_ap_ssid" placeholder="EliteAirMouse" />
+            <input id="wifi_ap_pass" placeholder="12345678 (empty=OPEN)" />
+          </div>
+          <div class="hint">SafeBoot 시 SSID에 “-SAFE” suffix</div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">Note</div>
+          <div class="hint">
+            WiFi 변경은 저장 후에도 <b>재부팅</b>해야 실제 반영됩니다. (Apply-only는 검증만 수행)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- E10 -->
+    <div id="e10Tab" class="tabBody">
+      <div class="formGrid">
+        <div class="field">
+          <div class="k">dpi_level</div>
+          <select id="e10_dpi_level">
+            <option value="0">0 (Low)</option>
+            <option value="1">1 (Mid)</option>
+            <option value="2">2 (High)</option>
+          </select>
+          <div class="hint">Runtime Control과 동일</div>
+        </div>
+
+        <div class="field">
+          <div class="k">hard_click_lock</div>
+          <label class="inline"><input type="checkbox" id="e10_hard_click_lock" /> enable</label>
+          <div class="hint">클릭 고정/락 정책</div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">scale_base[3]</div>
+          <div class="row">
+            <div class="slider"><div class="lbl2">L</div><input id="e10_scale0" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_scale0_v">-</div></div>
+            <div class="slider"><div class="lbl2">M</div><input id="e10_scale1" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_scale1_v">-</div></div>
+            <div class="slider"><div class="lbl2">H</div><input id="e10_scale2" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_scale2_v">-</div></div>
+          </div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">accel_gain[3]</div>
+          <div class="row">
+            <div class="slider"><div class="lbl2">L</div><input id="e10_gain0" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_gain0_v">-</div></div>
+            <div class="slider"><div class="lbl2">M</div><input id="e10_gain1" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_gain1_v">-</div></div>
+            <div class="slider"><div class="lbl2">H</div><input id="e10_gain2" type="range" min="0" max="2.0" step="0.01"><div class="v2" id="e10_gain2_v">-</div></div>
+          </div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">accel_threshold</div>
+          <div class="slider">
+            <div class="lbl2">deg/s</div>
+            <input id="e10_accel_threshold" type="range" min="0" max="25" step="0.1">
+            <div class="v2" id="e10_accel_threshold_v">-</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="k">wheel.threshold_deg</div>
+          <div class="slider">
+            <div class="lbl2">deg</div>
+            <input id="e10_wheel_th" type="range" min="10" max="200" step="1">
+            <div class="v2" id="e10_wheel_th_v">-</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="k">wheel.step_max</div>
+          <input id="e10_wheel_step" type="number" min="1" max="20" step="1">
+          <div class="hint">휠 스텝 최대</div>
+        </div>
+
+        <div class="field">
+          <div class="k">gesture.flick_deg</div>
+          <div class="slider">
+            <div class="lbl2">deg</div>
+            <input id="e10_flick" type="range" min="50" max="600" step="1">
+            <div class="v2" id="e10_flick_v">-</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="k">gesture.cooldown_ms</div>
+          <input id="e10_cd" type="number" min="0" max="5000" step="10">
+          <div class="hint">제스처 쿨다운</div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">scroll_cursor_damp</div>
+          <div class="slider">
+            <div class="lbl2">0~1</div>
+            <input id="e10_damp" type="range" min="0" max="1" step="0.01">
+            <div class="v2" id="e10_damp_v">-</div>
+          </div>
+        </div>
+
+        <div class="field span2">
+          <div class="k">precision</div>
+          <div class="row">
+            <label class="inline"><input type="checkbox" id="e10_prec_en" /> enable</label>
+            <span class="hint">정밀 모드 파라미터</span>
+          </div>
+
+          <div class="row">
+            <div class="slider"><div class="lbl2">deadzone</div><input id="e10_prec_dz" type="range" min="0" max="10" step="0.1"><div class="v2" id="e10_prec_dz_v">-</div></div>
+            <div class="slider"><div class="lbl2">gain</div><input id="e10_prec_gain" type="range" min="0" max="2" step="0.01"><div class="v2" id="e10_prec_gain_v">-</div></div>
+          </div>
+
+          <div class="row">
+            <div class="slider"><div class="lbl2">accel</div><input id="e10_prec_acc" type="range" min="0" max="2" step="0.01"><div class="v2" id="e10_prec_acc_v">-</div></div>
+            <div class="slider"><div class="lbl2">smooth</div><input id="e10_prec_sm" type="range" min="0" max="1" step="0.01"><div class="v2" id="e10_prec_sm_v">-</div></div>
+          </div>
+
+          <div class="row">
+            <div class="fieldMini">
+              <div class="k">max_step</div>
+              <input id="e10_prec_ms" type="number" min="1" max="100" step="1">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raw -->
+    <div id="rawTab" class="tabBody">
+      <div class="row">
+        <button id="btnCfgExport">Export</button>
+        <input type="file" id="fileImport" accept=".json,application/json" />
+        <button id="btnCfgImport">Import</button>
+        <button id="btnCfgRollback" class="danger">Rollback (.bak)</button>
+        <span class="hint">Import/rollback는 저장 후 apply</span>
+      </div>
+      <pre id="cfgRaw" class="box">-</pre>
+      <div class="hint">Raw는 /api/config 출력(전체 config.json)입니다.</div>
+    </div>
+  </section>
+
+  <!-- ---------- OTA ---------- -->
+  <section class="card">
+    <h2>OTA (Web)</h2>
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+      <button id="btnOtaStatus">Status</button>
+      <span id="otaMsg" class="pill">-</span>
+    </div>
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+
+</main>
+
+<script src="./app_0274.js"></script>
+</body>
+</html>

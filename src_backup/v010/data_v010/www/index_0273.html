@@ -1,0 +1,112 @@
+<!-- =======================================================
+File: src/v0273/data_v0273/www/index_0273.html
+======================================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elite AirMouse (v0.2.7.3)</title>
+  <link rel="stylesheet" href="./style_0273.css" />
+</head>
+<body>
+<header class="top">
+  <div class="title">Elite AirMouse</div>
+  <div class="sub">v0.2.7.3 Dashboard + PPT Keymap + Full Config + Safe Boot + Factory Reset</div>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <div class="cardHead">
+      <h2>Field Dashboard</h2>
+      <div class="headRight">
+        <button id="btnRefresh">Refresh</button>
+        <label class="inline"><input type="checkbox" id="autoPoll" checked /> Auto (1s)</label>
+      </div>
+    </div>
+
+    <div class="bannerRow">
+      <div id="healthBanner" class="banner ok">OK</div>
+      <div id="bootBanner" class="banner boot">BOOT</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">gyroRMS</div><div class="v" id="kGyro">-</div></div>
+      <div class="kpi"><div class="k">cursorRMS</div><div class="v" id="kCursor">-</div></div>
+      <div class="kpi"><div class="k">spike(10s)</div><div class="v" id="kSpike">-</div></div>
+      <div class="kpi"><div class="k">consecFail</div><div class="v" id="kFail">-</div></div>
+      <div class="kpi"><div class="k">I2C Recover</div><div class="v" id="kI2c">-</div></div>
+      <div class="kpi"><div class="k">BLE</div><div class="v" id="kBle">-</div></div>
+    </div>
+
+    <div class="alerts">
+      <div class="alertTitle">Alerts</div>
+      <ul id="alertList" class="alertList"></ul>
+    </div>
+
+    <details>
+      <summary>Raw status</summary>
+      <pre id="statusBox" class="box">loading...</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>PPT Keymap Editor</h2>
+    <div class="row">
+      <button id="btnLoadKeys">Load</button>
+      <button id="btnApplyKeys">Apply only (no save)</button>
+      <button id="btnSaveKeys" class="danger">Save</button>
+      <span id="pptMsg" class="pill">-</span>
+    </div>
+
+    <div class="row">
+      <input id="keySearch" placeholder="Search key name / hex (e.g. F5, 0x3E)" />
+      <button id="btnReloadKeycodes">Reload keycodes</button>
+      <span class="hint">kb(0x07) full list + consumer presets + raw mask</span>
+    </div>
+
+    <div id="pptTable" class="pptTable"></div>
+  </section>
+
+  <section class="card">
+    <h2>Config / Safe Boot / OTA</h2>
+
+    <div class="subhead">Safe Boot (Brick-Guard)</div>
+    <div class="row">
+      <span class="pill" id="sbState">safe_mode: -</span>
+      <span class="pill" id="sbFail">fail_count: -</span>
+      <span class="pill" id="sbPending">pending: -</span>
+      <button id="btnExitSafe">Exit Safe Boot</button>
+      <button id="btnFactoryReset" class="danger">Factory Reset</button>
+    </div>
+    <div class="hint">
+      - Safe Boot 활성화 시 WiFi는 AP로 강제 진입합니다.<br/>
+      - Factory Reset은 config/boot 상태를 초기화 후 재부팅합니다.
+    </div>
+
+    <hr class="sep"/>
+
+    <div class="subhead">Config (Export/Import/Rollback)</div>
+    <div class="row">
+      <button id="btnExport">Export</button>
+      <input type="file" id="fileImport" accept=".json,application/json" />
+      <button id="btnImport">Import</button>
+      <button id="btnRollback" class="danger">Rollback (.bak)</button>
+      <button id="btnReboot" class="danger">Reboot</button>
+    </div>
+
+    <div class="subhead">OTA</div>
+    <div class="row">
+      <input type="file" id="fileOta" accept=".bin,application/octet-stream" />
+      <button id="btnOta" class="danger">OTA Upload</button>
+    </div>
+
+    <div class="bar"><div id="otaBar"></div></div>
+    <pre id="sysMsg" class="box small">-</pre>
+  </section>
+
+</main>
+
+<script src="./app_0273.js"></script>
+</body>
+</html>
