@@ -397,8 +397,32 @@ async function refreshStatus(){
   if(qs("stWiFi")) qs("stWiFi").textContent = `${net.mode ?? "-"} / ${net.ssid ?? "-"}`;
   if(qs("stMdns")) qs("stMdns").textContent = `${net.mdns ?? "-"}`;
 
-  if(qs("stPptMode")) qs("stPptMode").textContent = String(e10.ppt_mode ?? "-");
-  if(qs("stPrec"))    qs("stPrec").textContent    = formatPrecSummary(e10);
+  if(qs("stDpi"))       qs("stDpi").textContent       = String(e10.dpi_level ?? "-");
+  if(qs("stPptMode"))   qs("stPptMode").textContent   = String(e10.ppt_mode ?? "-");
+  if(qs("stPrec"))      qs("stPrec").textContent      = formatPrecSummary(e10);
+
+  if(qs("stCursorRms")) qs("stCursorRms").textContent = (e10.cursor_rms !== undefined && e10.cursor_rms !== null) ? Number(e10.cursor_rms).toFixed(2) : "-";
+  if(qs("stTemp"))      qs("stTemp").textContent      = (e10.temp_c !== undefined && e10.temp_c !== null) ? `${Number(e10.temp_c).toFixed(1)} ℃` : "-";
+
+  const samp = e10.sampling || {};
+  const sampAvg = samp.ms_avg ?? e10.sampling_ms_avg;
+  if(qs("stSampling")){
+    if(sampAvg !== undefined && sampAvg !== null && Number(sampAvg) > 0){
+      const hz = Math.round(1000 / Number(sampAvg));
+      qs("stSampling").textContent = `${Number(sampAvg).toFixed(2)} ms (${hz}Hz)`;
+    } else {
+      qs("stSampling").textContent = "-";
+    }
+  }
+
+  const curDpi = Number(e10.dpi_level || 0);
+  [1, 2, 3].forEach(lv => {
+    const b = qs(`btnDpi${lv}`);
+    if(b){
+      if(curDpi === lv) b.classList.add("primary");
+      else b.classList.remove("primary");
+    }
+  });
 
   setPill(qs("pillNet"),  `NET: ${net.mode ?? "-"}`, true);
   setPill(qs("pillBle"),  `BLE: ${e10.ble_connected ? "ON" : "OFF"}`, !!e10.ble_connected);
@@ -421,22 +445,66 @@ function renderDiag(u){
   const d = data.diag || {};
   const events = Array.isArray(data.events) ? data.events : [];
 
+  const e10 = g_lastStatus?.groups?.e10 || g_lastStatus?.e10 || {};
+  const eErr = e10.err || {};
+  const eI2c = e10.i2c || {};
+  const eObs = e10.obs || {};
+
   const cEl = qs("diagCounters");
   if(cEl){
     const items = [
-      ["body_too_large", d.body_too_large_count],
-      ["no_body_slot",   d.no_body_slot_count],
-      ["bad_json",       d.bad_json_count],
-      ["safe_blocked",   d.safe_blocked_count],
-      ["ota_blocked",    d.ota_blocked_count],
+      ["body_too_large", d.body_too_large_count, false],
+      ["no_body_slot",   d.no_body_slot_count, false],
+      ["bad_json",       d.bad_json_count, false],
+      ["safe_blocked",   d.safe_blocked_count, false],
+      ["ota_blocked",    d.ota_blocked_count, false],
+      ["mpu_nan",        eErr.mpu_nan, true],
+      ["mutex_miss",     eErr.mutex_miss, true],
+      ["task_overrun",   eErr.task_overrun, true],
+      ["i2c_recover",    eI2c.recover_count, true],
+      ["failsafe_rel",   eObs.failsafe_release_count, true],
+      ["stack_sensor",   eObs.task_stack_sensor_min_words, false],
+      ["stack_comm",     eObs.task_stack_comm_min_words, false],
     ];
 
     cEl.innerHTML = "";
-    for(const [k, v] of items){
+    for(const [k, v, isHwErr] of items){
+      const val = v ?? 0;
       const div = document.createElement("div");
       div.className = "pill";
-      div.textContent = `${k}: ${v ?? 0}`;
+      if(isHwErr && Number(val) > 0){
+        div.style.borderColor = "rgba(255,77,77,.7)";
+        div.style.color = "#ff7777";
+        div.style.background = "rgba(255,77,77,.12)";
+      }
+      div.textContent = `${k}: ${val}`;
       cEl.appendChild(div);
+    }
+  }
+
+  const errHistEl = qs("diagErrHist");
+  if(errHistEl){
+    const hist = Array.isArray(e10.err_hist) ? e10.err_hist : [];
+    errHistEl.innerHTML = "";
+
+    const f = (qs("diagFilter")?.value || "").trim();
+    const shown = hist
+      .slice()
+      .reverse()
+      .filter(item => !f || String(item.code || "").includes(f));
+
+    for(const item of shown){
+      const div = document.createElement("div");
+      div.className = "logline";
+      div.textContent = `[${item.ts_ms ?? 0}ms] Code: 0x${Number(item.code || 0).toString(16).toUpperCase()} (val: ${item.value ?? 0})`;
+      errHistEl.appendChild(div);
+    }
+
+    if(!shown.length){
+      const div = document.createElement("div");
+      div.className = "hint2";
+      div.textContent = "No hardware errors recorded.";
+      errHistEl.appendChild(div);
     }
   }
 
@@ -720,6 +788,53 @@ async function ctlSetPrecisionMode(mode){
 
 async function ctlPrecOff(){
   await ctlSetPrecisionMode(0);
+}
+
+async function ctlSetDpi(level){
+  const lv = parseIntFlex(level, 2);
+  const payload = {
+    cmd: "set_dpi",
+    level: lv,
+    snapshot: qs("ctlSnapshot")?.checked ?? true
+  };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("set_dpi failed: " + (r.json?.err || r.text));
+  await refreshStatus();
+}
+
+async function ctlGyroCalib(){
+  if(!confirm("기기를 평평한 곳에 1초간 정지 상태로 유지하세요.\n자이로 캘리브레이션을 진행할까요?")) return;
+  const payload = {
+    cmd: "gyro_calib",
+    snapshot: qs("ctlSnapshot")?.checked ?? true
+  };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("gyro_calib failed: " + (r.json?.err || r.text));
+  else alert("자이로 캘리브레이션 요청 완료");
+  await refreshStatus();
+}
+
+async function ctlForceRelease(){
+  const payload = {
+    cmd: "force_release",
+    snapshot: qs("ctlSnapshot")?.checked ?? true
+  };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("force_release failed: " + (r.json?.err || r.text));
+  else alert("모든 마우스 버튼 및 키 입력이 강제 해제되었습니다.");
+  await refreshStatus();
+}
+
+async function ctlI2cRecover(){
+  if(!confirm("MPU6050 I2C 버스 복구를 수행할까요?")) return;
+  const payload = {
+    cmd: "i2c_recover",
+    snapshot: qs("ctlSnapshot")?.checked ?? true
+  };
+  const r = await apiPostJson("/api/control", payload);
+  if(!r.ok) alert("i2c_recover failed: " + (r.json?.err || r.text));
+  else alert("I2C 버스 복구 요청 완료");
+  await refreshStatus();
 }
 
 /* ---------------- SafeBoot/Reset/Reboot ---------------- */
@@ -1048,20 +1163,62 @@ async function cfgRollback(){
 async function otaUpload(){
   const f = qs("otaFile").files?.[0];
   if(!f){
-    alert("파일 선택");
+    alert("펌웨어(.bin) 파일을 선택하세요.");
     return;
   }
 
-  qs("otaHint").textContent = `uploading: ${f.name} (${f.size} bytes)`;
-  const r = await fetch("/api/ota", { method:"POST", body:f });
-  const t = await r.text();
-  qs("otaHint").textContent = t;
-  await otaStatus();
+  const pWrap = qs("otaProgWrap");
+  const pBar = qs("otaProgBar");
+  const pTxt = qs("otaProgText");
+  const hint = qs("otaHint");
+  const btn = qs("btnOta");
+
+  if(pWrap) pWrap.style.display = "block";
+  if(pBar) pBar.style.width = "0%";
+  if(pTxt) pTxt.textContent = "0%";
+  if(btn) btn.disabled = true;
+
+  if(hint) hint.textContent = `업로드 중: ${f.name} (${(f.size / 1024).toFixed(1)} KB)...`;
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/ota", true);
+
+  xhr.upload.onprogress = (e) => {
+    if(e.lengthComputable && e.total > 0){
+      const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+      if(pBar) pBar.style.width = `${pct}%`;
+      if(pTxt) pTxt.textContent = `${pct}% (${(e.loaded / 1024).toFixed(0)} / ${(e.total / 1024).toFixed(0)} KB)`;
+    }
+  };
+
+  xhr.onload = async () => {
+    if(btn) btn.disabled = false;
+    let res = null;
+    try { res = JSON.parse(xhr.responseText); } catch(e){}
+
+    if(xhr.status >= 200 && xhr.status < 300 && (!res || res.ok !== false)){
+      if(pBar) pBar.style.width = "100%";
+      if(pTxt) pTxt.textContent = "100% (완료)";
+      if(hint) hint.textContent = "✅ 업로드 성공! 장치가 자동으로 재부팅됩니다. 5~10초 후 페이지를 새로고침하세요.";
+    } else {
+      const errMsg = res?.msg || res?.code || xhr.responseText || "알 수 없는 오류";
+      if(hint) hint.textContent = `❌ 업로드 실패: ${errMsg}`;
+    }
+    await otaStatus();
+  };
+
+  xhr.onerror = () => {
+    if(btn) btn.disabled = false;
+    if(hint) hint.textContent = "❌ 네트워크 오류로 업로드에 실패했습니다.";
+  };
+
+  xhr.send(f);
 }
 
 async function otaStatus(){
   const r = await apiGet("/api/ota/status");
-  qs("otaJson").textContent = pretty(r.json || r.text);
+  const u = unwrapApi(r);
+  qs("otaJson").textContent = pretty(u.data || r.json || r.text);
 }
 
 /* ---------------- Bind UI ---------------- */
@@ -1080,6 +1237,13 @@ function bindUi(){
   qs("btnCtlPptOff")?.addEventListener("click", () => ctlSetPpt(false));
   qs("btnCtlPrecOff")?.addEventListener("click", ctlPrecOff);
   qs("btnCtlPrecApply")?.addEventListener("click", () => ctlSetPrecisionMode(qs("ctlPrecMode").value));
+
+  qs("btnDpi1")?.addEventListener("click", () => ctlSetDpi(1));
+  qs("btnDpi2")?.addEventListener("click", () => ctlSetDpi(2));
+  qs("btnDpi3")?.addEventListener("click", () => ctlSetDpi(3));
+  qs("btnGyroCalib")?.addEventListener("click", ctlGyroCalib);
+  qs("btnForceRelease")?.addEventListener("click", ctlForceRelease);
+  qs("btnI2cRecover")?.addEventListener("click", ctlI2cRecover);
 
   qs("btnPptReload")?.addEventListener("click", pptReload);
   qs("btnPptSave")?.addEventListener("click", pptSave);

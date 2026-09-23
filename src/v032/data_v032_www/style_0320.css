@@ -240,3 +240,41 @@ h3{margin:10px 0 6px 0; font-size:14px; color:var(--mut);}
   border-top:1px solid #101626;
   margin-top:14px;
 }
+
+/* OTA Progress & Banner */
+.banner-warn{
+  background: rgba(255,176,32,.10);
+  border: 1px solid rgba(255,176,32,.45);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--warn);
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.progress-wrap{
+  height: 22px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+  position: relative;
+  margin: 14px 0;
+}
+.progress-bar{
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4c7dff, #38ef7d);
+  transition: width .2s ease;
+}
+.progress-text{
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  top: 0;
+  line-height: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}

@@ -53,8 +53,14 @@
         <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
       </div>
       <div class="row">
+        <div class="kv"><div class="k">DPI Level</div><div class="v" id="stDpi">-</div></div>
         <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
         <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
+      </div>
+      <div class="row">
+        <div class="kv"><div class="k">Cursor RMS</div><div class="v" id="stCursorRms">-</div></div>
+        <div class="kv"><div class="k">Sensor Temp</div><div class="v" id="stTemp">-</div></div>
+        <div class="kv"><div class="k">Sampling</div><div class="v" id="stSampling">-</div></div>
       </div>
 
       <div class="sep"></div>
@@ -71,6 +77,16 @@
           <span class="slider"></span>
         </label>
         <div class="hint">snapshot</div>
+      </div>
+
+      <div class="row">
+        <span class="hint" style="align-self:center; font-weight:600;">DPI:</span>
+        <button class="btn mini" id="btnDpi1">DPI 1</button>
+        <button class="btn mini" id="btnDpi2">DPI 2</button>
+        <button class="btn mini" id="btnDpi3">DPI 3</button>
+        <button class="btn" id="btnGyroCalib" title="기기를 1초간 정지 상태로 유지하고 센서 영점을 재보정합니다">자이로 보정</button>
+        <button class="btn warn" id="btnForceRelease" title="마우스/키 고착 발생 시 강제 릴리즈합니다">버튼 강제 릴리즈</button>
+        <button class="btn" id="btnI2cRecover" title="I2C 버스 이상 시 강제 복구합니다">I2C 복구</button>
       </div>
 
       <div class="sep"></div>
@@ -366,11 +382,16 @@
         <input class="inp" id="diagFilter" placeholder="event code filter (e.g. bad_json)" style="max-width:320px" />
       </div>
 
+      <h3>System & Hardware Counters</h3>
       <div class="row" id="diagCounters" style="flex-wrap:wrap; gap:8px;"></div>
 
       <div class="sep"></div>
-      <div class="hint2">Recent events (newest first)</div>
-      <div class="log" id="diagEvents" style="max-height:240px; overflow:auto; padding:10px;"></div>
+      <h3>Recent Web Events (newest first)</h3>
+      <div class="log" id="diagEvents" style="max-height:160px; overflow:auto; padding:10px;"></div>
+
+      <div class="sep"></div>
+      <h3>Hardware Error History (E10 Ringbuffer)</h3>
+      <div class="log" id="diagErrHist" style="max-height:160px; overflow:auto; padding:10px;"></div>
 
       <div class="sep"></div>
       <details>
@@ -381,14 +402,29 @@
 
     <!-- OTA -->
     <section class="card tabpane" id="tab-ota">
-      <h2>OTA</h2>
-      <div class="row">
-        <input type="file" id="otaFile" class="file" />
-        <button class="btn primary" id="btnOta">업로드</button>
-        <button class="btn" id="btnOtaStatus">상태</button>
+      <h2>OTA Firmware Update</h2>
+      <div class="banner-warn" id="otaGuardNotice">
+        ⚠️ <strong>OTA Guard 안내</strong>: 펌웨어 업로드 중에는 기기 오동작 및 버튼 고착을 방지하기 위해 마우스/키보드 출력이 자동으로 차단됩니다. 업로드 완료 후 기기가 자동으로 재부팅됩니다.
       </div>
-      <div class="hint2" id="otaHint">-</div>
-      <pre class="log" id="otaJson">-</pre>
+
+      <div class="row">
+        <input type="file" id="otaFile" class="file" accept=".bin" />
+        <button class="btn primary" id="btnOta">업로드</button>
+        <button class="btn" id="btnOtaStatus">상태 새로고침</button>
+      </div>
+
+      <div class="progress-wrap" id="otaProgWrap" style="display:none;">
+        <div class="progress-bar" id="otaProgBar"></div>
+        <div class="progress-text" id="otaProgText">0%</div>
+      </div>
+
+      <div class="hint2" id="otaHint">새 펌웨어(.bin) 파일을 선택한 후 업로드를 누르세요.</div>
+
+      <div class="sep"></div>
+      <details>
+        <summary class="hint2">raw json</summary>
+        <pre class="log" id="otaJson">-</pre>
+      </details>
     </section>
   </main>
 

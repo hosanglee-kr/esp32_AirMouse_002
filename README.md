@@ -34,10 +34,12 @@
    - [8. 웹 커스터마이징 및 REST API](#78-웹-커스터마이징-및-rest-api)
 8. [하드웨어 사양 및 핀맵](#8-하드웨어-사양-및-핀맵)
 9. [운용 및 사용 가이드](#9-운용-및-사용-가이드)
+   - [9.1. 하드웨어 버튼 및 제스처 운용](#91-하드웨어-버튼-및-제스처-운용)
+   - [9.2. 웹 UI 기능 및 원격 제어 가이드](#92-웹-ui-기능-및-원격-제어-가이드)
 10. [시스템 진단 지표](#10-시스템-진단-지표)
 11. [주의사항](#11-주의사항)
 12. [프로젝트 구조 요약 테이블](#12-프로젝트-구조-요약-테이블)
-13. [리팩터링 이력 (Phase 1 ~ Track 3)](#13-리팩터링-이력-phase-1--track-3)
+13. [리팩터링 이력 (Phase 1 ~ Track 5)](#13-리팩터링-이력-phase-1--track-5)
 14. [알려진 유보 이슈 (Known Deferred Issues)](#14-알려진-유보-이슈-known-deferred-issues)
 15. [버전별 사양 변경 비교 (v0.0.6 vs v0320)](#15-버전별-사양-변경-비교-v006-vs-v0320)
 16. [프로젝트 핵심 설계 철학](#16-프로젝트-핵심-설계-철학)
@@ -174,13 +176,19 @@ src/
     ├── W10_WebApi_Status_0320.cpp        # /api/status, /api/diag, /api/keycodes 핸들러
     │
     ├── tools_v032/
-    │   └── pio_gzip_0320.py              # 빌드 전 www 정적 파일(.html, .js, .css) gzip 압축
+    │   └── pio_gzip_0320.py              # 빌드 전 www 정적 파일 gzip 압축 및 LittleFS 동기화 스크립트
     │
-    └── data_v032/                        # LittleFS 업로드 이미지 소스
-        ├── www/                          # 웹 프론트엔드 리소스
-        │   ├── index_0320.html
-        │   ├── app_0320.js
-        │   ├── style_0320.css
+    ├── data_v032_www/                    # [VCS 소스] 웹 프론트엔드 원본 리소스 (Git 추적 대상)
+    │   ├── index_0320.html               # SPA 메인 HTML (Quick Ctl, Dashboard, Diag, OTA UX)
+    │   ├── app_0320.js                   # SPA 프론트엔드 컨트롤러 (실시간 폴링, API 통신, XHR OTA)
+    │   ├── style_0320.css                # 반응형 다크 테마 UI 스타일시트
+    │   └── images/
+    │
+    └── data_v032/                        # LittleFS 업로드 이미지 디렉터리 (빌드 타깃)
+        ├── www/                          # [빌드 파생물] Gzip 압축된 웹 파일 (Git 제외: .gitignore)
+        │   ├── index_0320.html.gz
+        │   ├── app_0320.js.gz
+        │   ├── style_0320.css.gz
         │   └── images/
         └── json/                         # 시스템 설정 및 메타데이터
             └── public/
@@ -450,29 +458,29 @@ BOOT_PATH = "/json/boot_state_0320.json";
 * **보안**: 파일 확장자 화이트리스트 검사 및 경로 탐색(`..`) 차단.
 
 #### 주요 REST API 엔드포인트
-| HTTP Method | URI Endpoint | 기능 설명 |
-|:---|:---|:---|
-| `GET` | `/api/status` | 시스템, E10 모듈, 정책 플래그, 센서 진단 스냅샷 반환 |
-| `GET` | `/api/diag` | 시스템 진단 카운터 및 런타임 이벤트 로그 조회 |
-| `POST` | `/api/diag/clear` | 진단 카운터 및 이벤트 로그 초기화 |
-| `GET` | `/api/keycodes` | 키보드 Modifiers, Usage ID, Consumer 코드 목록 반환 |
-| `GET` | `/api/config` | 전체 JSON 설정값 조회 (ETag 지원) |
-| `POST` | `/api/config/save` | 변경 설정 검증, 영속화 및 런타임 즉시 적용 |
-| `POST` | `/api/config/apply` | 플래시 저장 없이 런타임에만 임시 적용 |
-| `GET` | `/api/config/export` | 현재 설정을 JSON 파일로 다운로드 |
-| `POST` | `/api/config/import` | 외부 JSON 설정을 검증 후 가져오기 |
-| `POST` | `/api/config/rollback` | `.bak` 백업 파일로부터 설정 복원 |
-| `POST` | `/api/control` | 모드 제어 (PPT, DPI, Precision, SafeMode, OTA Guard, Release) |
-| `GET` | `/api/ppt` | PPT 액션별 키 매핑 테이블 조회 |
-| `POST` | `/api/ppt` | PPT 액션별 키 매핑 테이블 저장 |
-| `POST` | `/api/ppt/test` | 특정 PPT 단일 키 송출 테스트 |
-| `POST` | `/api/ota` | 펌웨어 바이너리 멀티파트 업로드 |
-| `GET` | `/api/ota/status` | OTA 진행률 및 성공/실패 상태 폴링 |
-| `GET` | `/api/safeboot` | SafeBoot 카운터 및 활성화 상태 확인 |
-| `POST` | `/api/safeboot` | SafeMode 강제 해제 (`{"exit": true}`) |
-| `POST` | `/api/factory_reset`| 플래시 설정을 초기 기본값으로 리셋 |
-| `POST` | `/api/reboot` | 시스템 소프트 리셋 (`reason_mask` 검증) |
-| `GET` | `/api/reboot/check` | 설정 변경에 따른 재부팅 요구 여부 조회 |
+| HTTP Method | URI Endpoint | 기능 설명 | 주요 파라미터 / 페이로드 |
+|:---|:---|:---|:---|
+| `GET` | `/api/status` | 시스템, E10 모듈, 정책 플래그, 센서 진단 스냅샷 반환 | `?compact=1` (실시간 경량 모니터링) |
+| `GET` | `/api/diag` | 시스템 진단 카운터, RTOS 태스크 진단, E10 센서 에러 링버퍼 로그 반환 | - |
+| `POST` | `/api/diag/clear` | 진단 카운터 및 이벤트 로그 초기화 | - |
+| `GET` | `/api/keycodes` | 키보드 Modifiers, Usage ID, Consumer 코드 목록 반환 | - |
+| `GET` | `/api/config` | 전체 JSON 설정값 조회 (ETag 지원) | - |
+| `POST` | `/api/config/save` | 변경 설정 검증, 영속화 및 런타임 즉시 적용 | 전체 JSON Body |
+| `POST` | `/api/config/apply` | 플래시 저장 없이 런타임에만 임시 적용 | 전체 JSON Body |
+| `GET` | `/api/config/export` | 현재 설정을 JSON 파일로 다운로드 | - |
+| `POST` | `/api/config/import` | 외부 JSON 설정을 검증 후 가져오기 | Multi-part 파일 |
+| `POST` | `/api/config/rollback` | `.bak` 백업 파일로부터 설정 복원 | - |
+| `POST` | `/api/control` | 모드 및 비상 복구 제어 | `dpi_level`(1/2/3), `gyro_calibrate`(true), `force_release`(true), `i2c_recover`(true), `ppt_mode`, `precision_profile`, `safe_mode`, `ota_guard` |
+| `GET` | `/api/ppt` | PPT 액션별 키 매핑 테이블 조회 | - |
+| `POST` | `/api/ppt` | PPT 액션별 키 매핑 테이블 저장 | PPT 액션 JSON 매핑 |
+| `POST` | `/api/ppt/test` | 특정 PPT 단일 키 송출 테스트 | `{"action": "next"}` 등 |
+| `POST` | `/api/ota` | 펌웨어 바이너리 멀티파트 업로드 | Multi-part 바이너리 (`.bin`) |
+| `GET` | `/api/ota/status` | OTA 진행률 및 성공/실패 상태 폴링 | - |
+| `GET` | `/api/safeboot` | SafeBoot 카운터 및 활성화 상태 확인 | - |
+| `POST` | `/api/safeboot` | SafeMode 강제 해제 (`{"exit": true}`) | `{"exit": true}` |
+| `POST` | `/api/factory_reset`| 플래시 설정을 초기 기본값으로 리셋 | - |
+| `POST` | `/api/reboot` | 시스템 소프트 리셋 (`reason_mask` 검증) | `{"reason": 1}` |
+| `GET` | `/api/reboot/check` | 설정 변경에 따른 재부팅 요구 여부 조회 | - |
 
 ---
 
@@ -528,6 +536,7 @@ BOOT_PATH = "/json/boot_state_0320.json";
 
 ## 9. 🖱️ 운용 및 사용 가이드
 
+### 9.1. 하드웨어 버튼 및 제스처 운용
 * **기본 커서 동작**:
   * 기기 전원을 켜면 BLE 페어링 대기 후 자동으로 연결됩니다. 공중에서 기기를 움직이면 커서가 이동합니다.
   * `BTN_L`을 누르면 기본 좌클릭이 수행됩니다.
@@ -541,12 +550,25 @@ BOOT_PATH = "/json/boot_state_0320.json";
   * 손목을 왼쪽으로 가볍게 채면(Yaw Flick) **이전 슬라이드**, 오른쪽으로 채면 **다음 슬라이드** 명령이 전송됩니다.
 * **정밀 조준 (Precision Mode)**:
   * 웹 UI 혹은 API를 통해 원하는 감도 프로파일(LOW, MED, HIGH, PPT)을 활성화하면 미세 조준 시 커서 떨림이 완벽히 제어됩니다.
+
+### 9.2. 웹 UI 기능 및 원격 제어 가이드
+* **원클릭 퀵 컨트롤 (Quick Control)**:
+  * 웹 대시보드 상단의 퀵 컨트롤 패널을 통해 마우스 기기를 만지지 않고도 실시간 튜닝 및 긴급 제어가 가능합니다:
+    * `[DPI 1]` / `[DPI 2]` / `[DPI 3]`: 원클릭으로 런타임 DPI 레벨 즉시 전환 (현재 활성 단계는 강조 색상으로 자동 하이라이트).
+    * `[자이로 보정]`: 공중 또는 거치 상태에서 커서 흐름(Drift) 발생 시 정지 상태에서 즉시 오프셋 재계측.
+    * `[버튼 강제 릴리즈]`: 통신 지연이나 조작 실수로 마우스 버튼 또는 키보드 키가 눌린 채 고착되었을 때 원격 비상 해제.
+    * `[I2C 복구]`: MPU6050 버스 정체나 데이터 이상 징후 감지 시 소프트웨어 I2C 버스 리셋 및 센서 재초기화 트리거.
+* **실시간 대시보드 모니터링 (Dashboard Status)**:
+  * 현재 활성 DPI 단계(`DPI Level`), 실시간 손떨림 지표(`Cursor RMS`), 센서 다이 내부 온도(`Sensor Temp` ℃), 센서 실제 샘플링 인터벌 및 주파수(`Sampling` ms / Hz)를 실시간 관측합니다.
+* **통합 진단 및 오류 로그 뷰어 (Diagnostics)**:
+  * 웹 서버 내부 에러 외에도 MPU NaN 에러, 뮤텍스 획득 실패, RTOS 태스크 타임 슬라이스 오버런, I2C 복구 횟수, 비상 릴리즈 횟수, 센서/통신 태스크 잔여 스택 워드를 실시간 배지로 확인 가능합니다 (0 초과 시 붉은색 경고 표시).
+  * 진단 탭 하단에 E10 센서 링버퍼 에러 로그(`diagErrHist`) 전용 뷰어를 제공하여 최근 발생한 하드웨어 예외를 타임스탬프와 함께 열람할 수 있습니다.
+* **무선 펌웨어 업데이트 (OTA Update UX)**:
+  * 웹 OTA 탭에서 펌웨어 바이너리(`.bin`)를 선택하고 업로드를 시작하면 실시간 XHR 전송 진행률 바(0~100% 및 전송 KB)가 표시됩니다.
+  * 업데이트 진행 중에는 마우스 오동작 방지를 위해 `OTA Guard` 경고 배너가 표시되며 모든 HID 입력이 차단됩니다. 업로드 완료 후 기기가 자동으로 안전하게 재부팅됩니다.
 * **SafeBoot 복구 및 공장 초기화**:
-  * SafeMode 진입 시 `POST /api/safeboot {"exit":true}` 호출 후 재부팅하면 일반 모드로 복구됩니다.
-  * 복구 불가 오류 발생 시 `POST /api/factory_reset`을 통해 초기화할 수 있습니다.
-* **무선 펌웨어 업데이트 (OTA)**:
-  * 웹 관리자 페이지의 OTA 탭에서 새 펌웨어(`.bin`)를 업로드합니다.
-  * 업로드 진행 중에는 버튼 오동작을 막기 위해 모든 HID 출력이 자동으로 차단되며 완료 후 자동 리부팅됩니다.
+  * 비정상 부팅 반복으로 SafeMode 진입 시 `POST /api/safeboot {"exit":true}` 호출 후 재부팅하면 일반 모드로 복구됩니다.
+  * 복구 불가 오류 발생 시 `POST /api/factory_reset`을 통해 설정을 기본값으로 초기화할 수 있습니다.
 
 ---
 
@@ -563,19 +585,19 @@ BOOT_PATH = "/json/boot_state_0320.json";
 * **센서 및 모션 정보**:
   * `gyro.*`: 3축 자이로 각속도 실측값
   * `cursor_rms`: 커서 떨림 정도를 나타내는 RMS 지표
-  * `temp_c`: 센서 다이 온도
-  * `sampling.*`: 실제 센서 샘플링 주기 및 드리프트 모니터링
-* **오류 카운터**:
-  * `err.mpu_nan`: 센서 값 비정상(NaN) 발생 횟수
-  * `err.mutex_miss`: 뮤텍스 획득 경합 실패 횟수
-  * `err.task_overrun`: 태스크 타임 슬라이스 초과 카운트
-  * `i2c.*`: I2C 버스 에러 및 버스 리셋 발생 이력
-* **FreeRTOS 태스크 관측**:
-  * `task_stack_sensor_min_words`: 센서 태스크 최소 잔여 스택 워드
-  * `task_stack_comm_min_words`: 통신 태스크 최소 잔여 스택 워드
-  * `sensor_dt_max_ms`, `comm_dt_max_ms`: 태스크 간 최대 처리 지연 시간
-  * `failsafe_release_count`: HID 버튼 락 방지를 위한 강제 릴리즈 발동 횟수
-* **웹서버 진단**:
+  * `temp_c`: 센서 다이 온도 (℃)
+  * `sampling.*`: 실제 센서 샘플링 주기(dt, ms) 및 주파수(Hz), 지터 모니터링
+* **하드웨어 및 RTOS 에러 카운터 (7종)**:
+  * `err.mpu_nan`: MPU 센서 데이터 비정상(NaN) 발생 횟수
+  * `err.mutex_miss`: FreeRTOS 뮤텍스 획득 경합 실패 횟수
+  * `err.task_overrun`: 태스크 타임 슬라이스(데드라인) 초과 카운트
+  * `err.i2c_recover`: I2C 버스 락 발생에 따른 버스 리셋 복구 발동 횟수
+  * `err.failsafe_rel`: 버튼 누름 고착 방지를 위한 강제 릴리즈 발동 횟수
+  * `err.stack_sensor`: `_sensorTask` 최소 잔여 스택 워드 (워터마크)
+  * `err.stack_comm`: `_commTask` 최소 잔여 스택 워드 (워터마크)
+* **센서 링버퍼 에러 로그 (`diagErrHist` / `e10.err_hist`)**:
+  * 최근 발생한 센서/통신 하드웨어 오류 내역(시간, 오류 코드, 상세 메시지)을 순환 링버퍼로 보관 및 웹 뷰어 표출
+* **웹서버 진단 카운터**:
   * `body_too_large`, `body_no_slot`: 요청 바디 슬롯 부족 현황
   * `bad_json`: JSON 파싱 실패 건수
   * `safe_blocked`, `ota_blocked`: 보호 모드에 의해 차단된 API 호출 수
@@ -618,13 +640,14 @@ BOOT_PATH = "/json/boot_state_0320.json";
 | `src/v032/W10_WebApi_CtlPpt_0320.cpp` | `/api/control`, `/api/ppt` 장치 제어 라우트 | `W10` |
 | `src/v032/W10_WebApi_OtaBoot_0320.cpp` | `/api/ota`, `/api/safeboot`, `/api/reboot` 관리 라우트 | `W10` |
 | `src/v032/W10_WebApi_Status_0320.cpp` | `/api/status`, `/api/diag`, `/api/keycodes` 진단 라우트 | `W10` |
-| `src/v032/tools_v032/pio_gzip_0320.py` | 웹 프론트엔드 정적 파일(`.gz`) 사전 압축 스크립트 | Build |
-| `src/v032/data_v032/www/*` | 싱글 페이지 애플리케이션 프론트엔드 (HTML/JS/CSS) | Web |
+| `src/v032/tools_v032/pio_gzip_0320.py` | 웹 프론트엔드 정적 파일(`.gz`) 사전 압축 및 LittleFS 빌드 동기화 스크립트 | Build |
+| `src/v032/data_v032_www/*` | SPA 프론트엔드 원본 소스코드 (HTML/JS/CSS, Git 버전관리 대상) | Web Source |
+| `src/v032/data_v032/www/*` | 빌드 시 사전 압축 생성되는 파생물 (LittleFS 패킹 대상, Git 제외) | Web Dist |
 | `src/v032/data_v032/json/public/*` | 브라우저 설정 스키마 및 매니페스트 | Web |
 
 ---
 
-## 13. 📚 참고: 리팩터링 이력 (Phase 1 ~ Track 3)
+## 13. 📚 참고: 리팩터링 이력 (Phase 1 ~ Track 5)
 
 ### Phase 1 — E10 치명 버그 수정
 * **C-1**: `sensorTask` 정상 경로에서 `_pushFrame()` 누락으로 인해 HID 큐가 초기 1회만 채워지고 이후 마우스 좌표/버튼이 전송되지 않던 치명적 결함 수정.
@@ -659,6 +682,17 @@ BOOT_PATH = "/json/boot_state_0320.json";
 * **H-W1**: WiFi 설정 스키마의 모드 열거형을 `AUTO` / `AP` / `STA`로 명확히 규정.
 * **H-W2**: OTA 진행 중 연결이 끊겼을 때 상태 플래그(`_otaInProgress`)가 잠기는 문제를 30초 타임아웃 회수 로직으로 해결.
 * **R-1**: OTA 파일 업로드 콜백 내 괄호 불일치 버그 수정.
+
+### Track 4 — 빌드 파이프라인(Gzip) 동기화, CI 및 Git 추적 정상화
+* **B-1 (`pio_gzip_0320.py`)**: SCons에서 `buildfs` 실행 시 `littlefs.bin`이 먼저 빌드되고 뒤늦게 동기화되어 웹 파일이 누락되거나 구버전이 패킹되던 치명적 타이밍 버그 해결 (SCons 이미지 타깃 PreAction 및 CLI 타깃 즉시 동기화 등록).
+* **B-2 (`.gitignore` & `git rm --cached`)**: 빌드 시 자동 생성되는 `src/**/data_*/www/` 파생물 10건을 Git 인덱스 추적에서 안전하게 제외하고, `compile_commands.json`, `.clangd/`, 런타임 임시파일(`*.tmp`, `*.bak`), Python/OS 캐시 일괄 제외.
+* **B-3 (`ci_1_build_009.yml`)**: PR 트리거 `paths` 필터에서 소스인 `src/v032/data_v032/json/**`이 제외(`!`)되어 CI가 무시되던 결함 수정 및 매트릭스 환경별 `clean` 명령 보완.
+
+### Track 5 — 프론트엔드 UI/UX 고도화 및 백엔드 전 기능 연동 (4단계)
+* **FE-1 (Quick Control)**: 대시보드에서 런타임 즉시 감도를 바꾸는 `[DPI 1/2/3]` 원클릭 버튼(현재 DPI 자동 하이라이트), 커서 드리프트 즉시 보정 `[자이로 보정]`, 키 고착 비상 해제 `[버튼 강제 릴리즈]`, 버스 이상 복구 `[I2C 복구]` 버튼 추가 및 `/api/control` 완벽 연동.
+* **FE-2 (Dashboard Status)**: 대시보드 상태 요약 카드에 `DPI Level`, 커서 손떨림 지표 `Cursor RMS`, 센서 다이 온도 `Sensor Temp` (℃), 실제 센서 샘플링 주기 `Sampling` (ms/Hz) 실시간 모니터링 연동.
+* **FE-3 (Diagnostics)**: 웹 카운터 외에 하드웨어/RTOS 에러 카운터 7종(`mpu_nan`, `mutex_miss`, `task_overrun`, `i2c_recover`, `failsafe_rel`, `stack_sensor`, `stack_comm`) 배지 추가, 0 초과 시 붉은색 경고 하이라이트 적용, E10 센서 링버퍼 에러 로그(`diagErrHist` / `e10.err_hist`) 전용 로그 뷰어 구축.
+* **FE-4 (OTA Update UX)**: XHR 기반 실시간 진행률 프로그레스 바(0~100% 및 전송 KB), 펌웨어 업로드 중 마우스 입력 차단 안내를 위한 `OTA Guard` 경고 배너 추가.
 
 ---
 
