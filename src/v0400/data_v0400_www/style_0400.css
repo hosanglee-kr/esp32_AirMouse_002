@@ -1,0 +1,551 @@
+/* =======================================================
+   File: /www/style_0400.css
+   Elite AirMouse WebConfig — Smart Nature Wind tone
+   ------------------------------------------------------
+   - 라이트 테마 (#f4f7f9 배경 / #ffffff 카드)
+   - 네이비 헤더 (#2c3e50), 블루 프라이머리 (#3498db)
+   - 로그 콘솔만 다크 톤 유지 (가독성)
+======================================================= */
+
+/* ======================= 1. 리셋 / 토큰 ======================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #f4f7f9;
+  --bg-soft: #fbfdff;
+  --card: #ffffff;
+  --line: #e0e6ed;
+  --line-strong: #c8d4e0;
+  --txt: #2c3e50;
+  --txt-strong: #1a5276;
+  --mut: #7f8c8d;
+  --mut-soft: #95a5a6;
+  --pri: #3498db;
+  --pri-dark: #2980b9;
+  --ok: #2ecc71;
+  --ok-dark: #27ae60;
+  --warn: #f39c12;
+  --warn-dark: #e67e22;
+  --err: #e74c3c;
+  --err-dark: #c0392b;
+  --navy: #2c3e50;
+  --navy-2: #34495e;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--txt);
+  line-height: 1.35;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ======================= 2. 상단 네이비 헤더 ======================= */
+.top {
+  background-color: var(--navy);
+  color: #ecf0f1;
+  padding: 14px 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.18);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: #ecf0f1;
+}
+
+.brand .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pri);
+  box-shadow: 0 0 10px rgba(52,152,219,.75);
+  align-self: center;
+}
+
+.brand .title {
+  font-weight: 700;
+  font-size: 1.1em;
+  letter-spacing: .2px;
+}
+
+.brand .sub {
+  color: #9fb3c8;
+  font-size: .82em;
+  margin-left: 4px;
+}
+
+.top .right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .top { flex-direction: column; align-items: flex-start; }
+  .top .right { width: 100%; }
+}
+
+/* ======================= 3. Pill ======================= */
+.pill {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: .82em;
+  font-weight: 700;
+  background-color: #ecf0f1;
+  color: var(--navy);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  min-width: 40px;
+  text-align: center;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+
+/* 헤더 안 pill은 밝은 반투명 배경 (JS가 인라인으로 색 덮어씀) */
+.top .pill {
+  background-color: rgba(255,255,255,.12);
+  color: #ecf0f1;
+  border: 1px solid rgba(255,255,255,.22);
+}
+
+/* ======================= 4. 컨테이너 ======================= */
+.wrap {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+
+@media (max-width: 768px) {
+  .wrap { padding: 0 12px; }
+}
+
+/* ======================= 5. Tabs (언더라인 스타일) ======================= */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--line);
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: var(--navy-2);
+  padding: 10px 16px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .92em;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+
+.tab:hover { color: var(--pri); }
+
+.tab.on {
+  color: var(--pri);
+  border-bottom-color: var(--pri);
+}
+
+@media (max-width: 600px) {
+  .tab { padding: 8px 10px 10px; font-size: .85em; }
+}
+
+/* ======================= 6. Card / Section ======================= */
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.05);
+  margin-bottom: 20px;
+}
+
+.tabpane { display: none; }
+.tabpane.on { display: block; }
+
+h2 {
+  margin: 0 0 14px;
+  font-size: 1.4em;
+  color: var(--txt-strong);
+  padding-left: 10px;
+  border-left: 4px solid var(--pri);
+  font-weight: 700;
+}
+
+h3 {
+  margin: 18px 0 10px;
+  font-size: 1.05em;
+  color: var(--navy-2);
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .card { padding: 16px; }
+  h2 { font-size: 1.2em; }
+}
+
+/* ======================= 7. Row / KV ======================= */
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.kv {
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+}
+
+.k {
+  color: var(--mut);
+  font-size: .82em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.v {
+  font-weight: 700;
+  color: var(--txt-strong);
+  font-size: 1.05em;
+}
+
+.sep {
+  height: 1px;
+  background: var(--line);
+  margin: 18px 0;
+}
+
+/* ======================= 8. Buttons ======================= */
+.btn {
+  padding: 9px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .9em;
+  background-color: #f1f6f9;
+  color: var(--navy-2);
+  transition: background-color .15s, box-shadow .15s,
+              border-color .15s, transform .1s;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background-color: #e5edf3;
+  box-shadow: 0 2px 4px rgba(0,0,0,.05);
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background-color: var(--pri);
+  color: #fff;
+  border-color: var(--pri-dark);
+}
+.btn.primary:hover:not(:disabled) { background-color: var(--pri-dark); }
+
+.btn.warn {
+  background-color: var(--warn);
+  color: #fff;
+  border-color: var(--warn-dark);
+}
+.btn.warn:hover:not(:disabled) { background-color: var(--warn-dark); }
+
+.btn.danger,
+.btn.err {
+  background-color: var(--err);
+  color: #fff;
+  border-color: var(--err-dark);
+}
+.btn.danger:hover:not(:disabled),
+.btn.err:hover:not(:disabled) { background-color: var(--err-dark); }
+
+.btn.mini {
+  padding: 6px 10px;
+  font-size: .8em;
+  border-radius: 6px;
+}
+
+/* ======================= 9. Forms ======================= */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form.three {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 980px) {
+  .form.two, .form.three { grid-template-columns: 1fr; }
+}
+
+.frow {
+  display: grid;
+  grid-template-columns: 160px 1fr 240px;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+}
+
+@media (max-width: 980px) {
+  .frow { grid-template-columns: 1fr; }
+}
+
+.flbl {
+  color: var(--navy-2);
+  font-size: .9em;
+  font-weight: 600;
+}
+
+.fhelp {
+  color: var(--mut);
+  font-size: .8em;
+  line-height: 1.35;
+}
+
+.arr {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.select,
+.inp {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: .95em;
+  background-color: #fcfdfe;
+  color: var(--txt);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.select:focus,
+.inp:focus {
+  border-color: var(--pri);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(52,152,219,.18);
+}
+
+.inp.mini,
+.select.mini {
+  width: auto;
+  min-width: 90px;
+  padding: 6px 9px;
+  font-size: .82em;
+  border-radius: 6px;
+}
+
+.select.mini { min-width: 120px; }
+
+.ta {
+  width: 100%;
+  min-height: 280px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--txt);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", monospace;
+  font-size: .82em;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ta:focus {
+  border-color: var(--pri);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(52,152,219,.18);
+}
+
+/* ======================= 10. Switch ======================= */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #d4dde6;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  transition: .2s;
+}
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 2px;
+  top: 1.5px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  transition: .2s;
+}
+.switch input:checked + .slider {
+  background: var(--pri);
+  border-color: var(--pri-dark);
+}
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
+}
+
+/* ======================= 11. Hints / Msg ======================= */
+.hint  { color: var(--mut); font-size: .85em; }
+.hint2 { color: var(--mut-soft); font-size: .82em; }
+
+.msg {
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--navy-2);
+  width: 100%;
+  font-size: .9em;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+/* ======================= 12. Log 콘솔 (다크 톤 유지) ======================= */
+.log {
+  background-color: var(--navy);
+  color: #ecf0f1;
+  border: 1px solid var(--navy-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow: auto;
+  max-height: 320px;
+  font-size: .82em;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", monospace;
+  white-space: pre-wrap;
+}
+
+.logline {
+  padding: 4px 0;
+  border-bottom: 1px dotted rgba(236,240,241,.12);
+  white-space: nowrap;
+}
+.logline:last-child { border-bottom: none; }
+
+/* ======================= 13. Table (PPT keymap) ======================= */
+.tbl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--bg-soft);
+}
+
+.tr {
+  display: grid;
+  grid-template-columns: 90px 1fr 1fr 1.4fr 80px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 4px;
+}
+
+.tr.head {
+  color: var(--mut);
+  font-size: .82em;
+  font-weight: 700;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tr:not(.head):hover {
+  background: #f1f6f9;
+  border-radius: 6px;
+}
+
+@media (max-width: 768px) {
+  .tr { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tr.head { display: none; }
+  .tr > div:nth-child(1) { font-weight: 700; color: var(--navy-2); }
+  .tr > div:nth-child(5) { grid-column: 1 / -1; }
+}
+
+/* ======================= 14. File input ======================= */
+.filebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.filebtn input { display: none; }
+
+.file {
+  color: var(--mut);
+  font-size: .9em;
+}
+
+/* ======================= 15. Footer ======================= */
+.foot {
+  padding: 14px 20px;
+  color: var(--mut-soft);
+  font-size: .82em;
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  text-align: center;
+  background: var(--bg-soft);
+}
