@@ -237,6 +237,9 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     // 디스패처 상태 리셋 (클릭 대기 등)
     _btnDisp.resetAll();
+    
+    // [Phase 7] 제스처 상태 리셋 (Mode별 슬롯이 다르므로 잔여 상태 제거)
+    _gesture.reset();
 
     // FSM 리셋 (다음 프레임부터 새 모드로)
     _precSub = EN_PREC_OFF;
@@ -266,4 +269,39 @@ bool CL_E10_EliteAirMouse::_enqueueAction(const ST_C20_ActionSlot_t& p_slot, boo
 
     // timeout=0: sensorTask 블로킹 금지
     return (xQueueSend(_qActionExec, &v_cmd, 0) == pdTRUE);
+}
+
+
+// =======================================================
+// [Phase 7] 제스처 슬롯 발동
+//   group: 0=flick, 1=linear, 2=tilt
+//   dir  : EN_M30_Dir_t (0=LEFT, 1=RIGHT, 2=UP, 3=DOWN)
+// =======================================================
+void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
+    if (p_dir > 3) return;
+
+    ST_C20_ActionSlot_t v_slot;
+    memset(&v_slot, 0, sizeof(v_slot));
+
+    _lock();
+    const uint8_t v_mode = _activeMode;
+    if (!_cfgE10RuntimeValid || v_mode < 1 || v_mode > C10_DEF::MODE_COUNT) {
+        _unlock();
+        return;
+    }
+
+    const ST_C10_ModeConfig_t& v_m = _cfgE10Runtime.modes[v_mode - 1];
+
+    switch (p_group) {
+        case 0: v_slot = v_m.flick [p_dir]; break;
+        case 1: v_slot = v_m.linear[p_dir]; break;
+        case 2: v_slot = v_m.tilt  [p_dir]; break;
+        default: _unlock(); return;
+    }
+    _unlock();
+
+    if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
+
+    // 제스처는 단발 (tap) — isDown=true 로 1회 enqueue
+    (void)_enqueueAction(v_slot, true);
 }

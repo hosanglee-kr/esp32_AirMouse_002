@@ -167,6 +167,28 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         int v_tx = 0;
         int v_ty = 0;
         v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
+        
+        // ============================================================
+        // [Phase 7] 제스처 감지 (Flick / Linear / Tilt)
+        //   - roll/pitch 자세 확정 후 호출
+        //   - 결과를 _handleGesture로 위임 (액션 큐 경유)
+        // ============================================================
+        {
+            auto v_g = v_m->_gesture.update(
+                v_gx, v_gy, v_gz,
+                v_a.acceleration.x,
+                v_a.acceleration.y,
+                v_a.acceleration.z,
+                v_m->_engine.getRoll(),
+                v_m->_engine.getPitch(),
+                v_moveGateHeld,
+                v_m->_activeMode,
+                (uint32_t)millis());
+        
+            if (v_g.flick  != EN_M30_DIR_NONE) v_m->_handleGesture(0, (uint8_t)v_g.flick);
+            if (v_g.linear != EN_M30_DIR_NONE) v_m->_handleGesture(1, (uint8_t)v_g.linear);
+            if (v_g.tilt   != EN_M30_DIR_NONE) v_m->_handleGesture(2, (uint8_t)v_g.tilt);
+        }
 
         // ---- accel shaping ----
         float v_base = v_cfg.scaleBase[v_cfg.dpiLevel - 1];

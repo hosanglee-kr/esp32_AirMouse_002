@@ -58,6 +58,8 @@
 #include "C20_BtnDispatcher_0400.h"
 #include "C20_ActionExec_0400.h"
 
+#include "M30_Gesture_0400.h"
+
 #include "L10_Led_0400.h"
 
 
@@ -232,6 +234,11 @@ class CL_E10_EliteAirMouse {
     // [Phase 4] Zero-rate Bias Tracker
     // ====================================================
     CL_M20_BiasTracker   _biasTracker;
+    
+    // ====================================================
+    // [Phase 7] 제스처 감지기 (Flick / Linear / Tilt)
+    // ====================================================
+    CL_M30_Gesture       _gesture;
 
     // ====================================================
     // [Phase 5] 버튼 디스패처 + 액션 실행기
@@ -398,6 +405,9 @@ class CL_E10_EliteAirMouse {
     
     // 슬롯 매핑 처리 (config)
     void _handleSlotButton(uint8_t p_btnId, uint8_t p_evt);
+    
+    // [Phase 7] 제스처 슬롯 발동 (group: 0=flick, 1=linear, 2=tilt)
+    void _handleGesture(uint8_t p_group, uint8_t p_dir);
     
     // Mode 전환
     void _setActiveMode(uint8_t p_newMode);

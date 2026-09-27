@@ -416,6 +416,27 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     p_e.gyro_bias.still_th,
     p_e.gyro_bias.still_win_ms,
     p_e.gyro_bias.alpha);
+    
+    // ====================================================
+    // [Phase 7] 제스처 감지기 config 반영
+    // ====================================================
+    {
+        CL_M30_Gesture::ST_Config_t v_gc;
+        v_gc.flick_p2p_th      = p_e.flick.p2p_th;
+        v_gc.flick_window_ms   = p_e.flick.window_ms;
+        v_gc.flick_cooldown_ms = p_e.flick.cooldown_ms;
+    
+        v_gc.linear_th         = p_e.linear.th;
+        v_gc.linear_impulse_th = p_e.linear.impulse_th;
+        v_gc.linear_window_ms  = p_e.linear.window_ms;
+    
+        v_gc.tilt_angle_deg    = p_e.tilt_hold.angle_deg;
+        v_gc.tilt_hold_ms      = p_e.tilt_hold.hold_ms;
+        v_gc.tilt_repeat_hz    = p_e.tilt_hold.repeat_hz;
+    
+        _gesture.setConfig(v_gc);
+    }
+
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
