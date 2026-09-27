@@ -40,34 +40,6 @@ void CL_E10_EliteAirMouse::_sendPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t 
     else       _tapUsageKb(v_usage);
 }
 
-void CL_E10_EliteAirMouse::_sendPptKey2FromCfg(const ST_C10_PptKey2_t& p_k) {
-    _sendPptKey2(p_k.page, p_k.mod, p_k.code);
-}
-
-void CL_E10_EliteAirMouse::_processGesturesDeg(float p_gzDeg) {
-    static unsigned long s_lastMs = 0;
-    if (millis() - s_lastMs < _gestureCooldownMs) return;
-
-    // [Phase2/C-3] sensorTask는 HID 직접 호출 금지 → 커맨드 큐로 위임
-    ST_E10_HidCmd_t v_cmd;
-    memset(&v_cmd, 0, sizeof(v_cmd));
-    v_cmd.cmd = (uint8_t)EN_E10_HIDCMD_TEST_PPT;
-
-    if (p_gzDeg > _gestureFlickDeg) {
-        v_cmd.arg0 = _ppt2_prev.page;
-        v_cmd.arg1 = _ppt2_prev.mod;
-        v_cmd.code = _ppt2_prev.code;
-        (void)_enqueueHidCmd(v_cmd);
-        s_lastMs = millis();
-    } else if (p_gzDeg < -_gestureFlickDeg) {
-        v_cmd.arg0 = _ppt2_next.page;
-        v_cmd.arg1 = _ppt2_next.mod;
-        v_cmd.code = _ppt2_next.code;
-        (void)_enqueueHidCmd(v_cmd);
-        s_lastMs = millis();
-    }
-}
-
 // =======================================================
 // test / force release (public)
 // =======================================================

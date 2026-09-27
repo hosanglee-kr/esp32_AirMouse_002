@@ -67,6 +67,12 @@ namespace E10_CONST {
     static constexpr uint8_t  SPIKE_CAP      = 32;
 }
 
+
+enum EN_C10_KEYPAGE_t : uint8_t {
+    EN_C10_KEYPAGE_KB       = 0,
+    EN_C10_KEYPAGE_CONSUMER = 1
+};
+
 enum EN_E10_Health_t : uint8_t {
     EN_E10_HEALTH_OK = 0,
     EN_E10_HEALTH_WARN = 1,

@@ -13,13 +13,6 @@ CL_E10_EliteAirMouse::CL_E10_EliteAirMouse()
 
     memset(_errHist, 0, sizeof(_errHist));
     memset(_spikes,  0, sizeof(_spikes));
-
-    memset(&_ppt2_start, 0, sizeof(_ppt2_start));
-    memset(&_ppt2_exit,  0, sizeof(_ppt2_exit));
-    memset(&_ppt2_next,  0, sizeof(_ppt2_next));
-    memset(&_ppt2_prev,  0, sizeof(_ppt2_prev));
-    memset(&_ppt2_black, 0, sizeof(_ppt2_black));
-    memset(&_ppt2_laser, 0, sizeof(_ppt2_laser));
 }
 
 void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
@@ -314,12 +307,6 @@ void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out
     p_out.prec_exit_move_deg   = _precExitMoveDeg;
     p_out.prec_profile         = (uint8_t)_precProfile;
 
-    p_out.ppt2_start = _ppt2_start;
-    p_out.ppt2_exit  = _ppt2_exit;
-    p_out.ppt2_next  = _ppt2_next;
-    p_out.ppt2_prev  = _ppt2_prev;
-    p_out.ppt2_black = _ppt2_black;
-    p_out.ppt2_laser = _ppt2_laser;
 }
 
 void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
@@ -414,14 +401,6 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
             _precSmY = 0.0f;
         }
     }
-
-    _ppt2_start = p_e.ppt2_start;
-    _ppt2_exit  = p_e.ppt2_exit;
-    _ppt2_next  = p_e.ppt2_next;
-    _ppt2_prev  = p_e.ppt2_prev;
-    _ppt2_black = p_e.ppt2_black;
-    _ppt2_laser = p_e.ppt2_laser;
-    
     
     _biasTracker.setConfig(
     p_e.gyro_bias.still_th,
@@ -431,9 +410,10 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
     
-    // (active_mode는 런타임 중엔 _setActiveMode가 관리. 여기선 유효성만)
+    // [Phase 5] Mode → _isPptMode 동기화 (FSM 호환)
     if (p_e.active_mode >= 1 && p_e.active_mode <= C10_DEF::MODE_COUNT) {
         _activeMode = p_e.active_mode;
+        _isPptMode  = (p_e.active_mode == 2);
     }
 
 }

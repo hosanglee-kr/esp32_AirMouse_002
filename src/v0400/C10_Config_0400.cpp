@@ -170,6 +170,19 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
 
     p_out.scroll_cursor_damp = 0.25f;
 
+    // ---- Precision ----
+    p_out.precision_mode       = (uint8_t)EN_C10_E10_PREC_OFF;
+    p_out.precision_deadzone   = 1.2f;
+    p_out.precision_gain       = 0.65f;
+    p_out.precision_accel      = 0.25f;
+    p_out.precision_max_step   = 18;
+    p_out.precision_smooth     = 0.85f;
+    p_out.prec_entry_ms        = 450;
+    p_out.prec_exit_ms         = 300;
+    p_out.prec_entry_still_deg = 1.2f;
+    p_out.prec_exit_move_deg   = 3.5f;
+    p_out.prec_profile         = 0;
+
     // ---- v0400 신규 ----
     p_out.led_brightness      = 128;
     p_out.battery_adc_enabled = false;
@@ -261,6 +274,19 @@ bool CL_C10_Config::validateE10(const ST_C10_E10Config_t& p_e) const {
     if (p_e.gesture_cooldown_ms > 20000) return false;
 
     if (p_e.scroll_cursor_damp < 0.0f || p_e.scroll_cursor_damp > 1.0f) return false;
+
+    // ---- Precision ----
+    if (p_e.precision_mode >= (uint8_t)EN_C10_E10_PREC_MAX) return false;
+    if (p_e.precision_deadzone < 0.0f || p_e.precision_deadzone > 50.0f) return false;
+    if (p_e.precision_gain < 0.0f || p_e.precision_gain > 5.0f) return false;
+    if (p_e.precision_accel < 0.0f || p_e.precision_accel > 5.0f) return false;
+    if (p_e.precision_max_step < 1 || p_e.precision_max_step > 200) return false;
+    if (p_e.precision_smooth < 0.0f || p_e.precision_smooth > 1.0f) return false;
+    if (p_e.prec_entry_ms < 50 || p_e.prec_entry_ms > 5000) return false;
+    if (p_e.prec_exit_ms < 50 || p_e.prec_exit_ms > 5000) return false;
+    if (p_e.prec_entry_still_deg < 0.1f || p_e.prec_entry_still_deg > 20.0f) return false;
+    if (p_e.prec_exit_move_deg < 0.1f || p_e.prec_exit_move_deg > 50.0f) return false;
+    if (p_e.prec_profile > 5) return false;
 
     if (p_e.gyro_bias.still_th < 0.1f || p_e.gyro_bias.still_th > 20.0f) return false;
     if (p_e.gyro_bias.still_win_ms < 50 || p_e.gyro_bias.still_win_ms > 5000) return false;
@@ -610,6 +636,22 @@ bool CL_C10_Config::patchFromJsonE10(const String& p_json, ST_C10_E10Config_t& p
 
     if (!v_e10["scroll_cursor_damp"].isNull()) p_e10.scroll_cursor_damp = (float)v_e10["scroll_cursor_damp"];
 
+    // ---- Precision ----
+    JsonVariant v_p = v_e10["precision"];
+    if (!v_p.isNull()) {
+        if (!v_p["mode"].isNull())            p_e10.precision_mode = (uint8_t)v_p["mode"];
+        if (!v_p["deadzone"].isNull())        p_e10.precision_deadzone = (float)v_p["deadzone"];
+        if (!v_p["gain"].isNull())            p_e10.precision_gain = (float)v_p["gain"];
+        if (!v_p["accel"].isNull())           p_e10.precision_accel = (float)v_p["accel"];
+        if (!v_p["max_step"].isNull())        p_e10.precision_max_step = (uint8_t)v_p["max_step"];
+        if (!v_p["smooth"].isNull())          p_e10.precision_smooth = (float)v_p["smooth"];
+        if (!v_p["entry_ms"].isNull())        p_e10.prec_entry_ms = (uint16_t)v_p["entry_ms"];
+        if (!v_p["exit_ms"].isNull())         p_e10.prec_exit_ms = (uint16_t)v_p["exit_ms"];
+        if (!v_p["entry_still_deg"].isNull()) p_e10.prec_entry_still_deg = (float)v_p["entry_still_deg"];
+        if (!v_p["exit_move_deg"].isNull())   p_e10.prec_exit_move_deg = (float)v_p["exit_move_deg"];
+        if (!v_p["profile"].isNull())         p_e10.prec_profile = (uint8_t)v_p["profile"];
+    }
+
     // ---- v0400 신규 ----
     if (!v_e10["led_brightness"].isNull())      p_e10.led_brightness = (uint8_t)v_e10["led_brightness"];
     if (!v_e10["battery_adc_enabled"].isNull()) p_e10.battery_adc_enabled = (bool)v_e10["battery_adc_enabled"];
@@ -707,6 +749,21 @@ void CL_C10_Config::_buildJson(const ST_C10_WiFiConfig_t& p_w,
     v_g["cooldown_ms"] = p_e.gesture_cooldown_ms;
 
     v_je["scroll_cursor_damp"] = p_e.scroll_cursor_damp;
+
+    // ---- Precision ----
+    JsonObject v_p = v_je["precision"].to<JsonObject>();
+    v_p["mode"]             = p_e.precision_mode;
+    v_p["deadzone"]         = p_e.precision_deadzone;
+    v_p["gain"]             = p_e.precision_gain;
+    v_p["accel"]            = p_e.precision_accel;
+    v_p["max_step"]         = p_e.precision_max_step;
+    v_p["smooth"]           = p_e.precision_smooth;
+    v_p["entry_ms"]         = p_e.prec_entry_ms;
+    v_p["exit_ms"]          = p_e.prec_exit_ms;
+    v_p["entry_still_deg"]  = p_e.prec_entry_still_deg;
+    v_p["exit_move_deg"]    = p_e.prec_exit_move_deg;
+    v_p["profile"]          = p_e.prec_profile;
+
 
     v_je["led_brightness"]      = p_e.led_brightness;
     v_je["battery_adc_enabled"] = p_e.battery_adc_enabled;

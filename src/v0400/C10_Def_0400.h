@@ -99,6 +99,19 @@ struct ST_C10_ModeConfig_t {
     ST_C20_ActionSlot_t tilt  [C10_DEF::SLOT_TILT_COUNT];    // T1..T4
 };
 
+
+// -------------------------------------------------------
+// Precision Mode (v0320 유지)
+// -------------------------------------------------------
+enum EN_C10_E10PrecisionMode_t : uint8_t {
+    EN_C10_E10_PREC_OFF  = 0,
+    EN_C10_E10_PREC_LOW  = 1,
+    EN_C10_E10_PREC_MED  = 2,
+    EN_C10_E10_PREC_HIGH = 3,
+    EN_C10_E10_PREC_PPT  = 4,
+    EN_C10_E10_PREC_MAX
+};
+
 // -------------------------------------------------------
 // E10 Config (v0400 확장)
 // -------------------------------------------------------
@@ -118,6 +131,19 @@ struct ST_C10_E10Config_t {
     uint16_t gesture_cooldown_ms;
 
     float scroll_cursor_damp;
+
+    // ---- Precision (v0320 유지, web 설정 전용) ----
+    uint8_t  precision_mode;         // EN_C10_E10PrecisionMode_t
+    float    precision_deadzone;
+    float    precision_gain;
+    float    precision_accel;
+    uint8_t  precision_max_step;
+    float    precision_smooth;
+    uint16_t prec_entry_ms;
+    uint16_t prec_exit_ms;
+    float    prec_entry_still_deg;
+    float    prec_exit_move_deg;
+    uint8_t  prec_profile;
 
     // ---- v0400 신규 ----
     uint8_t led_brightness;         // 0~255

@@ -58,7 +58,6 @@
 #include "C20_BtnDispatcher_0400.h"
 #include "C20_ActionExec_0400.h"
 
-CL_M20_BiasTracker _biasTracker;
 
 class CL_E10_EliteAirMouse {
   private:
@@ -149,14 +148,6 @@ class CL_E10_EliteAirMouse {
     float    _precExitMoveDeg   = 7.5f;
     uint8_t  _precProfile       = 1;
 
-    // PPT v2
-    ST_C10_PptKey2_t _ppt2_start;
-    ST_C10_PptKey2_t _ppt2_exit;
-    ST_C10_PptKey2_t _ppt2_next;
-    ST_C10_PptKey2_t _ppt2_prev;
-    ST_C10_PptKey2_t _ppt2_black;
-    ST_C10_PptKey2_t _ppt2_laser;
-
     // 런타임 적용 경로 단일화용 snapshot
     ST_C10_E10Config_t _cfgE10Runtime;
     bool               _cfgE10RuntimeValid = false;
@@ -230,6 +221,12 @@ class CL_E10_EliteAirMouse {
     volatile bool _reqI2CRecover = false;
     volatile bool _reqClearDiag  = false;
     
+    
+    // ====================================================
+    // [Phase 4] Zero-rate Bias Tracker
+    // ====================================================
+    CL_M20_BiasTracker   _biasTracker;
+
     // ====================================================
     // [Phase 5] 버튼 디스패처 + 액션 실행기
     // ====================================================
@@ -312,9 +309,7 @@ class CL_E10_EliteAirMouse {
     void _tapUsageKb(uint8_t p_usage, uint16_t p_ms = 12);
     void _tapConsumerMask(uint32_t p_mask, uint16_t p_ms = 28);
     void _sendPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
-    void _sendPptKey2FromCfg(const ST_C10_PptKey2_t& p_k);
-    void _processGesturesDeg(float p_gzDeg);
-
+    
     // ---- HID cmd queue (producer: any task) ----
     bool _enqueueHidCmd(const ST_E10_HidCmd_t& p_cmd);
 
