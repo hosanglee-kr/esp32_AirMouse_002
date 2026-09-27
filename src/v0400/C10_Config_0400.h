@@ -39,7 +39,7 @@
 #include <esp_system.h>
 
 #include "C10_Def_0400.h"
-#include "D10_Logger_0320.h"   // 로거 재사용
+#include "D10_Logger_0400.h"   // 로거 재사용
 
 class CL_C10_Config {
   private:
