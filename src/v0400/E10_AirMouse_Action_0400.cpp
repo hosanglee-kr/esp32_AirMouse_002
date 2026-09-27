@@ -182,23 +182,28 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             break;
 
         case EN_C20_SP_SLEEP_NOW:
-            // Phase 8에서 실제 sleep 진입
+            // Phase 8에서 실제 sleep 진입. 지금은 LED만 정리.
+            _led.off();
             D10_LOGI("[E10] SP_SLEEP_NOW requested");
             break;
+    
 
         case EN_C20_SP_MODE_CYCLE:
             _setActiveMode((_activeMode % 3) + 1);
             break;
 
         case EN_C20_SP_PAIRING:
-            // Phase 10에서 실제 페어링 진입
+            // Phase 10에서 실제 페어링 진입. 지금은 LED 표시만.
+            _led.blink(_led.getBaseColor(), 1000, 0);   // 현재 Mode 색 1Hz 무한
             D10_LOGI("[E10] SP_PAIRING requested");
             break;
-
+        
         case EN_C20_SP_HOST_CYCLE:
-            // Phase 9에서 Multi-Host 순환
+            // Phase 9에서 Multi-Host 순환. 지금은 LED 표시만.
+            _led.flash(EN_L10_COLOR_WHITE, 500);
             D10_LOGI("[E10] SP_HOST_CYCLE requested");
             break;
+    
 
         default:
             break;

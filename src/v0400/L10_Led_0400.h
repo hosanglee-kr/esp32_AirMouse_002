@@ -32,6 +32,7 @@
 
 #include <Arduino.h>
 #include <string.h>
+#include <new>
 #include <Adafruit_NeoPixel.h>
 
 // -------------------------------------------------------
