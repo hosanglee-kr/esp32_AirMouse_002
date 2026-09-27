@@ -71,6 +71,9 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     // [Phase 10] BLE Manager 초기화
     _ble.begin();
     
+    // [Phase 8] Power Manager 초기화
+    _power.begin();
+    
     // LED 태스크 (저우선, 50ms tick)
     xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, &_thLed, 0);
 
@@ -442,6 +445,9 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     
     // [Phase 10] Active peer index 반영
     _ble.setActivePeerIndex(p_e.active_peer_index);
+    
+    // [Phase 8] Sleep idle timeout 반영
+    _power.setIdleTimeout(p_e.sleep_idle_timeout_ms);
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);

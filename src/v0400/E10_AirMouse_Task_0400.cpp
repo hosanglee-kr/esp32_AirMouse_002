@@ -121,6 +121,29 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         //   - 연결 판정은 _hid.isConnected() 재사용 (B20 중복 조회 회피)
         // ====================================================
         v_m->_ble.tick(v_m->_hid.isConnected());
+        
+        // ====================================================
+        // [Phase 8] Power manager 활동 알림 + idle 판정
+        //   - 활동 트리거: Move Gate Held, 커서 이동 (v_moveGateHeld 값으로 대체 판정),
+        //                  버튼 DOWN (dispatcher가 콜백으로 처리)
+        // ====================================================
+        {
+            const uint32_t v_nowP = (uint32_t)millis();
+        
+            // 커서 이동 감지 시 활동 갱신
+            if (v_moveGateHeld) v_m->_power.notifyActivity(v_nowP);
+        
+            // idle → 연결 중이면 LED off만 (E10이 처리), 미연결이면 실제 sleep
+            const bool v_bleConn = v_m->_hid.isConnected();
+            const bool v_idle    = ((v_nowP - v_m->_power.getIdleTimeout() * 0) && false);  // 자리표시
+            (void)v_idle;
+        
+            // 미연결 + idle 초과 → sleepNow
+            //   (내부에서 timeout 검사. sleep 진입 시 wake 후 리턴)
+            if (!v_bleConn && !v_moveGateHeld && !v_m->_safeMode && !v_m->_otaGuard) {
+                (void)v_m->_power.sleepNow(v_nowP);
+            }
+        }
 
         // ---- gyro raw + Zero-rate Bias Tracking ----
         const float v_gxRaw = v_g.gyro.x * RAD_TO_DEG;

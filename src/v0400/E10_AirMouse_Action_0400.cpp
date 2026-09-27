@@ -165,6 +165,9 @@ void CL_E10_EliteAirMouse::_onBtnEvent(void* p_ctx, uint8_t p_btnId, uint8_t p_e
     auto* v_m = (CL_E10_EliteAirMouse*)p_ctx;
     if (!v_m) return;
 
+    // [Phase 8] 모든 이벤트는 활동 (idle 타이머 리셋)
+    v_m->_power.notifyActivity((uint32_t)millis());
+
     // 1) 하드코딩 먼저
     if (v_m->_handleHardcodedButton(p_btnId, p_evt)) return;
 
@@ -226,6 +229,9 @@ void CL_E10_EliteAirMouse::_onSpecial(void* p_ctx, uint8_t p_special) {
 void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
     if (p_newMode < 1 || p_newMode > C10_DEF::MODE_COUNT) return;
 
+    // [Phase 8] Mode 전환은 활동
+    _power.notifyActivity((uint32_t)millis());
+    
     _lock();
     const uint8_t v_old = _activeMode;
     _activeMode = p_newMode;
@@ -290,6 +296,9 @@ bool CL_E10_EliteAirMouse::_enqueueAction(const ST_C20_ActionSlot_t& p_slot, boo
 // =======================================================
 void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
     if (p_dir > 3) return;
+
+    // [Phase 8] 제스처 = 활동
+    _power.notifyActivity((uint32_t)millis());
 
     ST_C20_ActionSlot_t v_slot;
     memset(&v_slot, 0, sizeof(v_slot));
