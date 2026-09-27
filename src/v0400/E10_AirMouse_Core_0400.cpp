@@ -63,6 +63,16 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _hid.begin();
     
     // ====================================================
+    // [Phase 6-J] LED 초기화 + Mode 색 반영
+    // ====================================================
+    _led.begin(_cfgE10RuntimeValid ? _cfgE10Runtime.led_brightness : 128);
+    _led.setModeColor(_activeMode);
+    
+    // LED 태스크 (저우선, 50ms tick)
+    xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, &_thLed, 0);
+
+    
+    // ====================================================
     // [Phase 5] Dispatcher + Executor 초기화
     // ====================================================
     _btnDisp.begin();
@@ -409,6 +419,8 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
+    
+    _led.setBrightness(p_e.led_brightness);
     
     // [Phase 5] Mode → _isPptMode 동기화 (FSM 호환)
     if (p_e.active_mode >= 1 && p_e.active_mode <= C10_DEF::MODE_COUNT) {

@@ -58,6 +58,8 @@
 #include "C20_BtnDispatcher_0400.h"
 #include "C20_ActionExec_0400.h"
 
+#include "L10_Led_0400.h"
+
 
 class CL_E10_EliteAirMouse {
   private:
@@ -221,6 +223,10 @@ class CL_E10_EliteAirMouse {
     volatile bool _reqI2CRecover = false;
     volatile bool _reqClearDiag  = false;
     
+    // ====================================================
+    // [Phase 6-J] LED 컨트롤러
+    // ====================================================
+    CL_L10_Led _led;
     
     // ====================================================
     // [Phase 4] Zero-rate Bias Tracker
@@ -373,6 +379,9 @@ class CL_E10_EliteAirMouse {
         if (v_var < 0.0) v_var = 0.0;
         return (float)sqrt(v_var);
     }
+    
+    static void _ledTask(void* p_pv);
+    TaskHandle_t _thLed = nullptr;
     
     
     // ====================================================

@@ -243,8 +243,10 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     D10_LOGI("[E10] Mode changed: %u -> %u", (unsigned)v_old, (unsigned)p_newMode);
 
-    // TODO Phase 6-J: LED 색상 전환
-    // _led.setModeColor(p_newMode);
+    // LED: 새 모드 색 + 0.5초 흰색 flash
+    _led.setModeColor(p_newMode);
+    _led.flash(EN_L10_COLOR_WHITE, 500);
+
 }
 
 // =======================================================

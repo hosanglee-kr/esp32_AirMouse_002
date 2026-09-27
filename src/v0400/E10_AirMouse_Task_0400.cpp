@@ -397,3 +397,18 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         vTaskDelay(pdMS_TO_TICKS(7));
     }
 }
+
+
+// =======================================================
+// [Phase 6-J] LED 상태머신 태스크 (50ms tick)
+// =======================================================
+void CL_E10_EliteAirMouse::_ledTask(void* p_pv) {
+    CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
+
+    TickType_t v_lastWake = xTaskGetTickCount();
+
+    for (;;) {
+        v_m->_led.tick();
+        vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(50));
+    }
+}
