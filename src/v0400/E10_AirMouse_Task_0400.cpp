@@ -1,5 +1,5 @@
 // =======================================================
-// File: E10_AirMouse_Task_0400.cpp
+// File: src/v040/E10_AirMouse_Task_0400.cpp
 // =======================================================
 #include "E10_AirMouse_0400.h"
 
@@ -9,12 +9,8 @@
 void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
     CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
-    TickType_t     v_lastWake  = xTaskGetTickCount();
-    unsigned long  v_lastUs    = micros();
-    unsigned long  v_btnDownMs = 0;
-
-    uint8_t v_lastBtnMask = 0;
-    bool    v_lastBtnInit = false;
+    TickType_t     v_lastWake = xTaskGetTickCount();
+    unsigned long  v_lastUs   = micros();
 
     if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
 
@@ -22,8 +18,6 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         // ------------------------------------------------------------
         // [C-4] motion-critical config 스냅샷
         //   - 그룹으로 읽히는 필드만 스냅샷 (dpi+scale+accel, wheel)
-        //   - 나머지(_isPptMode/_precision_mode/_accelTh/_scrollCursorDamp 등)는
-        //     단일 워드 원자 read로 충분, eventually consistent 허용
         // ------------------------------------------------------------
         struct {
             int   dpiLevel;
@@ -83,7 +77,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         }
 
         if (v_m->_reqGyroCalib) {
-            v_m->_reqGyroCalib = false;
+            v_m->_reqGyroCalib  = false;
             v_m->_gyroCalibDone = false;
             v_m->_runGyroCalibration();
             v_m->_gyroCalibDone = true;
@@ -103,9 +97,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         v_m->_dtAvgMs = v_m->_dtAvgMs * 0.98f + v_dtMs * 0.02f;
 
         if (v_dtMs > v_m->_dtMaxMs) v_m->_dtMaxMs = v_dtMs;
-        if (v_dtMs > 16.0f) {
-            v_m->_dtOverrunCount++;
-        }
+        if (v_dtMs > 16.0f) v_m->_dtOverrunCount++;
 
         UBaseType_t v_hw = uxTaskGetStackHighWaterMark(nullptr);
         if (v_hw > 0) {
@@ -114,41 +106,26 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             }
         }
 
-        // ---- buttons ----
-        const bool v_scrollMode = (digitalRead(E10_CONST::PIN_BTN_SCROLL) == LOW);
+        // ============================================================
+        // [Phase 5] 버튼 디스패처 갱신 (콜백 → 액션 큐 enqueue)
+        //   - 물리 버튼 처리는 전부 디스패처가 담당
+        //   - sensorTask는 여기서 상태만 얻음
+        // ============================================================
+        v_m->_btnDisp.update();
 
-        bool v_modeLongToggle = false;
-        if (digitalRead(E10_CONST::PIN_BTN_MODE) == LOW) {
-            if (v_btnDownMs == 0) v_btnDownMs = millis();
-        } else {
-            if (v_btnDownMs > 0) {
-                unsigned long v_hold = millis() - v_btnDownMs;
-                if (v_hold > 1000) {
-                    v_modeLongToggle = true;
-                } else {
-                    v_m->_dpiLevel++;
-                    if (v_m->_dpiLevel > 3) v_m->_dpiLevel = 1;
-                    v_m->_engine.setDPI(v_m->_dpiLevel);
-                }
-                v_btnDownMs = 0;
-            }
-        }
+        // Move Gate 상태 읽기 (Top M Hold 중 true)
+        const bool v_moveGateHeld = v_m->_moveGateHeld;
 
-        const bool v_leftClick  = (digitalRead(E10_CONST::PIN_BTN_L) == LOW);
-        const bool v_rightClick = (digitalRead(E10_CONST::PIN_BTN_R) == LOW);
-        const bool v_midClick   = (digitalRead(E10_CONST::PIN_BTN_M) == LOW);
+        // ---- gyro raw + Zero-rate Bias Tracking ----
+        const float v_gxRaw = v_g.gyro.x * RAD_TO_DEG;
+        const float v_gyRaw = v_g.gyro.y * RAD_TO_DEG;
+        const float v_gzRaw = v_g.gyro.z * RAD_TO_DEG;
 
-        if (v_leftClick) v_m->_engine.notifyClick();
+        v_m->_biasTracker.update(v_gxRaw, v_gyRaw, v_gzRaw, (uint32_t)millis());
 
-        uint8_t v_btnMask = 0;
-        if (v_leftClick)  v_btnMask |= (uint8_t)EN_E10_BTN_LEFT;
-        if (v_rightClick) v_btnMask |= (uint8_t)EN_E10_BTN_RIGHT;
-        if (v_midClick)   v_btnMask |= (uint8_t)EN_E10_BTN_MIDDLE;
-
-        // ---- gyro ----
-        float v_gx = (v_g.gyro.x * RAD_TO_DEG) - v_m->_gyroBiasX;
-        float v_gy = (v_g.gyro.y * RAD_TO_DEG) - v_m->_gyroBiasY;
-        float v_gz = (v_g.gyro.z * RAD_TO_DEG) - v_m->_gyroBiasZ;
+        const float v_gx = v_m->_biasTracker.correctX(v_gxRaw);
+        const float v_gy = v_m->_biasTracker.correctY(v_gyRaw);
+        const float v_gz = v_m->_biasTracker.correctZ(v_gzRaw);
 
         const float v_gyroAbs = max(max(fabsf(v_gx), fabsf(v_gy)), fabsf(v_gz));
 
@@ -157,7 +134,9 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         if (fabsf(v_gz) > E10_CONST::SPIKE_TH_DEG) v_m->_pushSpike(v_ts);
 
         // ---- fsm ----
-        v_m->_fsmUpdate(v_scrollMode, v_modeLongToggle, v_gyroAbs);
+        //  [Phase 5] SCROLL/MODE 토글 폐기 → 2·3번째 인자는 항상 false
+        //            (SCROLL은 제스처 Phase 7에서 재설계)
+        v_m->_fsmUpdate(false, false, v_gyroAbs);
 
         // ---- NaN guard ----
         if (isnan(v_gx) || isnan(v_gy) || isnan(v_gz)) {
@@ -176,13 +155,20 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         // ---- stats + motion engine ----
         v_m->_welfordAdd(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);
 
-        v_m->_engine.updateOrientation(v_a.acceleration.y, v_a.acceleration.z, v_gx, v_dt);
+        // Roll + Pitch 2축 자세
+        v_m->_engine.updateOrientation2(
+            v_a.acceleration.x,
+            v_a.acceleration.y,
+            v_a.acceleration.z,
+            v_gx,   // Roll rate
+            v_gy,   // Pitch rate
+            v_dt);
 
         int v_tx = 0;
         int v_ty = 0;
         v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
 
-        // ---- accel shaping (C-4: v_cfg 스냅샷 사용) ----
+        // ---- accel shaping ----
         float v_base = v_cfg.scaleBase[v_cfg.dpiLevel - 1];
         float v_accg = v_cfg.accelGain[v_cfg.dpiLevel - 1];
 
@@ -197,117 +183,56 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         float v_fx = (float)v_tx * v_base * v_acc;
         float v_fy = (float)v_ty * v_base * v_acc;
 
-        // ---- apply FSM ----
-        if (v_m->_fsm == EN_FSM_SCROLL) {
-            int v_wheel = 0;
+        // ============================================================
+        // [Phase 5] Move Gate → Precision → 상태/프레임 push
+        //   - SCROLL 분기 폐기 (제스처 Phase 7에서 재설계)
+        //   - btn_mask는 액션 큐가 담당 → _qFrame에선 0 고정
+        // ============================================================
 
-            if (v_gy > v_cfg.wheelThDeg) {
-                float v_n = (v_gy - v_cfg.wheelThDeg) / 120.0f;
-                if (v_n > 1.0f) v_n = 1.0f;
-                v_wheel = (int)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
-            } else if (v_gy < -v_cfg.wheelThDeg) {
-                float v_n = (-v_gy - v_cfg.wheelThDeg) / 120.0f;
-                if (v_n > 1.0f) v_n = 1.0f;
-                v_wheel = -(int)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
-            }
+        // Move Gate: Middle Hold 중에만 커서 이동
+        if (!v_moveGateHeld) {
+            v_fx = 0.0f;
+            v_fy = 0.0f;
+        }
 
-            v_fx *= v_cfg.scrollCursorDamp;
-            v_fy *= v_cfg.scrollCursorDamp;
+        // Precision overlay
+        if (v_m->_precSub != EN_PREC_OFF) {
+            v_m->_applyPrecision(v_fx, v_fy);
+        }
 
-            const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
-            const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
-            const int16_t v_wo = (int16_t)constrain((int)v_wheel, -32767, 32767);
+        // (Phase 7 예정: PPT Flick 제스처 P2P 방식)
+        // if (v_m->_fsm == EN_FSM_PPT) { ... }
 
-            // 센서태스크 로컬 diff
-            bool v_btnChanged = false;
-            if (!v_lastBtnInit) {
-                v_lastBtnInit = true;
-                v_btnChanged  = true;
-            } else if (v_btnMask != v_lastBtnMask) {
-                v_btnChanged = true;
-            }
-            const bool v_updated = v_btnChanged || (v_xo != 0) || (v_yo != 0) || (v_wo != 0);
+        // 커서 통계
+        v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,
+                         (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
 
-            // [C-1] (1) 관측용 _state
-            if (xSemaphoreTakeRecursive(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-                v_m->_state.x        = v_xo;
-                v_m->_state.y        = v_yo;
-                v_m->_state.wheel    = v_wo;
-                v_m->_state.btn_mask = v_btnMask;
-                if (v_updated) v_m->_state.updated = true;
-                xSemaphoreGiveRecursive(v_m->_mutex);
-            } else {
-                v_m->_errMutexMiss++;
-                v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
-            }
+        const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
+        const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
+        const bool v_updated = (v_xo != 0) || (v_yo != 0);
 
-            // [C-1] (2) HID 전달 프레임
-            {
-                ST_E10_Frame_t v_fr;
-                v_fr.x        = v_xo;
-                v_fr.y        = v_yo;
-                v_fr.wheel    = v_wo;
-                v_fr.btn_mask = v_btnMask;
-                v_fr.updated  = v_updated;
-                v_m->_pushFrame(v_fr);
-            }
-
-            // (3) diff 기준 갱신
-            v_lastBtnMask = v_btnMask;
-
+        // (1) 관측용 _state
+        if (xSemaphoreTakeRecursive(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+            v_m->_state.x        = v_xo;
+            v_m->_state.y        = v_yo;
+            v_m->_state.wheel    = 0;
+            v_m->_state.btn_mask = 0;
+            if (v_updated) v_m->_state.updated = true;
+            xSemaphoreGiveRecursive(v_m->_mutex);
         } else {
-            // AIR/PPT/PREC cursor
-            if (v_m->_precSub != EN_PREC_OFF) {
-                v_m->_applyPrecision(v_fx, v_fy);
-            }
+            v_m->_errMutexMiss++;
+            v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
+        }
 
-            if (v_m->_fsm == EN_FSM_PPT) {
-                if (!(v_m->_safeMode || v_m->_otaGuard)) {
-                    v_m->_processGesturesDeg(v_gz);
-                }
-            }
-
-            v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,
-                             (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
-
-            const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
-            const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
-
-            bool v_btnChanged = false;
-            if (!v_lastBtnInit) {
-                v_lastBtnInit = true;
-                v_btnChanged  = true;
-            } else if (v_btnMask != v_lastBtnMask) {
-                v_btnChanged = true;
-            }
-            const bool v_updated = v_btnChanged || (v_xo != 0) || (v_yo != 0);
-
-            // [C-1] (1) 관측용 _state
-            if (xSemaphoreTakeRecursive(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-                v_m->_state.x        = v_xo;
-                v_m->_state.y        = v_yo;
-                v_m->_state.wheel    = 0;
-                v_m->_state.btn_mask = v_btnMask;
-                if (v_updated) v_m->_state.updated = true;
-                xSemaphoreGiveRecursive(v_m->_mutex);
-            } else {
-                v_m->_errMutexMiss++;
-                v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
-            }
-
-            // [C-1] (2) HID 전달 프레임
-            {
-                ST_E10_Frame_t v_fr;
-                v_fr.x        = v_xo;
-                v_fr.y        = v_yo;
-                v_fr.wheel    = 0;
-                v_fr.btn_mask = v_btnMask;
-                v_fr.updated  = v_updated;
-                v_m->_pushFrame(v_fr);
-            }
-
-            // (3) diff 기준 갱신
-            v_lastBtnMask = v_btnMask;
+        // (2) HID 전달 프레임 (btn_mask=0 고정)
+        {
+            ST_E10_Frame_t v_fr;
+            v_fr.x        = v_xo;
+            v_fr.y        = v_yo;
+            v_fr.wheel    = 0;
+            v_fr.btn_mask = 0;
+            v_fr.updated  = v_updated;
+            v_m->_pushFrame(v_fr);
         }
 
         // ---- pacing / overrun ----
@@ -328,7 +253,6 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
     CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
 
-    uint8_t v_lastBtnMask    = 0;
     bool    v_releasedOnSafe = false;
     bool    v_prevConn       = false;
 
@@ -353,12 +277,21 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             }
         }
 
-        // disconnect edge
+        // ---- disconnect edge ----
         if (!v_conn && v_prevConn) {
-            // [Phase2] commTask는 자기 큐에 enqueue하지 않고 직접 실행
+            // HID + 액션 상태 전부 해제
+            v_m->_actExec.releaseAll();
             v_m->_doForceReleaseNow();
             v_m->_failsafeReleaseCount++;
-            v_lastBtnMask = 0;
+
+            // 잔여 큐 드레인
+            ST_ActionCmd_t v_adrop;
+            while (v_m->_qActionExec &&
+                   xQueueReceive(v_m->_qActionExec, &v_adrop, 0) == pdTRUE) { }
+
+            ST_E10_HidCmd_t v_hdrop;
+            while (v_m->_qHidCmd &&
+                   xQueueReceive(v_m->_qHidCmd, &v_hdrop, 0) == pdTRUE) { }
         }
 
         if (!v_conn) {
@@ -367,30 +300,29 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             continue;
         }
 
-        // connect edge
+        // ---- connect edge ----
         if (v_conn && !v_prevConn) {
-            ST_E10_Frame_t v_fr0;
-            memset(&v_fr0, 0, sizeof(v_fr0));
-            if (v_m->_qFrame && (xQueuePeek(v_m->_qFrame, &v_fr0, 0) == pdTRUE)) {
-                v_lastBtnMask = v_fr0.btn_mask;
-            } else {
-                v_lastBtnMask = 0;
-            }
+            // (Phase 5) 버튼 상태는 액션 큐가 담당 → 별도 동기화 불필요
         }
         v_prevConn = true;
 
-        // ---- Gate ----
+        // ---- Gate (SafeMode / OTA Guard) ----
         const bool v_gate = (v_m->_safeMode || v_m->_otaGuard);
 
         if (v_gate) {
-            // [Phase2] gate 동안 커맨드는 전부 drop (큐 overflow 방지)
+            // 큐 드레인 (overflow 방지)
             ST_E10_HidCmd_t v_drop;
-            while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_drop, 0) == pdTRUE) { }
+            while (v_m->_qHidCmd &&
+                   xQueueReceive(v_m->_qHidCmd, &v_drop, 0) == pdTRUE) { }
+
+            ST_ActionCmd_t v_adrop;
+            while (v_m->_qActionExec &&
+                   xQueueReceive(v_m->_qActionExec, &v_adrop, 0) == pdTRUE) { }
 
             if (!v_releasedOnSafe) {
+                v_m->_actExec.releaseAll();
                 v_m->_doForceReleaseNow();
                 v_m->_failsafeReleaseCount++;
-                v_lastBtnMask    = 0;
                 v_releasedOnSafe = true;
             }
 
@@ -400,24 +332,20 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             v_releasedOnSafe = false;
         }
 
-        // ---- [Phase2] HID commands 우선 처리 ----
+        // ---- [Phase2] HID commands 우선 처리 (테스트/강제 릴리즈) ----
         {
             ST_E10_HidCmd_t v_cmd;
             while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_cmd, 0) == pdTRUE) {
                 switch (v_cmd.cmd) {
                     case EN_E10_HIDCMD_RELEASE_ALL:
                         v_m->_doReleaseAllButtons();
-                        v_lastBtnMask = 0;
                         break;
 
                     case EN_E10_HIDCMD_TEST_CLICK:
                         v_m->_doTestMouseClick(v_cmd.arg0, v_cmd.holdMs);
-                        // 테스트는 양 끝이 release 상태로 종료되므로 다음 diff 기준 리셋
-                        v_lastBtnMask = 0;
                         break;
 
                     case EN_E10_HIDCMD_TEST_PPT:
-                        // [H-4] 실제 시퀀스는 commTask에서 수행 (vTaskDelay 포함)
                         v_m->_sendPptKey2(v_cmd.arg0, v_cmd.arg1, v_cmd.code);
                         break;
 
@@ -427,7 +355,24 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             }
         }
 
-        // ---- normal path ----
+        // ============================================================
+        // [Phase 5] Action 큐 드레인 (버튼 이벤트 → HID 실행)
+        //   - 프레임당 최대 4개 (커서 지연 방지)
+        // ============================================================
+        {
+            ST_ActionCmd_t v_acmd;
+            uint8_t v_drainCount = 0;
+            while (v_m->_qActionExec &&
+                   xQueueReceive(v_m->_qActionExec, &v_acmd, 0) == pdTRUE) {
+                v_m->_actExec.exec(v_acmd.slot, v_acmd.isDown);
+                if (++v_drainCount >= 4) break;
+            }
+        }
+
+        // 반복 액션 tick (KB_REPEAT / CONSUMER_REPEAT)
+        v_m->_actExec.tickRepeat();
+
+        // ---- normal path: 커서 프레임 ----
         ST_E10_Frame_t v_fr;
         memset(&v_fr, 0, sizeof(v_fr));
 
@@ -440,35 +385,15 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             const bool    v_upd   = v_fr.updated;
             const int16_t v_x     = v_fr.x;
             const int16_t v_y     = v_fr.y;
-            const int16_t v_wheel = v_fr.wheel;
-            const uint8_t v_btn   = v_fr.btn_mask;
-
-            // 버튼 diff: updated 여부 무관하게 처리
-            const uint8_t v_changed = (uint8_t)(v_btn ^ v_lastBtnMask);
-
-            if (v_changed & (uint8_t)EN_E10_BTN_LEFT) {
-                if (v_btn & (uint8_t)EN_E10_BTN_LEFT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
-                else                                  v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
-            }
-            if (v_changed & (uint8_t)EN_E10_BTN_RIGHT) {
-                if (v_btn & (uint8_t)EN_E10_BTN_RIGHT) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
-                else                                   v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
-            }
-            if (v_changed & (uint8_t)EN_E10_BTN_MIDDLE) {
-                if (v_btn & (uint8_t)EN_E10_BTN_MIDDLE) v_m->_mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
-                else                                    v_m->_mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
-            }
-
-            v_lastBtnMask = v_btn;
 
             if (v_upd) {
                 const int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
                 const int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
-                const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
 
-                _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh);
+                _mouseSend(v_m->_mouse, v_dx, v_dy, 0);
             }
         }
+
         vTaskDelay(pdMS_TO_TICKS(7));
     }
 }

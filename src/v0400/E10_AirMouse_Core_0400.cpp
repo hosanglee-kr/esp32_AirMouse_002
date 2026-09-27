@@ -68,6 +68,29 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _hid.addDevice(&_keyboard);
     _hid.addDevice(&_mouse);
     _hid.begin();
+    
+    // ====================================================
+    // [Phase 5] Dispatcher + Executor 초기화
+    // ====================================================
+    _btnDisp.begin();
+    _btnDisp.setCallback(&CL_E10_EliteAirMouse::_onBtnEvent, this);
+    
+    _actExec.begin(&_mouse, &_keyboard);
+    _actExec.setSpecialCallback(&CL_E10_EliteAirMouse::_onSpecial, this);
+    
+    _qActionExec = xQueueCreate(8, sizeof(ST_ActionCmd_t));
+    if (!_qActionExec) {
+        D10_LOGE("[E10] _qActionExec create failed");
+    }
+    
+    // config에서 active_mode 초기값 반영
+    if (_cfgE10RuntimeValid) {
+        const uint8_t v_m = _cfgE10Runtime.active_mode;
+        if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
+            _activeMode = v_m;
+        }
+    }
+
 
     xTaskCreatePinnedToCore(_sensorTask, "E10_Sensor", 8192, this, 3, &_thSensor, 1);
     xTaskCreatePinnedToCore(_commTask,   "E10_Comm",   4096, this, 2, &_thComm, 0);
@@ -398,7 +421,19 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     _ppt2_prev  = p_e.ppt2_prev;
     _ppt2_black = p_e.ppt2_black;
     _ppt2_laser = p_e.ppt2_laser;
+    
+    
+    _biasTracker.setConfig(
+    p_e.gyro_bias.still_th,
+    p_e.gyro_bias.still_win_ms,
+    p_e.gyro_bias.alpha);
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
+    
+    // (active_mode는 런타임 중엔 _setActiveMode가 관리. 여기선 유효성만)
+    if (p_e.active_mode >= 1 && p_e.active_mode <= C10_DEF::MODE_COUNT) {
+        _activeMode = p_e.active_mode;
+    }
+
 }

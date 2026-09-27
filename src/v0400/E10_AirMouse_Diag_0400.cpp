@@ -131,9 +131,10 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
     }
 
     if (v_cnt > 0) {
-        _gyroBiasX = (float)(v_sx / v_cnt);
-        _gyroBiasY = (float)(v_sy / v_cnt);
-        _gyroBiasZ = (float)(v_sz / v_cnt);
+        _biasTracker.setBias(
+            (float)(v_sx / v_cnt),
+            (float)(v_sy / v_cnt),
+            (float)(v_sz / v_cnt));
     }
 
     _gyroCalibDone = true;
@@ -167,9 +168,10 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     p_out.fsm_state        = _fsm;
     p_out.fsm_sub          = _precSub;
 
-    p_out.gyro_bias_x = _gyroBiasX;
-    p_out.gyro_bias_y = _gyroBiasY;
-    p_out.gyro_bias_z = _gyroBiasZ;
+    p_out.gyro_bias_x = _biasTracker.x();
+    p_out.gyro_bias_y = _biasTracker.y();
+    p_out.gyro_bias_z = _biasTracker.z();
+
     p_out.temp_c      = _tempC;
 
     p_out.sampling_ms_target = 8;
@@ -241,6 +243,7 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 bool CL_E10_EliteAirMouse::requestGyroCalibration() {
     _lock();
     _reqGyroCalib = true;
+    _biasTracker.reset();      // ← seed 폐기, 재수집 대기
     _unlock();
     return true;
 }

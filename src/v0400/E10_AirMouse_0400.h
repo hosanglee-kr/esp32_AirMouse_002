@@ -53,6 +53,13 @@
 
 #include "E10_Def_0400.h"
 
+#include "M20_BiasTracker_0400.h"
+
+#include "C20_BtnDispatcher_0400.h"
+#include "C20_ActionExec_0400.h"
+
+CL_M20_BiasTracker _biasTracker;
+
 class CL_E10_EliteAirMouse {
   private:
     Adafruit_MPU6050 _mpu;
@@ -107,9 +114,6 @@ class CL_E10_EliteAirMouse {
     QueueHandle_t _qHidCmd = nullptr;
 
     // gyro calib
-    float _gyroBiasX = 0.0f;
-    float _gyroBiasY = 0.0f;
-    float _gyroBiasZ = 0.0f;
     bool  _gyroCalibDone = false;
 
     // runtime config (applied)
@@ -225,6 +229,33 @@ class CL_E10_EliteAirMouse {
     volatile bool _reqGyroCalib  = false;
     volatile bool _reqI2CRecover = false;
     volatile bool _reqClearDiag  = false;
+    
+    // ====================================================
+    // [Phase 5] 버튼 디스패처 + 액션 실행기
+    // ====================================================
+    CL_C20_BtnDispatcher _btnDisp;
+    CL_C20_ActionExec    _actExec;
+
+    // 슬롯 실행 커맨드 큐 (sensorTask → commTask)
+    struct ST_ActionCmd_t {
+        ST_C20_ActionSlot_t slot;
+        bool                isDown;
+    };
+    QueueHandle_t _qActionExec = nullptr;
+
+    // 활성 모드 (1/2/3)
+    volatile uint8_t _activeMode = 1;
+
+    // Move Gate 상태 (Top M Hold 중 true)
+    volatile bool _moveGateHeld = false;
+
+    // Top M DOWN 시각 (Mode 3 클릭 판정용)
+    uint32_t _topMDownMs = 0;
+
+    // 하드코딩 액션 (자주 쓰는 슬롯)
+    static const ST_C20_ActionSlot_t G_SLOT_MOUSE_L_HOLD;
+
+
 
   public:
     CL_E10_EliteAirMouse();
@@ -347,6 +378,28 @@ class CL_E10_EliteAirMouse {
         if (v_var < 0.0) v_var = 0.0;
         return (float)sqrt(v_var);
     }
+    
+    
+    // ====================================================
+    // [Phase 5] Action 관련
+    // ====================================================
+    static void _onBtnEvent(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
+    static void _onSpecial(void* p_ctx, uint8_t p_special);
+    
+    bool _enqueueAction(const ST_C20_ActionSlot_t& p_slot, bool p_isDown);
+    
+    // 하드코딩 처리 (모드 전환/페어링/Move Gate/Top L Hold/Top M Enter)
+    //  - true 반환 시 슬롯 매핑 진행 안 함
+    bool _handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt);
+    
+    // 슬롯 매핑 처리 (config)
+    void _handleSlotButton(uint8_t p_btnId, uint8_t p_evt);
+    
+    // Mode 전환
+    void _setActiveMode(uint8_t p_newMode);
+    
+    // 특수 액션 처리
+    void _handleSpecial(uint8_t p_special);
 
     // -----------------------
     // Tasks
