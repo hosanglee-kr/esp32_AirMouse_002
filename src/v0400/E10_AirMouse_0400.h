@@ -60,6 +60,8 @@
 
 #include "M30_Gesture_0400.h"
 
+#include "B20_Ble_0400.h"
+
 #include "L10_Led_0400.h"
 
 
@@ -225,11 +227,19 @@ class CL_E10_EliteAirMouse {
     volatile bool _reqI2CRecover = false;
     volatile bool _reqClearDiag  = false;
     
+    // [Phase 10] config 저장 필요 플래그 (main loop에서 처리)
+    volatile bool _reqSaveCfg = false;
+    
     // ====================================================
     // [Phase 6-J] LED 컨트롤러
     // ====================================================
     CL_L10_Led _led;
     
+    // ====================================================
+    // [Phase 10] BLE Manager (Pairing / Bonds)
+    // ====================================================
+    CL_B20_Ble           _ble;
+        
     // ====================================================
     // [Phase 4] Zero-rate Bias Tracker
     // ====================================================
@@ -302,6 +312,13 @@ class CL_E10_EliteAirMouse {
     // -------- test --------
     bool testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
     bool testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs = 25);
+    
+    // ====================================================
+    // [Phase 10] main loop에서 호출 (200ms cadence)
+    //   - BLE dirty 플래그 → config 저장
+    // ====================================================
+    void tickConfigSave();
+
 
   private:
     // -----------------------

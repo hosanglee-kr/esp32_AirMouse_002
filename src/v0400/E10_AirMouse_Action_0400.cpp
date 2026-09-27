@@ -192,11 +192,15 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             _setActiveMode((_activeMode % 3) + 1);
             break;
 
-        case EN_C20_SP_PAIRING:
-            // Phase 10에서 실제 페어링 진입. 지금은 LED 표시만.
-            _led.blink(_led.getBaseColor(), 1000, 0);   // 현재 Mode 색 1Hz 무한
-            D10_LOGI("[E10] SP_PAIRING requested");
+        case EN_C20_SP_PAIRING: {
+            // [Phase 10] Pairing Mode 진입
+            //  - 최대 3 peer까지 자동 추가 (NimBLE FIFO)
+            //  - 30초 타임아웃, 연결 시 자동 종료
+            _ble.enterPairing(30000);
+            _led.blink(_led.getBaseColor(), 1000, 0);   // 현재 Mode 색 1Hz
+            D10_LOGI("[E10] SP_PAIRING → pairing mode");
             break;
+        }
         
         case EN_C20_SP_HOST_CYCLE:
             // Phase 9에서 Multi-Host 순환. 지금은 LED 표시만.
@@ -238,8 +242,15 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
     // 디스패처 상태 리셋 (클릭 대기 등)
     _btnDisp.resetAll();
     
-    // [Phase 7] 제스처 상태 리셋 (Mode별 슬롯이 다르므로 잔여 상태 제거)
+    // [Phase 7] 제스처 상태 리셋
     _gesture.reset();
+    
+    // [Phase 10] Mode 전환 시 pairing mode 취소
+    if (_ble.isPairing()) {
+        _ble.exitPairing();
+        _led.setModeColor(p_newMode);   // blink 종료 → base solid 복귀
+    }
+
 
     // FSM 리셋 (다음 프레임부터 새 모드로)
     _precSub = EN_PREC_OFF;

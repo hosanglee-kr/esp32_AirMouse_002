@@ -68,6 +68,9 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _led.begin(_cfgE10RuntimeValid ? _cfgE10Runtime.led_brightness : 128);
     _led.setModeColor(_activeMode);
     
+    // [Phase 10] BLE Manager 초기화
+    _ble.begin();
+    
     // LED 태스크 (저우선, 50ms tick)
     xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, &_thLed, 0);
 
@@ -436,7 +439,9 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     
         _gesture.setConfig(v_gc);
     }
-
+    
+    // [Phase 10] Active peer index 반영
+    _ble.setActivePeerIndex(p_e.active_peer_index);
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
@@ -449,4 +454,39 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
         _isPptMode  = (p_e.active_mode == 2);
     }
 
+}
+
+
+// =======================================================
+// [Phase 10] main loop에서 호출 — BLE dirty 플래그 처리
+// =======================================================
+void CL_E10_EliteAirMouse::tickConfigSave() {
+    if (!_reqSaveCfg) {
+        // BLE dirty 확인 → 요청 플래그로 승격
+        if (_ble.consumeDirty()) _reqSaveCfg = true;
+        else return;
+    }
+
+    if (!_cfg) { _reqSaveCfg = false; return; }
+
+    ST_C10_WiFiConfig_t w;
+    ST_C10_E10Config_t  e;
+    _cfg->makeDefaultsWiFi(w);
+    _cfg->makeDefaultsE10(e);
+
+    if (!_cfg->loadAll(w, e)) { _reqSaveCfg = false; return; }
+
+    _lock();
+    e.active_peer_index = _ble.getActivePeerIndex();
+    _unlock();
+
+    const bool v_ok = _cfg->saveAll(w, e);
+    if (v_ok) {
+        D10_LOGI("[E10] active_peer_index saved: %u",
+                 (unsigned)e.active_peer_index);
+    } else {
+        D10_LOGW("[E10] active_peer_index save failed");
+    }
+
+    _reqSaveCfg = false;
 }

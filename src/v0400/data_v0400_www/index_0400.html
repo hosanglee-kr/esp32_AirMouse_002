@@ -1,6 +1,6 @@
 <!-- =======================================================
      File: /www/index_0400.html
-     Elite AirMouse WebConfig (backend-aligned full)
+     Elite AirMouse WebConfig (v0400)
 ======================================================= -->
 
 <!doctype html>
@@ -10,10 +10,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Elite AirMouse WebConfig</title>
   <link rel="icon" href="./images/favicon.ico" />
-  <link rel="stylesheet" href="./style_0321.css" />
+  <link rel="stylesheet" href="./style_0400.css" />
   <link rel="manifest" href="/json/public/manifest_0400.json">
   <meta name="theme-color" content="#0b0e14">
-
 </head>
 <body>
   <header class="top">
@@ -35,13 +34,13 @@
   <main class="wrap">
     <nav class="tabs">
       <button class="tab on" data-tab="dash">Dashboard</button>
-      <button class="tab" data-tab="config">Config (WiFi/E10)</button>
-      <button class="tab" data-tab="ppt">PPT Keymap</button>
+      <button class="tab" data-tab="config">Config</button>
+      <button class="tab" data-tab="ppt">Mode Slots</button>
       <button class="tab" data-tab="diag">Diagnostics</button>
       <button class="tab" data-tab="ota">OTA</button>
     </nav>
 
-    <!-- DASH -->
+    <!-- ======================= DASH ======================= -->
     <section class="card tabpane on" id="tab-dash">
       <h2>Status</h2>
       <div class="row">
@@ -53,14 +52,8 @@
         <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
       </div>
       <div class="row">
-        <div class="kv"><div class="k">DPI Level</div><div class="v" id="stDpi">-</div></div>
         <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
         <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
-      </div>
-      <div class="row">
-        <div class="kv"><div class="k">Cursor RMS</div><div class="v" id="stCursorRms">-</div></div>
-        <div class="kv"><div class="k">Sensor Temp</div><div class="v" id="stTemp">-</div></div>
-        <div class="kv"><div class="k">Sampling</div><div class="v" id="stSampling">-</div></div>
       </div>
 
       <div class="sep"></div>
@@ -79,16 +72,6 @@
         <div class="hint">snapshot</div>
       </div>
 
-      <div class="row">
-        <span class="hint" style="align-self:center; font-weight:600;">DPI:</span>
-        <button class="btn mini" id="btnDpi1">DPI 1</button>
-        <button class="btn mini" id="btnDpi2">DPI 2</button>
-        <button class="btn mini" id="btnDpi3">DPI 3</button>
-        <button class="btn" id="btnGyroCalib" title="기기를 1초간 정지 상태로 유지하고 센서 영점을 재보정합니다">자이로 보정</button>
-        <button class="btn warn" id="btnForceRelease" title="마우스/키 고착 발생 시 강제 릴리즈합니다">버튼 강제 릴리즈</button>
-        <button class="btn" id="btnI2cRecover" title="I2C 버스 이상 시 강제 복구합니다">I2C 복구</button>
-      </div>
-
       <div class="sep"></div>
 
       <div class="row">
@@ -100,7 +83,7 @@
       <pre class="log" id="statusJson">loading...</pre>
     </section>
 
-    <!-- CONFIG -->
+    <!-- ======================= CONFIG ======================= -->
     <section class="card tabpane" id="tab-config">
       <h2>Config Editor (WiFi / E10)</h2>
       <div class="hint2">GET/EDIT → 검증 → Apply(저장없음) 또는 Save(저장+적용). WiFi 변경은 재부팅 필요.</div>
@@ -187,6 +170,12 @@
         </div>
 
         <div class="frow">
+          <label class="flbl">LED Brightness</label>
+          <input id="ledBrightness" class="inp" type="number" step="1" min="0" max="255" />
+          <div class="fhelp">0~255</div>
+        </div>
+
+        <div class="frow">
           <label class="flbl">Accel Threshold</label>
           <input id="accelThreshold" class="inp" type="number" step="0.1" />
           <div class="fhelp">0~50</div>
@@ -231,7 +220,7 @@
         </div>
 
         <div class="frow">
-          <label class="flbl">Gesture</label>
+          <label class="flbl">Gesture Flick</label>
           <div class="arr">
             <input id="flickDeg" class="inp mini" type="number" step="1" />
             <input id="cooldownMs" class="inp mini" type="number" step="10" />
@@ -247,7 +236,7 @@
         <div class="frow">
           <label class="flbl">Mode</label>
           <select id="precMode" class="select"></select>
-          <div class="fhelp">0=OFF / 1~3 / 4=PPT &nbsp;·&nbsp; /api/keycodes → precision_modes</div>
+          <div class="fhelp">0=OFF / 1~3 / 4=PPT</div>
         </div>
 
         <div class="frow">
@@ -330,14 +319,19 @@
       </div>
     </section>
 
-    <!-- PPT -->
+    <!-- ======================= PPT (Mode Slots) ======================= -->
     <section class="card tabpane" id="tab-ppt">
-      <h2>PPT Keymap v2</h2>
-      <div class="hint2">page=kb(usage-id) / consumer(mask). mod는 kb에서만 사용. code는 10진/16진(0x..) 가능.</div>
+      <h2>Mode Slots (v0400)</h2>
+      <div class="hint2">Mode별 슬롯 편집. 트리거는 고정, Action만 설정.</div>
 
       <div class="row">
-        <button class="btn" id="btnPptReload">PPT 로드</button>
-        <button class="btn primary" id="btnPptSave">PPT 저장</button>
+        <label class="flbl">Mode</label>
+        <button class="btn mini mode-tab on" data-mode="1">1: PC</button>
+        <button class="btn mini mode-tab"    data-mode="2">2: PPT</button>
+        <button class="btn mini mode-tab"    data-mode="3">3: TV</button>
+        <span style="margin-left:auto"></span>
+        <button class="btn" id="btnPptReload">로드</button>
+        <button class="btn primary" id="btnPptSave">저장</button>
         <label class="switch">
           <input type="checkbox" id="swPptSave" checked>
           <span class="slider"></span>
@@ -345,53 +339,38 @@
         <div class="hint">save=true</div>
       </div>
 
-      <!-- datalist: kb/consumer 추천 목록 -->
       <datalist id="dlKb"></datalist>
       <datalist id="dlConsumer"></datalist>
 
-      <div class="tbl">
-        <div class="tr head"><div>Action</div><div>Page</div><div>Mod</div><div>Code</div><div></div></div>
-
-        <div class="tr"><div>start</div><div><select id="pptStartPage" class="select mini"></select></div><div><select id="pptStartMod" class="select mini"></select></div><div><input id="pptStartCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="start">Test</button></div></div>
-        <div class="tr"><div>exit</div><div><select id="pptExitPage" class="select mini"></select></div><div><select id="pptExitMod" class="select mini"></select></div><div><input id="pptExitCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="exit">Test</button></div></div>
-        <div class="tr"><div>next</div><div><select id="pptNextPage" class="select mini"></select></div><div><select id="pptNextMod" class="select mini"></select></div><div><input id="pptNextCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="next">Test</button></div></div>
-        <div class="tr"><div>prev</div><div><select id="pptPrevPage" class="select mini"></select></div><div><select id="pptPrevMod" class="select mini"></select></div><div><input id="pptPrevCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="prev">Test</button></div></div>
-        <div class="tr"><div>black</div><div><select id="pptBlackPage" class="select mini"></select></div><div><select id="pptBlackMod" class="select mini"></select></div><div><input id="pptBlackCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="black">Test</button></div></div>
-        <div class="tr"><div>laser</div><div><select id="pptLaserPage" class="select mini"></select></div><div><select id="pptLaserMod" class="select mini"></select></div><div><input id="pptLaserCode" class="inp mini" list="dlKb" /></div><div><button class="btn mini" data-test="laser">Test</button></div></div>
+      <div class="pptEditor" id="pptEditor">
+        <div class="hint2">Loading...</div>
       </div>
 
       <div class="sep"></div>
       <pre class="log" id="pptJson">-</pre>
     </section>
 
-    <!-- DIAG -->
+    <!-- ======================= DIAG ======================= -->
     <section class="card tabpane" id="tab-diag">
       <h2>Diagnostics</h2>
-      <div class="hint2">운영/테스트용 진단 카운터/이벤트. 문제 재현 후 events를 먼저 확인하세요.</div>
+      <div class="hint2">운영/테스트용 진단 카운터/이벤트.</div>
 
       <div class="row">
         <button class="btn" id="btnDiagRefresh">새로고침</button>
         <button class="btn danger" id="btnDiagClear">카운터 초기화</button>
-        
         <label class="switch">
           <input type="checkbox" id="diagAuto" checked>
           <span class="slider"></span>
         </label>
         <div class="hint">auto</div>
-
         <input class="inp" id="diagFilter" placeholder="event code filter (e.g. bad_json)" style="max-width:320px" />
       </div>
 
-      <h3>System & Hardware Counters</h3>
       <div class="row" id="diagCounters" style="flex-wrap:wrap; gap:8px;"></div>
 
       <div class="sep"></div>
-      <h3>Recent Web Events (newest first)</h3>
-      <div class="log" id="diagEvents" style="max-height:160px; overflow:auto; padding:10px;"></div>
-
-      <div class="sep"></div>
-      <h3>Hardware Error History (E10 Ringbuffer)</h3>
-      <div class="log" id="diagErrHist" style="max-height:160px; overflow:auto; padding:10px;"></div>
+      <div class="hint2">Recent events (newest first)</div>
+      <div class="log" id="diagEvents" style="max-height:240px; overflow:auto; padding:10px;"></div>
 
       <div class="sep"></div>
       <details>
@@ -400,36 +379,21 @@
       </details>
     </section>
 
-    <!-- OTA -->
+    <!-- ======================= OTA ======================= -->
     <section class="card tabpane" id="tab-ota">
-      <h2>OTA Firmware Update</h2>
-      <div class="banner-warn" id="otaGuardNotice">
-        ⚠️ <strong>OTA Guard 안내</strong>: 펌웨어 업로드 중에는 기기 오동작 및 버튼 고착을 방지하기 위해 마우스/키보드 출력이 자동으로 차단됩니다. 업로드 완료 후 기기가 자동으로 재부팅됩니다.
-      </div>
-
+      <h2>OTA</h2>
       <div class="row">
-        <input type="file" id="otaFile" class="file" accept=".bin" />
+        <input type="file" id="otaFile" class="file" />
         <button class="btn primary" id="btnOta">업로드</button>
-        <button class="btn" id="btnOtaStatus">상태 새로고침</button>
+        <button class="btn" id="btnOtaStatus">상태</button>
       </div>
-
-      <div class="progress-wrap" id="otaProgWrap" style="display:none;">
-        <div class="progress-bar" id="otaProgBar"></div>
-        <div class="progress-text" id="otaProgText">0%</div>
-      </div>
-
-      <div class="hint2" id="otaHint">새 펌웨어(.bin) 파일을 선택한 후 업로드를 누르세요.</div>
-
-      <div class="sep"></div>
-      <details>
-        <summary class="hint2">raw json</summary>
-        <pre class="log" id="otaJson">-</pre>
-      </details>
+      <div class="hint2" id="otaHint">-</div>
+      <pre class="log" id="otaJson">-</pre>
     </section>
   </main>
 
   <footer class="foot">
-    <div>Cache: HTML=no-store / versioned assets=immutable / public json=no-store / images=no gzip</div>
+    <div>v0400 · Mode Slots · WS2812 LED · 3-Mode Switching</div>
   </footer>
 
   <script src="./app_0400.js"></script>

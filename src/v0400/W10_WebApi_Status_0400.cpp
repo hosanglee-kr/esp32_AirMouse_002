@@ -498,6 +498,7 @@ const char* CL_W10_WebConfig::_precModeName(uint8_t p_mode) {
 void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
     JsonDocument d;
 
+    // ---- mods ----
     JsonArray mods = d["mods"].to<JsonArray>();
     for (size_t i = 0; i < sizeof(G_W10_MODS) / sizeof(G_W10_MODS[0]); i++) {
         JsonObject o = mods.add<JsonObject>();
@@ -505,6 +506,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["mask"] = G_W10_MODS[i].mask;
     }
 
+    // ---- kb usages ----
     JsonArray kb = d["kb"].to<JsonArray>();
     char nameBuf[8];
     for (uint16_t code = 0; code <= 0xE7; code++) {
@@ -518,6 +520,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["code"] = code;
     }
 
+    // ---- consumer ----
     JsonArray con = d["consumer"].to<JsonArray>();
     for (size_t i = 0; i < sizeof(G_W10_CONSUMER) / sizeof(G_W10_CONSUMER[0]); i++) {
         JsonObject o = con.add<JsonObject>();
@@ -525,6 +528,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["mask"] = (uint32_t)G_W10_CONSUMER[i].mask;
     }
 
+    // ---- precision modes ----
     JsonArray pm = d["precision_modes"].to<JsonArray>();
     for (uint8_t m = 0; m < (uint8_t)EN_C10_E10_PREC_MAX; m++) {
         JsonObject o = pm.add<JsonObject>();
@@ -534,6 +538,115 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["value"] = m;
     }
 
-    d["note"] = "mods mask == HID modifier byte. kb=usage-id(0x07), consumer=32-bit mask. precision_modes owned by C10.";
+    // ==================================================
+    // [D1] v0400 확장
+    // ==================================================
+
+    // ---- action_kinds ----
+    //   hasP16/hasP32: 어느 파라미터를 쓰는지 (UI 힌트)
+    //   p16hint/p32hint: 파라미터 의미
+    JsonArray kinds = d["action_kinds"].to<JsonArray>();
+    {
+        struct ST_K { uint8_t v; const char* n; bool p16; bool p32; const char* h16; const char* h32; };
+        static const ST_K G_KINDS[] = {
+            { 0, "NONE",             false, false, nullptr,  nullptr },
+            { 1, "MOUSE_CLICK",      true,  false, "mask",   nullptr },
+            { 2, "MOUSE_HOLD",       true,  false, "mask",   nullptr },
+            { 3, "MOUSE_WHEEL",      true,  false, "axis|dir", nullptr },
+            { 4, "KB_TAP",           true,  true,  "usage",  "mod" },
+            { 5, "KB_COMBO",         false, true,  nullptr,  "mod|u1|u2|u3" },
+            { 6, "KB_REPEAT",        true,  true,  "usage",  "mod" },
+            { 7, "CONSUMER_TAP",     false, true,  nullptr,  "mask32" },
+            { 8, "CONSUMER_REPEAT",  false, true,  nullptr,  "mask32" },
+            { 9, "SPECIAL",          true,  false, "special", nullptr },
+        };
+        for (size_t i = 0; i < sizeof(G_KINDS)/sizeof(G_KINDS[0]); i++) {
+            JsonObject o = kinds.add<JsonObject>();
+            o["value"]   = G_KINDS[i].v;
+            o["name"]    = G_KINDS[i].n;
+            o["hasP16"]  = G_KINDS[i].p16;
+            o["hasP32"]  = G_KINDS[i].p32;
+            if (G_KINDS[i].h16) o["p16hint"] = G_KINDS[i].h16;
+            if (G_KINDS[i].h32) o["p32hint"] = G_KINDS[i].h32;
+        }
+    }
+
+    // ---- specials ----
+    JsonArray sp = d["specials"].to<JsonArray>();
+    {
+        struct ST_S { uint8_t v; const char* n; };
+        static const ST_S G_SP[] = {
+            { 0, "NONE" },
+            { 1, "GYRO_RECALIB" },
+            { 2, "SLEEP_NOW" },
+            { 3, "MODE_CYCLE" },
+            { 4, "PAIRING" },
+            { 5, "HOST_CYCLE" },
+        };
+        for (size_t i = 0; i < sizeof(G_SP)/sizeof(G_SP[0]); i++) {
+            JsonObject o = sp.add<JsonObject>();
+            o["value"] = G_SP[i].v;
+            o["name"]  = G_SP[i].n;
+        }
+    }
+
+    // ---- directions ----
+    JsonArray dirs = d["directions"].to<JsonArray>();
+    { const char* G_D[] = { "LEFT", "RIGHT", "UP", "DOWN" };
+      for (auto n : G_D) { JsonObject o = dirs.add<JsonObject>(); o["name"] = n; } }
+
+    // ---- groups (Mode 슬롯 4그룹) ----
+    JsonArray groups = d["groups"].to<JsonArray>();
+    {
+        struct ST_G { const char* n; uint8_t count; };
+        static const ST_G G_GR[] = {
+            { "slots",  C10_DEF::SLOT_BTN_COUNT },
+            { "flick",  C10_DEF::SLOT_FLICK_COUNT },
+            { "linear", C10_DEF::SLOT_LINEAR_COUNT },
+            { "tilt",   C10_DEF::SLOT_TILT_COUNT },
+        };
+        for (size_t i = 0; i < sizeof(G_GR)/sizeof(G_GR[0]); i++) {
+            JsonObject o = groups.add<JsonObject>();
+            o["name"]  = G_GR[i].n;
+            o["count"] = G_GR[i].count;
+        }
+    }
+
+    // ---- slots_meta (S1..S15 트리거 라벨) ----
+    JsonArray slotMeta = d["slots_meta"].to<JsonArray>();
+    {
+        struct ST_SM { const char* id; const char* label; const char* btn; const char* evt; };
+        static const ST_SM G_SM[] = {
+            { "S1",  "Top L Click",      "TOP_L",  "CLICK"  },
+            { "S2",  "Top L Double",     "TOP_L",  "DOUBLE" },
+            { "S3",  "Top L Long",       "TOP_L",  "LONG"   },
+            { "S4",  "Top M Click",      "TOP_M",  "CLICK"  },
+            { "S5",  "Top M Hold",       "TOP_M",  "HOLD"   },
+            { "S6",  "Top R Click",      "TOP_R",  "CLICK"  },
+            { "S7",  "Top R Double",     "TOP_R",  "DOUBLE" },
+            { "S8",  "Top R Long",       "TOP_R",  "LONG"   },
+            { "S9",  "Side F Click",     "SIDE_F", "CLICK"  },
+            { "S10", "Side F Long",      "SIDE_F", "LONG"   },
+            { "S11", "Side C Click",     "SIDE_C", "CLICK"  },
+            { "S12", "Side C Double",    "SIDE_C", "DOUBLE" },
+            { "S13", "Side C 2s Hold",   "SIDE_C", "HOLD_2S"},
+            { "S14", "Side R Click",     "SIDE_R", "CLICK"  },
+            { "S15", "Side R Long",      "SIDE_R", "LONG"   },
+        };
+        for (size_t i = 0; i < sizeof(G_SM)/sizeof(G_SM[0]); i++) {
+            JsonObject o = slotMeta.add<JsonObject>();
+            o["id"]    = G_SM[i].id;
+            o["label"] = G_SM[i].label;
+            o["btn"]   = G_SM[i].btn;
+            o["evt"]   = G_SM[i].evt;
+        }
+    }
+
+    d["api_ver"] = (uint16_t)400;
+    d["note"] = "v0400: mode slots (slots/flick/linear/tilt). "
+                "action_kinds + specials + directions for UI. "
+                "mods mask == HID modifier byte. "
+                "kb=usage-id(0x07), consumer=32-bit mask.";
+
     _sendOk(req, "keycodes", "", &d, 200);
 }

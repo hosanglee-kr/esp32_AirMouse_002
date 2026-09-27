@@ -164,5 +164,8 @@ void loop() {
         }
     }
 
+    // 6) BLE dirty → config 저장 (rare event, 200ms cadence)
+    g_e10.tickConfigSave();
+
     delay(200);
 }

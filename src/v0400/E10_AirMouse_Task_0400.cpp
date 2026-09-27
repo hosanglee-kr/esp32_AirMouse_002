@@ -115,6 +115,12 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
         // Move Gate 상태 읽기 (Top M Hold 중 true)
         const bool v_moveGateHeld = v_m->_moveGateHeld;
+        
+        // ====================================================
+        // [Phase 10] BLE tick (pairing timeout / auto-exit)
+        //   - 연결 판정은 _hid.isConnected() 재사용 (B20 중복 조회 회피)
+        // ====================================================
+        v_m->_ble.tick(v_m->_hid.isConnected());
 
         // ---- gyro raw + Zero-rate Bias Tracking ----
         const float v_gxRaw = v_g.gyro.x * RAD_TO_DEG;

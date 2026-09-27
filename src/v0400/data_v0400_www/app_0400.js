@@ -669,98 +669,410 @@ async function loadKeycodes(){
   return r.json;
 }
 
-/* ---------------- PPT ---------------- */
-function getPptPayload(){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
+/* ---------------- PPT (v0400 Mode Slots) ---------------- */
 
-  const map = {};
-  for(const k of Object.keys(rows)){
-    const r = rows[k];
-    const page = (r.page.value === "consumer") ? "consumer" : "kb";
-    const mod  = (page === "consumer") ? 0 : (parseIntFlex(r.mod.value, 0) & 0xFF);
-    const code = parseIntFlex(r.code.value, 0);
-    map[k] = { page, mod, code };
-  }
+let g_pptMode = 1;                 // 현재 편집 중인 Mode
+let g_pptData = null;              // {slots:[], flick:[], linear:[], tilt:[]}
+let g_pptMeta = null;              // /api/keycodes 응답 캐시
 
-  return {
-    save: qs("swPptSave")?.checked ?? true,
-    map
-  };
+// 슬롯 그룹 정의 (JS 상수)
+const PPT_GROUPS = [
+  { key: "slots",  label: "Button Slots", count: 15 },
+  { key: "flick",  label: "Flick",         count: 4  },
+  { key: "linear", label: "Linear",        count: 4  },
+  { key: "tilt",   label: "Tilt Hold (Mode 3)", count: 4 }
+];
+
+const PPT_DIR_NAMES = ["Left", "Right", "Up", "Down"];
+const PPT_DIR_KEYS  = ["L", "R", "U", "D"];
+
+// ---------------------------------------------------------------------------
+// 슬롯 kind 별 힌트 텍스트
+// ---------------------------------------------------------------------------
+function pptKindHint(kind){
+  const k = g_pptMeta?.action_kinds?.find(x => x.value === kind);
+  if(!k) return "";
+  const parts = [];
+  if(k.hasP16) parts.push(`p16=${k.p16hint ?? "?"}`);
+  if(k.hasP32) parts.push(`p32=${k.p32hint ?? "?"}`);
+  return parts.join(" · ");
 }
 
-function setPptForm(map){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
+// ---------------------------------------------------------------------------
+// 슬롯 하나 렌더링 (편집 UI)
+//   slot: {k, h, p16, p32}
+//   group / idx: 어느 위치인지
+// ---------------------------------------------------------------------------
+function pptRenderSlot(groupKey, idx, slot, slotLabel){
+  const kinds   = g_pptMeta?.action_kinds ?? [];
+  const specials= g_pptMeta?.specials ?? [];
+  const consumer= g_pptMeta?.consumer ?? [];
+  const kbList  = g_pptMeta?.kb ?? [];
+  const mods    = g_pptMeta?.mods ?? [];
 
-  for(const k of Object.keys(rows)){
-    const r = rows[k];
-    const m = map[k] || {};
-    if(r.page) r.page.value = (m.page === "consumer") ? "consumer" : "kb";
-    if(r.mod)  r.mod.value  = String(m.mod ?? 0);
-    if(r.code) r.code.value = (m.code !== undefined && m.code !== null) ? String(m.code) : "0";
-    syncPptRowHints(r);
+  const el = document.createElement("div");
+  el.className = "ppt-slot";
+  el.dataset.group = groupKey;
+  el.dataset.idx = String(idx);
+
+  // 좌측: 트리거 라벨
+  const lbl = document.createElement("div");
+  lbl.className = "ppt-slot-lbl";
+  lbl.textContent = slotLabel;
+  el.appendChild(lbl);
+
+  // kind select
+  const selKind = document.createElement("select");
+  selKind.className = "select mini ppt-kind";
+  selKind.innerHTML = "";
+  for(const k of kinds){
+    const opt = document.createElement("option");
+    opt.value = String(k.value);
+    opt.textContent = k.name;
+    selKind.appendChild(opt);
+  }
+  selKind.value = String(slot.k ?? 0);
+  el.appendChild(selKind);
+
+  // 파라미터 컨테이너 (kind에 따라 내용 바뀜)
+  const pWrap = document.createElement("div");
+  pWrap.className = "ppt-slot-params";
+  el.appendChild(pWrap);
+
+  // 힌트
+  const hint = document.createElement("div");
+  hint.className = "ppt-slot-hint hint2";
+  el.appendChild(hint);
+
+  // 파라미터 렌더
+  function renderParams(){
+    const kind = parseIntFlex(selKind.value, 0);
+    pWrap.innerHTML = "";
+
+    const kMeta = kinds.find(x => x.value === kind);
+    const hasP16 = !!kMeta?.hasP16;
+    const hasP32 = !!kMeta?.hasP32;
+
+    // ---- kind별 특수 UI ----
+    if(kind === 4 || kind === 6){ // KB_TAP / KB_REPEAT
+      // mod select + usage input (datalist)
+      const selMod = document.createElement("select");
+      selMod.className = "select mini ppt-mod";
+      selMod.innerHTML = `<option value="0">None</option>`;
+      for(const m of mods){
+        const o = document.createElement("option");
+        o.value = String(m.mask);
+        o.textContent = `${m.name} (0x${Number(m.mask).toString(16)})`;
+        selMod.appendChild(o);
+      }
+      selMod.value = String((slot.p32 ?? 0) & 0xFF);
+      pWrap.appendChild(selMod);
+
+      const inpUsage = document.createElement("input");
+      inpUsage.className = "inp mini ppt-usage";
+      inpUsage.setAttribute("list", "dlKb");
+      inpUsage.placeholder = "usage";
+      inpUsage.value = (slot.p16 !== undefined) ? String(slot.p16) : "";
+      pWrap.appendChild(inpUsage);
+
+      slot._modSel = selMod;
+      slot._usageInp = inpUsage;
+
+    } else if(kind === 5){ // KB_COMBO (p32에 mod|u1|u2|u3)
+      const p32 = slot.p32 ?? 0;
+      const cmod = p32 & 0xFF;
+      const u1 = (p32 >>> 8) & 0xFF;
+      const u2 = (p32 >>> 16) & 0xFF;
+      const u3 = (p32 >>> 24) & 0xFF;
+
+      const selMod = document.createElement("select");
+      selMod.className = "select mini ppt-mod";
+      selMod.innerHTML = `<option value="0">None</option>`;
+      for(const m of mods){
+        const o = document.createElement("option");
+        o.value = String(m.mask);
+        o.textContent = `${m.name} (0x${Number(m.mask).toString(16)})`;
+        selMod.appendChild(o);
+      }
+      selMod.value = String(cmod);
+      pWrap.appendChild(selMod);
+
+      for(const [name, val] of [["u1", u1], ["u2", u2], ["u3", u3]]){
+        const inp = document.createElement("input");
+        inp.className = "inp mini ppt-combo";
+        inp.setAttribute("list", "dlKb");
+        inp.placeholder = name;
+        inp.value = (val !== 0) ? String(val) : "";
+        inp.dataset.slot = name;
+        pWrap.appendChild(inp);
+      }
+      slot._modSel = selMod;
+      slot._comboInps = pWrap.querySelectorAll(".ppt-combo");
+
+    } else if(kind === 7 || kind === 8){ // CONSUMER_TAP / REPEAT
+      const sel = document.createElement("select");
+      sel.className = "select mini ppt-consumer";
+      sel.innerHTML = `<option value="0">None</option>`;
+      for(const c of consumer){
+        const o = document.createElement("option");
+        o.value = String(c.mask >>> 0);
+        o.textContent = `${c.name} (0x${(c.mask >>> 0).toString(16)})`;
+        sel.appendChild(o);
+      }
+      sel.value = String((slot.p32 ?? 0) >>> 0);
+      pWrap.appendChild(sel);
+      slot._consumerSel = sel;
+
+    } else if(kind === 9){ // SPECIAL
+      const sel = document.createElement("select");
+      sel.className = "select mini ppt-special";
+      sel.innerHTML = "";
+      for(const s of specials){
+        const o = document.createElement("option");
+        o.value = String(s.value);
+        o.textContent = s.name;
+        sel.appendChild(o);
+      }
+      sel.value = String(slot.p16 ?? 0);
+      pWrap.appendChild(sel);
+      slot._specialSel = sel;
+
+    } else if(kind === 3){ // MOUSE_WHEEL (p16: axis|dir)
+      const p16 = slot.p16 ?? 0;
+      const axis = (p16 >>> 8) & 0xFF;
+      const dir  = p16 & 0xFF;
+
+      const selAxis = document.createElement("select");
+      selAxis.className = "select mini ppt-axis";
+      selAxis.innerHTML = `
+        <option value="0">Y (수직)</option>
+        <option value="1">X (수평/AC Pan)</option>`;
+      selAxis.value = String(axis);
+      pWrap.appendChild(selAxis);
+
+      const selDir = document.createElement("select");
+      selDir.className = "select mini ppt-dir";
+      selDir.innerHTML = `
+        <option value="0">Up / Left</option>
+        <option value="1">Down / Right</option>`;
+      selDir.value = String(dir);
+      pWrap.appendChild(selDir);
+      slot._axisSel = selAxis;
+      slot._dirSel  = selDir;
+
+    } else if(kind === 1 || kind === 2){ // MOUSE_CLICK / HOLD (mask)
+      const sel = document.createElement("select");
+      sel.className = "select mini ppt-mask";
+      sel.innerHTML = `
+        <option value="0">None</option>
+        <option value="1">Left</option>
+        <option value="2">Right</option>
+        <option value="4">Middle</option>
+        <option value="8">Back</option>
+        <option value="16">Forward</option>`;
+      sel.value = String(slot.p16 ?? 0);
+      pWrap.appendChild(sel);
+      slot._maskSel = sel;
+
+    } else {
+      // NONE or 기타: p16/p32 숫자 입력
+      if(hasP16){
+        const inp = document.createElement("input");
+        inp.className = "inp mini ppt-p16";
+        inp.type = "number";
+        inp.placeholder = "p16";
+        inp.value = (slot.p16 !== undefined) ? String(slot.p16) : "";
+        pWrap.appendChild(inp);
+        slot._p16Inp = inp;
+      }
+      if(hasP32){
+        const inp = document.createElement("input");
+        inp.className = "inp mini ppt-p32";
+        inp.type = "number";
+        inp.placeholder = "p32";
+        inp.value = (slot.p32 !== undefined) ? String(slot.p32) : "";
+        pWrap.appendChild(inp);
+        slot._p32Inp = inp;
+      }
+    }
+
+    hint.textContent = pptKindHint(kind);
+
+    // kind 변경 시 재귀
+    selKind.onchange = () => {
+      // 초기화
+      slot.k = parseIntFlex(selKind.value, 0);
+      slot.h = 0;
+      slot.p16 = 0;
+      slot.p32 = 0;
+      renderParams();
+    };
   }
 
-  const el = qs("pptJson");
-  if(el) el.textContent = pretty({ map });
+  // 초기 렌더
+  renderParams();
+
+  return el;
 }
 
-async function pptReload(){
-  const r = await apiGet("/api/ppt");
+// ---------------------------------------------------------------------------
+// 슬롯 하나 → 현재 값 수집
+// ---------------------------------------------------------------------------
+function pptCollectSlot(groupKey, idx){
+  const el = qs("pptEditor").querySelector(
+    `.ppt-slot[data-group="${groupKey}"][data-idx="${idx}"]`);
+  if(!el) return null;
+
+  const selKind = el.querySelector(".ppt-kind");
+  const kind = parseIntFlex(selKind.value, 0);
+
+  let p16 = 0, p32 = 0;
+
+  if(kind === 1 || kind === 2){
+    const s = el.querySelector(".ppt-mask");
+    p16 = parseIntFlex(s?.value, 0);
+  } else if(kind === 3){
+    const a = parseIntFlex(el.querySelector(".ppt-axis")?.value, 0);
+    const d = parseIntFlex(el.querySelector(".ppt-dir")?.value, 0);
+    p16 = (a << 8) | (d & 0xFF);
+  } else if(kind === 4 || kind === 6){
+    const m = parseIntFlex(el.querySelector(".ppt-mod")?.value, 0);
+    const u = parseIntFlex(el.querySelector(".ppt-usage")?.value, 0);
+    p16 = u & 0xFF;
+    p32 = m & 0xFF;
+  } else if(kind === 5){
+    const m = parseIntFlex(el.querySelector(".ppt-mod")?.value, 0);
+    const inps = el.querySelectorAll(".ppt-combo");
+    const u1 = parseIntFlex(inps[0]?.value, 0) & 0xFF;
+    const u2 = parseIntFlex(inps[1]?.value, 0) & 0xFF;
+    const u3 = parseIntFlex(inps[2]?.value, 0) & 0xFF;
+    p32 = (m & 0xFF) | (u1 << 8) | (u2 << 16) | (u3 << 24);
+  } else if(kind === 7 || kind === 8){
+    const c = parseIntFlex(el.querySelector(".ppt-consumer")?.value, 0);
+    p32 = c >>> 0;
+  } else if(kind === 9){
+    p16 = parseIntFlex(el.querySelector(".ppt-special")?.value, 0);
+  } else {
+    const i16 = el.querySelector(".ppt-p16");
+    const i32 = el.querySelector(".ppt-p32");
+    if(i16) p16 = parseIntFlex(i16.value, 0);
+    if(i32) p32 = parseIntFlex(i32.value, 0);
+  }
+
+  return { k: kind, h: 0, p16, p32 };
+}
+
+// ---------------------------------------------------------------------------
+// 편집기 렌더
+// ---------------------------------------------------------------------------
+function pptRenderEditor(){
+  const wrap = qs("pptEditor");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+
+  if(!g_pptData){
+    wrap.innerHTML = `<div class="hint2">No data.</div>`;
+    return;
+  }
+
+  // 그룹 순회
+  for(const g of PPT_GROUPS){
+    const arr = g_pptData[g.key] ?? [];
+
+    const gHead = document.createElement("div");
+    gHead.className = "ppt-group-head";
+    gHead.textContent = g.label;
+    wrap.appendChild(gHead);
+
+    for(let i = 0; i < g.count; i++){
+      const slot = arr[i] ?? { k: 0, h: 0, p16: 0, p32: 0 };
+      let slotLabel;
+
+      if(g.key === "slots"){
+        const meta = g_pptMeta?.slots_meta?.[i];
+        slotLabel = meta ? `${meta.id}: ${meta.label}` : `S${i+1}`;
+      } else {
+        // flick/linear/tilt: 방향 라벨
+        const dirName = PPT_DIR_NAMES[i] ?? `#${i}`;
+        slotLabel = dirName;
+      }
+
+      const el = pptRenderSlot(g.key, i, slot, slotLabel);
+      wrap.appendChild(el);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 서버 → 폼
+// ---------------------------------------------------------------------------
+async function pptReload(modeOverride){
+  const mode = modeOverride ?? g_pptMode;
+  const r = await apiGet(`/api/ppt?mode=${mode}`);
   if(!r.ok || !r.json){
     alert("ppt load failed");
     return;
   }
-  setPptForm(r.json.map || {});
+
+  g_pptData = {
+    slots:  r.json.slots  ?? [],
+    flick:  r.json.flick  ?? [],
+    linear: r.json.linear ?? [],
+    tilt:   r.json.tilt   ?? []
+  };
+  g_pptMode = (r.json.mode >= 1 && r.json.mode <= 3) ? r.json.mode : mode;
+
+  // Mode 탭 상태 갱신
+  qsa(".mode-tab").forEach(b => {
+    b.classList.toggle("on", String(b.dataset.mode) === String(g_pptMode));
+  });
+
+  pptRenderEditor();
+
+  const jsonEl = qs("pptJson");
+  if(jsonEl) jsonEl.textContent = pretty(r.json);
 }
 
+// ---------------------------------------------------------------------------
+// 폼 → 서버
+// ---------------------------------------------------------------------------
 async function pptSave(){
-  const payload = getPptPayload();
-  const r = await apiPostJson("/api/ppt", payload);
+  if(!g_pptData) { alert("Load first"); return; }
+
+  const payload = {
+    save: qs("swPptSave")?.checked ?? true,
+    slots: [], flick: [], linear: [], tilt: []
+  };
+
+  for(const g of PPT_GROUPS){
+    for(let i = 0; i < g.count; i++){
+      const s = pptCollectSlot(g.key, i);
+      payload[g.key].push(s ?? { k: 0, h: 0, p16: 0, p32: 0 });
+    }
+  }
+
+  const r = await apiPostJson(`/api/ppt?mode=${g_pptMode}`, payload);
   if(!r.ok){
-    alert("ppt save failed: " + (r.json?.err || r.text));
+    alert("ppt save failed: " + (r.json?.msg || r.text));
     return;
   }
   await pptReload();
 }
 
-async function pptTest(action){
-  const rows = {
-    start: bindPptRow("pptStart"),
-    exit:  bindPptRow("pptExit"),
-    next:  bindPptRow("pptNext"),
-    prev:  bindPptRow("pptPrev"),
-    black: bindPptRow("pptBlack"),
-    laser: bindPptRow("pptLaser"),
-  };
+// ---------------------------------------------------------------------------
+// 기본값 복원 (Mode별)
+// ---------------------------------------------------------------------------
+async function pptResetDefaults(){
+  if(!confirm(`Mode ${g_pptMode} 슬롯을 기본값으로 되돌릴까요? (저장됨)`)) return;
 
-  const r = rows[action];
-  const page = (r.page.value === "consumer") ? "consumer" : "kb";
-
-  const payload = {
-    page,
-    mod: (page === "consumer") ? 0 : (parseIntFlex(r.mod.value, 0) & 0xFF),
-    code: parseIntFlex(r.code.value, 0),
-  };
-
-  const res = await apiPostJson("/api/ppt/test", payload);
-  if(!res.ok){
-    alert("test failed: " + (res.json?.err || res.text));
-  }
+  // 서버 config는 유지하고, 서버가 기본값을 모르므로 클라이언트에서 강제 세팅
+  // → 대신 Mode 전체를 default로 보내는 대신, 서버의 기본값을 사용하고 싶으면
+  //   /api/config/rollback 후 재로드가 정석. 여기선 단순히 "재로드" 안내만.
+  alert("기본값 복원은 /api/config/rollback 또는 factory_reset 사용을 권장합니다.");
 }
+
+
+
 
 /* ---------------- Control ---------------- */
 async function ctlSetPpt(enable){
@@ -1245,10 +1557,16 @@ function bindUi(){
   qs("btnForceRelease")?.addEventListener("click", ctlForceRelease);
   qs("btnI2cRecover")?.addEventListener("click", ctlI2cRecover);
 
-  qs("btnPptReload")?.addEventListener("click", pptReload);
+  qs("btnPptReload")?.addEventListener("click", () => pptReload());
   qs("btnPptSave")?.addEventListener("click", pptSave);
-  qsa("button[data-test]").forEach(b => {
-    b.addEventListener("click", () => pptTest(b.getAttribute("data-test")));
+  qs("btnPptReset")?.addEventListener("click", pptResetDefaults);
+  
+  // Mode 탭 클릭
+  qsa(".mode-tab").forEach(b => {
+    b.addEventListener("click", () => {
+      const m = parseIntFlex(b.dataset.mode, 1);
+      if (m >= 1 && m <= 3) pptReload(m);
+    });
   });
 
   qs("btnOta")?.addEventListener("click", otaUpload);
