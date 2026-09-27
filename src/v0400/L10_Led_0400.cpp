@@ -6,14 +6,13 @@
 // =======================================================
 // ctor / dtor
 // =======================================================
-CL_L10_Led::CL_L10_Led() {
-    memset(&_strip, 0, sizeof(_strip));
-}
+CL_L10_Led::CL_L10_Led() {}
 
 CL_L10_Led::~CL_L10_Led() {
     if (_strip) {
-        led_strip_clear(_strip);
-        led_strip_del(_strip);
+        _strip->clear();
+        _strip->show();
+        delete _strip;
         _strip = nullptr;
     }
 }
@@ -24,42 +23,26 @@ CL_L10_Led::~CL_L10_Led() {
 void CL_L10_Led::begin(uint8_t p_brightness) {
     _brightness = p_brightness;
 
-    led_strip_config_t v_stripCfg = {
-        .strip_gpio_num = G_L10_PIN,
-        .max_leds       = 1,
-        .led_model      = LED_MODEL_WS2812,
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-        .flags = {
-            .invert_out = false,
-        }
-    };
-
-    led_strip_rmt_config_t v_rmtCfg = {
-        .clk_src           = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz     = 10 * 1000 * 1000,   // 10MHz
-        .mem_block_symbols = 64,
-        .flags = {
-            .with_dma = 0,
-        }
-    };
-
-    esp_err_t v_err = led_strip_new_rmt_device(&v_stripCfg, &v_rmtCfg, &_strip);
-    if (v_err != ESP_OK || !_strip) {
-        _strip = nullptr;
+    // NEO_GRB + NEO_KHZ800 = WS2812 표준
+    // ESP32-S3에서는 Adafruit_NeoPixel이 내부적으로 RMT 사용
+    _strip = new Adafruit_NeoPixel(1, G_L10_PIN, NEO_GRB + NEO_KHZ800);
+    if (!_strip) {
         _state = EN_L10_ST_OFF;
         return;
     }
 
-    led_strip_clear(_strip);
-    _state     = EN_L10_ST_OFF;
-    _baseColor = EN_L10_COLOR_OFF;
-    _evtColor  = EN_L10_COLOR_OFF;
-    _lastTickMs = (uint32_t)millis();
+    _strip->begin();
+    _strip->setBrightness(255);   // 밝기는 우리가 _apply에서 스케일링
+    _strip->clear();
+    _strip->show();
+
+    _state      = EN_L10_ST_OFF;
+    _baseColor  = EN_L10_COLOR_OFF;
+    _evtColor   = EN_L10_COLOR_OFF;
 }
 
 void CL_L10_Led::setBrightness(uint8_t p_b) {
     _brightness = p_b;
-    // IDLE이면 즉시 반영
     if (_state == EN_L10_ST_IDLE) _applyBase();
 }
 
@@ -103,29 +86,22 @@ void CL_L10_Led::tick() {
     if (!_strip) return;
 
     const uint32_t v_now = (uint32_t)millis();
-    _lastTickMs = v_now;
 
     switch (_state) {
-        // -------------------------------------------------
         case EN_L10_ST_IDLE:
-            // 변화 없음. base 색 유지.
             break;
 
-        // -------------------------------------------------
         case EN_L10_ST_FLASH:
             if ((v_now - _stateStartMs) >= _stateDurMs) {
                 _enterIdle(v_now);
             }
             break;
 
-        // -------------------------------------------------
         case EN_L10_ST_BLINK: {
-            // duration 만료 시 IDLE
             if (_stateDurMs > 0 && (v_now - _stateStartMs) >= _stateDurMs) {
                 _enterIdle(v_now);
                 break;
             }
-            // 반주기마다 toggle
             const uint32_t v_elapsed = v_now - _stateStartMs;
             const uint16_t v_half    = (_blinkPeriodMs > 0) ? (_blinkPeriodMs / 2) : 0;
             if (v_half == 0) break;
@@ -139,7 +115,6 @@ void CL_L10_Led::tick() {
             break;
         }
 
-        // -------------------------------------------------
         case EN_L10_ST_FADEOUT: {
             if (_stateDurMs == 0) {
                 _enterOff();
@@ -150,13 +125,11 @@ void CL_L10_Led::tick() {
                 _enterOff();
                 break;
             }
-            // scale: 255 → 0
             const uint32_t v_scale = 255u - (uint32_t)(255u * v_elapsed / _stateDurMs);
             _apply(_evtColor, (uint8_t)v_scale);
             break;
         }
 
-        // -------------------------------------------------
         case EN_L10_ST_OFF:
             break;
 
@@ -194,8 +167,8 @@ void CL_L10_Led::_apply(EN_L10_Color_t p_color, uint8_t p_scale) {
     v_g = (uint8_t)(((uint32_t)v_g * v_b * v_s) / (255u * 255u));
     v_b = (uint8_t)(((uint32_t)v_b * v_b * v_s) / (255u * 255u));
 
-    led_strip_set_pixel(_strip, 0, v_r, v_g, v_b);
-    led_strip_refresh(_strip);
+    _strip->setPixelColor(0, _strip->Color(v_r, v_g, v_b));
+    _strip->show();
 }
 
 void CL_L10_Led::_applyBase() {
@@ -206,11 +179,11 @@ void CL_L10_Led::_applyBase() {
 // 내부: 상태 진입
 // =======================================================
 void CL_L10_Led::_enterIdle(uint32_t p_now) {
-    _state        = EN_L10_ST_IDLE;
-    _stateStartMs = p_now;
-    _stateDurMs   = 0;
+    _state         = EN_L10_ST_IDLE;
+    _stateStartMs  = p_now;
+    _stateDurMs    = 0;
     _blinkPeriodMs = 0;
-    _blinkOn      = true;
+    _blinkOn       = true;
     _applyBase();
 }
 
@@ -223,12 +196,12 @@ void CL_L10_Led::_enterFlash(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now) 
 }
 
 void CL_L10_Led::_enterBlink(EN_L10_Color_t p_c, uint16_t p_period, uint16_t p_dur, uint32_t p_now) {
-    _state          = EN_L10_ST_BLINK;
-    _evtColor       = p_c;
-    _stateStartMs   = p_now;
-    _stateDurMs     = p_dur;
-    _blinkPeriodMs  = (p_period < 20) ? 20 : p_period;
-    _blinkOn        = true;
+    _state         = EN_L10_ST_BLINK;
+    _evtColor      = p_c;
+    _stateStartMs  = p_now;
+    _stateDurMs    = p_dur;
+    _blinkPeriodMs = (p_period < 20) ? 20 : p_period;
+    _blinkOn       = true;
     _apply(_evtColor, 255);
 }
 
