@@ -23,22 +23,22 @@ CL_L10_Led::~CL_L10_Led() {
 void CL_L10_Led::begin(uint8_t p_brightness) {
     _brightness = p_brightness;
 
-    // NEO_GRB + NEO_KHZ800 = WS2812 표준
-    // ESP32-S3에서는 Adafruit_NeoPixel이 내부적으로 RMT 사용
-    _strip = new Adafruit_NeoPixel(1, G_L10_PIN, NEO_GRB + NEO_KHZ800);
+    // Adafruit_NeoPixel: (numLEDs, pin, type)
+    // 단일 LED, GRB, 800kHz
+    _strip = new (std::nothrow) Adafruit_NeoPixel(1, G_L10_PIN, NEO_GRB + NEO_KHZ800);
     if (!_strip) {
         _state = EN_L10_ST_OFF;
         return;
     }
 
     _strip->begin();
-    _strip->setBrightness(255);   // 밝기는 우리가 _apply에서 스케일링
     _strip->clear();
     _strip->show();
 
     _state      = EN_L10_ST_OFF;
     _baseColor  = EN_L10_COLOR_OFF;
     _evtColor   = EN_L10_COLOR_OFF;
+    _lastTickMs = (uint32_t)millis();
 }
 
 void CL_L10_Led::setBrightness(uint8_t p_b) {
@@ -86,6 +86,7 @@ void CL_L10_Led::tick() {
     if (!_strip) return;
 
     const uint32_t v_now = (uint32_t)millis();
+    _lastTickMs = v_now;
 
     switch (_state) {
         case EN_L10_ST_IDLE:
@@ -116,15 +117,9 @@ void CL_L10_Led::tick() {
         }
 
         case EN_L10_ST_FADEOUT: {
-            if (_stateDurMs == 0) {
-                _enterOff();
-                break;
-            }
+            if (_stateDurMs == 0) { _enterOff(); break; }
             const uint32_t v_elapsed = v_now - _stateStartMs;
-            if (v_elapsed >= _stateDurMs) {
-                _enterOff();
-                break;
-            }
+            if (v_elapsed >= _stateDurMs) { _enterOff(); break; }
             const uint32_t v_scale = 255u - (uint32_t)(255u * v_elapsed / _stateDurMs);
             _apply(_evtColor, (uint8_t)v_scale);
             break;
@@ -156,18 +151,18 @@ void CL_L10_Led::_rgbOf(EN_L10_Color_t p_c, uint8_t& p_r, uint8_t& p_g, uint8_t&
 void CL_L10_Led::_apply(EN_L10_Color_t p_color, uint8_t p_scale) {
     if (!_strip) return;
 
-    uint8_t v_r = 0, v_g = 0, v_b = 0;
-    _rgbOf(p_color, v_r, v_g, v_b);
+    uint8_t v_r = 0, v_g = 0, v_bl = 0;
+    _rgbOf(p_color, v_r, v_g, v_bl);
 
     // 밝기 × 추가 스케일 (0~255)
-    const uint32_t v_b = (uint32_t)_brightness;
-    const uint32_t v_s = (uint32_t)p_scale;
+    const uint32_t v_br  = (uint32_t)_brightness;
+    const uint32_t v_scl = (uint32_t)p_scale;
 
-    v_r = (uint8_t)(((uint32_t)v_r * v_b * v_s) / (255u * 255u));
-    v_g = (uint8_t)(((uint32_t)v_g * v_b * v_s) / (255u * 255u));
-    v_b = (uint8_t)(((uint32_t)v_b * v_b * v_s) / (255u * 255u));
+    const uint8_t v_outR = (uint8_t)(((uint32_t)v_r  * v_br * v_scl) / (255u * 255u));
+    const uint8_t v_outG = (uint8_t)(((uint32_t)v_g  * v_br * v_scl) / (255u * 255u));
+    const uint8_t v_outB = (uint8_t)(((uint32_t)v_bl * v_br * v_scl) / (255u * 255u));
 
-    _strip->setPixelColor(0, _strip->Color(v_r, v_g, v_b));
+    _strip->setPixelColor(0, v_outR, v_outG, v_outB);
     _strip->show();
 }
 

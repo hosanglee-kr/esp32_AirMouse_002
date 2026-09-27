@@ -6,27 +6,32 @@
  * ------------------------------------------------------
  * 소스명 : L10_Led_0400.h
  * 모듈약어 : L10
- * 모듈명 : WS2812 LED Controller (단일, Adafruit_NeoPixel)
+ * 모듈명 : WS2812 LED Controller (단일, Adafruit NeoPixel)
  * ------------------------------------------------------
  * 기능 요약
- *  - 단일 WS2812 (Adafruit_NeoPixel, ESP32-S3 RMT 백엔드)
+ *  - 단일 WS2812 (Adafruit_NeoPixel)
  *  - Mode 색상 / Flash / Blink / Fadeout / Off
  *  - 사용자 밝기 (0~255)
- *  - 비동기 상태머신 (tick 기반, 50ms)
+ *  - 비동기 상태머신 (tick 기반, 50ms 권장)
  *
  * [상태머신]
- *   IDLE    : base 색 상시 점등
- *   FLASH   : 단발 점등 (사용자 액션 피드백)
- *   BLINK   : 주기적 on/off (페어링 대기)
- *   FADEOUT : 밝기 감소 후 off (슬립 진입)
- *   OFF     : 완전 off
+ *   IDLE    : base 색 (Mode 색) 상시 점등
+ *   FLASH   : 짧은 단발 점등
+ *   BLINK   : 주기적 on/off
+ *   FADEOUT : 밝기 감소 후 off
  *
  * [GPIO]
  *   G_L10_PIN = 21
  * ------------------------------------------------------
+ * [구현 규칙]
+ *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
+ *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - memset + strlcpy 기반 안전 초기화
+ * ------------------------------------------------------
  */
 
 #include <Arduino.h>
+#include <string.h>
 #include <Adafruit_NeoPixel.h>
 
 // -------------------------------------------------------
@@ -86,6 +91,8 @@ class CL_L10_Led {
     uint16_t _stateDurMs     = 0;
     uint16_t _blinkPeriodMs  = 0;
     bool     _blinkOn        = false;
+
+    uint32_t _lastTickMs     = 0;
 
     static void _rgbOf(EN_L10_Color_t p_c, uint8_t& p_r, uint8_t& p_g, uint8_t& p_b);
     void _apply(EN_L10_Color_t p_color, uint8_t p_scale);
