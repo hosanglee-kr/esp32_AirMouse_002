@@ -86,25 +86,6 @@ function fillSelect(el, items, valueKey, labelKey){
   }
 }
 
-function fillPageSelect(el){
-  if(!el) return;
-  el.innerHTML = "";
-  for(const it of [{v:"kb", t:"kb"}, {v:"consumer", t:"consumer"}]){
-    const opt = document.createElement("option");
-    opt.value = it.v;
-    opt.textContent = it.t;
-    el.appendChild(opt);
-  }
-}
-
-function bindPptRow(prefix){
-  return {
-    page: qs(prefix + "Page"),
-    mod:  qs(prefix + "Mod"),
-    code: qs(prefix + "Code")
-  };
-}
-
 let g_keycodes = null;
 let g_config = null;
 let g_lastWifiFingerprint = "";
@@ -601,41 +582,18 @@ function buildDatalist(dlEl, items, kind){
   }
 }
 
-function syncPptRowHints(row){
-  if(!row || !row.page || !row.mod || !row.code) return;
-
-  const isConsumer = (row.page.value === "consumer");
-  if(isConsumer){
-    row.mod.value = "0";
-    row.mod.disabled = true;
-    row.code.setAttribute("list", "dlConsumer");
-  }else{
-    row.mod.disabled = false;
-    row.code.setAttribute("list", "dlKb");
-  }
-}
-
 async function loadKeycodes(){
   const r = await apiGet("/api/keycodes");
   if(!r.ok || !r.json) throw new Error("keycodes load failed");
-
+  
   g_keycodes = r.json;
+  g_pptMeta = r.json; 
 
   const mods = r.json.mods || [];
   const modItems = mods.map(m => ({
     mask:m.mask,
     name:`${m.name} (0x${Number(m.mask).toString(16)})`
   }));
-
-  const modSelects = ["pptStartMod","pptExitMod","pptNextMod","pptPrevMod","pptBlackMod","pptLaserMod"];
-  for(const id of modSelects){
-    fillSelect(qs(id), modItems, "mask", "name");
-  }
-
-  const pageSelects = ["pptStartPage","pptExitPage","pptNextPage","pptPrevPage","pptBlackPage","pptLaserPage"];
-  for(const id of pageSelects){
-    fillPageSelect(qs(id));
-  }
 
   const pmRaw = r.json.precision_modes || [];
   const pmItems = pmRaw.map(x => ({
@@ -649,22 +607,6 @@ async function loadKeycodes(){
 
   buildDatalist(qs("dlKb"), r.json.kb || [], "kb");
   buildDatalist(qs("dlConsumer"), r.json.consumer || [], "consumer");
-
-  const rows = [
-    bindPptRow("pptStart"),
-    bindPptRow("pptExit"),
-    bindPptRow("pptNext"),
-    bindPptRow("pptPrev"),
-    bindPptRow("pptBlack"),
-    bindPptRow("pptLaser"),
-  ];
-
-  for(const row of rows){
-    syncPptRowHints(row);
-    if(row.page){
-      row.page.addEventListener("change", () => syncPptRowHints(row));
-    }
-  }
 
   return r.json;
 }
@@ -779,7 +721,7 @@ function pptRenderSlot(groupKey, idx, slot, slotLabel){
       slot._usageInp = inpUsage;
 
     } else if(kind === 5){ // KB_COMBO (p32에 mod|u1|u2|u3)
-      const p32 = slot.p32 ?? 0;
+      const p32 = (slot.p32 ?? 0) >>> 0;
       const cmod = p32 & 0xFF;
       const u1 = (p32 >>> 8) & 0xFF;
       const u2 = (p32 >>> 16) & 0xFF;
@@ -946,7 +888,7 @@ function pptCollectSlot(groupKey, idx){
     const u1 = parseIntFlex(inps[0]?.value, 0) & 0xFF;
     const u2 = parseIntFlex(inps[1]?.value, 0) & 0xFF;
     const u3 = parseIntFlex(inps[2]?.value, 0) & 0xFF;
-    p32 = (m & 0xFF) | (u1 << 8) | (u2 << 16) | (u3 << 24);
+    p32 = ((m & 0xFF) | (u1 << 8) | (u2 << 16) | (u3 << 24)) >>> 0;
   } else if(kind === 7 || kind === 8){
     const c = parseIntFlex(el.querySelector(".ppt-consumer")?.value, 0);
     p32 = c >>> 0;
@@ -1231,6 +1173,9 @@ function uiToConfig(){
 
   cfg.e10.scroll_cursor_damp = parseNum(qs("scrollDamp").value, 0.25);
 
+  // LED 밝기
+  cfg.e10.led_brightness = parseNum(qs("ledBrightness").value, 128);
+
   // [J-4] enable 제거, [J-4b] mode 경로
   cfg.e10.precision.mode = parseIntFlex(qs("precMode").value, 0);
   cfg.e10.precision.deadzone = parseNum(qs("precDeadzone").value, 1.2);
@@ -1274,6 +1219,8 @@ function configToUi(cfg){
 
   qs("accelThreshold").value = String(cfg.e10.accel_threshold ?? 8.0);
   qs("scrollDamp").value = String(cfg.e10.scroll_cursor_damp ?? 0.25);
+
+  qs("ledBrightness").value = String(cfg.e10.led_brightness ?? 128);
 
   qs("wheelTh").value = String(cfg.e10.wheel.threshold_deg ?? 90.0);
   qs("wheelStepMax").value = String(cfg.e10.wheel.step_max ?? 6);
@@ -1588,7 +1535,7 @@ function bindUi(){
   // [J-4] precEnable 제거
   const watchIds = [
     "wifiMode","staSsid","staPass","apSsid","apPass","mdnsHost",
-    "e10Dpi","e10HardClick","accelThreshold","scrollDamp",
+    "e10Dpi","e10HardClick","ledBrightness","accelThreshold","scrollDamp",
     "sb0","sb1","sb2","ag0","ag1","ag2","wheelTh","wheelStepMax","flickDeg","cooldownMs",
     "precMode","precDeadzone","precGain","precAccel","precMaxStep","precSmooth",
     "precEntryMs","precExitMs","precEntryStill","precExitMove","precProfile"

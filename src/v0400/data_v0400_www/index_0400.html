@@ -52,9 +52,16 @@
         <div class="kv"><div class="k">mDNS</div><div class="v" id="stMdns">-</div></div>
       </div>
       <div class="row">
+        <div class="kv"><div class="k">DPI</div><div class="v" id="stDpi">-</div></div>
         <div class="kv"><div class="k">PPT Mode</div><div class="v" id="stPptMode">-</div></div>
         <div class="kv"><div class="k">Precision</div><div class="v" id="stPrec">-</div></div>
       </div>
+      <div class="row">
+        <div class="kv"><div class="k">Cursor RMS</div><div class="v" id="stCursorRms">-</div></div>
+        <div class="kv"><div class="k">Temp</div><div class="v" id="stTemp">-</div></div>
+        <div class="kv"><div class="k">Sampling</div><div class="v" id="stSampling">-</div></div>
+      </div>
+
 
       <div class="sep"></div>
 
@@ -75,11 +82,26 @@
       <div class="sep"></div>
 
       <div class="row">
+        <span class="flbl">DPI</span>
+        <button class="btn mini" id="btnDpi1">1</button>
+        <button class="btn mini" id="btnDpi2">2</button>
+        <button class="btn mini" id="btnDpi3">3</button>
+        
+        <span style="margin-left:16px"></span>
+        
+        <button class="btn" id="btnGyroCalib">자이로 캘리브</button>
+        <button class="btn" id="btnForceRelease">강제 릴리즈</button>
+        <button class="btn" id="btnI2cRecover">I2C 복구</button>
+      </div>
+      
+      <div class="sep"></div>
+
+      <div class="row">
         <button class="btn" id="btnSafeInfo">SafeBoot 상태</button>
         <button class="btn" id="btnSafeExit">SafeBoot 해제</button>
         <button class="btn danger" id="btnFactory">Factory Reset</button>
       </div>
-
+      
       <pre class="log" id="statusJson">loading...</pre>
     </section>
 
@@ -332,6 +354,7 @@
         <span style="margin-left:auto"></span>
         <button class="btn" id="btnPptReload">로드</button>
         <button class="btn primary" id="btnPptSave">저장</button>
+        <button class="btn" id="btnPptReset">기본값 안내</button>
         <label class="switch">
           <input type="checkbox" id="swPptSave" checked>
           <span class="slider"></span>
@@ -369,7 +392,12 @@
       <div class="row" id="diagCounters" style="flex-wrap:wrap; gap:8px;"></div>
 
       <div class="sep"></div>
-      <div class="hint2">Recent events (newest first)</div>
+      <div class="hint2">E10 Hardware Errors (newest first)</div>
+      <div class="log" id="diagErrHist" style="max-height:180px; overflow:auto; padding:10px;"></div>
+      
+      <div class="sep"></div>
+      <div class="hint2">Web Events (newest first)</div>
+
       <div class="log" id="diagEvents" style="max-height:240px; overflow:auto; padding:10px;"></div>
 
       <div class="sep"></div>
@@ -388,7 +416,16 @@
         <button class="btn" id="btnOtaStatus">상태</button>
       </div>
       <div class="hint2" id="otaHint">-</div>
+
+      <div id="otaProgWrap" style="display:none; margin-top:12px;">
+        <div style="height:10px; background:#e0e6ed; border-radius:5px; overflow:hidden;">
+          <div id="otaProgBar" style="height:100%; width:0%; background:#3498db; transition:width .15s;"></div>
+        </div>
+        <div id="otaProgText" class="hint2" style="margin-top:4px;">0%</div>
+      </div>
+      
       <pre class="log" id="otaJson">-</pre>
+
     </section>
   </main>
 

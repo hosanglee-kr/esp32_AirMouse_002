@@ -296,47 +296,17 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
         gOta["written"] = ota["written"];
         gOta["ok"] = ota["ok"];
         gOta["err"] = ota["err"];
-
+        
+        // groups.e10 = top-level e10 전체 복사 (compact=1이 top-level을 지우므로 필수)
         JsonVariant e10v = v_doc["e10"];
         if (!e10v.isNull()) {
             JsonObject gE10 = groups["e10"].to<JsonObject>();
             JsonObject e10 = e10v.as<JsonObject>();
-
-            JsonVariant v;
-            v = e10["ble_connected"];   if (!v.isNull()) gE10["ble_connected"] = v;
-            v = e10["ppt_mode"];        if (!v.isNull()) gE10["ppt_mode"] = v;
-            v = e10["dpi_level"];       if (!v.isNull()) gE10["dpi_level"] = v;
-            v = e10["precision_mode"];  if (!v.isNull()) gE10["precision_mode"] = v;
-            v = e10["fsm_state"];       if (!v.isNull()) gE10["fsm_state"] = v;
-            v = e10["btn_mask"];        if (!v.isNull()) gE10["btn_mask"] = v;
-
-            v = e10["safe_mode"];       if (!v.isNull()) gE10["safe_mode"] = v;
-
-            JsonVariant gate = e10["gate"];
-            if (!gate.isNull()) {
-                JsonObject gg = gE10["gate"].to<JsonObject>();
-                JsonObject gsrc = gate.as<JsonObject>();
-                JsonVariant gv;
-                gv = gsrc["ota_guard"];           if (!gv.isNull()) gg["ota_guard"] = gv;
-                gv = gsrc["ota_guard_count"];     if (!gv.isNull()) gg["ota_guard_count"] = gv;
-                gv = gsrc["ota_guard_uptime_ms"]; if (!gv.isNull()) gg["ota_guard_uptime_ms"] = gv;
-            }
-
-            JsonVariant obs = e10["obs"];
-            if (!obs.isNull()) {
-                JsonObject go = gE10["obs"].to<JsonObject>();
-                JsonObject os = obs.as<JsonObject>();
-                JsonVariant ov;
-                ov = os["task_stack_sensor_min_words"]; if (!ov.isNull()) go["task_stack_sensor_min_words"] = ov;
-                ov = os["task_stack_comm_min_words"];   if (!ov.isNull()) go["task_stack_comm_min_words"] = ov;
-                ov = os["sensor_dt_max_ms"];            if (!ov.isNull()) go["sensor_dt_max_ms"] = ov;
-                ov = os["sensor_overrun_count"];        if (!ov.isNull()) go["sensor_overrun_count"] = ov;
-                ov = os["comm_dt_avg_ms"];              if (!ov.isNull()) go["comm_dt_avg_ms"] = ov;
-                ov = os["comm_dt_max_ms"];              if (!ov.isNull()) go["comm_dt_max_ms"] = ov;
-                ov = os["comm_overrun_count"];          if (!ov.isNull()) go["comm_overrun_count"] = ov;
-                ov = os["failsafe_release_count"];      if (!ov.isNull()) go["failsafe_release_count"] = ov;
+            for (JsonPair kv : e10) {
+                gE10[kv.key()] = kv.value();
             }
         }
+
     }
 
     if (!v_flat || v_compact) {
