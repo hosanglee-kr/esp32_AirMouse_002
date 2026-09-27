@@ -1,54 +1,30 @@
 // =======================================================
-// File: W10_WebApi_CtlPpt_0400.cpp
+// File: src/v040/W10_WebApi_CtlPpt_0400.cpp
 // =======================================================
-
 /*
-* ------------------------------------------------------
-* 소스명 : W10_WebApi_CtlPpt_0400.cpp
-* 모듈약어 : W10
-* 모듈명 : Web Config/Status/UI/OTA Server (Split: Control + PPT)
-* ------------------------------------------------------
-* 기능 요약
-* - (0316) /api/control, /api/ppt 분리
+ * ------------------------------------------------------
+ * 소스명 : W10_WebApi_CtlPpt_0400.cpp
+ * 모듈약어 : W10
+ * 모듈명 : Web Config/Status/UI/OTA Server (Split: Control + PPT)
+ * ------------------------------------------------------
+ * 기능 요약
+ *  - (0400) /api/control, /api/ppt v0400 Mode 슬롯 방식 재설계
+ *
+ * [v0400 변경]
+ *  - /api/ppt GET/POST를 Mode 슬롯 매트릭스 방식으로 전환
+ *  - ppt2_* 6슬롯 폐기 → Mode별 {slots[15], flick[4], linear[4], tilt[4]}
+ *  - ?mode=N 파라미터 추가 (생략 시 active_mode)
+ *  - /api/ppt/test는 기존 유지 (page/mod/code)
  * ------------------------------------------------------
  * [구현 규칙]
- *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
- *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
  *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
  *  - JsonDocument 단일 타입만 사용
  *  - createNestedArray/Object/containsKey 사용 금지
  *  - memset + strlcpy 기반 안전 초기화
- *  - 주석/필드명은 JSON 구조와 동일하게 유지
- *  - 변수명은 가능한 해석 가능하게
  * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - namespace 명        : 모듈약어_ 접두사
- *   - namespace 내 상수    : 모둘약어 접두시 미사용
- *   - 전역 상수,매크로      : G_모듈약어_ 접두사
- *   - 전역 변수             : g_모듈약어_ 접두사
- *   - 전역 함수             : 모듈약어_ 접두사
- *   - type                  : T_모듈약어_ 접두사
- *   - typedef               : _t  접미사
- *   - enum 상수             : EN_모듈약어_ 접두사
- *   - 구조체                : ST_모듈약어_ 접두사
- *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
- *   - 클래스 private 멤버 함수/변수   : _ 접두사
- *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
- *   - 클래스 정적 멤버      : s_ 접두사
- *   - 함수 로컬 변수        : v_ 접두사
- *   - 함수 인자             : p_ 접두사
- * ------------------------------------------------------
-*/
+ */
 
 #include "W10_Web_0400.h"
-
-// 붙여넣기 대상:
-// - apiControl
-// - apiGetPpt
-// - apiPostPpt
-// - apiPptTest
-
-
 
 // =====================================================
 // /api/control
@@ -149,34 +125,82 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
 }
 
 // =====================================================
-// /api/ppt
+// [v0400] /api/ppt GET — Mode 슬롯 매트릭스 조회
+//   ?mode=N (1/2/3, 생략 시 active_mode)
 // =====================================================
 void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
-    // SafeMode Gate (ppt 조회도 SafeMode에서 차단: 최소 정책)
     if (_gateSafeModeOrReply(req)) return;
 
     if (_cfg) (void)_cfg->loadAll(_wifi, _e10);
 
-    JsonDocument v_jsonDoc;
-    JsonObject v_jsonObj_map = v_jsonDoc["map"].to<JsonObject>();
+    // Mode 결정 (query param 또는 active_mode)
+    uint8_t v_mode = _e10.active_mode;
+    if (v_mode < 1 || v_mode > C10_DEF::MODE_COUNT) v_mode = 1;
 
-    auto put = [&](const char* n, const ST_C10_PptKey2_t& k) {
-        JsonObject o = v_jsonObj_map[n].to<JsonObject>();
-        o["page"] = (k.page == (uint8_t)EN_C10_KEYPAGE_CONSUMER) ? "consumer" : "kb";
-        o["mod"] = k.mod;
-        o["code"] = k.code;
-    };
+    if (req->hasParam("mode")) {
+        const AsyncWebParameter* p = req->getParam("mode");
+        if (p) {
+            const int v_m = atoi(p->value().c_str());
+            if (v_m >= 1 && v_m <= (int)C10_DEF::MODE_COUNT) {
+                v_mode = (uint8_t)v_m;
+            }
+        }
+    }
 
-    put("start", _e10.ppt2_start);
-    put("exit", _e10.ppt2_exit);
-    put("next", _e10.ppt2_next);
-    put("prev", _e10.ppt2_prev);
-    put("black", _e10.ppt2_black);
-    put("laser", _e10.ppt2_laser);
+    const ST_C10_ModeConfig_t& m = _e10.modes[v_mode - 1];
 
-    _sendOk(req, "ppt", "", &v_jsonDoc, 200);
+    JsonDocument v_doc;
+    v_doc["mode"] = v_mode;
+
+    // ---- slots[15] ----
+    JsonArray v_slots = v_doc["slots"].to<JsonArray>();
+    for (uint8_t i = 0; i < C10_DEF::SLOT_BTN_COUNT; i++) {
+        JsonObject o = v_slots.add<JsonObject>();
+        o["k"]   = m.slots[i].kind;
+        o["h"]   = m.slots[i].holdMode;
+        o["p16"] = m.slots[i].param16;
+        o["p32"] = (uint32_t)m.slots[i].param32;
+    }
+
+    // ---- flick[4] ----
+    JsonArray v_flick = v_doc["flick"].to<JsonArray>();
+    for (uint8_t i = 0; i < C10_DEF::SLOT_FLICK_COUNT; i++) {
+        JsonObject o = v_flick.add<JsonObject>();
+        o["k"]   = m.flick[i].kind;
+        o["h"]   = m.flick[i].holdMode;
+        o["p16"] = m.flick[i].param16;
+        o["p32"] = (uint32_t)m.flick[i].param32;
+    }
+
+    // ---- linear[4] ----
+    JsonArray v_linear = v_doc["linear"].to<JsonArray>();
+    for (uint8_t i = 0; i < C10_DEF::SLOT_LINEAR_COUNT; i++) {
+        JsonObject o = v_linear.add<JsonObject>();
+        o["k"]   = m.linear[i].kind;
+        o["h"]   = m.linear[i].holdMode;
+        o["p16"] = m.linear[i].param16;
+        o["p32"] = (uint32_t)m.linear[i].param32;
+    }
+
+    // ---- tilt[4] ----
+    JsonArray v_tilt = v_doc["tilt"].to<JsonArray>();
+    for (uint8_t i = 0; i < C10_DEF::SLOT_TILT_COUNT; i++) {
+        JsonObject o = v_tilt.add<JsonObject>();
+        o["k"]   = m.tilt[i].kind;
+        o["h"]   = m.tilt[i].holdMode;
+        o["p16"] = m.tilt[i].param16;
+        o["p32"] = (uint32_t)m.tilt[i].param32;
+    }
+
+    _sendOk(req, "ppt", "", &v_doc, 200);
 }
 
+// =====================================================
+// [v0400] /api/ppt POST — Mode 슬롯 매트릭스 저장
+//   ?mode=N (1/2/3, 생략 시 active_mode)
+//   Body: {"slots":[...], "flick":[...], "linear":[...], "tilt":[...]}
+//   각 배열은 부분 patch 가능 (배열 길이만큼만 반영)
+// =====================================================
 void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
     if (_gateSafeModeOrReply(req)) return;
@@ -193,70 +217,92 @@ void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, siz
         return;
     }
 
-    bool save = true;
-    if (!v_jsonDoc["save"].isNull()) save = (bool)v_jsonDoc["save"];
-
-    JsonVariant v_jsonObj_map = v_jsonDoc["map"];
-    if (v_jsonObj_map.isNull()) {
-        _sendErr(req, "no_map", "Missing map field.");
+    if (!_cfg) {
+        _sendErr(req, "no_config", "Config manager not ready.");
         return;
     }
 
-    bool ok = true;
-    bool saved = false;
-    bool applied = false;
+    // Mode 결정
+    uint8_t v_mode = _e10.active_mode;
+    if (v_mode < 1 || v_mode > C10_DEF::MODE_COUNT) v_mode = 1;
 
-    if (!_cfg) {
-        ok = false;
-    } else {
-        ST_C10_WiFiConfig_t w;
-        ST_C10_E10Config_t e;
-        _cfg->makeDefaultsWiFi(w);
-        _cfg->makeDefaultsE10(e);
-        (void)_cfg->loadAll(w, e);
-
-        auto loadK = [&](const char* n, ST_C10_PptKey2_t& k) {
-            JsonVariant o = v_jsonObj_map[n];
-            if (o.isNull()) return;
-
-            if (!o["page"].isNull()) {
-                const char* s = (const char*)o["page"];
-                if (s && strcasecmp(s, "consumer") == 0)
-                    k.page = (uint8_t)EN_C10_KEYPAGE_CONSUMER;
-                else
-                    k.page = (uint8_t)EN_C10_KEYPAGE_KB;
+    if (req->hasParam("mode")) {
+        const AsyncWebParameter* p = req->getParam("mode");
+        if (p) {
+            const int v_m = atoi(p->value().c_str());
+            if (v_m >= 1 && v_m <= (int)C10_DEF::MODE_COUNT) {
+                v_mode = (uint8_t)v_m;
             }
-            if (!o["mod"].isNull()) k.mod = (uint8_t)o["mod"];
-            if (!o["code"].isNull()) k.code = (uint32_t)o["code"];
-        };
-
-        loadK("start", e.ppt2_start);
-        loadK("exit", e.ppt2_exit);
-        loadK("next", e.ppt2_next);
-        loadK("prev", e.ppt2_prev);
-        loadK("black", e.ppt2_black);
-        loadK("laser", e.ppt2_laser);
-
-        ok = ok && _cfg->validateE10(e);
-
-        if (ok && save) {
-            ok = _cfg->saveAll(w, e);
-            saved = ok;
-        }
-
-        ST_W10_E10If_t* e10if = _e10if;
-        if (ok && e10if && e10if->applyRuntimeE10) {
-            applied = e10if->applyRuntimeE10(e10if->ctx, &e);
         }
     }
 
+    const bool v_save = (!v_jsonDoc["save"].isNull()) ? (bool)v_jsonDoc["save"] : true;
+
+    // 현재 config 로드 (다른 Mode 보존)
+    ST_C10_WiFiConfig_t w;
+    ST_C10_E10Config_t  e;
+    _cfg->makeDefaultsWiFi(w);
+    _cfg->makeDefaultsE10(e);
+    (void)_cfg->loadAll(w, e);
+
+    // 대상 Mode의 슬롯 매트릭스 (부분 patch)
+    ST_C10_ModeConfig_t& target = e.modes[v_mode - 1];
+
+    auto loadSlots = [&](JsonVariantConst varr, ST_C20_ActionSlot_t* p_slots, uint8_t p_count) {
+        if (varr.isNull()) return;
+        JsonArrayConst arr = varr.as<JsonArrayConst>();
+        if (arr.isNull()) return;
+        const uint8_t n = (arr.size() < p_count) ? (uint8_t)arr.size() : p_count;
+        for (uint8_t i = 0; i < n; i++) {
+            JsonVariantConst o = arr[i];
+            if (o.isNull()) continue;
+            if (!o["k"].isNull())   p_slots[i].kind     = (uint8_t)o["k"];
+            if (!o["h"].isNull())   p_slots[i].holdMode = (uint8_t)o["h"];
+            if (!o["p16"].isNull()) p_slots[i].param16  = (uint16_t)o["p16"];
+            if (!o["p32"].isNull()) p_slots[i].param32  = (uint32_t)o["p32"];
+        }
+    };
+
+    loadSlots(v_jsonDoc["slots"],  target.slots,  C10_DEF::SLOT_BTN_COUNT);
+    loadSlots(v_jsonDoc["flick"],  target.flick,  C10_DEF::SLOT_FLICK_COUNT);
+    loadSlots(v_jsonDoc["linear"], target.linear, C10_DEF::SLOT_LINEAR_COUNT);
+    loadSlots(v_jsonDoc["tilt"],   target.tilt,   C10_DEF::SLOT_TILT_COUNT);
+
+    // 검증
+    bool ok = _cfg->validateE10(e);
+    if (!ok) {
+        _sendErr(req, "validation_failed", "Mode slot validation failed.");
+        return;
+    }
+
+    bool saved = false;
+    if (v_save) {
+        ok = _cfg->saveAll(w, e);
+        saved = ok;
+        if (ok) {
+            (void)_cfg->loadAll(_wifi, _e10);
+        }
+    }
+
+    // 런타임 반영
+    bool applied = false;
+    ST_W10_E10If_t* e10if = _e10if;
+    if (ok && e10if && e10if->applyRuntimeE10) {
+        applied = e10if->applyRuntimeE10(e10if->ctx, &e);
+    }
+
     JsonDocument v_doc;
-    v_doc["saved"] = saved;
+    v_doc["mode"]    = v_mode;
+    v_doc["saved"]   = saved;
     v_doc["applied"] = applied;
+
     if (ok) _sendOk(req, "ppt_set", "", &v_doc, 200);
-    else _sendErr(req, "ppt_set_failed", "Failed to update mapping.", &v_doc);
+    else    _sendErr(req, "ppt_set_failed", "Failed to update mode slots.", &v_doc);
 }
 
+// =====================================================
+// /api/ppt/test — 기존 유지 (단일 키 테스트)
+// =====================================================
 void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
     if (_gateSafeModeOrReply(req)) return;
@@ -273,21 +319,20 @@ void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, siz
         return;
     }
 
-    uint8_t page = (uint8_t)EN_C10_KEYPAGE_KB;
-    uint8_t mod = 0;
+    uint8_t  page = (uint8_t)EN_C10_KEYPAGE_KB;
+    uint8_t  mod  = 0;
     uint32_t code = 0;
 
     if (!v_jsonDoc["page"].isNull()) {
         const char* s = (const char*)v_jsonDoc["page"];
         if (s && strcasecmp(s, "consumer") == 0) page = (uint8_t)EN_C10_KEYPAGE_CONSUMER;
     }
-    if (!v_jsonDoc["mod"].isNull()) mod = (uint8_t)v_jsonDoc["mod"];
+    if (!v_jsonDoc["mod"].isNull())  mod  = (uint8_t)v_jsonDoc["mod"];
     if (!v_jsonDoc["code"].isNull()) code = (uint32_t)v_jsonDoc["code"];
 
     ST_W10_E10If_t* e10if = _e10if;
     bool ok = (e10if && e10if->testPptKey2 ? e10if->testPptKey2(e10if->ctx, page, mod, code) : false);
 
     if (ok) _sendOk(req, "ppt_test", "", nullptr, 200);
-    else _sendErr(req, "ppt_test_failed", "Test failed.");
+    else    _sendErr(req, "ppt_test_failed", "Test failed.");
 }
-
