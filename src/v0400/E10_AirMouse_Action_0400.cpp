@@ -154,7 +154,6 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
         if (e.btnId != p_btnId) continue;
         if (e.evt   != p_evt)   continue;
 
-        // config에서 슬롯 조회
         ST_C20_ActionSlot_t v_slot;
         _lock();
         v_slot = _cfgE10Runtime.modes[_activeMode - 1].slots[e.slotIdx];
@@ -162,8 +161,15 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
 
         if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
 
-        // 이벤트 종류 → isDown 판정
-        //   DOWN/UP은 그대로, 그 외(CLICK/DOUBLE/LONG)는 isDown=true로 1회
+        // ============================================
+        // [신규] SPECIAL은 sensorTask에서 즉시 처리
+        //        (commTask로 넘기지 않음)
+        // ============================================
+        if (v_slot.kind == (uint8_t)EN_C20_ACT_SPECIAL) {
+            _handleSpecial((uint8_t)v_slot.param16);
+            return;
+        }
+
         bool v_isDown = true;
         if (p_evt == EN_C20_EVT_UP) v_isDown = false;
 
@@ -171,6 +177,7 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
         return;
     }
 }
+
 
 // =======================================================
 // 통합 콜백
@@ -219,12 +226,21 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             break;
         }
         
-        case EN_C20_SP_HOST_CYCLE:
-            // Phase 9에서 Multi-Host 순환. 지금은 LED 표시만.
+        case EN_C20_SP_HOST_CYCLE: {
+            // [Phase 9] Multi-Host 순환 + 실제 재연결
+            const uint8_t v_idx = _ble.cycleActivePeer();
+        
+            // whitelist 필터로 재광고 (10초)
+            const bool v_reconn = _ble.reconnectToActivePeer(10000);
+        
             _led.flash(EN_L10_COLOR_WHITE, 500);
-            D10_LOGI("[E10] SP_HOST_CYCLE requested");
+        
+            D10_LOGI("[E10] SP_HOST_CYCLE → peer=%u bond=%u reconnect=%d",
+                     (unsigned)v_idx,
+                     (unsigned)_ble.getBondCount(),
+                     (int)v_reconn);
             break;
-    
+        }
 
         default:
             break;
@@ -311,6 +327,7 @@ bool CL_E10_EliteAirMouse::_enqueueAction(const ST_C20_ActionSlot_t& p_slot, boo
 //   group: 0=flick, 1=linear, 2=tilt
 //   dir  : EN_M30_Dir_t (0=LEFT, 1=RIGHT, 2=UP, 3=DOWN)
 // =======================================================
+
 void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
     if (p_dir > 3) return;
 
@@ -338,6 +355,12 @@ void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
     _unlock();
 
     if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
+    
+    // SPECIAL은 sensorTask에서 즉시
+    if (v_slot.kind == (uint8_t)EN_C20_ACT_SPECIAL) {
+        _handleSpecial((uint8_t)v_slot.param16);
+        return;
+    }
 
     // 제스처는 단발 (tap) — isDown=true 로 1회 enqueue
     (void)_enqueueAction(v_slot, true);

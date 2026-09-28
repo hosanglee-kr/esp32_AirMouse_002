@@ -411,10 +411,6 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_adrop, 0) == pdTRUE) { }
                    
-                
-            // [Phase 6-J] LED tick은 gate와 무관하게 진행
-            v_m->_led.tick();
-
             if (!v_releasedOnSafe) {
                 v_m->_actExec.releaseAll();
                 v_m->_doForceReleaseNow();
@@ -468,16 +464,6 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         // 반복 액션 tick (KB_REPEAT / CONSUMER_REPEAT)
         v_m->_actExec.tickRepeat();
         
-
-        // ====================================================
-        // [Phase 6-J] LED 상태머신 진행
-        //   - commTask(7ms)에서 호출. 내부 상태머신은 시간 기반이라 안전.
-        //   - FADEOUT 시 _apply()가 매 tick마다 RMT write(~30µs) 호출.
-        //     7ms cadence × 30µs = 0.4% duty. 무시 가능.
-        // ====================================================
-        v_m->_led.tick();
-
-
         // ---- normal path: 커서 프레임 ----
         ST_E10_Frame_t v_fr;
         memset(&v_fr, 0, sizeof(v_fr));

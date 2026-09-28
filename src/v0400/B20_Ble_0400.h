@@ -57,6 +57,18 @@ class CL_B20_Ble {
         _dirty = true;
         return _activePeerIndex;
     }
+    
+    // ====================================================
+    // [Phase 9] 실제 재연결 (whitelist 필터)
+    //   - advertising 중지 → whitelist 설정 → 재시작
+    //   - 대상 peer만 connect 허용 (10초 제한)
+    //   - timeout 후 whitelist 해제 (모든 bond 허용)
+    // ====================================================
+    bool reconnectToActivePeer(uint32_t p_whitelistMs = 10000);
+    void clearWhitelist();
+    
+    bool isWhitelistActive() const { return _whitelistActive; }
+    
 
     // ---- Pairing Mode ----
     bool enterPairing(uint32_t p_timeoutMs = 30000);
@@ -81,4 +93,11 @@ class CL_B20_Ble {
     uint32_t _pairingTimeoutMs = 0;
 
     bool     _dirty           = false;
+    
+    bool     _whitelistActive    = false;
+    uint32_t _whitelistUntilMs   = 0;
+    
+    // advertising 재시작 (라이브러리 소유 광고 위에 재구성)
+    bool _restartAdvertisingWithWhitelist(bool p_useWhitelist);
+
 };

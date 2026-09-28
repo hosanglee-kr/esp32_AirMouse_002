@@ -53,7 +53,8 @@ bool CL_C20_ActionExec::exec(const ST_C20_ActionSlot_t& p_slot, bool p_isDown) {
             return true;
 
         case EN_C20_ACT_SPECIAL:
-            if (p_isDown) _execSpecial(p_slot);
+            // commTask에서는 실행 금지 (sensorTask 라우팅)
+            // 여기 도달했다면 _handleSlotButton 경로가 아닌 것 → drop
             return true;
 
         default:
