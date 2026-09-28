@@ -14,7 +14,6 @@ static CL_C10_Config        g_cfg;
 static CL_E10_EliteAirMouse g_e10;
 static CL_W10_WebConfig     g_w10;
 
-
 static ST_W10_E10If_t       g_w10E10If;
 
 static bool g_bootOkDone = false;
