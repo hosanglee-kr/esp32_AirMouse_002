@@ -108,79 +108,42 @@ void CL_B20_Ble::tick(bool p_connected) {
 }
 
 // =======================================================
-// [Phase 9] whitelist 기반 재연결
+// [Phase 9] advertising 재시작 (disconnect-only 방식)
+//   NimBLE-Arduino 2.5.1에서 advertising whitelist API가 노출되지 않음.
+//   → whitelist 필터 없이 stop/start만. 대상 peer 선택은 OS 자동재연결에 위임.
 // =======================================================
-bool CL_B20_Ble::_restartAdvertisingWithWhitelist(bool p_useWhitelist) {
+bool CL_B20_Ble::_restartAdvertising() {
     NimBLEAdvertising* v_adv = NimBLEDevice::getAdvertising();
     if (!v_adv) {
         D10_LOGW("[B20] no advertising instance");
         return false;
     }
 
-    // 1) 현재 광고 중지 (라이브러리 소유)
     v_adv->stop();
     delay(30);   // NimBLE 스택 반영 대기
-
-    // 2) whitelist 정리 + 재구성
-    v_adv->filterAcceptListClear();
-
-    if (p_useWhitelist) {
-        // 대상 peer address 얻기
-        const int v_bondCount = NimBLEDevice::getNumBonds();
-        if (v_bondCount == 0) {
-            D10_LOGW("[B20] no bonds; skip whitelist");
-            v_adv->setScanFilter(false);
-            v_adv->start();
-            return false;
-        }
-
-        // bond 목록 조회
-        std::vector<NimBLEAddress> v_bonds = NimBLEDevice::getBondedDevices();
-        if (v_bonds.empty()) {
-            D10_LOGW("[B20] bonded devices empty");
-            v_adv->setScanFilter(false);
-            v_adv->start();
-            return false;
-        }
-
-        // active peer index가 범위 초과면 0으로
-        if (_activePeerIndex >= (uint8_t)v_bonds.size()) {
-            _activePeerIndex = 0;
-        }
-
-        const NimBLEAddress& v_target = v_bonds[_activePeerIndex];
-        v_adv->filterAcceptListAdd(v_target);
-        v_adv->setScanFilter(true);   // accept list(whitelist) only
-
-        D10_LOGI("[B20] advertising with whitelist: peer[%u]=%s",
-                 (unsigned)_activePeerIndex, v_target.toString().c_str());
-    } else {
-        v_adv->setScanFilter(false);
-        D10_LOGI("[B20] advertising: no whitelist (accept all)");
-    }
-
-    // 3) 재시작
     v_adv->start();
+
+    D10_LOGI("[B20] advertising restarted");
     return true;
 }
 
 bool CL_B20_Ble::reconnectToActivePeer(uint32_t p_whitelistMs) {
-    // 1) 현재 연결 모두 disconnect (라이브러리 서버 소유)
+    // 1) 현재 연결 모두 disconnect
     NimBLEServer* v_srv = NimBLEDevice::getServer();
     if (v_srv) {
-        const auto v_peers = v_srv->getPeerDevices();
-        for (const auto& p : v_peers) {
-            D10_LOGI("[B20] disconnect connId=%u", (unsigned)p.first);
-            v_srv->disconnect(p.first);
+        std::vector<uint16_t> v_peers = v_srv->getPeerDevices();
+        for (uint16_t v_connId : v_peers) {
+            D10_LOGI("[B20] disconnect connId=%u", (unsigned)v_connId);
+            v_srv->disconnect(v_connId);
         }
         delay(80);   // disconnect 반영 대기
     }
 
-    // 2) whitelist 필터로 광고 재시작
-    const bool v_ok = _restartAdvertisingWithWhitelist(true);
+    // 2) 재광고 (whitelist 없음 — 모든 bond 허용)
+    const bool v_ok = _restartAdvertising();
 
     if (v_ok) {
-        _whitelistActive  = true;
+        _whitelistActive  = true;    // "재연결 윈도우" 플래그
         _whitelistUntilMs = (uint32_t)millis() + p_whitelistMs;
         _dirty            = true;
     }
@@ -190,8 +153,7 @@ bool CL_B20_Ble::reconnectToActivePeer(uint32_t p_whitelistMs) {
 
 void CL_B20_Ble::clearWhitelist() {
     if (!_whitelistActive) return;
-    _whitelistActive = false;
+    _whitelistActive  = false;
     _whitelistUntilMs = 0;
-    (void)_restartAdvertisingWithWhitelist(false);
-    D10_LOGI("[B20] whitelist cleared (accept all)");
+    D10_LOGI("[B20] reconnect window cleared");
 }

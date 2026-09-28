@@ -227,12 +227,12 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
         }
         
         case EN_C20_SP_HOST_CYCLE: {
-            // [Phase 9] Multi-Host 순환 + 실제 재연결
+            // [Phase 9] Multi-Host 순환 + 실제 재연결 (disconnect + 재광고)
             const uint8_t v_idx = _ble.cycleActivePeer();
-        
-            // whitelist 필터로 재광고 (10초)
+            
+            // 10초 재연결 윈도우
             const bool v_reconn = _ble.reconnectToActivePeer(10000);
-        
+
             _led.flash(EN_L10_COLOR_WHITE, 500);
         
             D10_LOGI("[E10] SP_HOST_CYCLE → peer=%u bond=%u reconnect=%d",
