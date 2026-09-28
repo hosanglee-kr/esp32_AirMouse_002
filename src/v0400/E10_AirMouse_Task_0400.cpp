@@ -140,9 +140,21 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         
             // 미연결 + idle 초과 → sleepNow
             //   (내부에서 timeout 검사. sleep 진입 시 wake 후 리턴)
-            if (!v_bleConn && !v_moveGateHeld && !v_m->_safeMode && !v_m->_otaGuard) {
-                (void)v_m->_power.sleepNow(v_nowP);
+            const bool v_frontHold = v_m->_frontHoldActive;
+            const bool v_pairing   = v_m->_ble.isPairing();
+            const bool v_qActBusy  = (uxQueueMessagesWaiting(v_m->_qActionExec) > 0);
+            
+            if (!v_bleConn && !v_moveGateHeld && !v_frontHold &&
+                !v_pairing && !v_qActBusy &&
+                !v_m->_safeMode && !v_m->_otaGuard) {
+                    
+                const bool v_didSleep = v_m->_power.sleepNow(v_nowP);
+                if (v_didSleep) {
+                    // wake 후 LED 복귀
+                    v_m->_led.setModeColor(v_m->_activeMode);
+                }
             }
+
         }
 
         // ---- gyro raw + Zero-rate Bias Tracking ----

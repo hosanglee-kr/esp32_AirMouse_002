@@ -265,7 +265,10 @@ void CL_W10_WebConfig::_setupWiFi() {
         return;
     }
 
-    // forceSta 실패면 그대로 유지(정책)
+    // forceSta 실패 → AP fallback (브릭 방지)
+    D10_LOGW("[W10] STA failed, fallback to AP");
+    _startAp();
+    return;
 }
 
 void CL_W10_WebConfig::_startAp() {
