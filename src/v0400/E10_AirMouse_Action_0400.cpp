@@ -127,6 +127,20 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
         // DOUBLE / LONG만 슬롯 매핑
         return false;
     }
+    
+    // ---------- Side F: Front Hold (스크롤 모드) ----------
+    // [Front Hold] DOWN/UP만 처리. CLICK/LONG은 슬롯 매핑(S9/S10)으로 위임.
+    if (p_btnId == EN_C20_BTN_SIDE_F) {
+        if (p_evt == EN_C20_EVT_DOWN) {
+            _frontHoldActive = true;
+            return false;   // CLICK/LONG 슬롯 정상 처리
+        }
+        if (p_evt == EN_C20_EVT_UP) {
+            _frontHoldActive = false;
+            return false;
+        }
+        return false;
+    }
 
     // 그 외는 슬롯 매핑
     return false;
@@ -250,6 +264,9 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
     
     // [Phase 7] 제스처 상태 리셋
     _gesture.reset();
+    
+    // [Front Hold] Mode 전환 시 스크롤 상태 리셋
+    _frontHoldActive = false;
     
     // [Phase 10] Mode 전환 시 pairing mode 취소
     if (_ble.isPairing()) {

@@ -92,6 +92,7 @@ class CL_E10_EliteAirMouse {
         int16_t x;
         int16_t y;
         int16_t wheel;
+        int16_t pan;        // [Front Hold] AC Pan (수평 스크롤)
         uint8_t btn_mask;
         bool    updated;
     } ST_E10_Frame_t;
@@ -275,6 +276,9 @@ class CL_E10_EliteAirMouse {
 
     // Move Gate 상태 (Top M Hold 중 true)
     volatile bool _moveGateHeld = false;
+    
+    // [Front Hold] Side F 누름 중 true → 스크롤 모드
+    volatile bool _frontHoldActive = false;
 
     // Top M DOWN 시각 (Mode 3 클릭 판정용)
     uint32_t _topMDownMs = 0;
@@ -372,8 +376,9 @@ class CL_E10_EliteAirMouse {
     // -----------------------
     // inline utils
     // -----------------------
-    static void _mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy, int8_t p_wheel) {
-        p_ms.mouseMove(p_dx, p_dy, p_wheel, 0);
+    static void _mouseSend(MouseDevice& p_ms, int8_t p_dx, int8_t p_dy,
+                           int8_t p_wheel, int8_t p_pan) {
+        p_ms.mouseMove(p_dx, p_dy, p_wheel, p_pan);
     }
 
     void _pushFrame(const ST_E10_Frame_t& p_fr) {

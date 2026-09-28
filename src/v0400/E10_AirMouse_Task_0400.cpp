@@ -240,33 +240,73 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         //   - btn_mask는 액션 큐가 담당 → _qFrame에선 0 고정
         // ============================================================
 
+        // ============================================================
+        // [Front Hold] 스크롤 모드
+        //   - Side F 누름 중: 커서 감쇠 + 수직 휠 + 수평 팬
+        //   - 모든 Mode 일관 (D4-A)
+        //   - 커서 감쇠: scroll_cursor_damp (기본 0.25)
+        //   - 수직 휠: gy (pitch, 앞뒤 기울기)
+        //   - 수평 팬: gx (roll, 좌우 기울기)
+        // ============================================================
+        const bool v_frontHold = v_m->_frontHoldActive;
+        
+        int16_t v_wheelY = 0;
+        int16_t v_panX   = 0;
+        
+        if (v_frontHold) {
+            // 커서 감쇠
+            v_fx *= v_cfg.scrollCursorDamp;
+            v_fy *= v_cfg.scrollCursorDamp;
+        
+            // 수직 휠 (gy)
+            if (v_gy > v_cfg.wheelThDeg) {
+                float v_n = (v_gy - v_cfg.wheelThDeg) / 120.0f;
+                if (v_n > 1.0f) v_n = 1.0f;
+                v_wheelY = (int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
+            } else if (v_gy < -v_cfg.wheelThDeg) {
+                float v_n = (-v_gy - v_cfg.wheelThDeg) / 120.0f;
+                if (v_n > 1.0f) v_n = 1.0f;
+                v_wheelY = -(int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
+            }
+        
+            // 수평 팬 (gx)
+            if (v_gx > v_cfg.wheelThDeg) {
+                float v_n = (v_gx - v_cfg.wheelThDeg) / 120.0f;
+                if (v_n > 1.0f) v_n = 1.0f;
+                v_panX = (int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
+            } else if (v_gx < -v_cfg.wheelThDeg) {
+                float v_n = (-v_gx - v_cfg.wheelThDeg) / 120.0f;
+                if (v_n > 1.0f) v_n = 1.0f;
+                v_panX = -(int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
+            }
+        }
+        
         // Move Gate: Middle Hold 중에만 커서 이동
+        // (Front Hold와 독립 — wheel/pan은 Move Gate 무관)
         if (!v_moveGateHeld) {
             v_fx = 0.0f;
             v_fy = 0.0f;
         }
-
+        
         // Precision overlay
         if (v_m->_precSub != EN_PREC_OFF) {
             v_m->_applyPrecision(v_fx, v_fy);
         }
-
-        // (Phase 7 예정: PPT Flick 제스처 P2P 방식)
-        // if (v_m->_fsm == EN_FSM_PPT) { ... }
-
+        
         // 커서 통계
         v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,
                          (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
-
+        
         const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
         const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
-        const bool v_updated = (v_xo != 0) || (v_yo != 0);
-
+        const bool v_updated = (v_xo != 0) || (v_yo != 0) ||
+                               (v_wheelY != 0) || (v_panX != 0);
+        
         // (1) 관측용 _state
         if (xSemaphoreTakeRecursive(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
             v_m->_state.x        = v_xo;
             v_m->_state.y        = v_yo;
-            v_m->_state.wheel    = 0;
+            v_m->_state.wheel    = v_wheelY;
             v_m->_state.btn_mask = 0;
             if (v_updated) v_m->_state.updated = true;
             xSemaphoreGiveRecursive(v_m->_mutex);
@@ -274,13 +314,14 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_errMutexMiss++;
             v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
         }
-
-        // (2) HID 전달 프레임 (btn_mask=0 고정)
+        
+        // (2) HID 전달 프레임
         {
             ST_E10_Frame_t v_fr;
             v_fr.x        = v_xo;
             v_fr.y        = v_yo;
-            v_fr.wheel    = 0;
+            v_fr.wheel    = v_wheelY;
+            v_fr.pan      = v_panX;
             v_fr.btn_mask = 0;
             v_fr.updated  = v_updated;
             v_m->_pushFrame(v_fr);
@@ -445,17 +486,21 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         if (v_m->_qFrame) {
             if (xQueueReceive(v_m->_qFrame, &v_fr, 0) == pdTRUE) v_hasFrame = true;
         }
-
+        
         if (v_hasFrame) {
             const bool    v_upd   = v_fr.updated;
             const int16_t v_x     = v_fr.x;
             const int16_t v_y     = v_fr.y;
-
+            const int16_t v_wheel = v_fr.wheel;
+            const int16_t v_pan   = v_fr.pan;
+        
             if (v_upd) {
-                const int8_t v_dx = (int8_t)constrain((int)v_x, -127, 127);
-                const int8_t v_dy = (int8_t)constrain((int)v_y, -127, 127);
-
-                _mouseSend(v_m->_mouse, v_dx, v_dy, 0);
+                const int8_t v_dx = (int8_t)constrain((int)v_x,     -127, 127);
+                const int8_t v_dy = (int8_t)constrain((int)v_y,     -127, 127);
+                const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
+                const int8_t v_pn = (int8_t)constrain((int)v_pan,   -127, 127);
+        
+                _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh, v_pn);
             }
         }
 
