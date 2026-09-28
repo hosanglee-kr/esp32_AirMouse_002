@@ -59,15 +59,14 @@ class CL_B20_Ble {
     }
     
     // ====================================================
-    // [Phase 9] 실제 재연결 (disconnect + 재광고)
-    //   - 대상 peer만 connect 제한은 라이브러리 제약으로 미지원
-    //   - 대신 현재 연결 disconnect → 재광고 → OS 자동 재연결 유도
-    //   - _whitelistActive는 "재연결 윈도우" 플래그로 의미 전환
-    // ====================================================    bool reconnectToActivePeer(uint32_t p_whitelistMs = 10000);
+    // [Phase 9] 재연결 (disconnect + 재광고)
+    //   NimBLE-Arduino 2.5.1 제약으로 whitelist 필터 없음.
+    //   대상 peer 선택은 OS 자동재연결에 위임.
+    // ====================================================
+    bool reconnectToActivePeer(uint32_t p_whitelistMs = 10000);
     void clearWhitelist();
-    
+
     bool isWhitelistActive() const { return _whitelistActive; }
-    
 
     // ---- Pairing Mode ----
     bool enterPairing(uint32_t p_timeoutMs = 30000);
