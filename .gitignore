@@ -2,6 +2,7 @@
 .pio
 compile_commands.json
 .clangd/
+.cache/
 
 # --- Buildfs Generated Artifacts (Gzip Staging) ---
 # 원본 웹 소스는 src/**/data_*_www/ 에 있으며, data_*/www/ 는 빌드 시 자동 생성되는 파생물입니다.
@@ -30,3 +31,8 @@ ehthumbs.db
 Desktop.ini
 *~
 *.swp
+
+# --- Graphify Cache ---
+graphify-out/cache/
+
+
