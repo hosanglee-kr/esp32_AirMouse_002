@@ -156,7 +156,9 @@ private:
     // =====================================================
     bool _isSafeMode() const;
     // [M-2] method-aware: 읽기 전용 API(POST 차단) 구분을 위해 method 전달
-    bool _isApiAllowedInSafeMode(const char* p_uri, WebRequestMethod p_method) const;
+    //   - ESPAsyncWebServer: HTTP_ANY는 WebRequestMethodComposite(uint8_t) 타입
+    //   - WebRequestMethod(enum)와는 별개이므로 composite 타입으로 통일
+    bool _isApiAllowedInSafeMode(const char* p_uri, WebRequestMethodComposite p_method) const;
 
     // =====================================================
     // SafeMode Gate (공통)

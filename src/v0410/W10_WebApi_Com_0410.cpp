@@ -251,10 +251,9 @@ bool CL_W10_WebConfig::_isSafeMode() const {
     return (_cfg && _cfg->isSafeMode());
 }
 
-
-bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMethod p_method) const {
+bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMethodComposite p_method) const {
     if (!p_uri) return false;
-
+    
     // 대부분의 API는 GET만 존재 → method 검사 불필요
     if (strcmp(p_uri, "/api/status") == 0) return true;
     if (strcmp(p_uri, "/api/diag") == 0) return true;
@@ -291,6 +290,7 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
     return false;
 }
 
+
 // =====================================================
 // SafeMode Gate (공통)
 //  - SafeMode + 비허용 API면 표준 에러 응답 후 true 반환
@@ -302,11 +302,11 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
 bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
-    const char*      v_uri    = nullptr;
-    WebRequestMethod v_method = HTTP_ANY;
+    const char*                v_uri    = nullptr;
+    WebRequestMethodComposite  v_method = HTTP_ANY;   // ← 타입 통일
     if (req) {
         v_uri    = req->url().c_str();
-        v_method = req->method();
+        v_method = req->method();                      // 반환 타입과 일치
     }
 
     // [M-2] method-aware 검사
