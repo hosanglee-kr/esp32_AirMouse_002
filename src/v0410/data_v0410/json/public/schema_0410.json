@@ -1,7 +1,7 @@
 {
   "meta": {
     "schema_ver": 5,
-    "cfg_ver": 500,
+    "cfg_ver": 410,
     "generated_for": "v0410",
     "notes": "v0410 UI schema: Multi-profile, 27-trigger Global/Mode Override slots, and 8x8 MacroLib."
   },

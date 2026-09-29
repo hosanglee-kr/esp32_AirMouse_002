@@ -628,7 +628,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
     }
     d["trigger_count"] = (uint8_t)EN_C10_TRIG_MAX;
 
-    d["api_ver"] = (uint16_t)410;
+    d["api_ver"] = G_W10_API_VER;
     d["note"] = "v0410: profile-based slots (Global + Mode Override). "
                 "action_kinds + specials + triggers for UI. "
                 "mods mask == HID modifier byte. "
