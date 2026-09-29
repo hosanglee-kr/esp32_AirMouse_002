@@ -299,6 +299,7 @@ function buildMacroStepParams(container, s){
       container.appendChild(dirSel);
     }
     else if (k === 4 || k === 6){
+      // KB_TAP / KB_REPEAT
       const selMod = document.createElement("select");
       selMod.className = "select mini";
       selMod.innerHTML = `<option value="0">None</option>`;
@@ -312,15 +313,15 @@ function buildMacroStepParams(container, s){
       selMod.onchange = () => { s.p32 = (s.p32 & ~0xFF) | (parseIntFlex(selMod.value, 0) & 0xFF); };
       container.appendChild(selMod);
 
-      const inp = document.createElement("input");
-      inp.className = "inp mini";
-      inp.type = "number";
-      inp.placeholder = "usage";
-      inp.value = String(s.p16 ?? 0);
-      inp.oninput = () => { s.p16 = parseIntFlex(inp.value, 0) & 0xFF; };
-      container.appendChild(inp);
+      const selU = document.createElement("select");
+      selU.className = "select mini";
+      selU.style.minWidth = "150px";
+      populateKbUsageSelect(selU, s.p16 ?? 0);
+      selU.onchange = () => { s.p16 = parseIntFlex(selU.value, 0) & 0xFF; };
+      container.appendChild(selU);
     }
     else if (k === 5){
+      // KB_COMBO
       const selMod = document.createElement("select");
       selMod.className = "select mini";
       selMod.innerHTML = `<option value="0">None</option>`;
@@ -336,20 +337,23 @@ function buildMacroStepParams(container, s){
       };
       container.appendChild(selMod);
 
-      for (let i = 0; i < 3; i++){
-        const inp = document.createElement("input");
-        inp.className = "inp mini"; inp.type = "number";
-        inp.placeholder = "u" + (i + 1);
+      for (let i = 0; i < 3; i++) {
         const shift = 8 + i * 8;
-        inp.value = String((s.p32 >>> shift) & 0xFF);
-        inp.oninput = () => {
-          const v = parseIntFlex(inp.value, 0) & 0xFF;
+        const curCode = (s.p32 >>> shift) & 0xFF;
+        
+        const selU = document.createElement("select");
+        selU.className = "select mini";
+        selU.style.minWidth = "150px";
+        populateKbUsageSelect(selU, curCode);
+        selU.onchange = () => {
+          const v = parseIntFlex(selU.value, 0) & 0xFF;
           s.p32 = ((s.p32 & ~(0xFF << shift)) | (v << shift)) >>> 0;
         };
-        container.appendChild(inp);
+        container.appendChild(selU);
       }
     }
     else if (k === 7 || k === 8){
+      // CONSUMER_TAP / CONSUMER_REPEAT
       const sel = document.createElement("select");
       sel.className = "select mini";
       sel.innerHTML = `<option value="0">None</option>`;

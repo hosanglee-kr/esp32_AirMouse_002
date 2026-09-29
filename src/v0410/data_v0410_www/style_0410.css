@@ -455,6 +455,23 @@ h3 {
   min-width: 78px;
 }
 
+/* Slot Editor: usage 드롭다운 폭 확보 */
+.action-editor .select.mini[data-kind="usage"] {
+  min-width: 160px;
+}
+
+/* optgroup 라벨 스타일 */
+.select.mini optgroup {
+  font-weight: 700;
+  color: var(--navy-2);
+  background: #f1f6f9;
+}
+.select.mini option {
+  font-weight: 400;
+  color: var(--txt);
+}
+
+
 .trig-test {
   display: flex;
   justify-content: flex-end;

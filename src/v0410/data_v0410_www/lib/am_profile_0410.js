@@ -431,9 +431,10 @@ function renderActionEditor(slot, editable, onChange) {
       wrap.appendChild(dirSel);
     }
     else if (k === 4 || k === 6){
-      /* KB_TAP / KB_REPEAT */
+      // KB_TAP / KB_REPEAT (mod + usage)
       const selMod = document.createElement("select");
-      selMod.className = "select mini"; selMod.disabled = !editable;
+      selMod.className = "select mini";
+      selMod.disabled = !editable;
       selMod.innerHTML = `<option value="0">None</option>`;
       for (const m of mods){
         const o = document.createElement("option");
@@ -442,18 +443,23 @@ function renderActionEditor(slot, editable, onChange) {
         selMod.appendChild(o);
       }
       selMod.value = String(cur.p32 & 0xFF);
-      selMod.onchange = () => { cur.p32 = parseIntFlex(selMod.value, 0); emit(); };
+      selMod.onchange = () => { cur.p32 = parseIntFlex(selMod.value,0); emit(); };
       wrap.appendChild(selMod);
-
-      const inpU = document.createElement("input");
-      inpU.className = "inp mini"; inpU.type = "number";
-      inpU.disabled = !editable; inpU.placeholder = "usage";
-      inpU.value = String(cur.p16);
-      inpU.oninput = () => { cur.p16 = parseIntFlex(inpU.value, 0) & 0xFF; emit(); };
-      wrap.appendChild(inpU);
+    
+      // ✅ usage: 드롭다운 (키 이름으로 선택)
+      const selU = document.createElement("select");
+      selU.className = "select mini";
+      selU.style.minWidth = "160px";
+      selU.disabled = !editable;
+      populateKbUsageSelect(selU, cur.p16);
+      selU.onchange = () => {
+        cur.p16 = parseIntFlex(selU.value, 0) & 0xFF;
+        emit();
+      };
+      wrap.appendChild(selU);
     }
     else if (k === 5){
-      /* KB_COMBO */
+      // KB_COMBO
       const selMod = document.createElement("select");
       selMod.className = "select mini"; selMod.disabled = !editable;
       selMod.innerHTML = `<option value="0">None</option>`;
@@ -469,24 +475,26 @@ function renderActionEditor(slot, editable, onChange) {
         emit();
       };
       wrap.appendChild(selMod);
-
-      for (let i = 0; i < 3; i++){
-        const inp = document.createElement("input");
-        inp.className = "inp mini"; inp.type = "number";
-        inp.disabled = !editable;
-        inp.placeholder = "u" + (i + 1);
+      // u1, u2, u3: 각각 드롭다운
+      for (let i = 0; i < 3; i++) {
         const shift = 8 + i * 8;
-        inp.value = String((cur.p32 >>> shift) & 0xFF);
-        inp.oninput = () => {
-          const v = parseIntFlex(inp.value, 0) & 0xFF;
+        const curCode = (cur.p32 >>> shift) & 0xFF;
+        
+        const selU = document.createElement("select");
+        selU.className = "select mini";
+        selU.style.minWidth = "150px";
+        selU.disabled = !editable;
+        populateKbUsageSelect(selU, curCode);
+        selU.onchange = () => {
+          const v = parseIntFlex(selU.value, 0) & 0xFF;
           cur.p32 = ((cur.p32 & ~(0xFF << shift)) | (v << shift)) >>> 0;
           emit();
         };
-        wrap.appendChild(inp);
+        wrap.appendChild(selU);
       }
     }
     else if (k === 7 || k === 8){
-      /* CONSUMER_TAP / CONSUMER_REPEAT */
+      // CONSUMER_TAP / CONSUMER_REPEAT
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
       sel.innerHTML = `<option value="0">None</option>`;
@@ -501,7 +509,7 @@ function renderActionEditor(slot, editable, onChange) {
       wrap.appendChild(sel);
     }
     else if (k === 9){
-      /* SPECIAL */
+      // SPECIAL 
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
       for (const s of specials){

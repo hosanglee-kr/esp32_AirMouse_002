@@ -135,3 +135,138 @@ async function apiPostJson(url, obj){
     return handleOfflineApi(url, "POST", obj);
   }
 }
+
+
+/* =======================================================
+   HID Usage 드롭다운 헬퍼 (v0410.004)
+   - g_keycodes.kb (232개) → 그룹화된 <select> 생성
+   - 일반 사용자가 키 이름으로 선택 가능
+   ======================================================= */
+
+// usage code → 그룹 이름
+function _kbUsageGroup(code, name) {
+  if (code === 0) return "없음";
+  if (code >= 0x04 && code <= 0x1D) return "알파벳 (A~Z)";
+  if (code >= 0x1E && code <= 0x27) return "숫자 (1~0)";
+  if (code >= 0x28 && code <= 0x2C) return "기본 키";
+  if (code >= 0x3A && code <= 0x45) return "펑션 키 (F1~F12)";
+  if (code === 0x4B) return "네비게이션";
+  if (code === 0x4E) return "네비게이션";
+  if (code >= 0x4F && code <= 0x52) return "네비게이션";
+  return "기타 (심볼/특수)";
+}
+
+// 옵션 라벨: 
+function _kbUsageLabel(code, name) {
+  const hex = "0x" + code.toString(16).toUpperCase().padStart(2, "0");
+  
+  // name이 hex 문자열(0x..)이면 그대로 hex만
+  if (!name || /^0x/i.test(name)) {
+    return hex;
+  }
+  
+  // "None"은 별도 라벨 없이 "None"으로 표시
+  if (name === "None") {
+    return "None";
+  }
+  
+  return name + " (" + hex + ")";
+}
+
+
+// 현재 선택된 usage의 표시 이름 (힌트 표시용)
+function _kbUsageName(code) {
+  const kb = (g_keycodes && g_keycodes.kb) || [];
+  for (const it of kb) {
+    if (it.code === code) {
+      if (it.name && !/^0x/i.test(it.name)) return it.name;
+      return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
+    }
+  }
+  return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
+}
+
+
+
+// usage dropdown 생성 + 값 세팅
+//   p_selectEl   : 채울 <select>
+//   p_currentCode: 현재 p16 값 (0~0xE7)
+function populateKbUsageSelect(p_selectEl, p_currentCode) {
+  if (!p_selectEl) return;
+  
+  p_selectEl.innerHTML = "";
+  
+  /* ── 오프라인 폴백 포함: g_keycodes 없으면 G_OFFLINE_KEYCODES 사용 ── */
+  let v_kb = null;
+  
+  if (g_keycodes && Array.isArray(g_keycodes.kb) && g_keycodes.kb.length) {
+    v_kb = g_keycodes.kb;
+  } else if (typeof G_OFFLINE_KEYCODES !== "undefined" &&
+    G_OFFLINE_KEYCODES &&
+    Array.isArray(G_OFFLINE_KEYCODES.kb) &&
+    G_OFFLINE_KEYCODES.kb.length) {
+    v_kb = G_OFFLINE_KEYCODES.kb;
+    console.info("[populateKbUsageSelect] fallback to G_OFFLINE_KEYCODES.kb",
+      v_kb.length, "items");
+  }
+  
+  // kb 없으면 현재 값만 hex로 표시
+  if (!v_kb || !v_kb.length) {
+    const o = document.createElement("option");
+    o.value = String(p_currentCode);
+    o.textContent = _kbUsageLabel(p_currentCode, null);
+    p_selectEl.appendChild(o);
+    console.warn("[populateKbUsageSelect] no kb data (both sources empty)");
+    return;
+  }
+  
+  // 그룹 버킷
+  const groups = new Map();
+  for (const item of v_kb) {
+    const grp = _kbUsageGroup(item.code, item.name);
+    if (!groups.has(grp)) groups.set(grp, []);
+    groups.get(grp).push(item);
+  }
+  
+  // 그룹 순서 고정 (없음 → 알파벳 → 숫자 → 기본 → 펑션 → 네비 → 기타)
+  const ORDER = [
+    "없음",
+    "알파벳 (A~Z)",
+    "숫자 (1~0)",
+    "기본 키",
+    "펑션 키 (F1~F12)",
+    "네비게이션",
+    "기타 (심볼/특수)"
+  ];
+  
+  for (const grpName of ORDER) {
+    const items = groups.get(grpName);
+    if (!items || !items.length) continue;
+    
+    const og = document.createElement("optgroup");
+    og.label = grpName;
+    for (const item of items) {
+      const o = document.createElement("option");
+      o.value = String(item.code);
+      o.textContent = _kbUsageLabel(item.code, item.name);
+      og.appendChild(o);
+    }
+    p_selectEl.appendChild(og);
+  }
+  
+  // 현재 값이 목록에 없으면 임시 옵션
+  const cur = String(p_currentCode);
+  let found = false;
+  for (const opt of p_selectEl.options) {
+    if (opt.value === cur) { found = true; break; }
+  }
+  if (!found) {
+    const o = document.createElement("option");
+    o.value = cur;
+    o.textContent = "(custom) " + _kbUsageLabel(p_currentCode, null);
+    p_selectEl.appendChild(o);
+  }
+  
+  p_selectEl.value = cur;
+}
+
