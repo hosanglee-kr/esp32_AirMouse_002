@@ -40,7 +40,17 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         v_cfg.wheelStepMax     = v_m->_wheelStepMax;
         v_cfg.scrollCursorDamp = v_m->_scrollCursorDamp;
         v_m->_unlock();
-
+        
+        // ---- H-3: 웹 태스크가 위임한 리셋 플래그 처리 ----
+        if (v_m->_reqResetBtnDisp) {
+            v_m->_reqResetBtnDisp = false;
+            v_m->_btnDisp.resetAll();
+        }
+        if (v_m->_reqResetGesture) {
+            v_m->_reqResetGesture = false;
+            v_m->_gesture.reset();
+        }
+        
         // ---- async requests ----
         if (v_m->_reqClearDiag) {
             v_m->_reqClearDiag = false;
@@ -79,6 +89,9 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         if (v_m->_reqGyroCalib) {
             v_m->_reqGyroCalib  = false;
             v_m->_gyroCalibDone = false;
+            // [D-1] _biasTracker.reset()을 sensorTask 컨텍스트로 이동
+            //       (SPEC §상태 소유권: biasTracker는 sensorTask 단독 소유)
+            v_m->_biasTracker.reset();
             v_m->_runGyroCalibration();
             v_m->_gyroCalibDone = true;
         }
@@ -383,11 +396,13 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
 
         // ---- disconnect edge ----
         if (!v_conn && v_prevConn) {
-            // [v0410] 매크로 취소
-            v_m->_macroAbort = true;
-
+            // [H-1] 매크로 취소 토큰 + 상태머신 종료
+            v_m->_macroAbortToken++;
+            v_m->_macroState.active = false;
+        
             // HID + 액션 상태 전부 해제
             v_m->_actExec.releaseAll();
+    
             v_m->_doForceReleaseNow();
             v_m->_failsafeReleaseCount++;
 
@@ -417,8 +432,9 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         const bool v_gate = (v_m->_safeMode || v_m->_otaGuard);
 
         if (v_gate) {
-            // [v0410] 매크로 취소
-            v_m->_macroAbort = true;
+            // [H-1] 매크로 취소 토큰 + 상태머신 종료
+            v_m->_macroAbortToken++;
+            v_m->_macroState.active = false;
 
             // 큐 드레인 (overflow 방지)
             ST_E10_HidCmd_t v_drop;
@@ -448,9 +464,11 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_cmd, 0) == pdTRUE) {
                 switch (v_cmd.cmd) {
                     case EN_E10_HIDCMD_RELEASE_ALL:
+                        // [C-2] HID 직접 호출 제거: commTask가 actExec 런타임까지 정리
+                        v_m->_actExec.releaseAll();
                         v_m->_doReleaseAllButtons();
                         break;
-
+                        
                     case EN_E10_HIDCMD_TEST_CLICK:
                         v_m->_doTestMouseClick(v_cmd.arg0, v_cmd.holdMs);
                         break;
@@ -475,17 +493,21 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             uint8_t v_drainCount = 0;
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_acmd, 0) == pdTRUE) {
-
+        
                 if (v_acmd.slot.kind == (uint8_t)EN_C20_ACT_MACRO) {
-                    v_m->_runMacro((uint8_t)v_acmd.slot.param32);
+                    // [C-3] 블로킹 제거: 스냅샷 후 상태머신 시작
+                    v_m->_startMacro((uint8_t)v_acmd.slot.param32);
                 } else {
                     v_m->_actExec.exec(v_acmd.slot, v_acmd.isDown);
                 }
-
+        
                 if (++v_drainCount >= 4) break;
             }
         }
-
+        
+        // [C-3] 매크로 상태머신 전진 (블로킹 없음)
+        v_m->_tickMacro();
+        
         // 반복 액션 tick (KB_REPEAT / CONSUMER_REPEAT)
         v_m->_actExec.tickRepeat();
         

@@ -166,8 +166,29 @@ class CL_E10_EliteAirMouse {
     ST_C10_ProfileConfig_t _cfgProfile;
     bool                   _cfgProfileValid = false;
 
-    // [v0410] 매크로 실행 비동기 취소 플래그
-    volatile bool _macroAbort = false;
+    // [C-3/H-1] 매크로 상태머신 + 취소 토큰
+    //  - _macroAbort(bool) → _macroAbortToken(uint32)로 변경 (재실행 초기화 경합 제거)
+    //  - commTask 블로킹 제거: 스텝 단위 상태머신
+    volatile uint32_t _macroAbortToken = 0;
+    
+    struct ST_MacroState_t {
+        // [a-1] 다중 태스크(sensor/comm/web)에서 write됨 → volatile 명시
+        //       (실제 취소 판정은 _macroAbortToken 카운터가 담당)
+        volatile bool active;
+        uint8_t  macroIdx;
+        uint8_t  stepIdx;
+        uint32_t stepStartMs;
+        uint32_t startToken;
+    };
+    ST_MacroState_t _macroState = {};
+
+    // [H-4] 실행 시점 매크로 스냅샷 (락 유지 시간 최소화 + OOB 방지)
+    ST_C10_Macro_t _macroSnapshot = {};
+    
+    // [H-3] 리셋 위임 플래그
+    volatile bool _reqResetBtnDisp = false;
+    volatile bool _reqResetGesture = false;
+    
 
     float    _tempC   = 0.0f;
     uint32_t _uptime0 = 0;
@@ -379,9 +400,11 @@ class CL_E10_EliteAirMouse {
     //   p_mode: 1~3, p_trig: EN_C10_Trigger_t (0~26)
     ST_C20_ActionSlot_t _resolveSlot(uint8_t p_mode, uint8_t p_trig) const;
 
-    // [v0410] 매크로 실행기 (commTask에서 단독 호출)
-    void _runMacro(uint8_t p_macroIdx);
-
+    // 매크로 실행기 
+    // C-3: 매크로 상태머신
+    void _startMacro(uint8_t p_idx);
+    void _tickMacro();
+    
     // [H-3] 락 보유 상태에서 실행. caller가 _lock() 잡고 호출.
     void _applyRuntimeLocked(const ST_C10_E10Config_t& p_e);
 

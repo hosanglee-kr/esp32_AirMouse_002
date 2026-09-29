@@ -127,6 +127,9 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
             _pushFrame(v_fr);
         }
 
+        // [D-2] 캘리브 1초 블로킹 중 BLE pairing 타임아웃 검사 유지
+        _ble.tick(_hid.isConnected());
+
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
@@ -243,7 +246,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 bool CL_E10_EliteAirMouse::requestGyroCalibration() {
     _lock();
     _reqGyroCalib = true;
-    _biasTracker.reset();      // ← seed 폐기, 재수집 대기
+    // [D-1] _biasTracker.reset()은 sensorTask로 위임 (SPEC §상태 소유권)
+    //       실제 reset은 sensorTask가 _reqGyroCalib 플래그 처리 시 실행.
     _unlock();
     return true;
 }
@@ -256,32 +260,11 @@ bool CL_E10_EliteAirMouse::requestI2CRecover() {
 }
 
 bool CL_E10_EliteAirMouse::clearDiagnostics() {
+    // [D-3] 웹 태스크는 플래그만 설정. 실 클리어는 sensorTask가 담당
+    //       (SPEC §상태 소유권: errHist/spikes/RMS 카운터는 sensorTask 소유)
     _lock();
-
-    _errMpuNan = 0;
-    _errMutexMiss = 0;
-    _errTaskOverrun = 0;
-
-    _gyroN = 0; _gyroMean = 0.0; _gyroM2 = 0.0;
-    _curN  = 0; _curMean  = 0.0; _curM2  = 0.0;
-
-    _i2cRecoverCount  = 0;
-    _i2cRecoverLastOk = true;
-
-    memset(_errHist, 0, sizeof(_errHist));
-    _errHistHead  = 0;
-    _errHistCount = 0;
-
-    memset(_spikes, 0, sizeof(_spikes));
-    _spikeHead  = 0;
-    _spikeCount = 0;
-
-    _consecutiveFail = 0;
-    _consecutiveRecoverFail = 0;
-
-    _state.updated = true;
-    _reqClearDiag  = true;
-
+    _reqClearDiag = true;
     _unlock();
     return true;
 }
+

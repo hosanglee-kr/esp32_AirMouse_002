@@ -155,7 +155,8 @@ private:
     // SafeMode API Gate Policy
     // =====================================================
     bool _isSafeMode() const;
-    bool _isApiAllowedInSafeMode(const char* p_uri) const;
+    // [M-2] method-aware: 읽기 전용 API(POST 차단) 구분을 위해 method 전달
+    bool _isApiAllowedInSafeMode(const char* p_uri, WebRequestMethod p_method) const;
 
     // =====================================================
     // SafeMode Gate (공통)

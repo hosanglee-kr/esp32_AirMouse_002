@@ -90,6 +90,8 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
     }
 
     // ---------- Top M: Move Gate (Hold) ----------
+    // [C-1 fix] CLICK/LONG은 슬롯 매핑(S4)에 위임. Mode 3 Enter는 S4의 Mode 3
+    //           기본값({k:4,p16:40})이 처리하므로 하드코딩 제거.
     if (p_btnId == EN_C20_BTN_TOP_M) {
         if (p_evt == EN_C20_EVT_DOWN) {
             _moveGateHeld = true;
@@ -98,20 +100,12 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
         }
         if (p_evt == EN_C20_EVT_UP) {
             _moveGateHeld = false;
-
-            // Mode 3: 짧은 클릭(< 800ms)은 Enter (즉시, 딜레이 없음)
-            if (_activeMode == 3) {
-                const uint32_t v_held = v_now - _topMDownMs;
-                if (v_held < 800u) {
-                    (void)_enqueueAction(C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_ENTER), true);
-                }
-            }
-            // Mode 1/2는 CLICK 이벤트가 S4로 라우팅됨
             return true;
         }
-        // DOWN/UP 이외 이벤트(LONG 등)는 무시
-        return true;
+        // CLICK / LONG 등 나머지 이벤트 → 슬롯 매핑
+        return false;
     }
+
 
     // ---------- Top L: 항상 마우스 좌클릭 (고정) ----------
     if (p_btnId == EN_C20_BTN_TOP_L) {
@@ -260,8 +254,9 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
     // [Phase 8] Mode 전환은 활동
     _power.notifyActivity((uint32_t)millis());
     
-    // [v0410] 매크로 즉시 취소
-    _macroAbort = true;
+    // [H-1] 매크로 취소 토큰 증가 + 상태머신 즉시 종료
+    _macroAbortToken++;
+    _macroState.active = false;
 
     _lock();
     const uint8_t v_old = _activeMode;
@@ -364,55 +359,73 @@ void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
 }
 
 // =======================================================
-// [v0410] 매크로 실행 (commTask 전용)
-//   - 각 step을 순서대로 실행
-//   - delayMs 만큼 대기 (abort 플래그 감시)
-//   - step 실행은 _actExec.exec()로 (SPECIAL 제외 검증됨)
+// [C-3/H-1/H-4] 매크로 서브시스템
+//  - commTask는 매 루프마다 _tickMacro()만 호출 (블로킹 없음)
+//  - delay는 상태머신으로 분리, 커서 프레임 처리 시간 확보
 // =======================================================
-void CL_E10_EliteAirMouse::_runMacro(uint8_t p_idx) {
-    if (!_cfgProfileValid) return;
+
+void CL_E10_EliteAirMouse::_startMacro(uint8_t p_idx) {
+    // [a-2] 실행 중 매크로가 있으면 로그 (비동기 방식에서 조용히 대체되는 것 방지)
+    if (_macroState.active) {
+        D10_LOGW("[E10] macro replace: prev idx=%u step=%u",
+                 (unsigned)_macroState.macroIdx,
+                 (unsigned)_macroState.stepIdx);
+    }
+
+    // H-4: 락 하에 검증 + 스냅샷 (실행 중 프로파일 변경에 안전)
+    _lock();
+    if (!_cfgProfileValid) { _unlock(); return; }
     if (p_idx >= _cfgProfile.macros.count) {
+        _unlock();
         D10_LOGW("[E10] macro index out of range: %u", (unsigned)p_idx);
         return;
     }
+    _macroSnapshot = _cfgProfile.macros.macros[p_idx];
+    _unlock();
 
-    const ST_C10_Macro_t& v_m = _cfgProfile.macros.macros[p_idx];
-
-    _macroAbort = false;
+    _macroState.active       = true;
+    _macroState.macroIdx     = p_idx;
+    _macroState.stepIdx      = 0;
+    _macroState.stepStartMs  = (uint32_t)millis();
+    _macroState.startToken   = _macroAbortToken;
 
     D10_LOGI("[E10] macro start: idx=%u name=%s steps=%u",
-             (unsigned)p_idx, v_m.name, (unsigned)v_m.stepCount);
+             (unsigned)p_idx, _macroSnapshot.name, (unsigned)_macroSnapshot.stepCount);
+}
 
-    for (uint8_t i = 0; i < v_m.stepCount; i++) {
-        if (_macroAbort) {
-            D10_LOGW("[E10] macro aborted at step %u", (unsigned)i);
-            break;
-        }
+void CL_E10_EliteAirMouse::_tickMacro() {
+    if (!_macroState.active) return;
 
-        const ST_C10_MacroStep_t& s = v_m.steps[i];
-
-        // 1) delay (abort 감시)
-        if (s.delayMs > 0) {
-            const uint32_t v_t0 = (uint32_t)millis();
-            while (((uint32_t)millis() - v_t0) < (uint32_t)s.delayMs) {
-                if (_macroAbort) break;
-                vTaskDelay(pdMS_TO_TICKS(10));
-            }
-        }
-        if (_macroAbort) break;
-
-        // 2) step 실행 (primitive)
-        //    - step.kind는 validateMacroStep에서 MACRO/SPECIAL 제외됨
-        ST_C20_ActionSlot_t v_slot;
-        v_slot.kind     = s.kind;
-        v_slot.holdMode = s.holdMode;
-        v_slot.param16  = s.param16;
-        v_slot.param32  = s.param32;
-
-        (void)_actExec.exec(v_slot, true);
+    // H-1: 취소 토큰 검사
+    if (_macroState.startToken != _macroAbortToken) {
+        D10_LOGW("[E10] macro aborted at step %u", (unsigned)_macroState.stepIdx);
+        _macroState.active = false;
+        return;
     }
 
-    _macroAbort = false;
+    if (_macroState.stepIdx >= _macroSnapshot.stepCount) {
+        D10_LOGI("[E10] macro end: idx=%u", (unsigned)_macroState.macroIdx);
+        _macroState.active = false;
+        return;
+    }
 
-    D10_LOGI("[E10] macro end: idx=%u", (unsigned)p_idx);
+    const ST_C10_MacroStep_t& s = _macroSnapshot.steps[_macroState.stepIdx];
+    const uint32_t v_now = (uint32_t)millis();
+
+    // Delay 대기 (블로킹 아님, 다음 tick에서 재검사)
+    if (s.delayMs > 0 && (v_now - _macroState.stepStartMs) < (uint32_t)s.delayMs) {
+        return;
+    }
+
+    // Step 실행 (primitive; MACRO/SPECIAL은 validate에서 제외됨)
+    ST_C20_ActionSlot_t v_slot;
+    v_slot.kind     = s.kind;
+    v_slot.holdMode = s.holdMode;
+    v_slot.param16  = s.param16;
+    v_slot.param32  = s.param32;
+
+    (void)_actExec.exec(v_slot, true);
+
+    _macroState.stepIdx++;
+    _macroState.stepStartMs = (uint32_t)millis();
 }

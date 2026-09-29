@@ -296,11 +296,20 @@ bool CL_E10_EliteAirMouse::_saveActiveProfile() {
 // [v0410] 슬롯 조회 (Global + Mode Override)
 // =======================================================
 ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p_trig) const {
+    // [C-4] 프로파일 스위치 중 부분 갱신된 _cfgProfile을 읽지 않도록 락
+    //       (recursive mutex이므로 sensorTask/commTask 재진입 안전)
+    auto* v_self = const_cast<CL_E10_EliteAirMouse*>(this);
+    v_self->_lock();
+
+    ST_C20_ActionSlot_t v_out;
     if (!_cfgProfileValid) {
-        ST_C20_ActionSlot_t v_none = { EN_C20_ACT_NONE, EN_C20_HOLD_NONE, 0, 0 };
-        return v_none;
+        v_out = { EN_C20_ACT_NONE, EN_C20_HOLD_NONE, 0, 0 };
+    } else {
+        v_out = C10_ResolveSlot(_cfgProfile.slots, p_mode, p_trig);
     }
-    return C10_ResolveSlot(_cfgProfile.slots, p_mode, p_trig);
+
+    v_self->_unlock();
+    return v_out;
 }
 
 void CL_E10_EliteAirMouse::_getE10RuntimeConfig(ST_C10_E10Config_t& p_out) {
@@ -563,18 +572,29 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
 
     _cfg->setProfileSwitchInProgress(true);
 
-    // 1) 매크로 즉시 취소 + 진행 중 액션 해제
-    _macroAbort = true;
-    _actExec.releaseAll();
-    _btnDisp.resetAll();
-    _gesture.reset();
+    // 1) 매크로 취소 (H-1: 토큰 카운터)
+    _macroAbortToken++;
+    _macroState.active = false;
+
+    // 2) 큐 드레인 (H-2): 이전 프로파일의 잔여 커맨드 제거
+    {
+        ST_ActionCmd_t v_adrop;
+        while (_qActionExec && xQueueReceive(_qActionExec, &v_adrop, 0) == pdTRUE) {}
+        ST_E10_HidCmd_t v_hdrop;
+        while (_qHidCmd && xQueueReceive(_qHidCmd, &v_hdrop, 0) == pdTRUE) {}
+    }
+
+    // 3) 리셋 플래그 위임 (H-3): 실제 리셋은 sensorTask에서
+    _reqResetBtnDisp = true;
+    _reqResetGesture = true;
     _frontHoldActive = false;
     _moveGateHeld    = false;
 
-    // 2) HID 안전
+    // 4) HID 안전 release (C-2: 큐 경유)
+    //   - RELEASE_ALL 큐잉 시 commTask가 _actExec.releaseAll() + mouseRelease 수행
     (void)forceReleaseButtons();
 
-    // 3) active index 저장
+    // 5) active index 저장
     const bool v_idxOk = _cfg->setActiveIndex(p_idx);
     if (!v_idxOk) {
         D10_LOGW("[E10] switchProfile: setActiveIndex failed");
@@ -582,10 +602,10 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
         return false;
     }
 
-    // 4) 새 프로파일 로드 + 런타임 반영
+    // 6) 새 프로파일 로드 + 런타임 반영
     const bool v_reloadOk = _reloadActiveProfile();
 
-    // 5) Active Mode도 새 프로파일 기준으로
+    // 7) Active Mode도 새 프로파일 기준으로
     if (v_reloadOk && _cfgProfileValid) {
         const uint8_t v_m = _cfgProfile.e10.active_mode;
         if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
@@ -593,7 +613,7 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
         }
     }
 
-    // 6) LED 표시
+    // 8) LED 표시
     _led.setModeColor(_activeMode);
     _led.flash(EN_L10_COLOR_WHITE, 500);
 

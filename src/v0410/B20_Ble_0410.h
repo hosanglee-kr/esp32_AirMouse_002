@@ -80,16 +80,17 @@ class CL_B20_Ble {
 
     // ---- Tick (sensorTask에서 호출) ----
     void tick(bool p_connected);
-
+  
   private:
     uint8_t _activePeerIndex = 0;
-
-    bool     _pairing          = false;
-    uint32_t _pairingStartMs   = 0;
-    uint32_t _pairingTimeoutMs = 0;
-
-    bool _dirty = false;
-
+    
+    // [M-1] sensorTask(web/sensor 혼용 접근) — volatile로 재정렬/캐시 방지
+    volatile bool _pairing          = false;
+    uint32_t      _pairingStartMs   = 0;
+    uint32_t      _pairingTimeoutMs = 0;
+    
+    volatile bool _dirty = false;
+  
     bool     _whitelistActive  = false;
     uint32_t _whitelistUntilMs = 0;
 

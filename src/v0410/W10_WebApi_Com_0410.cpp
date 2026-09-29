@@ -252,10 +252,10 @@ bool CL_W10_WebConfig::_isSafeMode() const {
 }
 
 
-
-bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
+bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMethod p_method) const {
     if (!p_uri) return false;
 
+    // 대부분의 API는 GET만 존재 → method 검사 불필요
     if (strcmp(p_uri, "/api/status") == 0) return true;
     if (strcmp(p_uri, "/api/diag") == 0) return true;
     if (strcmp(p_uri, "/api/diag/clear") == 0) return true;
@@ -268,21 +268,25 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
     if (strcmp(p_uri, "/api/reboot") == 0) return true;
     if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
 
-    
     if (strcmp(p_uri, "/api/config") == 0) return true;
 
-    // [H-1] SafeMode 정책: write 계열은 save/apply/import 모두 차단.
-    //       복구 경로(export/rollback/factory_reset)만 허용.
-    //       - import는 _apiConfigSaveImportCommon 경유로 config를 덮어쓰므로 write로 취급.
-    //       - save/apply는 아래 목록에 없으므로 자동 차단.
+    // write 계열은 save/apply/import 모두 차단 (아래 목록에 없으므로 자동 차단)
+    // 복구 경로(export/rollback)만 허용
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
     if (strcmp(p_uri, "/api/export") == 0) return true;
     if (strcmp(p_uri, "/api/config/rollback") == 0) return true;
 
-    // [v0410] 읽기 전용 profile 조회만 허용 (write는 gate에서 차단)
-    if (strcmp(p_uri, "/api/profiles") == 0) return true;
+    // [M-2] v0410 읽기 전용 profile/triggers API: GET만 허용
+    //   - /api/profiles/active: GET(read) + POST(write) 양쪽 등록됨 → method 필수 검사
+    //   - /api/profiles: GET만 등록되어 있으나 방어적으로 GET만 허용
+    //   - /api/triggers: GET만 등록 (method 검사 생략 가능)
+    if (strcmp(p_uri, "/api/profiles/active") == 0) {
+        return (p_method == HTTP_GET);
+    }
+    if (strcmp(p_uri, "/api/profiles") == 0) {
+        return (p_method == HTTP_GET);
+    }
     if (strcmp(p_uri, "/api/triggers") == 0) return true;
-    if (strcmp(p_uri, "/api/profiles/active") == 0) return true;
 
     return false;
 }
@@ -298,17 +302,21 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
 bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
-    const char* v_uri = nullptr;
-    if (req) v_uri = req->url().c_str();
+    const char*      v_uri    = nullptr;
+    WebRequestMethod v_method = HTTP_ANY;
+    if (req) {
+        v_uri    = req->url().c_str();
+        v_method = req->method();
+    }
 
-    if (_isApiAllowedInSafeMode(v_uri)) return false;
+    // [M-2] method-aware 검사
+    if (_isApiAllowedInSafeMode(v_uri, v_method)) return false;
 
     _cnt_safe_blocked++;
     _diagPush("safe_mode_blocked");
     _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
     return true;
 }
-
 
 // =====================================================
 // (STEP12) Envelope selector helper
