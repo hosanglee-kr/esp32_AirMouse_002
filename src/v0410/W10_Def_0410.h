@@ -194,6 +194,26 @@ struct ST_W10_E10If_t {
 
     // PPT test
     bool (*testPptKey2)(void* ctx, uint8_t page, uint8_t mod, uint32_t code);
+
+    // ====================================================
+    // [v0410] Profile 관리
+    // ====================================================
+    bool (*reloadProfile)(void* ctx);
+    bool (*saveProfile)(void* ctx);
+    bool (*getProfileInfo)(void* ctx,
+                           uint8_t* outIdx, uint8_t* outCount,
+                           char* outName, size_t outNameSize);
+    bool (*switchProfile)(void* ctx, uint8_t p_idx);
+
+    // ====================================================
+    // [v0410] Live Test (kind/hMode/p16/p32 즉시 실행)
+    //   - 매크로 kind는 큐 경유 (commTask가 실행)
+    //   - SPECIAL은 sensorTask 즉시
+    //   - 그 외는 큐 경유
+    // ====================================================
+    bool (*execLiveTest)(void* ctx,
+                         uint8_t p_kind, uint8_t p_hMode,
+                         uint16_t p_p16, uint32_t p_p32);
 };
 
 // -------------------------------------------------------

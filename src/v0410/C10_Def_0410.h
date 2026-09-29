@@ -1,4 +1,3 @@
-// =======================================================
 // File: src/v0410/C10_Def_0410.h
 // =======================================================
 #pragma once
@@ -6,74 +5,144 @@
  * ------------------------------------------------------
  * 소스명 : C10_Def_0410.h
  * 모듈약어 : C10
- * 모듈명 : Config Definitions (v0410 3-Mode)
+ * 모듈명 : Config Definitions (v0410 프로파일 + 매크로 + Global/Override)
  * ------------------------------------------------------
  * 기능 요약
- *  - 스키마 버전 / 경로 상수
- *  - WiFi / Mode / Slot / E10 확장 config struct
- *  - Boot state struct (기존 유지)
- * ------------------------------------------------------
- * [구현 규칙]
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - namespace 명        : 모듈약어_ 접두사
- *   - 전역 상수,매크로      : G_모듈약어_ 접두사
- *   - enum 상수             : EN_모듈약어_ 접두사
- *   - 구조체                : ST_모듈약어_ 접두사
+ *  - 스키마 v5 (프로파일 × 매크로 × Global+Override 슬롯)
+ *  - 트리거 라이브러리 (27개) + 잠금 플래그 (4개)
+ *  - 매크로 자료구조 (8×8, delay ≤ 2000ms)
+ *  - Profile 슬롯 매트릭스 (Global + Mode별 Override)
+ *  - E10 파라미터 (modes 제외, 프로파일 단위 관리)
  * ------------------------------------------------------
  */
 
 #include <Arduino.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "C20_Action_0410.h"
 
-// -------------------------------------------------------
-// 스키마 버전 / 경로
-// -------------------------------------------------------
-static constexpr uint16_t G_C10_CFG_VER = 400;
+static constexpr uint16_t G_C10_CFG_VER = 410;
 
 namespace C10_DEF {
-    // ---------- Paths ----------
-    static constexpr const char* CFG_PATH = "/json/config_0410.json";
-    static constexpr const char* CFG_TMP  = "/json/config_0410.json.tmp";
-    static constexpr const char* CFG_BAK  = "/json/config_0410.json.bak";
+    static constexpr uint8_t TRIG_COUNT  = 27;
+    static constexpr uint8_t MODE_COUNT  = 3;
+    static constexpr uint8_t PROFILE_MAX = 5;
 
-    static constexpr const char* BOOT_PATH     = "/json/boot_state_0410.json";
-    static constexpr const char* BOOT_TMP_PATH = "/json/boot_state_0410.json.tmp";
+    static constexpr uint8_t  MACRO_MAX          = 8;
+    static constexpr uint8_t  MACRO_STEP_MAX     = 8;
+    static constexpr uint16_t MACRO_DELAY_MAX_MS = 2000;
+    static constexpr uint8_t  MACRO_NAME_LEN     = 16;
+    static constexpr uint8_t  PROFILE_NAME_LEN   = 16;
+
+    static constexpr const char* PROFILES_DIR       = "/json/profiles";
+    static constexpr const char* PROFILE_ACTIVE     = "/json/active_profile.json";
+    static constexpr const char* PROFILE_ACTIVE_TMP = "/json/active_profile.json.tmp";
+    static constexpr const char* BOOT_PATH          = "/json/boot_state_0410.json";
+    static constexpr const char* BOOT_TMP_PATH      = "/json/boot_state_0410.json.tmp";
 
     static constexpr uint8_t SAFE_FAIL_THRESHOLD = 2;
 
-    // ---------- Limits ----------
     static constexpr size_t STA_SSID_MAX = 32;
     static constexpr size_t STA_PASS_MAX = 64;
     static constexpr size_t AP_SSID_MAX  = 32;
     static constexpr size_t AP_PASS_MAX  = 64;
     static constexpr size_t MDNS_MAX     = 32;
 
-    // ---------- Slot 개수 ----------
-    // Slot 배열 순서 (고정)
-    //   slots[0..14]  : S1..S15 (물리 버튼)
-    //   flick[0..3]   : G1..G4 (L, R, U, D)
-    //   linear[0..3]  : G5..G8 (L, R, U, D)
-    //   tilt[0..3]    : T1..T4 (U, D, L, R) — Mode 3 전용
-    static constexpr uint8_t SLOT_BTN_COUNT    = 15;
-    static constexpr uint8_t SLOT_FLICK_COUNT  = 4;
-    static constexpr uint8_t SLOT_LINEAR_COUNT = 4;
-    static constexpr uint8_t SLOT_TILT_COUNT   = 4;
+    static inline bool makeProfilePath(char* p_dst, size_t p_dstSize, uint8_t p_idx) {
+        if (!p_dst || p_dstSize < 32) return false;
+        const int v_n = snprintf(p_dst, p_dstSize, "%s/profile_%u.json", PROFILES_DIR, (unsigned)p_idx);
+        return (v_n > 0 && (size_t)v_n < p_dstSize);
+    }
 
-    // ---------- Mode ----------
-    static constexpr uint8_t MODE_COUNT = 3;
+    static inline bool makeProfileTmpPath(char* p_dst, size_t p_dstSize, uint8_t p_idx) {
+        if (!p_dst || p_dstSize < 40) return false;
+        const int v_n = snprintf(p_dst, p_dstSize, "%s/profile_%u.json.tmp", PROFILES_DIR, (unsigned)p_idx);
+        return (v_n > 0 && (size_t)v_n < p_dstSize);
+    }
 }
 
+// 27개 트리거 enum (0~26)
+enum EN_C10_Trigger_t : uint8_t {
+    EN_C10_TRIG_TOP_L_CLICK      = 0,
+    EN_C10_TRIG_TOP_L_DOUBLE     = 1,
+    EN_C10_TRIG_TOP_L_LONG       = 2,
+    EN_C10_TRIG_TOP_M_CLICK      = 3,
+    EN_C10_TRIG_TOP_M_HOLD       = 4,
+    EN_C10_TRIG_TOP_R_CLICK      = 5,
+    EN_C10_TRIG_TOP_R_DOUBLE     = 6,
+    EN_C10_TRIG_TOP_R_LONG       = 7,
+    EN_C10_TRIG_SIDE_F_CLICK     = 8,
+    EN_C10_TRIG_SIDE_F_LONG      = 9,
+    EN_C10_TRIG_SIDE_C_CLICK     = 10,
+    EN_C10_TRIG_SIDE_C_DOUBLE    = 11,
+    EN_C10_TRIG_SIDE_C_HOLD_2S   = 12,
+    EN_C10_TRIG_SIDE_R_CLICK     = 13,
+    EN_C10_TRIG_SIDE_R_LONG      = 14,
+    EN_C10_TRIG_FLICK_LEFT       = 15,
+    EN_C10_TRIG_FLICK_RIGHT      = 16,
+    EN_C10_TRIG_FLICK_UP         = 17,
+    EN_C10_TRIG_FLICK_DOWN       = 18,
+    EN_C10_TRIG_LINEAR_LEFT      = 19,
+    EN_C10_TRIG_LINEAR_RIGHT     = 20,
+    EN_C10_TRIG_LINEAR_UP        = 21,
+    EN_C10_TRIG_LINEAR_DOWN      = 22,
+    EN_C10_TRIG_TILT_LEFT        = 23,
+    EN_C10_TRIG_TILT_RIGHT       = 24,
+    EN_C10_TRIG_TILT_UP          = 25,
+    EN_C10_TRIG_TILT_DOWN        = 26,
+    EN_C10_TRIG_MAX
+};
 
-// -------------------------------------------------------
-// WiFi (기존 유지)
-// -------------------------------------------------------
+// 잠금 트리거 플래그 (0: Top L Click, 4: Top M Hold, 11: Side C Double, 12: Side C 2s Hold)
+static constexpr bool G_C10_TRIG_LOCKED[EN_C10_TRIG_MAX] = {
+    true,  false, false, false, true,
+    false, false, false, false, false,
+    false, true,  true,  false, false,
+    false, false, false, false,
+    false, false, false, false,
+    false, false, false, false
+};
+
+static inline const char* C10_TriggerName(uint8_t p_trig) {
+    switch ((EN_C10_Trigger_t)p_trig) {
+        case EN_C10_TRIG_TOP_L_CLICK:    return "Top L Click";
+        case EN_C10_TRIG_TOP_L_DOUBLE:   return "Top L Double";
+        case EN_C10_TRIG_TOP_L_LONG:     return "Top L Long";
+        case EN_C10_TRIG_TOP_M_CLICK:    return "Top M Click";
+        case EN_C10_TRIG_TOP_M_HOLD:     return "Top M Hold";
+        case EN_C10_TRIG_TOP_R_CLICK:    return "Top R Click";
+        case EN_C10_TRIG_TOP_R_DOUBLE:   return "Top R Double";
+        case EN_C10_TRIG_TOP_R_LONG:     return "Top R Long";
+        case EN_C10_TRIG_SIDE_F_CLICK:   return "Side F Click";
+        case EN_C10_TRIG_SIDE_F_LONG:    return "Side F Long";
+        case EN_C10_TRIG_SIDE_C_CLICK:   return "Side C Click";
+        case EN_C10_TRIG_SIDE_C_DOUBLE:  return "Side C Double";
+        case EN_C10_TRIG_SIDE_C_HOLD_2S: return "Side C 2s Hold";
+        case EN_C10_TRIG_SIDE_R_CLICK:   return "Side R Click";
+        case EN_C10_TRIG_SIDE_R_LONG:    return "Side R Long";
+        case EN_C10_TRIG_FLICK_LEFT:     return "Flick Left";
+        case EN_C10_TRIG_FLICK_RIGHT:    return "Flick Right";
+        case EN_C10_TRIG_FLICK_UP:       return "Flick Up";
+        case EN_C10_TRIG_FLICK_DOWN:     return "Flick Down";
+        case EN_C10_TRIG_LINEAR_LEFT:    return "Linear Left";
+        case EN_C10_TRIG_LINEAR_RIGHT:   return "Linear Right";
+        case EN_C10_TRIG_LINEAR_UP:      return "Linear Up";
+        case EN_C10_TRIG_LINEAR_DOWN:    return "Linear Down";
+        case EN_C10_TRIG_TILT_LEFT:      return "Tilt Left";
+        case EN_C10_TRIG_TILT_RIGHT:     return "Tilt Right";
+        case EN_C10_TRIG_TILT_UP:        return "Tilt Up";
+        case EN_C10_TRIG_TILT_DOWN:      return "Tilt Down";
+        default:                         return "?";
+    }
+}
+
+static inline const char* C10_TriggerGroup(uint8_t p_trig) {
+    if (p_trig <= 14) return "button";
+    if (p_trig <= 22) return "gesture";
+    return "tilt";
+}
+
 enum EN_C10_WIFI_MODE_t : uint8_t {
     EN_C10_WIFI_AUTO = 0,
     EN_C10_WIFI_AP   = 1,
@@ -89,20 +158,6 @@ struct ST_C10_WiFiConfig_t {
     char mdns_host[33];
 };
 
-// -------------------------------------------------------
-// Mode Config
-// -------------------------------------------------------
-struct ST_C10_ModeConfig_t {
-    ST_C20_ActionSlot_t slots [C10_DEF::SLOT_BTN_COUNT];     // S1..S15
-    ST_C20_ActionSlot_t flick [C10_DEF::SLOT_FLICK_COUNT];   // G1..G4
-    ST_C20_ActionSlot_t linear[C10_DEF::SLOT_LINEAR_COUNT];  // G5..G8
-    ST_C20_ActionSlot_t tilt  [C10_DEF::SLOT_TILT_COUNT];    // T1..T4
-};
-
-
-// -------------------------------------------------------
-// Precision Mode (v0320 유지)
-// -------------------------------------------------------
 enum EN_C10_E10PrecisionMode_t : uint8_t {
     EN_C10_E10_PREC_OFF  = 0,
     EN_C10_E10_PREC_LOW  = 1,
@@ -112,11 +167,7 @@ enum EN_C10_E10PrecisionMode_t : uint8_t {
     EN_C10_E10_PREC_MAX
 };
 
-// -------------------------------------------------------
-// E10 Config (v0410 확장)
-// -------------------------------------------------------
 struct ST_C10_E10Config_t {
-    // ---- 기존 물리 엔진 파라미터 (v0320에서 유지) ----
     uint8_t dpi_level;
     bool    hard_click_lock;
 
@@ -132,8 +183,7 @@ struct ST_C10_E10Config_t {
 
     float scroll_cursor_damp;
 
-    // ---- Precision (v0320 유지, web 설정 전용) ----
-    uint8_t  precision_mode;         // EN_C10_E10PrecisionMode_t
+    uint8_t  precision_mode;
     float    precision_deadzone;
     float    precision_gain;
     float    precision_accel;
@@ -145,24 +195,23 @@ struct ST_C10_E10Config_t {
     float    prec_exit_move_deg;
     uint8_t  prec_profile;
 
-    // ---- v0410 신규 ----
-    uint8_t led_brightness;         // 0~255
-    bool    battery_adc_enabled;    // 향후
+    uint8_t led_brightness;
+    bool    battery_adc_enabled;
 
     struct {
-        float    still_th;          // deg/s
+        float    still_th;
         uint16_t still_win_ms;
-        float    alpha;             // 0~1 (bias 추종 계수)
+        float    alpha;
     } gyro_bias;
 
     struct {
-        float    th;                // m/s^2
-        float    impulse_th;        // m/s (임펄스 임계)
+        float    th;
+        float    impulse_th;
         uint16_t window_ms;
     } linear;
 
     struct {
-        float    p2p_th;            // deg/s
+        float    p2p_th;
         uint16_t window_ms;
         uint16_t cooldown_ms;
     } flick;
@@ -170,20 +219,78 @@ struct ST_C10_E10Config_t {
     struct {
         float    angle_deg;
         uint16_t hold_ms;
-        uint8_t  repeat_hz;         // 1~20
+        uint8_t  repeat_hz;
     } tilt_hold;
 
     uint32_t sleep_idle_timeout_ms;
-    uint8_t  active_mode;           // 1/2/3 (마지막 사용)
-    uint8_t  active_peer_index;     // 0/1/2 (마지막 peer)
-
-    // ---- Mode별 슬롯 매트릭스 ----
-    ST_C10_ModeConfig_t modes[C10_DEF::MODE_COUNT];
+    uint8_t  active_mode;
+    uint8_t  active_peer_index;
 };
 
-// -------------------------------------------------------
-// Boot State (기존 유지)
-// -------------------------------------------------------
+// 매크로 Step (16 Bytes)
+struct ST_C10_MacroStep_t {
+    uint8_t  kind;       // 1~9 (Primitive만 허용)
+    uint8_t  holdMode;   // 0=NONE, 1=PRESS, 2=REPEAT
+    uint16_t delayMs;    // 0~2000 ms
+    uint16_t param16;
+    uint16_t _pad;
+    uint32_t param32;
+};
+
+// 매크로 개별 정의 (148 Bytes)
+struct ST_C10_Macro_t {
+    char     name[C10_DEF::MACRO_NAME_LEN];
+    uint8_t  stepCount;
+    uint8_t  _pad[3];
+    ST_C10_MacroStep_t steps[C10_DEF::MACRO_STEP_MAX];
+};
+
+// 프로파일 매크로 라이브러리 (1188 Bytes)
+struct ST_C10_MacroLib_t {
+    uint8_t  count;
+    uint8_t  _pad[3];
+    ST_C10_Macro_t macros[C10_DEF::MACRO_MAX];
+};
+
+// 슬롯 매트릭스 (876 Bytes)
+struct ST_C10_ProfileSlots_t {
+    ST_C20_ActionSlot_t global[EN_C10_TRIG_MAX];
+    ST_C20_ActionSlot_t modes [C10_DEF::MODE_COUNT][EN_C10_TRIG_MAX];
+    uint32_t            overrideMask[C10_DEF::MODE_COUNT];
+};
+
+// 런타임 슬롯 해석 인라인 함수
+static inline ST_C20_ActionSlot_t C10_ResolveSlot(
+    const ST_C10_ProfileSlots_t& p_slots, uint8_t p_mode, uint8_t p_trig)
+{
+    if (p_mode < 1 || p_mode > C10_DEF::MODE_COUNT) p_mode = 1;
+    if (p_trig >= EN_C10_TRIG_MAX) {
+        ST_C20_ActionSlot_t v_none = { EN_C20_ACT_NONE, EN_C20_HOLD_NONE, 0, 0 };
+        return v_none;
+    }
+    const uint8_t m = (uint8_t)(p_mode - 1);
+    if (p_slots.overrideMask[m] & (1u << p_trig)) {
+        return p_slots.modes[m][p_trig];
+    }
+    return p_slots.global[p_trig];
+}
+
+// Profile 통합 구조체 (~2.4 KB)
+struct ST_C10_ProfileConfig_t {
+    uint16_t ver;
+    char     name[C10_DEF::PROFILE_NAME_LEN];
+
+    ST_C10_WiFiConfig_t   wifi;
+    ST_C10_E10Config_t    e10;
+    ST_C10_ProfileSlots_t slots;
+    ST_C10_MacroLib_t     macros;
+};
+
+struct ST_C10_ProfileIndex_t {
+    uint8_t activeIndex;
+    uint8_t profileCount;
+};
+
 struct ST_C10_BootState_t {
     bool     safe_mode;
     uint8_t  fail_count;

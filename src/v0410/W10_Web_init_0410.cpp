@@ -67,7 +67,13 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
     WiFi.onEvent(s_wifiEvent);
 
     if (_cfg) {
-        (void)_cfg->loadAll(_wifi, _e10);
+        // [v0410] 활성 프로파일 로드
+        ST_C10_ProfileConfig_t v_p;
+        _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+        if (_cfg->loadActiveProfile(v_p)) {
+            _wifi = v_p.wifi;
+            _e10  = v_p.e10;
+        }
     }
 
     _setupWiFi();
@@ -122,13 +128,68 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             apiControl(req, data, len, index, total);
         });
 
-    // PPT
-    _svr.on("/api/ppt", HTTP_GET, [this](AsyncWebServerRequest* req) { apiGetPpt(req); });
-    _svr.on("/api/ppt", HTTP_POST,
+    // ==============================
+    // [v0410] Profile API
+    // ==============================
+    _svr.on("/api/profiles", HTTP_GET,
+        [this](AsyncWebServerRequest* req) { apiProfilesList(req); });
+
+    _svr.on("/api/profiles/switch", HTTP_POST,
         [this](AsyncWebServerRequest* req) { (void)req; },
         nullptr,
         [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            apiPostPpt(req, data, len, index, total);
+            apiProfilesSwitch(req, data, len, index, total);
+        });
+
+    _svr.on("/api/profiles/create", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiProfilesCreate(req, data, len, index, total);
+        });
+
+    _svr.on("/api/profiles/delete", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiProfilesDelete(req, data, len, index, total);
+        });
+
+    _svr.on("/api/profiles/rename", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiProfilesRename(req, data, len, index, total);
+        });
+
+    _svr.on("/api/profiles/active", HTTP_GET,
+        [this](AsyncWebServerRequest* req) { apiProfilesActiveGet(req); });
+
+    _svr.on("/api/profiles/active", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiProfilesActivePost(req, data, len, index, total);
+        });
+
+    // ==============================
+    // [v0410] Triggers / Live Test
+    // ==============================
+    _svr.on("/api/triggers", HTTP_GET,
+        [this](AsyncWebServerRequest* req) { apiTriggers(req); });
+
+    _svr.on("/api/action/test", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiActionTest(req, data, len, index, total);
+        });
+
+    _svr.on("/api/action/test_macro", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiActionTestMacro(req, data, len, index, total);
         });
 
     _svr.on("/api/ppt/test", HTTP_POST,

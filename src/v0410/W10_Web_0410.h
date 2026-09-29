@@ -252,15 +252,22 @@ private:
     String _rebootReasonsString(uint32_t m);
 
     // =====================================================
-    // config save/import common
+    // [v0410] /api/profiles  (프로파일 관리)
     // =====================================================
-    void _apiConfigSaveImportCommon(
-        AsyncWebServerRequest* req,
-        uint8_t* data, size_t len,
-        size_t index, size_t total,
-        const char* p_src,
-        const char* p_note,
-        bool p_applyAfterSave);
+    void apiProfilesList    (AsyncWebServerRequest* req);
+    void apiProfilesSwitch  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiProfilesCreate  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiProfilesDelete  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiProfilesRename  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiProfilesActiveGet(AsyncWebServerRequest* req);
+    void apiProfilesActivePost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+
+    // =====================================================
+    // [v0410] /api/triggers, /api/action/test
+    // =====================================================
+    void apiTriggers        (AsyncWebServerRequest* req);
+    void apiActionTest      (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiActionTestMacro (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
 
     // =====================================================
     // E10 status fill

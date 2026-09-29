@@ -222,7 +222,9 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
 
         uint32_t v_etag = 0;
         size_t v_cfgSize = 0;
-        bool v_etagOk = _cfg->getConfigEtag(v_etag, &v_cfgSize);
+        char v_profPath[64];
+        C10_DEF::makeProfilePath(v_profPath, sizeof(v_profPath), _cfg->getActiveIndex());
+        bool v_etagOk = _calcFileEtag32(v_profPath, v_etag, &v_cfgSize);
         JsonObject cfg = v_doc["config"].to<JsonObject>();
         cfg["ver"] = (uint16_t)G_C10_CFG_VER;
         cfg["etag_ok"] = v_etagOk;
@@ -529,6 +531,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
             { 7, "CONSUMER_TAP",     false, true,  nullptr,  "mask32" },
             { 8, "CONSUMER_REPEAT",  false, true,  nullptr,  "mask32" },
             { 9, "SPECIAL",          true,  false, "special", nullptr },
+            { 10, "MACRO",           false, true,  nullptr,  "macroIdx" },
         };
         for (size_t i = 0; i < sizeof(G_KINDS)/sizeof(G_KINDS[0]); i++) {
             JsonObject o = kinds.add<JsonObject>();
@@ -570,10 +573,10 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
     {
         struct ST_G { const char* n; uint8_t count; };
         static const ST_G G_GR[] = {
-            { "slots",  C10_DEF::SLOT_BTN_COUNT },
-            { "flick",  C10_DEF::SLOT_FLICK_COUNT },
-            { "linear", C10_DEF::SLOT_LINEAR_COUNT },
-            { "tilt",   C10_DEF::SLOT_TILT_COUNT },
+            { "slots",  15 },
+            { "flick",  4 },
+            { "linear", 4 },
+            { "tilt",   4 },
         };
         for (size_t i = 0; i < sizeof(G_GR)/sizeof(G_GR[0]); i++) {
             JsonObject o = groups.add<JsonObject>();
@@ -612,11 +615,25 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         }
     }
 
-    d["api_ver"] = (uint16_t)400;
-    d["note"] = "v0410: mode slots (slots/flick/linear/tilt). "
-                "action_kinds + specials + directions for UI. "
+    // ==================================================
+    // [v0410] triggers (27개)
+    // ==================================================
+    JsonArray trigs = d["triggers"].to<JsonArray>();
+    for (uint8_t i = 0; i < (uint8_t)EN_C10_TRIG_MAX; i++) {
+        JsonObject o = trigs.add<JsonObject>();
+        o["idx"]    = i;
+        o["name"]   = C10_TriggerName(i);
+        o["group"]  = C10_TriggerGroup(i);
+        o["locked"] = G_C10_TRIG_LOCKED[i];
+    }
+    d["trigger_count"] = (uint8_t)EN_C10_TRIG_MAX;
+
+    d["api_ver"] = (uint16_t)410;
+    d["note"] = "v0410: profile-based slots (Global + Mode Override). "
+                "action_kinds + specials + triggers for UI. "
                 "mods mask == HID modifier byte. "
-                "kb=usage-id(0x07), consumer=32-bit mask.";
+                "kb=usage-id(0x07), consumer=32-bit mask. "
+                "MACRO kind(10) references macro index via p32.";
 
     _sendOk(req, "keycodes", "", &d, 200);
 }

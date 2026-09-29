@@ -1,9 +1,9 @@
 {
   "meta": {
-    "schema_ver": 2,
-    "cfg_ver": 400,
+    "schema_ver": 5,
+    "cfg_ver": 500,
     "generated_for": "v0410",
-    "notes": "UI range/options schema. Mode slots (slots/flick/linear/tilt) for /api/ppt and /api/config patch."
+    "notes": "v0410 UI schema: Multi-profile, 27-trigger Global/Mode Override slots, and 8x8 MacroLib."
   },
   "wifi": {
     "mode": {
@@ -120,11 +120,16 @@
 
   "modes_meta": {
     "count": 3,
+    "total_triggers": 27,
     "groups": [
-      { "name": "slots",  "count": 15, "label": "Button Slots (S1..S15)" },
-      { "name": "flick",  "count": 4,  "label": "Flick (L/R/U/D)" },
-      { "name": "linear", "count": 4,  "label": "Linear (L/R/U/D)" },
-      { "name": "tilt",   "count": 4,  "label": "Tilt Hold (L/R/U/D) — Mode 3 only" }
+      { "name": "button",  "count": 15, "label": "Button Slots (S1..S15)" },
+      { "name": "gesture", "count": 8,  "label": "Gesture (Flick + Linear)" },
+      { "name": "tilt",    "count": 4,  "label": "Tilt Hold (Mode 3 only)" }
     ]
+  },
+  "macros_meta": {
+    "max_count": 8,
+    "max_steps": 8,
+    "max_delay_ms": 2000
   }
 }

@@ -157,9 +157,17 @@ class CL_E10_EliteAirMouse {
     float    _precExitMoveDeg   = 7.5f;
     uint8_t  _precProfile       = 1;
 
-    // 런타임 적용 경로 단일화용 snapshot
-    ST_C10_E10Config_t _cfgE10Runtime;
-    bool               _cfgE10RuntimeValid = false;
+    // ====================================================
+    // [v0410] 활성 프로파일 스냅샷
+    //   _cfgProfile.e10    : E10 파라미터 (기존 _cfgE10Runtime에 해당)
+    //   _cfgProfile.slots  : Global + Mode Override 슬롯 매트릭스
+    //   _cfgProfile.macros : 매크로 라이브러리 (최대 8×8)
+    // ====================================================
+    ST_C10_ProfileConfig_t _cfgProfile;
+    bool                   _cfgProfileValid = false;
+
+    // [v0410] 매크로 실행 비동기 취소 플래그
+    volatile bool _macroAbort = false;
 
     float    _tempC   = 0.0f;
     uint32_t _uptime0 = 0;
@@ -323,6 +331,29 @@ class CL_E10_EliteAirMouse {
     // -------- test --------
     bool testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
     bool testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs = 25);
+
+    // ====================================================
+    // [v0410] Profile 관리
+    // ====================================================
+    bool reloadActiveProfile();          // LittleFS → _cfgProfile 재로드 + 런타임 반영
+    bool saveActiveProfile();            // 런타임 → _cfgProfile → LittleFS 저장
+
+    bool getActiveProfileInfo(uint8_t& p_outIdx, uint8_t& p_outCount,
+                              char* p_outName, size_t p_outNameSize);
+
+    // 프로파일 전환 (안전 처리: 매크로 abort, 액션/repeat 해제, HID release)
+    bool switchProfile(uint8_t p_idx);
+
+    // [v0410] 매크로 개수 (status 노출용, 읽기 전용)
+    uint8_t getMacroCount() const;
+
+    // ====================================================
+    // [v0410] Live Test (단일 액션 즉시 실행)
+    //   - SPECIAL: sensorTask 즉시 (동기)
+    //   - MACRO / 기타: 큐 경유 (비동기)
+    // ====================================================
+    bool execLiveTest(uint8_t p_kind, uint8_t p_hMode,
+                      uint16_t p_p16, uint32_t p_p32);
     
     // ====================================================
     // [Phase 10] main loop에서 호출 (200ms cadence)
@@ -339,6 +370,17 @@ class CL_E10_EliteAirMouse {
     void _getE10RuntimeConfig(ST_C10_E10Config_t& p_out);
     void _snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out);
     void _applyE10ToRuntime(const ST_C10_E10Config_t& p_e);
+
+    // [v0410] 활성 프로파일 로드/저장 (LittleFS)
+    bool _reloadActiveProfile();
+    bool _saveActiveProfile();
+
+    // [v0410] Global + Mode Override 슬롯 조회 (O(1))
+    //   p_mode: 1~3, p_trig: EN_C10_Trigger_t (0~26)
+    ST_C20_ActionSlot_t _resolveSlot(uint8_t p_mode, uint8_t p_trig) const;
+
+    // [v0410] 매크로 실행기 (commTask에서 단독 호출)
+    void _runMacro(uint8_t p_macroIdx);
 
     // [H-3] 락 보유 상태에서 실행. caller가 _lock() 잡고 호출.
     void _applyRuntimeLocked(const ST_C10_E10Config_t& p_e);

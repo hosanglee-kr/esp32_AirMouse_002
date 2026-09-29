@@ -278,7 +278,12 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri) const {
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
     if (strcmp(p_uri, "/api/export") == 0) return true;
     if (strcmp(p_uri, "/api/config/rollback") == 0) return true;
-    
+
+    // [v0410] 읽기 전용 profile 조회만 허용 (write는 gate에서 차단)
+    if (strcmp(p_uri, "/api/profiles") == 0) return true;
+    if (strcmp(p_uri, "/api/triggers") == 0) return true;
+    if (strcmp(p_uri, "/api/profiles/active") == 0) return true;
+
     return false;
 }
 

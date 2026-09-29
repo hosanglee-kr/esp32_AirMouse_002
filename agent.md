@@ -179,3 +179,16 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
      `pio run -e esp32-s3-zero`
 4. **지식 베이스 동기화**:
    - 코드 변경 후 `graphify update .` 실행
+
+---
+
+## 7. 🚀 v0410 다중 프로파일 & 매크로 라이브러리 구현 현황 (완료)
+
+| 마일스톤 | 대상 모듈 | 구현 내용 | 상태 |
+|---|---|---|:---:|
+| **M1: 스키마 & 모델** | `C10_Config`, `C20_Action` | Schema v5 데이터 구조 정의, Profile CRUD(최대 5개), MacroLib(8×8), 27개 고정 트리거(4개 잠금 비트), LittleFS 원자적 I/O | ✅ 완료 |
+| **M2: 백엔드 런타임** | `E10_AirMouse_*` | 프로파일 동적 스위칭/재로드, Global+Override 2단 슬롯 리졸버(`_resolveSlot`), 10ms 단위 비동기 안전 취소 매크로 시퀀서(`_runMacro`), Live Test 지원 | ✅ 완료 |
+| **M3: REST API & 브릿지** | `W10_Web*`, `main.cpp` | `/api/profiles/*`, `/api/triggers`, `/api/action/test`, `/api/action/test_macro` 구현, SafeMode Guard 연동, E10 브릿지 확장 | ✅ 완료 |
+| **M4: Web UI 3-View** | `data_v0410_www/` | `index_0410.html`, `style_0410.css`, `app_0410.002.js` 전면 개편. Online/Offline 모드(상수 및 모킹), Profile Bar, Slot Editor(Global/M1/M2/M3), Macro Editor(8×8, 순서이동, 딜레이), Config/Diag 연동 | ✅ 완료 |
+| **검증 & 빌드** | PlatformIO / Graphify | `pio run -e esp32-s3-zero` 빌드 성공 (RAM 40.9%, Flash 45.5%), `graphify update .` 최신화 완료 | ✅ 완료 |
+

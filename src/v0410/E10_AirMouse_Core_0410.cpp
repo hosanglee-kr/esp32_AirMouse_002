@@ -40,8 +40,8 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     // [C-2] recursive mutex (setSafeMode/setOtaGuard가 락 보유 중 _pushErr 재진입)
     _mutex = xSemaphoreCreateRecursiveMutex();
 
-    memset(&_cfgE10Runtime, 0, sizeof(_cfgE10Runtime));
-    _cfgE10RuntimeValid = false;
+    memset(&_cfgProfile, 0, sizeof(_cfgProfile));
+    _cfgProfileValid = false;
 
     _qFrame = xQueueCreate(1, sizeof(ST_E10_Frame_t));
     if (_qFrame) {
@@ -65,7 +65,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     // ====================================================
     // [Phase 6-J] LED 초기화 + Mode 색 반영
     // ====================================================
-    _led.begin(_cfgE10RuntimeValid ? _cfgE10Runtime.led_brightness : 128);
+    _led.begin(_cfgProfileValid ? _cfgProfile.e10.led_brightness : 128);
     _led.setModeColor(_activeMode);
     
     // [Phase 10] BLE Manager 초기화
@@ -93,8 +93,8 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     }
     
     // config에서 active_mode 초기값 반영
-    if (_cfgE10RuntimeValid) {
-        const uint8_t v_m = _cfgE10Runtime.active_mode;
+    if (_cfgProfileValid) {
+        const uint8_t v_m = _cfgProfile.e10.active_mode;
         if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
             _activeMode = v_m;
         }
@@ -137,8 +137,8 @@ bool CL_E10_EliteAirMouse::applyRuntimeE10(const ST_C10_E10Config_t& p_e) {
 void CL_E10_EliteAirMouse::_applyRuntimeLocked(const ST_C10_E10Config_t& p_e) {
     _applyE10ToRuntime(p_e);
 
-    _snapshotRuntimeToE10Config(_cfgE10Runtime);
-    _cfgE10RuntimeValid = true;
+    _snapshotRuntimeToE10Config(_cfgProfile.e10);
+    _cfgProfileValid = true;
 
     if (_precision_mode == (uint8_t)EN_C10_E10_PREC_OFF) {
         _precSub = EN_PREC_OFF;
@@ -173,11 +173,11 @@ bool CL_E10_EliteAirMouse::setDpiLevel(uint8_t p_level) {
 
     // [H-3] read-modify-write 원자화 (get과 apply 사이에 다른 요청 끼어들기 방지)
     _lock();
-    if (!_cfgE10RuntimeValid) {
-        _snapshotRuntimeToE10Config(_cfgE10Runtime);
-        _cfgE10RuntimeValid = true;
+    if (!_cfgProfileValid) {
+        _snapshotRuntimeToE10Config(_cfgProfile.e10);
+        _cfgProfileValid = true;
     }
-    ST_C10_E10Config_t v_e = _cfgE10Runtime;
+    ST_C10_E10Config_t v_e = _cfgProfile.e10;
     v_e.dpi_level = v_lv;
     _applyRuntimeLocked(v_e);
     _unlock();
@@ -190,11 +190,11 @@ bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
 
     // [H-3] RMW 원자화
     _lock();
-    if (!_cfgE10RuntimeValid) {
-        _snapshotRuntimeToE10Config(_cfgE10Runtime);
-        _cfgE10RuntimeValid = true;
+    if (!_cfgProfileValid) {
+        _snapshotRuntimeToE10Config(_cfgProfile.e10);
+        _cfgProfileValid = true;
     }
-    ST_C10_E10Config_t v_e = _cfgE10Runtime;
+    ST_C10_E10Config_t v_e = _cfgProfile.e10;
     v_e.precision_mode = v_mode;
     _applyRuntimeLocked(v_e);
     _unlock();
@@ -204,11 +204,11 @@ bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
 bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
     // [H-3] RMW 원자화
     _lock();
-    if (!_cfgE10RuntimeValid) {
-        _snapshotRuntimeToE10Config(_cfgE10Runtime);
-        _cfgE10RuntimeValid = true;
+    if (!_cfgProfileValid) {
+        _snapshotRuntimeToE10Config(_cfgProfile.e10);
+        _cfgProfileValid = true;
     }
-    ST_C10_E10Config_t v_e = _cfgE10Runtime;
+    ST_C10_E10Config_t v_e = _cfgProfile.e10;
     v_e.hard_click_lock = p_enable;
     _applyRuntimeLocked(v_e);
     _unlock();
@@ -257,36 +257,65 @@ bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
 // Config apply
 // =======================================================
 bool CL_E10_EliteAirMouse::_applyFromConfig() {
+    return _reloadActiveProfile();
+}
+
+// =======================================================
+// [v0410] 활성 프로파일 로드/저장
+// =======================================================
+bool CL_E10_EliteAirMouse::_reloadActiveProfile() {
     if (!_cfg) return false;
 
-    ST_C10_WiFiConfig_t v_w;
-    ST_C10_E10Config_t  v_e;
-
-    _cfg->makeDefaultsWiFi(v_w);
-    _cfg->makeDefaultsE10(v_e);
-    (void)_cfg->loadAll(v_w, v_e);
+    ST_C10_ProfileConfig_t v_p;
+    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+    (void)_cfg->loadActiveProfile(v_p);
 
     _lock();
-    _applyE10ToRuntime(v_e);
-    _snapshotRuntimeToE10Config(_cfgE10Runtime);
-    _cfgE10RuntimeValid = true;
+    _applyE10ToRuntime(v_p.e10);
+    _snapshotRuntimeToE10Config(v_p.e10);
+
+    _cfgProfile      = v_p;
+    _cfgProfileValid = true;
     _unlock();
     return true;
+}
+
+bool CL_E10_EliteAirMouse::_saveActiveProfile() {
+    if (!_cfg || !_cfgProfileValid) return false;
+
+    // 런타임 E10 값 반영 (슬롯/매크로는 _cfgProfile 그대로)
+    _lock();
+    _snapshotRuntimeToE10Config(_cfgProfile.e10);
+    ST_C10_ProfileConfig_t v_copy = _cfgProfile;
+    _unlock();
+
+    return _cfg->saveActiveProfile(v_copy);
+}
+
+// =======================================================
+// [v0410] 슬롯 조회 (Global + Mode Override)
+// =======================================================
+ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p_trig) const {
+    if (!_cfgProfileValid) {
+        ST_C20_ActionSlot_t v_none = { EN_C20_ACT_NONE, EN_C20_HOLD_NONE, 0, 0 };
+        return v_none;
+    }
+    return C10_ResolveSlot(_cfgProfile.slots, p_mode, p_trig);
 }
 
 void CL_E10_EliteAirMouse::_getE10RuntimeConfig(ST_C10_E10Config_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
 
     _lock();
-    if (_cfgE10RuntimeValid) {
-        p_out = _cfgE10Runtime;
+    if (_cfgProfileValid) {
+        p_out = _cfgProfile.e10;
         _unlock();
         return;
     }
 
-    _snapshotRuntimeToE10Config(_cfgE10Runtime);
-    _cfgE10RuntimeValid = true;
-    p_out = _cfgE10Runtime;
+    _snapshotRuntimeToE10Config(_cfgProfile.e10);
+    _cfgProfileValid = true;
+    p_out = _cfgProfile.e10;
     _unlock();
 }
 
@@ -468,31 +497,136 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
 // =======================================================
 void CL_E10_EliteAirMouse::tickConfigSave() {
     if (!_reqSaveCfg) {
-        // BLE dirty 확인 → 요청 플래그로 승격
         if (_ble.consumeDirty()) _reqSaveCfg = true;
         else return;
     }
 
-    if (!_cfg) { _reqSaveCfg = false; return; }
+    if (!_cfg || !_cfgProfileValid) { _reqSaveCfg = false; return; }
 
-    ST_C10_WiFiConfig_t w;
-    ST_C10_E10Config_t  e;
-    _cfg->makeDefaultsWiFi(w);
-    _cfg->makeDefaultsE10(e);
-
-    if (!_cfg->loadAll(w, e)) { _reqSaveCfg = false; return; }
-
+    // 활성 프로파일 스냅샷 갱신 (BLE peer / Mode)
     _lock();
-    e.active_peer_index = _ble.getActivePeerIndex();
+    _cfgProfile.e10.active_peer_index = _ble.getActivePeerIndex();
+    _cfgProfile.e10.active_mode       = _activeMode;
     _unlock();
 
-    const bool v_ok = _cfg->saveAll(w, e);
+    const bool v_ok = _saveActiveProfile();
     if (v_ok) {
-        D10_LOGI("[E10] active_peer_index saved: %u",
-                 (unsigned)e.active_peer_index);
+        D10_LOGI("[E10] profile saved: peer=%u mode=%u",
+                 (unsigned)_ble.getActivePeerIndex(), (unsigned)_activeMode);
     } else {
-        D10_LOGW("[E10] active_peer_index save failed");
+        D10_LOGW("[E10] profile save failed");
     }
 
     _reqSaveCfg = false;
+}
+
+// =======================================================
+// [v0410] Profile 관리 (public API)
+// =======================================================
+bool CL_E10_EliteAirMouse::reloadActiveProfile() {
+    return _reloadActiveProfile();
+}
+
+bool CL_E10_EliteAirMouse::saveActiveProfile() {
+    return _saveActiveProfile();
+}
+
+bool CL_E10_EliteAirMouse::getActiveProfileInfo(uint8_t& p_outIdx, uint8_t& p_outCount,
+                                                char* p_outName, size_t p_outNameSize) {
+    if (!_cfg) return false;
+
+    p_outIdx   = _cfg->getActiveIndex();
+    p_outCount = _cfg->getProfileCount();
+
+    if (p_outName && p_outNameSize > 0) {
+        _lock();
+        if (_cfgProfileValid) {
+            strlcpy(p_outName, _cfgProfile.name, p_outNameSize);
+        } else {
+            p_outName[0] = '\0';
+        }
+        _unlock();
+    }
+    return true;
+}
+
+bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
+    if (!_cfg) return false;
+    if (_cfg->isProfileSwitchInProgress()) {
+        D10_LOGW("[E10] switchProfile: already in progress");
+        return false;
+    }
+    if (p_idx >= _cfg->getProfileCount()) {
+        D10_LOGW("[E10] switchProfile: invalid idx=%u", (unsigned)p_idx);
+        return false;
+    }
+
+    _cfg->setProfileSwitchInProgress(true);
+
+    // 1) 매크로 즉시 취소 + 진행 중 액션 해제
+    _macroAbort = true;
+    _actExec.releaseAll();
+    _btnDisp.resetAll();
+    _gesture.reset();
+    _frontHoldActive = false;
+    _moveGateHeld    = false;
+
+    // 2) HID 안전
+    (void)forceReleaseButtons();
+
+    // 3) active index 저장
+    const bool v_idxOk = _cfg->setActiveIndex(p_idx);
+    if (!v_idxOk) {
+        D10_LOGW("[E10] switchProfile: setActiveIndex failed");
+        _cfg->setProfileSwitchInProgress(false);
+        return false;
+    }
+
+    // 4) 새 프로파일 로드 + 런타임 반영
+    const bool v_reloadOk = _reloadActiveProfile();
+
+    // 5) Active Mode도 새 프로파일 기준으로
+    if (v_reloadOk && _cfgProfileValid) {
+        const uint8_t v_m = _cfgProfile.e10.active_mode;
+        if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
+            _activeMode = v_m;
+        }
+    }
+
+    // 6) LED 표시
+    _led.setModeColor(_activeMode);
+    _led.flash(EN_L10_COLOR_WHITE, 500);
+
+    _cfg->setProfileSwitchInProgress(false);
+
+    D10_LOGI("[E10] switchProfile: idx=%u reload=%d",
+             (unsigned)p_idx, (int)v_reloadOk);
+
+    return v_reloadOk;
+}
+
+uint8_t CL_E10_EliteAirMouse::getMacroCount() const {
+    if (!_cfgProfileValid) return 0;
+    return _cfgProfile.macros.count;
+}
+
+bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
+                                        uint16_t p_p16, uint32_t p_p32) {
+    if (!_hid.isConnected()) return false;
+    if (_safeMode || _otaGuard) return false;
+
+    ST_C20_ActionSlot_t v_slot;
+    v_slot.kind     = p_kind;
+    v_slot.holdMode = p_hMode;
+    v_slot.param16  = p_p16;
+    v_slot.param32  = p_p32;
+
+    // SPECIAL은 sensorTask 즉시 (동기)
+    if (p_kind == (uint8_t)EN_C20_ACT_SPECIAL) {
+        _handleSpecial((uint8_t)p_p16);
+        return true;
+    }
+
+    // MACRO / 기타는 큐 경유 (비동기)
+    return _enqueueAction(v_slot, true);
 }

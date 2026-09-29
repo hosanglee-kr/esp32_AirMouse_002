@@ -383,6 +383,9 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
 
         // ---- disconnect edge ----
         if (!v_conn && v_prevConn) {
+            // [v0410] 매크로 취소
+            v_m->_macroAbort = true;
+
             // HID + 액션 상태 전부 해제
             v_m->_actExec.releaseAll();
             v_m->_doForceReleaseNow();
@@ -414,6 +417,9 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         const bool v_gate = (v_m->_safeMode || v_m->_otaGuard);
 
         if (v_gate) {
+            // [v0410] 매크로 취소
+            v_m->_macroAbort = true;
+
             // 큐 드레인 (overflow 방지)
             ST_E10_HidCmd_t v_drop;
             while (v_m->_qHidCmd &&
@@ -460,15 +466,22 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         }
 
         // ============================================================
-        // [Phase 5] Action 큐 드레인 (버튼 이벤트 → HID 실행)
-        //   - 프레임당 최대 4개 (커서 지연 방지)
+        // [Phase 5/v0410] Action 큐 드레인
+        //   - MACRO kind는 _runMacro로 위임 (블로킹 주의)
+        //   - 프레임당 상한 4 (커서 지연 방지)
         // ============================================================
         {
             ST_ActionCmd_t v_acmd;
             uint8_t v_drainCount = 0;
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_acmd, 0) == pdTRUE) {
-                v_m->_actExec.exec(v_acmd.slot, v_acmd.isDown);
+
+                if (v_acmd.slot.kind == (uint8_t)EN_C20_ACT_MACRO) {
+                    v_m->_runMacro((uint8_t)v_acmd.slot.param32);
+                } else {
+                    v_m->_actExec.exec(v_acmd.slot, v_acmd.isDown);
+                }
+
                 if (++v_drainCount >= 4) break;
             }
         }

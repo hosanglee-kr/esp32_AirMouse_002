@@ -1,15 +1,27 @@
 // =======================================================
-// File: W10_WebApi_Config_0410.cpp
+// File: src/v0410/W10_WebApi_Config_0410.cpp
 // =======================================================
-
 /*
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_Config_0410.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: Config APIs)
+ * 모듈명 : Web Config API (v0410: 프로파일 기반)
  * ------------------------------------------------------
  * 기능 요약
- *  - (0316) /api/config, save/apply/export/import/rollback 분리
+ *  - /api/config          (GET)  활성 프로파일 raw JSON
+ *  - /api/config/save     (POST) 활성 프로파일 patch + 저장 + E10 재로드
+ *  - /api/config/apply    (POST) save 별칭 (v0410: no-save 폐기)
+ *  - /api/config/export   (GET)  활성 프로파일 다운로드
+ *  - /api/export          (GET)  별칭
+ *  - /api/config/import   (POST) JSON → 새 프로파일 생성
+ *  - /api/config/rollback (POST) v0410 폐기 (안내 응답)
+ *
+ * [v0400 → v0410 주요 변경]
+ *  - C10_Config의 loadAll/saveAll/exportJson/importJson → 프로파일 메서드로 대체
+ *  - ETag/Envelope 폐기 (클라이언트 단순화)
+ *  - apply = save (프로파일 시스템에선 apply-only 의미 없음)
+ *  - import = 새 프로파일 생성 (덮어쓰기 아님)
+ *  - rollback 폐기 (프로파일 switch로 대체)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -18,8 +30,6 @@
  *  - JsonDocument 단일 타입만 사용
  *  - createNestedArray/Object/containsKey 사용 금지
  *  - memset + strlcpy 기반 안전 초기화
- *  - 주석/필드명은 JSON 구조와 동일하게 유지
- *  - 변수명은 가능한 해석 가능하게
  * ------------------------------------------------------
  * [코드 네이밍 규칙]
  *   - namespace 명        : 모듈약어_ 접두사
@@ -42,311 +52,247 @@
 
 #include "W10_Web_0410.h"
 
-
-// 붙여넣기 대상:
-// - _apiConfigSaveImportCommon
-// - apiGetConfig
-// - apiConfigSave
-// - apiConfigApply
-// - apiExport
-// - apiImport
-// - apiRollback
-
-
-
 // =====================================================
-// /api/config/save, /api/import 공통 처리
+// GET /api/config — 활성 프로파일 조회 (raw JSON)
+//   반환: { ver, name, wifi, e10, slots, macros }
 // =====================================================
-void CL_W10_WebConfig::_apiConfigSaveImportCommon(
-    AsyncWebServerRequest* req,
-    uint8_t* data, size_t len,
-    size_t index, size_t total,
-    const char* p_src,
-    const char* p_note,
-    bool p_applyAfterSave) {
-
-    // SafeMode Gate (허용 목록(_isApiAllowedInSafeMode) 기준으로 save/import 모두 공통 차단/허용)
-    if (_gateSafeModeOrReply(req)) return;
-
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-    ST_C10_WiFiConfig_t v_prevWiFi = _wifi;
-
-    bool v_saved = false;
-
-    // importJson() 내부 applied 결과는 "import 내부 처리"로만 따로 받음(표기용/참고용)
-    bool v_importApplied = false;
-
-    // API가 말하는 applied는 "우리가 applyFn 호출했는지"로만 결정
-    bool v_applied = false;
-
-    bool v_ok = (_cfg && _cfg->importJson(v_body, v_saved, v_importApplied));
-
-    if (v_ok && v_saved && _cfg) {
-        (void)_cfg->loadAll(_wifi, _e10);
-        uint32_t v_m = _wifiDiffMask(v_prevWiFi, _wifi);
-        if (v_m != 0) _markNeedReboot(v_m);
+void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
+    if (!_cfg) {
+        _sendErr(req, "no_config", "Config manager not ready.");
+        return;
     }
 
-    // 실제 applied는 p_applyAfterSave에 의해 결정
-    if (v_ok && v_saved && p_applyAfterSave && _applyFn) {
-        v_applied = _applyFn(_applyCtx);
+    ST_C10_ProfileConfig_t v_p;
+    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+    if (!_cfg->loadActiveProfile(v_p)) {
+        _sendErr(req, "config_get_failed", "Failed to load active profile.");
+        return;
     }
 
     JsonDocument v_doc;
-    v_doc["saved"] = v_saved;
-    v_doc["applied"] = v_applied;
-    v_doc["import_applied"] = v_importApplied; // (선택) 디버깅/호환에 도움
-    v_doc["note"] = (p_note ? p_note : "");
-
-    if (v_ok) {
-        _markLastApply(true, (p_src ? p_src : "save"), "config_save");
-        _sendOk(req, "config_save", "", &v_doc, 200);
-    } else {
-        _markLastApply(false, (p_src ? p_src : "save"), "config_save_failed");
-        _sendErr(req, "config_save_failed", "Save/import failed.", &v_doc);
-    }
-}
-
-
-// =====================================================
-// /api/config (GET)  - raw/envelope 모두 Stream 적용
-// =====================================================
-void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
-    const bool v_envelope = _wantsEnvelope(req);
-
-    uint32_t v_etag = 0;
-    size_t v_size = 0;
-    bool v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
-
-    if (v_hasEtag && _ifNoneMatchHit(req, v_etag)) {
-        _send304NoStoreEtag(req, v_etag);
+    if (!_cfg->buildProfileJson(v_p, v_doc)) {
+        _sendErr(req, "config_get_failed", "Failed to serialize profile.");
         return;
     }
 
-
-    String json;
-    if (!_cfg || !_cfg->exportJson(json)) {
-        _sendErr(req, "config_get_failed", "Failed to export config.");
-        return;
-    }
-
-    if (v_envelope) {
-        AsyncResponseStream* res = req->beginResponseStream("application/json");
-        res->setCode(200);
-
-        _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
-
-        res->print("{\"ok\":true,\"code\":\"config_get\",\"msg\":\"\",\"data\":{");
-        if (v_hasEtag) {
-            char v_tag2[16];
-            snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
-            res->print("\"etag\":");
-            _resPrintJsonString(res, v_tag2);   // 따옴표 포함 문자열 리터럴이 출력됨
-            res->print(",");
-
-            res->print("\"size\":");
-            res->print((unsigned int)v_size);
-            res->print(",");
-        }
-        res->print("\"config\":");
-        res->print(json);
-        res->print("}}");
-        req->send(res);
-        return;
-    }
-
-    // raw JSON도 stream
     AsyncResponseStream* res = req->beginResponseStream("application/json");
     res->setCode(200);
-
-    _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
-
-    res->print(json);
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    serializeJson(v_doc, *res);
     req->send(res);
 }
 
-void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    _apiConfigSaveImportCommon(req, data, len, index, total,
-        "save",
-        "WiFi changes require reboot.",
-        true);
-}
-
-void CL_W10_WebConfig::apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-
-    // [PATCH] SafeMode Gate (apply는 SafeMode에서 차단)
+// =====================================================
+// POST /api/config/save — 활성 프로파일 patch + 저장 + E10 재로드
+//   Body: partial profile JSON
+// =====================================================
+void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
+                                     uint8_t* data, size_t len,
+                                     size_t index, size_t total) {
     if (_gateSafeModeOrReply(req)) return;
+
+    if (!_cfg) {
+        _sendErr(req, "no_config", "Config manager not ready.");
+        return;
+    }
 
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    bool v_ok = true;
-    bool v_applied = false;
+    // ---- 현재 활성 프로파일 로드 ----
+    ST_C10_ProfileConfig_t v_p;
+    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+    (void)_cfg->loadActiveProfile(v_p);
 
+    const ST_C10_WiFiConfig_t v_prevWifi = v_p.wifi;
+
+    // ---- patch ----
+    if (!_cfg->patchProfileFromJson(v_body, v_p)) {
+        _cnt_json_bad++;
+        _diagPush("bad_json");
+        _sendErr(req, "bad_json", "Invalid profile JSON.");
+        return;
+    }
+
+    // ---- validate ----
+    if (!_cfg->validateProfile(v_p)) {
+        _sendErr(req, "validation_failed", "Validation failed.");
+        return;
+    }
+
+    // ---- save ----
+    const uint8_t v_idx = _cfg->getActiveIndex();
+    if (!_cfg->saveProfile(v_idx, v_p)) {
+        _markLastApply(false, "save", "config_save_failed");
+        _sendErr(req, "config_save_failed", "Save failed.");
+        return;
+    }
+
+    // ---- W10 로컬 캐시 갱신 ----
+    _wifi = v_p.wifi;
+    _e10  = v_p.e10;
+
+    // ---- WiFi diff → reboot 필요 여부 ----
+    const uint32_t v_m = _wifiDiffMask(v_prevWifi, _wifi);
+    if (v_m) _markNeedReboot(v_m);
+
+    // ---- E10 재로드 (런타임 반영) ----
+    bool v_reloaded = false;
+    if (_e10if && _e10if->reloadProfile) {
+        v_reloaded = _e10if->reloadProfile(_e10if->ctx);
+    }
+
+    JsonDocument v_out;
+    v_out["saved"]           = true;
+    v_out["reloaded"]        = v_reloaded;
+    v_out["idx"]             = v_idx;
+    v_out["reboot_required"] = _needReboot;
+
+    _markLastApply(true, "save", "config_save");
+    _sendOk(req, "config_save", "", &v_out, 200);
+}
+
+// =====================================================
+// POST /api/config/apply — v0410: save 별칭
+// =====================================================
+void CL_W10_WebConfig::apiConfigApply(AsyncWebServerRequest* req,
+                                      uint8_t* data, size_t len,
+                                      size_t index, size_t total) {
+    apiConfigSave(req, data, len, index, total);
+}
+
+// =====================================================
+// GET /api/config/export, /api/export — 활성 프로파일 다운로드
+//   Query: filename=<optional>
+// =====================================================
+void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
     if (!_cfg) {
-        v_ok = false;
-    } else {
-        ST_C10_E10Config_t v_e;
-        v_ok = _cfg->buildPatchedE10(v_body, v_e, true);
+        _sendErr(req, "no_config", "Config manager not ready.");
+        return;
+    }
 
-        ST_W10_E10If_t* v_e10if = _e10if;
-        if (v_ok && v_e10if && v_e10if->applyRuntimeE10) {
-            v_applied = v_e10if->applyRuntimeE10(v_e10if->ctx, &v_e);
-        }
+    ST_C10_ProfileConfig_t v_p;
+    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+    if (!_cfg->loadActiveProfile(v_p)) {
+        _sendErr(req, "config_export_failed", "Failed to load active profile.");
+        return;
     }
 
     JsonDocument v_doc;
-    v_doc["applied"] = v_applied;
-    v_doc["note"] = "apply-only: not saved. WiFi fields are ignored (E10 only).";
-
-    if (v_ok) {
-        _markLastApply(true, "apply", "config_apply");
-        _sendOk(req, "config_apply", "", &v_doc, 200);
-    } else {
-        _markLastApply(false, "apply", "config_apply_failed");
-        _sendErr(req, "config_apply_failed", "Apply failed.", &v_doc);
-    }
-}
-
-
-void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
-    const bool v_envelope = _wantsEnvelope(req);
-
-    bool v_pretty = false;
-    if (req && req->hasParam("pretty")) {
-        const AsyncWebParameter* p = req->getParam("pretty");
-        if (p && p->value() == "1") v_pretty = true;
-    }
-    if (req && req->hasParam("format")) {
-        const AsyncWebParameter* p = req->getParam("format");
-        if (p) {
-            const String v = p->value();
-            if (v == "pretty") v_pretty = true;
-            else if (v == "minified") v_pretty = false;
-        }
+    if (!_cfg->buildProfileJson(v_p, v_doc)) {
+        _sendErr(req, "config_export_failed", "Failed to serialize profile.");
+        return;
     }
 
-    bool v_attach = true;
-    if (req && req->hasParam("attachment")) {
-        const AsyncWebParameter* p = req->getParam("attachment");
-        if (p && p->value() == "0") v_attach = false;
-    }
-    if (req && req->hasParam("download")) {
-        const AsyncWebParameter* p = req->getParam("download");
-        if (p && p->value() == "0") v_attach = false;
-    }
-
+    // ---- filename (query or default) ----
     String v_filename;
-    if (req && req->hasParam("filename")) {
+    if (req->hasParam("filename")) {
         const AsyncWebParameter* p = req->getParam("filename");
         if (p) v_filename = p->value();
     }
     if (v_filename.length() == 0) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "config_%u.json", (unsigned int)G_C10_CFG_VER);
-        v_filename = String(buf);
+        char v_buf[40];
+        snprintf(v_buf, sizeof(v_buf), "profile_%u.json",
+                 (unsigned)_cfg->getActiveIndex());
+        v_filename = String(v_buf);
     }
 
-    uint32_t v_etag = 0;
-    size_t v_size = 0;
-    bool v_hasEtag = (_cfg && _cfg->getConfigEtag(v_etag, &v_size));
-
-    if (v_hasEtag && _ifNoneMatchHit(req, v_etag)) {
-        _send304NoStoreEtag(req, v_etag);
-        return;
-    }
-
-
-    String json;
-    if (!_cfg || !_cfg->exportJson(json)) {
-        _sendErr(req, "config_export_failed", "Failed to export config.");
-        return;
-    }
-
-    if (v_pretty) {
-        JsonDocument vd;
-        DeserializationError verr = deserializeJson(vd, json);
-        if (!verr) {
-            String v_out;
-            serializeJsonPretty(vd, v_out);
-            json = v_out;
-        }
-    }
-
-    if (v_envelope) {
-        AsyncResponseStream* res = req->beginResponseStream("application/json");
-        res->setCode(200);
-
-        _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
-
-        if (v_attach) {
-            res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
-        }
-
-        res->print("{\"ok\":true,\"code\":\"config_export\",\"msg\":\"\",\"data\":{");
-        res->print("\"filename\":");
-        _resPrintJsonString(res, v_filename);
-        res->print(",");
-
-        if (v_hasEtag) {
-            char v_tag2[16];
-            snprintf(v_tag2, sizeof(v_tag2), "%08X", (unsigned int)v_etag);
-
-            res->print("\"etag\":");
-            _resPrintJsonString(res, v_tag2);
-            res->print(",");
-
-            res->print("\"size\":");
-            res->print((unsigned int)v_size);
-            res->print(",");
-        }
-
-        res->print("\"config\":");
-        res->print(json);
-        res->print("}}");
-        req->send(res);
-        return;
-    }
-
-    // raw JSON도 stream + attachment optional
     AsyncResponseStream* res = req->beginResponseStream("application/json");
     res->setCode(200);
-    if (v_attach) {
-        res->addHeader("Content-Disposition", String("attachment; filename=\"") + v_filename + "\"");
-    }
-
-    _addEtagHeadersNoStore(res, v_hasEtag, v_etag, v_size);
-
-    res->print(json);
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    res->addHeader("Content-Disposition",
+                   String("attachment; filename=\"") + v_filename + "\"");
+    serializeJson(v_doc, *res);
     req->send(res);
 }
 
-void CL_W10_WebConfig::apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    _apiConfigSaveImportCommon(req, data, len, index, total,
-        "import",
-        "import: saved and applied (runtime). WiFi changes require reboot.",
-        true);
-}
+// =====================================================
+// POST /api/config/import — JSON으로 새 프로파일 생성
+//   Body: 완전한 프로파일 JSON (ver, name, wifi, e10, slots, macros)
+//   실패 시 생성했던 프로파일 자동 롤백
+// =====================================================
+void CL_W10_WebConfig::apiImport(AsyncWebServerRequest* req,
+                                 uint8_t* data, size_t len,
+                                 size_t index, size_t total) {
+    if (_gateSafeModeOrReply(req)) return;
 
-void CL_W10_WebConfig::apiRollback(AsyncWebServerRequest* req) {
-    bool ok = (_cfg && _cfg->rollbackFromBak());
-    bool applied = false;
-    if (ok && _applyFn) applied = _applyFn(_applyCtx);
-
-    JsonDocument v_doc;
-    v_doc["applied"] = applied;
-    v_doc["note"] = "rollback: restored from .bak and applied.";
-
-    if (ok) {
-        _markLastApply(true, "rollback", "config_rollback");
-        _sendOk(req, "config_rollback", "", &v_doc, 200);
-    } else {
-        _markLastApply(false, "rollback", "config_rollback_failed");
-        _sendErr(req, "config_rollback_failed", "Rollback failed.", &v_doc);
+    if (!_cfg) {
+        _sendErr(req, "no_config", "Config manager not ready.");
+        return;
     }
+
+    if (_cfg->getProfileCount() >= C10_DEF::PROFILE_MAX) {
+        _sendErr(req, "config_import_failed", "Max profiles reached.");
+        return;
+    }
+
+    String v_body;
+    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
+
+    // ---- JSON parse ----
+    JsonDocument v_doc;
+    DeserializationError v_err = deserializeJson(v_doc, v_body);
+    if (v_err) {
+        _cnt_json_bad++;
+        _diagPush("bad_json");
+        _sendErr(req, "bad_json", "Invalid JSON.");
+        return;
+    }
+
+    // ---- 새 프로파일 생성 (name은 JSON에서) ----
+    const char* v_name = nullptr;
+    if (!v_doc["name"].isNull()) v_name = (const char*)v_doc["name"];
+
+    uint8_t v_newIdx = 0;
+    if (!_cfg->createProfile(v_name, v_newIdx)) {
+        _sendErr(req, "config_import_failed", "Create failed.");
+        return;
+    }
+
+    // ---- 생성된 프로파일 로드 ----
+    ST_C10_ProfileConfig_t v_p;
+    _cfg->makeDefaultsProfile(v_newIdx, v_p);
+    if (!_cfg->loadProfile(v_newIdx, v_p)) {
+        (void)_cfg->deleteProfile(v_newIdx);
+        _sendErr(req, "config_import_failed", "Load failed.");
+        return;
+    }
+
+    // ---- patch with imported JSON ----
+    if (!_cfg->patchProfileFromJson(v_body, v_p)) {
+        (void)_cfg->deleteProfile(v_newIdx);
+        _sendErr(req, "bad_json", "Patch failed.");
+        return;
+    }
+
+    // ---- validate ----
+    if (!_cfg->validateProfile(v_p)) {
+        (void)_cfg->deleteProfile(v_newIdx);
+        _sendErr(req, "validation_failed", "Validation failed.");
+        return;
+    }
+
+    // ---- save ----
+    if (!_cfg->saveProfile(v_newIdx, v_p)) {
+        (void)_cfg->deleteProfile(v_newIdx);
+        _sendErr(req, "config_import_failed", "Save failed.");
+        return;
+    }
+
+    JsonDocument v_out;
+    v_out["idx"]   = v_newIdx;
+    v_out["count"] = (uint8_t)_cfg->getProfileCount();
+    v_out["name"]  = v_p.name;
+
+    _markLastApply(true, "import", "config_import");
+    _sendOk(req, "config_import", "", &v_out, 200);
 }
 
-
+// =====================================================
+// POST /api/config/rollback — v0410 폐기
+// =====================================================
+void CL_W10_WebConfig::apiRollback(AsyncWebServerRequest* req) {
+    (void)req;
+    _sendErr(req, "config_rollback_failed",
+             "Rollback not supported in v0410. Use profile switch or factory_reset.");
+}

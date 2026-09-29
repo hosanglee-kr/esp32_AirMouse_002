@@ -75,6 +75,9 @@ bool CL_E10_EliteAirMouse::testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs) 
 
 // [H-2] 공개 API는 하나의 동작으로 통일: 상태 리셋(즉시) + RELEASE_ALL enqueue
 bool CL_E10_EliteAirMouse::forceReleaseButtons() {
+    // [v0410] 매크로 취소
+    _macroAbort = true;
+
     _lock();
     _state.btn_mask = 0;
     _state.x        = 0;

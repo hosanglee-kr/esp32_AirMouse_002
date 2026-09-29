@@ -53,6 +53,9 @@ enum EN_C20_ActionKind_t : uint8_t {
     // 특수
     EN_C20_ACT_SPECIAL         = 9,   // p16 = EN_C20_Special_t
 
+    // 매크로 [v0410 신규]
+    EN_C20_ACT_MACRO           = 10,  // param32 = 매크로 인덱스 (0~7)
+
     EN_C20_ACT_MAX
 };
 
@@ -192,6 +195,11 @@ static inline ST_C20_ActionSlot_t C20_MakeConsumerRepeat(uint32_t p_mask) {
 static inline ST_C20_ActionSlot_t C20_MakeSpecial(uint8_t p_special) {
     ST_C20_ActionSlot_t s = { EN_C20_ACT_SPECIAL, EN_C20_HOLD_NONE,
                               (uint16_t)p_special, 0 };
+    return s;
+}
+
+static inline ST_C20_ActionSlot_t C20_MakeMacro(uint8_t p_macroIdx) {
+    ST_C20_ActionSlot_t s = { EN_C20_ACT_MACRO, EN_C20_HOLD_NONE, 0, (uint32_t)p_macroIdx };
     return s;
 }
 

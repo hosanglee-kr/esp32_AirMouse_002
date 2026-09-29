@@ -73,6 +73,37 @@ static bool _w10_setOtaGuard(void* ctx, bool en) {
     if (!ctx) return false;
     return ((CL_E10_EliteAirMouse*)ctx)->setOtaGuard(en);
 }
+
+// ---- [v0410] Profile 관리 브릿지 ----
+static bool _w10_reloadProfile(void* ctx) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->reloadActiveProfile();
+}
+static bool _w10_saveProfile(void* ctx) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->saveActiveProfile();
+}
+static bool _w10_getProfileInfo(void* ctx,
+                                uint8_t* outIdx, uint8_t* outCount,
+                                char* outName, size_t outNameSize) {
+    if (!ctx) return false;
+    uint8_t v_idx = 0, v_cnt = 0;
+    const bool v_ok = ((CL_E10_EliteAirMouse*)ctx)->getActiveProfileInfo(
+                          v_idx, v_cnt, outName, outNameSize);
+    if (outIdx)   *outIdx   = v_idx;
+    if (outCount) *outCount = v_cnt;
+    return v_ok;
+}
+static bool _w10_switchProfile(void* ctx, uint8_t p_idx) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->switchProfile(p_idx);
+}
+static bool _w10_execLiveTest(void* ctx,
+                              uint8_t p_kind, uint8_t p_hMode,
+                              uint16_t p_p16, uint32_t p_p32) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->execLiveTest(p_kind, p_hMode, p_p16, p_p32);
+}
 // 버튼 핀(기존 E10과 일치 가정)
 static constexpr int G_BTN_MODE = 13;
 
@@ -113,14 +144,6 @@ void setup() {
     // 3) Safe Boot 상태 확인
     if (g_cfg.isSafeMode()) {
         D10_LOGW("[0274] SAFE BOOT MODE ACTIVE");
-
-        // A-4: SAFE 진입 시 config.bak 자동 롤백 1회 시도
-        bool v_rb = g_cfg.rollbackFromBak();
-        if (v_rb) {
-            D10_LOGW("[0274] rollbackFromBak OK (auto)");
-        } else {
-            D10_LOGW("[0274] rollbackFromBak skipped/failed (no bak or invalid)");
-        }
     }
 
     // 4) 모듈 시작
@@ -142,6 +165,13 @@ void setup() {
     g_w10E10If.requestGyroCalibration = _w10_requestGyroCalibration;
     g_w10E10If.clearDiagnostics       = _w10_clearDiagnostics;
     g_w10E10If.setOtaGuard            = _w10_setOtaGuard;
+
+    // [v0410] Profile & Live Test
+    g_w10E10If.reloadProfile          = _w10_reloadProfile;
+    g_w10E10If.saveProfile            = _w10_saveProfile;
+    g_w10E10If.getProfileInfo         = _w10_getProfileInfo;
+    g_w10E10If.switchProfile          = _w10_switchProfile;
+    g_w10E10If.execLiveTest           = _w10_execLiveTest;
 
     g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10, &g_w10E10If);
 

@@ -13,36 +13,39 @@ namespace {
 struct ST_SlotMapEntry_t {
     uint8_t btnId;   // EN_C20_BtnId_t
     uint8_t evt;     // EN_C20_BtnEvent_t
-    uint8_t slotIdx; // 0..14
+    uint8_t trig;    // EN_C10_Trigger_t
 };
 
 // 하드코딩 처리되는 이벤트는 여기서 제외
-//   - Top M DOWN/UP (Move Gate)
 //   - Top L DOWN/UP/CLICK (Mouse Hold로 소비)
+//   - Top M DOWN/UP (Move Gate)
 //   - Side C DOUBLE/HOLD_2S/HOLD_3S
+//   - Side F DOWN/UP (Front Hold)
+//
+// slotIdx → trig 로 재설계 (v0410)
 constexpr ST_SlotMapEntry_t G_SLOT_MAP[] = {
-    // Top L (DOUBLE/LONG만 슬롯. CLICK은 스킵)
-    { EN_C20_BTN_TOP_L,  EN_C20_EVT_DOUBLE, 1 },   // S2
-    { EN_C20_BTN_TOP_L,  EN_C20_EVT_LONG,   2 },   // S3
+    // Top L (DOUBLE/LONG만)
+    { EN_C20_BTN_TOP_L,  EN_C20_EVT_DOUBLE, EN_C10_TRIG_TOP_L_DOUBLE },
+    { EN_C20_BTN_TOP_L,  EN_C20_EVT_LONG,   EN_C10_TRIG_TOP_L_LONG   },
 
     // Top M
-    { EN_C20_BTN_TOP_M,  EN_C20_EVT_CLICK,  3 },   // S4
+    { EN_C20_BTN_TOP_M,  EN_C20_EVT_CLICK,  EN_C10_TRIG_TOP_M_CLICK  },
 
     // Top R
-    { EN_C20_BTN_TOP_R,  EN_C20_EVT_CLICK,  5 },   // S6
-    { EN_C20_BTN_TOP_R,  EN_C20_EVT_DOUBLE, 6 },   // S7
-    { EN_C20_BTN_TOP_R,  EN_C20_EVT_LONG,   7 },   // S8
+    { EN_C20_BTN_TOP_R,  EN_C20_EVT_CLICK,  EN_C10_TRIG_TOP_R_CLICK  },
+    { EN_C20_BTN_TOP_R,  EN_C20_EVT_DOUBLE, EN_C10_TRIG_TOP_R_DOUBLE },
+    { EN_C20_BTN_TOP_R,  EN_C20_EVT_LONG,   EN_C10_TRIG_TOP_R_LONG   },
 
     // Side F
-    { EN_C20_BTN_SIDE_F, EN_C20_EVT_CLICK,  8 },   // S9
-    { EN_C20_BTN_SIDE_F, EN_C20_EVT_LONG,   9 },   // S10
+    { EN_C20_BTN_SIDE_F, EN_C20_EVT_CLICK,  EN_C10_TRIG_SIDE_F_CLICK },
+    { EN_C20_BTN_SIDE_F, EN_C20_EVT_LONG,   EN_C10_TRIG_SIDE_F_LONG  },
 
-    // Side C (CLICK만 슬롯)
-    { EN_C20_BTN_SIDE_C, EN_C20_EVT_CLICK,  10},   // S11
+    // Side C (CLICK만)
+    { EN_C20_BTN_SIDE_C, EN_C20_EVT_CLICK,  EN_C10_TRIG_SIDE_C_CLICK },
 
     // Side R
-    { EN_C20_BTN_SIDE_R, EN_C20_EVT_CLICK,  13},   // S14
-    { EN_C20_BTN_SIDE_R, EN_C20_EVT_LONG,   14},   // S15
+    { EN_C20_BTN_SIDE_R, EN_C20_EVT_CLICK,  EN_C10_TRIG_SIDE_R_CLICK },
+    { EN_C20_BTN_SIDE_R, EN_C20_EVT_LONG,   EN_C10_TRIG_SIDE_R_LONG  },
 };
 
 // 자주 쓰는 하드코딩 슬롯 (Top L Hold = 마우스 좌클릭 유지)
@@ -154,17 +157,12 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
         if (e.btnId != p_btnId) continue;
         if (e.evt   != p_evt)   continue;
 
-        ST_C20_ActionSlot_t v_slot;
-        _lock();
-        v_slot = _cfgE10Runtime.modes[_activeMode - 1].slots[e.slotIdx];
-        _unlock();
+        // [v0410] Global + Mode Override 기반 조회
+        const ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, e.trig);
 
         if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
 
-        // ============================================
-        // [신규] SPECIAL은 sensorTask에서 즉시 처리
-        //        (commTask로 넘기지 않음)
-        // ============================================
+        // SPECIAL은 sensorTask에서 즉시 처리
         if (v_slot.kind == (uint8_t)EN_C20_ACT_SPECIAL) {
             _handleSpecial((uint8_t)v_slot.param16);
             return;
@@ -262,12 +260,17 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
     // [Phase 8] Mode 전환은 활동
     _power.notifyActivity((uint32_t)millis());
     
+    // [v0410] 매크로 즉시 취소
+    _macroAbort = true;
+
     _lock();
     const uint8_t v_old = _activeMode;
     _activeMode = p_newMode;
 
-    // config에도 반영 (다음 부팅 시 복원)
-    _cfgE10Runtime.active_mode = p_newMode;
+    // 프로파일 스냅샷에도 반영 (다음 저장 시 함께 저장됨)
+    if (_cfgProfileValid) {
+        _cfgProfile.e10.active_mode = p_newMode;
+    }
     _unlock();
 
     if (v_old == p_newMode) return;
@@ -334,34 +337,82 @@ void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
     // [Phase 8] 제스처 = 활동
     _power.notifyActivity((uint32_t)millis());
 
-    ST_C20_ActionSlot_t v_slot;
-    memset(&v_slot, 0, sizeof(v_slot));
-
-    _lock();
-    const uint8_t v_mode = _activeMode;
-    if (!_cfgE10RuntimeValid || v_mode < 1 || v_mode > C10_DEF::MODE_COUNT) {
-        _unlock();
-        return;
-    }
-
-    const ST_C10_ModeConfig_t& v_m = _cfgE10Runtime.modes[v_mode - 1];
-
+    // [v0410] group + dir → trigger 변환
+    //   group 0: FLICK  (15~18)
+    //   group 1: LINEAR (19~22)
+    //   group 2: TILT   (23~26)
+    uint8_t v_trig = EN_C10_TRIG_MAX;
     switch (p_group) {
-        case 0: v_slot = v_m.flick [p_dir]; break;
-        case 1: v_slot = v_m.linear[p_dir]; break;
-        case 2: v_slot = v_m.tilt  [p_dir]; break;
-        default: _unlock(); return;
+        case 0: v_trig = (uint8_t)(EN_C10_TRIG_FLICK_LEFT  + p_dir); break;
+        case 1: v_trig = (uint8_t)(EN_C10_TRIG_LINEAR_LEFT + p_dir); break;
+        case 2: v_trig = (uint8_t)(EN_C10_TRIG_TILT_LEFT   + p_dir); break;
+        default: return;
     }
-    _unlock();
+
+    const ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, v_trig);
 
     if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
-    
-    // SPECIAL은 sensorTask에서 즉시
+
+    // SPECIAL은 sensorTask 즉시
     if (v_slot.kind == (uint8_t)EN_C20_ACT_SPECIAL) {
         _handleSpecial((uint8_t)v_slot.param16);
         return;
     }
 
-    // 제스처는 단발 (tap) — isDown=true 로 1회 enqueue
+    // 제스처는 단발 (tap)
     (void)_enqueueAction(v_slot, true);
+}
+
+// =======================================================
+// [v0410] 매크로 실행 (commTask 전용)
+//   - 각 step을 순서대로 실행
+//   - delayMs 만큼 대기 (abort 플래그 감시)
+//   - step 실행은 _actExec.exec()로 (SPECIAL 제외 검증됨)
+// =======================================================
+void CL_E10_EliteAirMouse::_runMacro(uint8_t p_idx) {
+    if (!_cfgProfileValid) return;
+    if (p_idx >= _cfgProfile.macros.count) {
+        D10_LOGW("[E10] macro index out of range: %u", (unsigned)p_idx);
+        return;
+    }
+
+    const ST_C10_Macro_t& v_m = _cfgProfile.macros.macros[p_idx];
+
+    _macroAbort = false;
+
+    D10_LOGI("[E10] macro start: idx=%u name=%s steps=%u",
+             (unsigned)p_idx, v_m.name, (unsigned)v_m.stepCount);
+
+    for (uint8_t i = 0; i < v_m.stepCount; i++) {
+        if (_macroAbort) {
+            D10_LOGW("[E10] macro aborted at step %u", (unsigned)i);
+            break;
+        }
+
+        const ST_C10_MacroStep_t& s = v_m.steps[i];
+
+        // 1) delay (abort 감시)
+        if (s.delayMs > 0) {
+            const uint32_t v_t0 = (uint32_t)millis();
+            while (((uint32_t)millis() - v_t0) < (uint32_t)s.delayMs) {
+                if (_macroAbort) break;
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+        }
+        if (_macroAbort) break;
+
+        // 2) step 실행 (primitive)
+        //    - step.kind는 validateMacroStep에서 MACRO/SPECIAL 제외됨
+        ST_C20_ActionSlot_t v_slot;
+        v_slot.kind     = s.kind;
+        v_slot.holdMode = s.holdMode;
+        v_slot.param16  = s.param16;
+        v_slot.param32  = s.param32;
+
+        (void)_actExec.exec(v_slot, true);
+    }
+
+    _macroAbort = false;
+
+    D10_LOGI("[E10] macro end: idx=%u", (unsigned)p_idx);
 }
