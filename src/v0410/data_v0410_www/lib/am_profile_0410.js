@@ -190,6 +190,13 @@ function setOverrideBit(trigIdx, on){
    - Tilt 경고 배너는 그룹 for 루프 내부 (TDZ 회피)
    - Live Test는 최신 배열 재조회 (stale 회피)
    ======================================================= */
+/* =======================================================
+   슬롯 편집기 렌더 (v0411)
+   - Tilt 그룹: Mode 3 전용이므로 Mode 1/2 뷰에서는 편집 비활성
+   - Global 뷰: Tilt 편집 허용 + 상속 안내 배너
+   - Mode 3 뷰: Tilt 편집 정상
+   - 그 외: Tilt 그룹에 사선 패턴 + pointer-events 차단
+   ======================================================= */
 function renderSlotEditor(){
   const root = qs("slotEditor");
   if (!root) return;
@@ -202,33 +209,53 @@ function renderSlotEditor(){
   const triggers = g_triggers || [];
   const slotsArr = getSlotsArray() || [];
   const mask     = getOverrideMask();
-  const isGlobal = (viewToModeIdx(g_view) < 0);
+  const mi       = viewToModeIdx(g_view);
+  const isGlobal = (mi < 0);
 
   root.innerHTML = "";
 
   const groups = [
     { key: "button",  label: "Button Triggers" },
     { key: "gesture", label: "Gesture (Flick / Linear)" },
-    { key: "tilt",    label: "Tilt Hold (Mode 3 에서만 발동)" }
+    { key: "tilt",    label: "Tilt Hold" }
   ];
 
   for (const g of groups){
-    /* Tilt 그룹 경고 (Mode 3가 아닐 때만) */
-    if (g.key === "tilt" && viewToModeIdx(g_view) !== 2){
-      const warn = document.createElement("div");
-      warn.className = "hint2";
-      warn.style.cssText = "margin:6px 0;color:var(--warn-dark);";
-      warn.textContent = "⚠ 이 그룹은 Mode 3 (TV) 에서만 실제 발동합니다.";
-      root.appendChild(warn);
-    }
+    const isTiltGroup  = (g.key === "tilt");
+    /* Tilt + (Mode 1/2 뷰) → 편집 비활성 */
+    const tiltDisabled = isTiltGroup && !isGlobal && (mi !== 2);
 
-    /* 그룹 헤더 */
+    /* ── 그룹 헤더 ── */
     const head = document.createElement("div");
     head.className = "trig-group-head";
-    head.textContent = g.label;
+    if (isTiltGroup) {
+      head.textContent = "Tilt Hold (Mode 3 · TV 전용)";
+      if (tiltDisabled) head.classList.add("dim");
+    } else {
+      head.textContent = g.label;
+    }
     root.appendChild(head);
 
-    /* 트리거 행 */
+    /* ── Tilt 그룹 배너 ── */
+    if (isTiltGroup) {
+      const banner = document.createElement("div");
+      banner.className = "tilt-banner";
+
+      if (isGlobal) {
+        banner.classList.add("info");
+        banner.textContent =
+          "ℹ 여기서 설정한 Global 값은 Mode 3 (TV) 에 자동 상속됩니다.";
+      } else if (tiltDisabled) {
+        banner.classList.add("warn");
+        banner.textContent =
+          "⚠ Tilt Hold 는 Mode 3 (TV) 에서만 실제 발동합니다. " +
+          "이 뷰에서는 편집할 수 없습니다. Global 또는 Mode 3 에서 설정하세요.";
+      }
+
+      if (banner.textContent) root.appendChild(banner);
+    }
+
+    /* ── 트리거 행 ── */
     for (const t of triggers){
       if (t.group !== g.key) continue;
 
@@ -237,10 +264,11 @@ function renderSlotEditor(){
       row.className = "trig-row";
       row.dataset.trig = String(idx);
 
-      if (t.locked) row.classList.add("locked");
+      if (t.locked)       row.classList.add("locked");
+      if (tiltDisabled)   row.classList.add("disabled-by-mode");
 
       const isOver = isGlobal ? false : ((mask & (1 << idx)) !== 0);
-      if (!isGlobal && isOver) row.classList.add("override");
+      if (!isGlobal && isOver && !tiltDisabled) row.classList.add("override");
 
       /* (1) 트리거 이름 */
       const nameEl = document.createElement("div");
@@ -251,26 +279,45 @@ function renderSlotEditor(){
       /* (2) Global/Mode 뱃지 */
       const badge = document.createElement("div");
       badge.className = "trig-badge";
-      if (isGlobal){
+
+      if (tiltDisabled) {
+        /* Mode 1/2 + Tilt: 상속 상태만 표시, 클릭 불가 */
+        badge.textContent = "M3";
+        badge.classList.add("g");
+        badge.title = "Mode 3 (TV) 전용 — Global 값 상속";
+        row.appendChild(badge);
+
+      } else if (isGlobal) {
         badge.textContent = "G";
         badge.classList.add("g");
-      } else if (isOver){
-        badge.textContent = `M${viewToModeIdx(g_view) + 1}`;
+        row.appendChild(badge);
+
+      } else if (isOver) {
+        badge.textContent = `M${mi + 1}`;
         badge.classList.add("m");
-        badge.title = "클릭하여 Global로 되돌림";
+        badge.title = "클릭하여 Global 로 되돌림";
+        if (!t.locked) {
+          badge.style.cursor = "pointer";
+          badge.onclick = () => {
+            setOverrideBit(idx, false);
+            renderSlotEditor();
+          };
+        }
+        row.appendChild(badge);
+
       } else {
         badge.textContent = "G";
         badge.classList.add("g");
-        badge.title = "클릭하여 이 Mode에 override 생성";
+        badge.title = "클릭하여 이 Mode 에 override 생성";
+        if (!t.locked) {
+          badge.style.cursor = "pointer";
+          badge.onclick = () => {
+            setOverrideBit(idx, true);
+            renderSlotEditor();
+          };
+        }
+        row.appendChild(badge);
       }
-      if (!t.locked && !isGlobal){
-        badge.style.cursor = "pointer";
-        badge.onclick = () => {
-          setOverrideBit(idx, !isOver);
-          renderSlotEditor();
-        };
-      }
-      row.appendChild(badge);
 
       /* (3) 액션 편집기 */
       const slot = isGlobal
@@ -280,11 +327,10 @@ function renderSlotEditor(){
             : ((g_profile.config.slots.global && g_profile.config.slots.global[idx])
                 || { k: 0, h: 0, p16: 0, p32: 0 }));
 
-      const isEditable = !t.locked && (isGlobal || isOver);
+      const isEditable = !t.locked && !tiltDisabled && (isGlobal || isOver);
       const editor = renderActionEditor(slot, isEditable, (newSlot) => {
         const arr = getSlotsArray();
         if (!arr) return;
-        const mi = viewToModeIdx(g_view);
         if (mi < 0){
           g_profile.config.slots.global[idx] = newSlot;
         } else {
@@ -294,10 +340,10 @@ function renderSlotEditor(){
       });
       row.appendChild(editor);
 
-      /* (4) Live Test — 최신 배열 재조회로 stale 회피 */
+      /* (4) Live Test */
       const testCell = document.createElement("div");
       testCell.className = "trig-test";
-      if (!t.locked){
+      if (!t.locked && !tiltDisabled){
         const btn = document.createElement("button");
         btn.className = "btn mini";
         btn.textContent = "Test";

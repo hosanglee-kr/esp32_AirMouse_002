@@ -646,3 +646,61 @@ h3 {
     grid-column: 2 / -1;
   }
 }
+
+
+
+/* =======================================================
+   v0411: Tilt 그룹 Mode 제한 (Mode 1/2 편집 비활성)
+======================================================= */
+
+/* Tilt 그룹 헤더 (Mode 1/2에서 dim) */
+.trig-group-head.dim {
+  color: var(--mut);
+  border-bottom-color: var(--line);
+}
+
+/* Tilt 안내 배너 */
+.tilt-banner {
+  margin: 6px 0 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: .84em;
+  line-height: 1.5;
+}
+.tilt-banner.info {
+  background: rgba(52,152,219,.08);
+  border-left: 3px solid var(--pri);
+  color: var(--txt-strong);
+}
+.tilt-banner.warn {
+  background: rgba(243,156,18,.10);
+  border-left: 3px solid var(--warn);
+  color: var(--warn-dark);
+  font-weight: 600;
+}
+
+/* Mode 1/2 뷰의 Tilt 슬롯: 회색 + 사선 패턴 + 비활성 */
+.trig-row.disabled-by-mode {
+  opacity: 0.55;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0,0,0,.025) 10px,
+    rgba(0,0,0,.025) 20px
+  );
+  pointer-events: none;
+  user-select: none;
+}
+.trig-row.disabled-by-mode:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0,0,0,.025) 10px,
+    rgba(0,0,0,.025) 20px
+  );
+}
+.trig-row.disabled-by-mode .trig-badge.m { /* 만약 override가 있던 경우 방어 */
+  opacity: 0.8;
+}
