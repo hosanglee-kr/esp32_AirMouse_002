@@ -39,7 +39,7 @@
     <button class="btn mini" id="btnBannerClose">×</button>
   </div>
 
-  <!-- ========== Profile Bar ========== -->
+  <!-- Profile Bar -->
   <div class="profile-bar">
     <label class="flbl">Profile</label>
     <select class="select mini" id="profSelect"></select>
@@ -91,7 +91,6 @@
         <button class="btn" id="btnI2cRecover">I2C 복구</button>
       </div>
 
-      <!-- [N-7] 실시간 DPI / Precision -->
       <h3>Quick Tuning <span class="hint2" style="font-weight:400;">(apply-only · 저장 안 됨)</span></h3>
       <div class="row">
         <span class="hint">DPI:</span>
@@ -107,7 +106,6 @@
         <button class="btn mini" data-prec="4" id="btnPrec4">PPT</button>
       </div>
 
-      <!-- [N-4, N-8] SafeMode / Host Cycle -->
       <div class="row">
         <button class="btn" id="btnSafeModeEnter">SafeMode 진입</button>
         <button class="btn" id="btnSafeModeExit">SafeMode 해제</button>
@@ -117,7 +115,6 @@
 
       <div class="sep"></div>
 
-      <!-- [N-1] SafeBoot 해제 / Factory Reset -->
       <div class="row">
         <button class="btn" id="btnSafeInfo">SafeBoot 상태</button>
         <button class="btn warn" id="btnSafeExit">SafeBoot 해제 (재부팅)</button>
@@ -154,7 +151,7 @@
     <section class="card tabpane" id="tab-macros">
       <h2>Macro Editor (v0410)</h2>
       <div class="hint2">
-        하나의 프로파일당 최대 8개 매크로, 매크로당 최대 8 step. 각 step은 기본 액션 및 0~2000ms 딜레이 지원.
+        프로파일당 최대 8개 매크로, 매크로당 최대 8 step. 각 step은 기본 액션 및 0~2000ms 딜레이 지원.
       </div>
 
       <div class="row">
@@ -191,7 +188,6 @@
         </label>
       </div>
 
-      <!-- [N-11] Rollback 비활성 안내 -->
       <div class="row">
         <button class="btn" id="btnCfgRollback" disabled
                 title="v0410에서 폐기됨. 프로파일 스위치 또는 Factory Reset을 사용하세요.">
@@ -275,6 +271,158 @@
         </div>
       </div>
 
+      <!-- =========================================== -->
+      <!-- [Phase 1] Motion Advanced - Click-Freeze    -->
+      <!-- =========================================== -->
+      <h3>Motion Advanced <span class="hint2" style="font-weight:400;">(Phase 1: Click-Freeze)</span></h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Click-Freeze</label>
+          <select id="cfEnable" class="select">
+            <option value="true">ON</option>
+            <option value="false">OFF</option>
+          </select>
+          <div class="fhelp">클릭 순간 커서 동결</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Gyro Threshold</label>
+          <input id="cfGyroTh" class="inp" type="number" step="0.5" min="5" max="30" />
+          <div class="fhelp">정지 클릭 판정 (deg/s)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Freeze Max</label>
+          <input id="cfMaxMs" class="inp" type="number" step="10" min="50" max="300" />
+          <div class="fhelp">드래그 판정 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Release Hold</label>
+          <input id="cfHoldMs" class="inp" type="number" step="5" min="0" max="50" />
+          <div class="fhelp">UP 후 동결 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Fadeout</label>
+          <input id="cfFadeoutMs" class="inp" type="number" step="5" min="0" max="80" />
+          <div class="fhelp">감쇠 시간 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Move Threshold</label>
+          <input id="cfMoveTh" class="inp" type="number" step="0.5" min="1" max="10" />
+          <div class="fhelp">강제 이탈 (px)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Freeze Move Threshold</label>
+          <input id="cfFreezeMoveTh" class="inp" type="number" step="1" min="10" max="60" />
+          <div class="fhelp">이동 의도 판정 (deg/s)</div>
+        </div>
+      </div>
+
+      <!-- =========================================== -->
+      <!-- [Phase 2] Motion Advanced - Adaptive EMA    -->
+      <!-- =========================================== -->
+      <h3>Motion Advanced <span class="hint2" style="font-weight:400;">(Phase 2: Adaptive EMA)</span></h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Alpha Min (저속)</label>
+          <input id="emaAlphaMin" class="inp" type="number" step="0.01" min="0.01" max="0.2" />
+          <div class="fhelp">0.01~0.20 (낮을수록 강한 스무딩)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Alpha Max (고속)</label>
+          <input id="emaAlphaMax" class="inp" type="number" step="0.01" min="0.5" max="0.95" />
+          <div class="fhelp">0.50~0.95 (1.0=필터 없음)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Deadzone Threshold</label>
+          <input id="emaDeadzoneTh" class="inp" type="number" step="0.5" min="1" max="10" />
+          <div class="fhelp">저속 경계 (rad/s)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Fast Threshold</label>
+          <input id="emaFastTh" class="inp" type="number" step="1" min="10" max="30" />
+          <div class="fhelp">고속 경계 (rad/s)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Reversal Threshold</label>
+          <input id="emaReversalTh" class="inp" type="number" step="0.5" min="5" max="20" />
+          <div class="fhelp">방향 전환 임계 (rad/s)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Reversal Reset</label>
+          <select id="emaReversalReset" class="select">
+            <option value="true">ON</option>
+            <option value="false">OFF</option>
+          </select>
+          <div class="fhelp">부호 역전 시 EMA 초기화</div>
+        </div>
+      </div>
+
+      <!-- =========================================== -->
+      <!-- [Phase 3] Motion Advanced - Snap-to-Axis    -->
+      <!-- =========================================== -->
+      <h3>Motion Advanced <span class="hint2" style="font-weight:400;">(Phase 3: Snap-to-Axis)</span></h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Snap Mode</label>
+          <select id="snapEnable" class="select">
+            <option value="true">ON</option>
+            <option value="false">OFF</option>
+          </select>
+          <div class="fhelp">축 스냅 기능</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Active Modes</label>
+          <div class="arr" style="gap:14px;">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="snapMode1" /> PC
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="snapMode2" /> PPT
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="snapMode3" /> TV
+            </label>
+          </div>
+          <div class="fhelp">Snap 활성 Mode</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Axis Mode</label>
+          <select id="snapAxisMode" class="select">
+            <option value="0">Both (H + V)</option>
+            <option value="1">Horizontal Only</option>
+            <option value="2">Vertical Only</option>
+          </select>
+          <div class="fhelp">축 판정 범위</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Ratio (진입 임계)</label>
+          <input id="snapRatio" class="inp" type="number" step="0.5" min="2" max="10" />
+          <div class="fhelp">2.0~10.0 (4.0 = 4:1)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Soft Snap Strength</label>
+          <input id="snapStrength" class="inp" type="number" step="0.01" min="0.5" max="1" />
+          <div class="fhelp">0.50~1.00 (1.0=완전고정)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Confirm Frames</label>
+          <input id="snapConfirmFrames" class="inp" type="number" step="1" min="1" max="10" />
+          <div class="fhelp">Chattering 방지 (3 = 24ms)</div>
+        </div>
+      </div>
+
+      <!-- =========================================== -->
+      <!-- 프리셋                                       -->
+      <!-- =========================================== -->
+      <h3>프리셋 (빠른 적용)</h3>
+      <div class="row">
+        <button class="btn" id="btnPresetPC">PC</button>
+        <button class="btn primary" id="btnPresetPPT">PPT</button>
+        <button class="btn" id="btnPresetTV">TV</button>
+        <button class="btn" id="btnPresetGaming">게임</button>
+        <button class="btn" id="btnPresetPrecision">정밀</button>
+      </div>
+      <div class="hint2" id="presetHint">프리셋 클릭 시 현재 편집 중인 프로파일에 즉시 적용됩니다.</div>
+
       <div class="sep"></div>
       <h3>Config JSON (raw)</h3>
       <textarea class="ta" id="cfgJsonArea" spellcheck="false" readonly></textarea>
@@ -304,7 +452,6 @@
       <div class="hint2">Recent events (newest first)</div>
       <div class="log" id="diagEvents" style="max-height:240px;overflow:auto;padding:10px;"></div>
 
-      <!-- [N-9] 단발 키 테스트 -->
       <div class="sep"></div>
       <h3>Key Test <span class="hint2" style="font-weight:400;">(단발 키 즉시 전송)</span></h3>
       <div class="row">
@@ -364,7 +511,7 @@
   </main>
 
   <footer class="foot">
-    <div>v0410 · Profile + Global/Mode Override Slots + Macro Lib</div>
+    <div>v0410 · Profile + Global/Mode Override Slots + Macro Lib + Motion Advanced</div>
   </footer>
 
   <!-- ===== v0411 모듈 로드 ===== -->

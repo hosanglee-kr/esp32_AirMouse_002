@@ -317,6 +317,22 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         if (v_m->_precSub != EN_PREC_OFF) {
             v_m->_applyPrecision(v_fx, v_fy);
         }
+
+        // ============================================================
+        // [Phase 3] Snap-to-Axis
+        // ============================================================
+        v_m->_applySnapToAxis(v_fx, v_fy);
+
+        // ============================================================
+        // [Phase 1] Click-Freeze — 최종 게이트
+        // ============================================================
+        {
+            const float v_rawDx = v_fx;
+            const float v_rawDy = v_fy;
+            v_m->_applyClickFreeze(v_fx, v_fy, v_rawDx, v_rawDy,
+                                   v_gyroAbs, v_m->_btnLDown);
+        }
+        
         
         // 커서 통계
         v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,

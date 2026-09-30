@@ -329,13 +329,18 @@ void CL_E10_EliteAirMouse::_getE10RuntimeConfig(ST_C10_E10Config_t& p_out) {
 }
 
 void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out) {
-    // NOTE: _lock() 보유 상태에서만 호출
+    // [Phase 1~3] motion_adv 백업 (makeDefaults로 덮어쓰기 방지)
+    ST_C10_MotionAdv_t v_maBackup = p_out.motion_adv;
+
     if (_cfg) {
         _cfg->makeDefaultsE10(p_out);
     } else {
         memset(&p_out, 0, sizeof(p_out));
     }
 
+    // [Phase 1~3] motion_adv 복원
+    p_out.motion_adv = v_maBackup;
+    
     p_out.dpi_level       = (uint8_t)_dpiLevel;
     p_out.hard_click_lock = _hardClickLock;
     for (int i = 0; i < 3; i++) {
@@ -489,6 +494,28 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
+    
+    // ====================================================
+    // [Phase 2] Adaptive EMA config 주입
+    // ====================================================
+    {
+        CL_M10_AdvancedMotionProcessor::ST_EmaCfg_t v_ema;
+        v_ema.alpha_min      = p_e.motion_adv.ema.alpha_min;
+        v_ema.alpha_max      = p_e.motion_adv.ema.alpha_max;
+        v_ema.deadzone_th    = p_e.motion_adv.ema.deadzone_th;
+        v_ema.fast_th        = p_e.motion_adv.ema.fast_th;
+        v_ema.reversal_th    = p_e.motion_adv.ema.reversal_th;
+        v_ema.reversal_reset = p_e.motion_adv.ema.reversal_reset;
+
+        // [Phase 2] alpha_min < alpha_max 클램프
+        if (v_ema.alpha_min >= v_ema.alpha_max) {
+            float v_tmp = v_ema.alpha_min;
+            v_ema.alpha_min = v_ema.alpha_max;
+            v_ema.alpha_max = v_tmp;
+        }
+
+        _engine.setEmaConfig(v_ema);
+    }
     
     _led.setBrightness(p_e.led_brightness);
     

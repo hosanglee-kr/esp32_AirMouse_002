@@ -350,7 +350,42 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     p_out.sleep_idle_timeout_ms = 60000;
     p_out.active_mode           = 1;
     p_out.active_peer_index     = 0;
+
+    // =====================================================
+    // [Phase 1] Motion Advanced - Click-Freeze (추정값)
+    // =====================================================
+    p_out.motion_adv.click_freeze.enable         = true;
+    p_out.motion_adv.click_freeze.gyro_th        = 15.0f;
+    p_out.motion_adv.click_freeze.max_ms         = 150;
+    p_out.motion_adv.click_freeze.hold_ms        = 20;
+    p_out.motion_adv.click_freeze.fadeout_ms     = 30;
+    p_out.motion_adv.click_freeze.move_th        = 2.0f;
+    p_out.motion_adv.click_freeze.freeze_move_th = 30.0f;
+    memset(p_out.motion_adv.click_freeze._pad, 0, sizeof(p_out.motion_adv.click_freeze._pad));
+
+    // =====================================================
+    // [Phase 2] Motion Advanced - Adaptive EMA (추정값)
+    // =====================================================
+    p_out.motion_adv.ema.alpha_min      = 0.05f;
+    p_out.motion_adv.ema.alpha_max      = 0.80f;
+    p_out.motion_adv.ema.deadzone_th    = 3.0f;
+    p_out.motion_adv.ema.fast_th        = 15.0f;
+    p_out.motion_adv.ema.reversal_th    = 8.0f;
+    p_out.motion_adv.ema.reversal_reset = true;
+    memset(p_out.motion_adv.ema._pad, 0, sizeof(p_out.motion_adv.ema._pad));
+
+    // =====================================================
+    // [Phase 3] Motion Advanced - Snap-to-Axis (추정값: Mode 2 활성)
+    // =====================================================
+    p_out.motion_adv.snap.enable         = true;
+    p_out.motion_adv.snap.mode_mask      = 0x02;   // Mode 2 (PPT)만
+    p_out.motion_adv.snap.axis_mode      = 0;      // both
+    p_out.motion_adv.snap.confirm_frames = 3;
+    p_out.motion_adv.snap.ratio_enter    = 4.0f;
+    p_out.motion_adv.snap.strength       = 0.85f;
+    memset(p_out.motion_adv.snap._pad, 0, sizeof(p_out.motion_adv.snap._pad));
 }
+
 
 void CL_C10_Config::makeDefaultsSlots(ST_C10_ProfileSlots_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
@@ -505,9 +540,42 @@ bool CL_C10_Config::validateE10(const ST_C10_E10Config_t& p_e) const {
     if (p_e.tilt_hold.hold_ms < 100 || p_e.tilt_hold.hold_ms > 2000) return false;
     if (p_e.tilt_hold.repeat_hz < 1 || p_e.tilt_hold.repeat_hz > 20) return false;
 
-    if (p_e.sleep_idle_timeout_ms < 5000 || p_e.sleep_idle_timeout_ms > 3600000) return false;
+        if (p_e.sleep_idle_timeout_ms < 5000 || p_e.sleep_idle_timeout_ms > 3600000) return false;
     if (p_e.active_mode < 1 || p_e.active_mode > C10_DEF::MODE_COUNT) return false;
     if (p_e.active_peer_index > 2) return false;
+
+    // =====================================================
+    // [Phase 1] Motion Advanced - Click-Freeze
+    // =====================================================
+    const auto& cf = p_e.motion_adv.click_freeze;
+    if (cf.gyro_th < 5.0f || cf.gyro_th > 30.0f)          return false;
+    if (cf.max_ms < 50 || cf.max_ms > 300)                 return false;
+    if (cf.hold_ms > 50)                                   return false;
+    if (cf.fadeout_ms > 80)                                return false;
+    if (cf.move_th < 1.0f || cf.move_th > 10.0f)          return false;
+    if (cf.freeze_move_th < 10.0f || cf.freeze_move_th > 60.0f) return false;
+
+    // =====================================================
+    // [Phase 2] Motion Advanced - Adaptive EMA
+    // =====================================================
+    const auto& ema = p_e.motion_adv.ema;
+    if (ema.alpha_min < 0.01f || ema.alpha_min > 0.2f)   return false;
+    if (ema.alpha_max < 0.5f  || ema.alpha_max > 0.95f)  return false;
+    if (ema.alpha_min >= ema.alpha_max)                   return false;
+    if (ema.deadzone_th < 1.0f || ema.deadzone_th > 10.0f) return false;
+    if (ema.fast_th < 10.0f || ema.fast_th > 30.0f)      return false;
+    if (ema.deadzone_th >= ema.fast_th)                   return false;
+    if (ema.reversal_th < 5.0f || ema.reversal_th > 20.0f) return false;
+
+    // =====================================================
+    // [Phase 3] Motion Advanced - Snap-to-Axis
+    // =====================================================
+    const auto& snap = p_e.motion_adv.snap;
+    if (snap.mode_mask > 0x07)                                return false;
+    if (snap.axis_mode > 2)                                   return false;
+    if (snap.confirm_frames < 1 || snap.confirm_frames > 10)  return false;
+    if (snap.ratio_enter < 2.0f || snap.ratio_enter > 10.0f)  return false;
+    if (snap.strength < 0.5f || snap.strength > 1.0f)         return false;
 
     return true;
 }
@@ -886,6 +954,39 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     p_parent["sleep_idle_timeout_ms"] = p_in.sleep_idle_timeout_ms;
     p_parent["active_mode"]           = p_in.active_mode;
     p_parent["active_peer_index"]     = p_in.active_peer_index;
+
+    // =====================================================
+    // [Phase 1~3] Motion Advanced
+    // =====================================================
+    JsonObject v_ma = p_parent["motion_adv"].to<JsonObject>();
+
+    // [Phase 1] Click-Freeze
+    JsonObject v_cf = v_ma["click_freeze"].to<JsonObject>();
+    v_cf["enable"]         = p_in.motion_adv.click_freeze.enable;
+    v_cf["gyro_th"]        = p_in.motion_adv.click_freeze.gyro_th;
+    v_cf["max_ms"]         = p_in.motion_adv.click_freeze.max_ms;
+    v_cf["hold_ms"]        = p_in.motion_adv.click_freeze.hold_ms;
+    v_cf["fadeout_ms"]     = p_in.motion_adv.click_freeze.fadeout_ms;
+    v_cf["move_th"]        = p_in.motion_adv.click_freeze.move_th;
+    v_cf["freeze_move_th"] = p_in.motion_adv.click_freeze.freeze_move_th;
+
+    // [Phase 2] Adaptive EMA
+    JsonObject v_ema = v_ma["ema"].to<JsonObject>();
+    v_ema["alpha_min"]      = p_in.motion_adv.ema.alpha_min;
+    v_ema["alpha_max"]      = p_in.motion_adv.ema.alpha_max;
+    v_ema["deadzone_th"]    = p_in.motion_adv.ema.deadzone_th;
+    v_ema["fast_th"]        = p_in.motion_adv.ema.fast_th;
+    v_ema["reversal_th"]    = p_in.motion_adv.ema.reversal_th;
+    v_ema["reversal_reset"] = p_in.motion_adv.ema.reversal_reset;
+
+    // [Phase 3] Snap-to-Axis
+    JsonObject v_snap = v_ma["snap"].to<JsonObject>();
+    v_snap["enable"]         = p_in.motion_adv.snap.enable;
+    v_snap["mode_mask"]      = p_in.motion_adv.snap.mode_mask;
+    v_snap["axis_mode"]      = p_in.motion_adv.snap.axis_mode;
+    v_snap["confirm_frames"] = p_in.motion_adv.snap.confirm_frames;
+    v_snap["ratio_enter"]    = p_in.motion_adv.snap.ratio_enter;
+    v_snap["strength"]       = p_in.motion_adv.snap.strength;
 }
 
 void CL_C10_Config::_buildSlotsJson(JsonObject p_parent, const ST_C10_ProfileSlots_t& p_in) {
@@ -1080,6 +1181,49 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
     if (!p_v["sleep_idle_timeout_ms"].isNull()) p_io.sleep_idle_timeout_ms = (uint32_t)p_v["sleep_idle_timeout_ms"];
     if (!p_v["active_mode"].isNull())           p_io.active_mode = (uint8_t)p_v["active_mode"];
     if (!p_v["active_peer_index"].isNull())     p_io.active_peer_index = (uint8_t)p_v["active_peer_index"];
+
+    // =====================================================
+    // [Phase 1~3] Motion Advanced (부분 패치)
+    // =====================================================
+    JsonVariantConst v_ma = p_v["motion_adv"];
+    if (!v_ma.isNull()) {
+        // [Phase 1] Click-Freeze
+        JsonVariantConst v_cf = v_ma["click_freeze"];
+        if (!v_cf.isNull()) {
+            auto& d = p_io.motion_adv.click_freeze;
+            if (!v_cf["enable"].isNull())         d.enable         = (bool)v_cf["enable"];
+            if (!v_cf["gyro_th"].isNull())        d.gyro_th        = (float)v_cf["gyro_th"];
+            if (!v_cf["max_ms"].isNull())         d.max_ms         = (uint16_t)v_cf["max_ms"];
+            if (!v_cf["hold_ms"].isNull())        d.hold_ms        = (uint16_t)v_cf["hold_ms"];
+            if (!v_cf["fadeout_ms"].isNull())     d.fadeout_ms     = (uint16_t)v_cf["fadeout_ms"];
+            if (!v_cf["move_th"].isNull())        d.move_th        = (float)v_cf["move_th"];
+            if (!v_cf["freeze_move_th"].isNull()) d.freeze_move_th = (float)v_cf["freeze_move_th"];
+        }
+
+        // [Phase 2] Adaptive EMA
+        JsonVariantConst v_ema = v_ma["ema"];
+        if (!v_ema.isNull()) {
+            auto& e = p_io.motion_adv.ema;
+            if (!v_ema["alpha_min"].isNull())      e.alpha_min      = (float)v_ema["alpha_min"];
+            if (!v_ema["alpha_max"].isNull())      e.alpha_max      = (float)v_ema["alpha_max"];
+            if (!v_ema["deadzone_th"].isNull())    e.deadzone_th    = (float)v_ema["deadzone_th"];
+            if (!v_ema["fast_th"].isNull())        e.fast_th        = (float)v_ema["fast_th"];
+            if (!v_ema["reversal_th"].isNull())    e.reversal_th    = (float)v_ema["reversal_th"];
+            if (!v_ema["reversal_reset"].isNull()) e.reversal_reset = (bool)v_ema["reversal_reset"];
+        }
+
+        // [Phase 3] Snap-to-Axis
+        JsonVariantConst v_snap = v_ma["snap"];
+        if (!v_snap.isNull()) {
+            auto& s = p_io.motion_adv.snap;
+            if (!v_snap["enable"].isNull())         s.enable         = (bool)v_snap["enable"];
+            if (!v_snap["mode_mask"].isNull())      s.mode_mask      = (uint8_t)v_snap["mode_mask"];
+            if (!v_snap["axis_mode"].isNull())      s.axis_mode      = (uint8_t)v_snap["axis_mode"];
+            if (!v_snap["confirm_frames"].isNull()) s.confirm_frames = (uint8_t)v_snap["confirm_frames"];
+            if (!v_snap["ratio_enter"].isNull())    s.ratio_enter    = (float)v_snap["ratio_enter"];
+            if (!v_snap["strength"].isNull())       s.strength       = (float)v_snap["strength"];
+        }
+    }
 
     return true;
 }

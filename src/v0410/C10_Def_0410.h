@@ -13,6 +13,7 @@
  *  - 매크로 자료구조 (8×8, delay ≤ 2000ms)
  *  - Profile 슬롯 매트릭스 (Global + Mode별 Override)
  *  - E10 파라미터 (modes 제외, 프로파일 단위 관리)
+ *  - [Phase 1~3] Motion Advanced (Click-Freeze / EMA / Snap)
  * ------------------------------------------------------
  */
 
@@ -167,6 +168,46 @@ enum EN_C10_E10PrecisionMode_t : uint8_t {
     EN_C10_E10_PREC_MAX
 };
 
+// =====================================================
+// [Phase 1~3] Motion Advanced
+// =====================================================
+struct ST_C10_MotionAdv_ClickFreeze_t {
+    bool     enable;           // 기능 온/오프
+    float    gyro_th;          // 정지 클릭 판정 (deg/s)
+    uint16_t max_ms;           // 드래그 판정 임계 (ms)
+    uint16_t hold_ms;          // UP 후 완전 동결 (ms)
+    uint16_t fadeout_ms;       // 감쇠 시간 (ms)
+    float    move_th;          // 강제 이탈 변위 (px)
+    float    freeze_move_th;   // 이동 의도 판정 (deg/s)
+    uint8_t  _pad[2];
+};
+
+struct ST_C10_MotionAdv_Ema_t {
+    float    alpha_min;         // 저속 최대 스무딩 (0.01~0.2)
+    float    alpha_max;         // 고속 최소 스무딩 (0.5~0.95)
+    float    deadzone_th;       // 저속 경계 (rad/s)
+    float    fast_th;           // 고속 경계 (rad/s)
+    float    reversal_th;       // 방향 전환 임계 (rad/s)
+    bool     reversal_reset;    // 방향 전환 시 EMA 리셋
+    uint8_t  _pad[3];
+};
+
+struct ST_C10_MotionAdv_Snap_t {
+    bool     enable;           // 기능 온/오프
+    uint8_t  mode_mask;        // 0x01=Mode1, 0x02=Mode2, 0x04=Mode3
+    uint8_t  axis_mode;        // 0=both, 1=horizontal, 2=vertical
+    uint8_t  confirm_frames;   // 축 확정 프레임 수 (Chattering 방지)
+    float    ratio_enter;      // 축 판정 임계 (4.0 → 4:1)
+    float    strength;         // Soft Snap 강도 (0.85 → 부축 15% 투과)
+    uint8_t  _pad[2];
+};
+
+struct ST_C10_MotionAdv_t {
+    ST_C10_MotionAdv_ClickFreeze_t click_freeze;
+    ST_C10_MotionAdv_Ema_t         ema;
+    ST_C10_MotionAdv_Snap_t        snap;
+};
+
 struct ST_C10_E10Config_t {
     uint8_t dpi_level;
     bool    hard_click_lock;
@@ -225,11 +266,13 @@ struct ST_C10_E10Config_t {
     uint32_t sleep_idle_timeout_ms;
     uint8_t  active_mode;
     uint8_t  active_peer_index;
+
+    ST_C10_MotionAdv_t motion_adv;   // [Phase 1~3]
 };
 
 // 매크로 Step (16 Bytes)
 struct ST_C10_MacroStep_t {
-    uint8_t  kind;       // 1~9 (Primitive만 허용)
+    uint8_t  kind;       // 1~8 (Primitive만 허용)
     uint8_t  holdMode;   // 0=NONE, 1=PRESS, 2=REPEAT
     uint16_t delayMs;    // 0~2000 ms
     uint16_t param16;
@@ -275,7 +318,7 @@ static inline ST_C20_ActionSlot_t C10_ResolveSlot(
     return p_slots.global[p_trig];
 }
 
-// Profile 통합 구조체 (~2.4 KB)
+// Profile 통합 구조체
 struct ST_C10_ProfileConfig_t {
     uint16_t ver;
     char     name[C10_DEF::PROFILE_NAME_LEN];

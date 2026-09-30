@@ -191,8 +191,43 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
     tilt_hold: { angle_deg: 15.0, hold_ms: 300, repeat_hz: 3 },
     sleep_idle_timeout_ms: 60000,
     active_mode: 1,
-    active_peer_index: 0
+    active_peer_index: 0,
+
+    // ====================================================
+    // [Phase 1~3] Motion Advanced
+    // ====================================================
+    motion_adv: {
+      // [Phase 1] Click-Freeze
+      click_freeze: {
+        enable: true,
+        gyro_th: 15.0,
+        max_ms: 150,
+        hold_ms: 20,
+        fadeout_ms: 30,
+        move_th: 2.0,
+        freeze_move_th: 30.0
+      },
+      // [Phase 2] Adaptive EMA
+      ema: {
+        alpha_min: 0.05,
+        alpha_max: 0.80,
+        deadzone_th: 3.0,
+        fast_th: 15.0,
+        reversal_th: 8.0,
+        reversal_reset: true
+      },
+      // [Phase 3] Snap-to-Axis
+      snap: {
+        enable: true,
+        mode_mask: 0x02,
+        axis_mode: 0,
+        confirm_frames: 3,
+        ratio_enter: 4.0,
+        strength: 0.85
+      }
+    }
   },
+  
   slots: {
     global: [
       { k: 2, h: 1, p16: 1,  p32: 0 },

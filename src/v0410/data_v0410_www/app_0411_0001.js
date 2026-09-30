@@ -166,6 +166,16 @@ function bindUi() {
 	qs("btnCfgRollback")?.addEventListener("click", () => {
 		alert("Rollback은 v0410에서 폐기되었습니다.\n프로파일 스위치 또는 Factory Reset을 사용하세요.");
 	});
+	
+	// ====================================================
+	  // [Phase 1~3] Motion 프리셋 버튼
+	  // ====================================================
+	  qs("btnPresetPC")?.addEventListener("click",        () => applyMotionPreset("PC"));
+	  qs("btnPresetPPT")?.addEventListener("click",       () => applyMotionPreset("PPT"));
+	  qs("btnPresetTV")?.addEventListener("click",        () => applyMotionPreset("TV"));
+	  qs("btnPresetGaming")?.addEventListener("click",    () => applyMotionPreset("Gaming"));
+	  qs("btnPresetPrecision")?.addEventListener("click", () => applyMotionPreset("Precision"));
+
 }
 
 /* =======================================================

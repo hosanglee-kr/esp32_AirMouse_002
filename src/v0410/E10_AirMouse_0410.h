@@ -308,6 +308,40 @@ class CL_E10_EliteAirMouse {
     
     // [Front Hold] Side F 누름 중 true → 스크롤 모드
     volatile bool _frontHoldActive = false;
+    
+    // ====================================================
+    // [Phase 1] Click-Freeze FSM
+    // ====================================================
+    enum EN_E10_FreezeState_t : uint8_t {
+        E10_FREEZE_IDLE    = 0,
+        E10_FREEZE_LOCKED  = 1,
+        E10_FREEZE_HOLD    = 2,
+        E10_FREEZE_FADEOUT = 3,
+    };
+
+    EN_E10_FreezeState_t _freezeState  = E10_FREEZE_IDLE;
+    uint32_t             _freezeTimer  = 0;
+    uint32_t             _holdTimer    = 0;
+    uint32_t             _fadeTimer    = 0;
+    float                _accumDx      = 0.0f;
+    float                _accumDy      = 0.0f;
+
+    volatile bool _btnLDown = false;
+
+    // ====================================================
+    // [Phase 3] Snap-to-Axis FSM
+    // ====================================================
+    enum EN_E10_SnapAxis_t : uint8_t {
+        E10_SNAP_NONE   = 0,
+        E10_SNAP_HORIZ  = 1,
+        E10_SNAP_VERT   = 2,
+    };
+
+    EN_E10_SnapAxis_t _snapActiveAxis      = E10_SNAP_NONE;
+    EN_E10_SnapAxis_t _snapCandidate       = E10_SNAP_NONE;
+    uint8_t           _snapCandidateFrames = 0;
+    
+
 
     // Top M DOWN 시각 (Mode 3 클릭 판정용)
     uint32_t _topMDownMs = 0;
@@ -429,7 +463,18 @@ class CL_E10_EliteAirMouse {
     // -----------------------
     void _applyPrecision(float& p_fx, float& p_fy);
     void _fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle, float p_gyroAbs);
+    void _applyClickFreeze(float& p_fx, float& p_fy,
+                           float p_rawDx, float p_rawDy,
+                           float p_gyroAbs,
+                           bool  p_btnDown);       // [Phase 1]
+    void _applySnapToAxis(float& p_fx, float& p_fy);   // [Phase 3]
 
+    void _resetSnapState() {
+        _snapActiveAxis      = E10_SNAP_NONE;
+        _snapCandidate       = E10_SNAP_NONE;
+        _snapCandidateFrames = 0;
+    }
+    
     // -----------------------
     // Diagnostics helpers
     // -----------------------

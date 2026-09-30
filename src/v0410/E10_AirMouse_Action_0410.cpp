@@ -110,18 +110,16 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
     // ---------- Top L: 항상 마우스 좌클릭 (고정) ----------
     if (p_btnId == EN_C20_BTN_TOP_L) {
         if (p_evt == EN_C20_EVT_DOWN) {
+            _btnLDown = true;   // [Phase 1] Click-Freeze 판정용
             (void)_enqueueAction(G_SLOT_MOUSE_L_HOLD, true);
             return true;
         }
         if (p_evt == EN_C20_EVT_UP) {
+            _btnLDown = false;  // [Phase 1]
             (void)_enqueueAction(G_SLOT_MOUSE_L_HOLD, false);
             return true;
         }
-        
-        // [Phase 5] CLICK은 이미 DOWN/UP(Hold)로 소비됨 → 중복 방지 스킵
         if (p_evt == EN_C20_EVT_CLICK) return true;
-    
-        // DOUBLE / LONG만 슬롯 매핑
         return false;
     }
     
@@ -291,6 +289,10 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     // FSM 리셋 (다음 프레임부터 새 모드로)
     _precSub = EN_PREC_OFF;
+    
+    // [Phase 3] Snap 상태 리셋
+    _resetSnapState();
+    
     _precSmX = 0.0f;
     _precSmY = 0.0f;
 
