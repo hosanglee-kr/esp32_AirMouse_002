@@ -129,7 +129,14 @@ const G_OFFLINE_KEYCODES = {
    - 백엔드 C10_Config_0410.cpp::makeDefaultsSlots() 값과 1:1 정합
    ======================================================= */
 const G_OFFLINE_DEFAULT_PROFILE_0 = {
-  name: "Default",
+    ver: 410,
+    name: "Default",
+    wifi: {
+      mode: 0, // 0=Auto, 1=AP, 2=STA
+      sta: { ssid: "", pass: "" },
+      ap: { ssid: "EliteAirMouse", pass: "12345678" },
+      mdns: { host: "elite-airmouse" }
+    },
   e10: {
     dpi_level: 2,
     hard_click_lock: true,
