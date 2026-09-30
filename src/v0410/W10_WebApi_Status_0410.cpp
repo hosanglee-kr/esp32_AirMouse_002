@@ -10,6 +10,7 @@
  * ------------------------------------------------------
  * 기능 요약
  *  - (0316) /api/status, /api/diag, /api/keycodes 및 E10 status fill 분리
+ *  - [C-02] /api/status config에 profile_idx/name/count 추가 (프론트엔드 #stProfile)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -225,11 +226,27 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
         char v_profPath[64];
         C10_DEF::makeProfilePath(v_profPath, sizeof(v_profPath), _cfg->getActiveIndex());
         bool v_etagOk = _calcFileEtag32(v_profPath, v_etag, &v_cfgSize);
+
+        // [C-02] profile 메타데이터 (프론트엔드 #stProfile 표시용)
+        char v_profName[C10_DEF::PROFILE_NAME_LEN] = {0};
+        {
+            ST_C10_ProfileConfig_t v_p;
+            _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
+            if (_cfg->loadActiveProfile(v_p)) {
+                strlcpy(v_profName, v_p.name, sizeof(v_profName));
+            }
+        }
+
         JsonObject cfg = v_doc["config"].to<JsonObject>();
         cfg["ver"] = (uint16_t)G_C10_CFG_VER;
         cfg["etag_ok"] = v_etagOk;
         cfg["etag"] = (uint32_t)v_etag;
         cfg["size"] = (uint32_t)v_cfgSize;
+
+        // [C-02] profile 필드 (신규)
+        cfg["profile_idx"]   = (uint8_t)_cfg->getActiveIndex();
+        cfg["profile_count"] = (uint8_t)_cfg->getProfileCount();
+        cfg["profile_name"]  = v_profName;
 
         cfg["last_apply_ok"] = _lastApplyOk;
         cfg["last_apply_ms"] = _lastApplyMs;
@@ -285,6 +302,10 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
             gCfg["etag_ok"] = cfg["etag_ok"];
             gCfg["etag"] = cfg["etag"];
             gCfg["size"] = cfg["size"];
+            // [C-02] profile 필드 (신규)
+            gCfg["profile_idx"]   = cfg["profile_idx"];
+            gCfg["profile_count"] = cfg["profile_count"];
+            gCfg["profile_name"]  = cfg["profile_name"];
             gCfg["last_apply_ok"] = cfg["last_apply_ok"];
             gCfg["last_apply_ms"] = cfg["last_apply_ms"];
             gCfg["last_apply_age_ms"] = cfg["last_apply_age_ms"];
@@ -298,7 +319,7 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
         gOta["written"] = ota["written"];
         gOta["ok"] = ota["ok"];
         gOta["err"] = ota["err"];
-        
+
         // groups.e10 = top-level e10 전체 복사 (compact=1이 top-level을 지우므로 필수)
         JsonVariant e10v = v_doc["e10"];
         if (!e10v.isNull()) {
