@@ -255,9 +255,11 @@ class CL_E10_EliteAirMouse {
     uint32_t      _otaGuardT0Ms  = 0;
 
     // async requests
-    volatile bool _reqGyroCalib  = false;
-    volatile bool _reqI2CRecover = false;
-    volatile bool _reqClearDiag  = false;
+    volatile bool    _reqGyroCalib      = false;
+    volatile bool    _reqI2CRecover     = false;
+    volatile bool    _reqClearDiag      = false;
+    volatile uint8_t _reqSpecialAction  = 0;      // [REQ-FIX-02] Special action delegation (Web -> sensorTask)
+    volatile bool    _reqCommReleaseAll = false;  // [REQ-FIX-03] HID release delegation (Profile switch -> commTask)
     
     // [Phase 10] config 저장 필요 플래그 (main loop에서 처리)
     volatile bool _reqSaveCfg = false;

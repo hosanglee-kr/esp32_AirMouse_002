@@ -23,8 +23,10 @@
 | `_btnDisp` | `sensorTask` | `sensorTask` | 독점 (No sync) | 물리 버튼 디바운스 및 더블/롱클릭 이벤트 |
 | `_actExec` | `commTask` | `commTask` | 독점 (No sync) | HID 키/마우스 상태 유지 및 반복 액션 관리 |
 | `_led` | `_ledTask` (tick) | `any` (setModeColor, flash 등) | 내부 상태머신 | 50ms 주기 전용 태스크에서 단독 갱신 |
-| `_power` | `sensorTask` | `sensorTask` | 독점 (No sync) | Light-sleep 진입 및 WoM 인터럽트 처리 |
+| `_power` | `sensorTask` | `sensorTask` | 독점 (No sync) | Light-sleep 진입 및 WoM 인터럽트 처리 (Phase 11.6 단일 FSM) |
 | `_activeMode` | `sensorTask`, `webTask` | `any` | `volatile uint8_t` + `_lock()` | 3-Mode (1=PC, 2=PPT, 3=TV) 시스템 상태 |
+| `_reqSpecialAction` | `webTask` | `sensorTask` | `volatile uint8_t` | Special 액션 비동기 실행 위임 플래그 |
+| `_reqCommReleaseAll` | `webTask` | `commTask` | `volatile bool` | 프로파일 전환 시 HID 안전 Release 위임 플래그 |
 
 ---
 

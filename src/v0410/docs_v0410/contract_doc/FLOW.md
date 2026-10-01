@@ -59,31 +59,34 @@ sequenceDiagram
     Core->>Core: _macroAbortToken++ (_macroState.active = false)
     Core->>Q: 큐 드레인 (_qActionExec, _qHidCmd)
     Core->>Sensor: 리셋 위임 플래그 설정 (_reqResetBtnDisp, _reqResetGesture)
+    Core->>Comm: 릴리즈 위임 플래그 설정 (_reqCommReleaseAll = true)
     Core->>Q: forceReleaseButtons() -> _qHidCmd 인큐
     Core->>FS: setActiveIndex(newIdx) & LittleFS 프로파일 로드
     Core->>Core: _cfgProfile 갱신 & 런타임 캐시 반영
     Core->>Core: LED 모드 색상 + 화이트 0.5초 Flash
     Core-->>Web: 성공 반환 (true)
     Note over Sensor: 다음 8ms 틱에서 _btnDisp.resetAll(), _gesture.reset() 실행
-    Note over Comm: 큐 소비 시 _actExec.releaseAll() 및 HID Button Release 수행
+    Note over Comm: 큐 소비 또는 플래그 확인 시 _actExec.releaseAll() 및 HID Button Release 수행
 ```
 
 ---
 
 ## 3. 액션 및 제스처 디스패치 흐름
 
-물리 버튼 이벤트와 센서 제스처가 슬롯 매핑을 거쳐 최종 실행되는 분기 구조입니다.
+물리 버튼 이벤트, 센서 제스처 및 웹 Live Test 요청이 슬롯 매핑을 거쳐 최종 실행되는 분기 구조입니다.
 
 ```mermaid
 flowchart TD
-    In[이벤트 입력: BtnDispatcher / Gesture 감지] --> CheckHard{하드코딩 동작인가?}
+    In[이벤트 입력: BtnDispatcher / Gesture 감지 / Web LiveTest] --> CheckHard{하드코딩 동작인가?}
     CheckHard -- Yes --> HardExec[모드전환 / 페어링 / MoveGate / FrontHold]
     CheckHard -- No --> Resolve[_resolveSlot(_activeMode, trigger)]
     
     Resolve --> CheckKind{Action Slot Kind?}
     CheckKind -- EN_C20_ACT_NONE --> Drop[무시 / Drop]
-    CheckKind -- EN_C20_ACT_SPECIAL --> SpecDirect[_handleSpecial(param16) 직접 실행]
-    Note right of SpecDirect: sensorTask 컨텍스트에서만 동기 실행
+    CheckKind -- EN_C20_ACT_SPECIAL --> SpecOrigin{호출 컨텍스트?}
+    SpecOrigin -- sensorTask 내부 --> SpecDirect[_handleSpecial(param16) 직접 실행]
+    SpecOrigin -- Web Task (LiveTest) --> SpecDeleg[_reqSpecialAction = param16 위임]
+    SpecDeleg --> SensorLoop[다음 sensorTask 루프에서 동기 실행]
     CheckKind -- 기타 (KEY, MOUSE, CONSUMER) --> EnqAct[_enqueueAction(slot, isDown)]
     EnqAct --> QAct[_qActionExec (size=8)]
     

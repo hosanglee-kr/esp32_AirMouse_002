@@ -61,3 +61,5 @@
 | `_cfgProfile` | `webTask` (write), `sensorTask` (init) | `sensorTask`, `commTask`, `webTask` | `_mutex` (Recursive Mutex) | 프로파일 변경/저장 시 반드시 `_lock()` 하에 접근 |
 | `_state` | `sensorTask` (모션/에러 기록) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 웹 관측용 상태 구조체. 타임아웃 초과 시 miss 카운터 증가 |
 | `_errHist`, `_spikes` | `sensorTask`, `commTask` | `webTask` | `_pushErr`, `_pushSpike` 내부 `_lock()` | 링버퍼 오버플로 방지 및 인덱스 정합성 보호 |
+| `_reqSpecialAction` | `webTask` (`execLiveTest`) | `sensorTask` (루프 진입부) | `volatile uint8_t` | 위임 패턴. Special 액션을 sensorTask 컨텍스트에서 안전하게 실행 |
+| `_reqCommReleaseAll` | `webTask` (`switchProfile`) | `commTask` (루프 진입부) | `volatile bool` | 위임 패턴. 프로파일 스위치 시 큐 Drop에 영향받지 않는 HID Release 100% 보장 |

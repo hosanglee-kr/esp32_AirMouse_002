@@ -649,8 +649,9 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     _frontHoldActive = false;
     _moveGateHeld    = false;
 
-    // 4) HID 안전 release (C-2: 큐 경유)
-    //   - RELEASE_ALL 큐잉 시 commTask가 _actExec.releaseAll() + mouseRelease 수행
+    // 4) HID 안전 release (C-2: 큐 경유 + REQ-FIX-03 위임 플래그로 완벽 보장)
+    //   - 큐 Drop 발생 시에도 commTask가 반드시 릴리즈하도록 보장
+    _reqCommReleaseAll = true;
     (void)forceReleaseButtons();
 
     // 5) active index 저장
@@ -700,9 +701,9 @@ bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
     v_slot.param16  = p_p16;
     v_slot.param32  = p_p32;
 
-    // SPECIAL은 sensorTask 즉시 (동기)
+    // [REQ-FIX-02] SPECIAL은 Web 태스크에서 직접 실행 금지 -> sensorTask로 안전하게 위임
     if (p_kind == (uint8_t)EN_C20_ACT_SPECIAL) {
-        _handleSpecial((uint8_t)p_p16);
+        _reqSpecialAction = (uint8_t)p_p16;
         return true;
     }
 
