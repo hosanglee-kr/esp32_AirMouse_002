@@ -295,21 +295,30 @@ void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
         return;
     }
 
-    // 내부 profile doc
     JsonDocument v_inner;
     if (!_cfg->buildProfileJson(v_p, v_inner)) {
         _sendErr(req, "profile_build_failed", "Failed to serialize profile.");
         return;
     }
 
-    // envelope
-    JsonDocument v_out;
-    v_out["idx"]   = (uint8_t)_cfg->getActiveIndex();
-    v_out["count"] = (uint8_t)_cfg->getProfileCount();
-    v_out["config"].set(v_inner.as<JsonVariantConst>());
+    // [R2-M-3] envelope 수동 스트리밍 (JSON triple-copy → single streaming)
+    //   - 기존: v_inner → v_out(복사) → _sendOk 내부 d(복사) → serialize → 3회 복사
+    //   - 변경: v_inner → 직접 serialize (1회 스트리밍)
+    AsyncResponseStream* res = req->beginResponseStream("application/json");
+    res->setCode(200);
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
 
-    _sendOk(req, "profile_get", "", &v_out, 200);
+    res->print(F("{\"ok\":true,\"code\":\"profile_get\",\"msg\":\"\",\"data\":{\"idx\":"));
+    res->print((unsigned)_cfg->getActiveIndex());
+    res->print(F(",\"count\":"));
+    res->print((unsigned)_cfg->getProfileCount());
+    res->print(F(",\"config\":"));
+    serializeJson(v_inner, *res);
+    res->print(F("}}"));
+
+    req->send(res);
 }
+
 
 // =====================================================
 // POST /api/profiles/active  { ...partial profile... }

@@ -139,12 +139,18 @@ void CL_E10_EliteAirMouse::_fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle
 // [Phase 3] Snap-to-Axis
 // =======================================================
 void CL_E10_EliteAirMouse::_applySnapToAxis(float& p_fx, float& p_fy) {
-    const auto& cfg = _cfgProfile.e10.motion_adv.snap;
+    // [R2-C-1] config 스냅샷 (락 하 read, 함수 로컬 복사)
+    //   - switchProfile이 _cfgProfile 전체를 교체하는 동안 부분 read 방지
+    //   - recursive mutex이므로 재진입 안전
+    ST_C10_MotionAdv_Snap_t cfg;
+    _lock();
+    cfg = _cfgProfile.e10.motion_adv.snap;
+    _unlock();
 
     const bool v_active =
         cfg.enable &&
         (cfg.mode_mask & (1 << (_activeMode - 1))) != 0;
-
+        
     if (!v_active) {
         _snapActiveAxis      = E10_SNAP_NONE;
         _snapCandidate       = E10_SNAP_NONE;
@@ -212,8 +218,12 @@ void CL_E10_EliteAirMouse::_applyClickFreeze(float& p_fx, float& p_fy,
                                              float p_rawDx, float p_rawDy,
                                              float p_gyroAbs,
                                              bool  p_btnDown) {
-    const auto& cfg = _cfgProfile.e10.motion_adv.click_freeze;
-
+    // [R2-C-1] config 스냅샷 (락 하 read)
+    ST_C10_MotionAdv_ClickFreeze_t cfg;
+    _lock();
+    cfg = _cfgProfile.e10.motion_adv.click_freeze;
+    _unlock();
+    
     // Move Gate가 활성 상태일 때만 커서가 이동하므로, Move Gate가 풀리면 Click-Freeze도 IDLE 리셋
     if (!cfg.enable || !_moveGateHeld) {
         _freezeState = E10_FREEZE_IDLE;

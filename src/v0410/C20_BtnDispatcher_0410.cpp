@@ -129,7 +129,8 @@ void CL_C20_BtnDispatcher::_checkTimers(uint8_t p_btnId, uint32_t p_now) {
     ST_BtnState_t& b = _btn[p_btnId];
 
     // Long / Hold (press 유지 중)
-    if (b.phase == PHASE_PRESSED || b.phase == PHASE_DOUBLE) {
+    // [R2-M-1] PHASE_DOUBLE은 제외 — 더블클릭 후 계속 hold 시 Pairing/Host Cycle 오발화 방지
+    if (b.phase == PHASE_PRESSED) {
         const uint32_t v_held = p_now - b.downMs;
 
         if (!b.longFired && v_held >= _longDelayMs) {

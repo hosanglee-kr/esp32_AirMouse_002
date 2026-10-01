@@ -21,12 +21,13 @@ static constexpr uint8_t G_MPU_INT_CFG    = 0x37;
 static constexpr uint8_t G_MPU_INT_EN     = 0x38;
 static constexpr uint8_t G_MPU_INT_STATUS = 0x3A;
 
-static inline void mpuWr(uint8_t reg, uint8_t val) {
+static inline bool mpuWr(uint8_t reg, uint8_t val) {
     Wire.beginTransmission(G_MPU_ADDR);
     Wire.write(reg);
     Wire.write(val);
-    Wire.endTransmission();
+    return (Wire.endTransmission() == 0);
 }
+
 static inline uint8_t mpuRd(uint8_t reg) {
     Wire.beginTransmission(G_MPU_ADDR);
     Wire.write(reg);
@@ -109,36 +110,52 @@ void CL_P20_Power::notifyActivity(uint32_t p_nowMs) {
 // MPU WoM 구성 (motion detection)
 // =======================================================
 bool CL_P20_Power::_prepareMpuWom() {
-    // 1) PWR_MGMT_1: 내부 8MHz osc, sleep 해제
-    mpuWr(G_MPU_PWR_MGMT_1, 0x00);
+    // [R2-M-2] 각 write 실패 시 조기 반환 (I2C 장애 시 sleep 진입 방지)
+    if (!mpuWr(G_MPU_PWR_MGMT_1, 0x00)) {
+        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_1 wake");
+        return false;
+    }
     delay(2);
 
-    // 2) ACCEL_CONFIG: HPF 5Hz (중력 성분 제거)
-    mpuWr(G_MPU_ACCEL_CFG, 0x01);
+    if (!mpuWr(G_MPU_ACCEL_CFG, 0x01)) {
+        D10_LOGW("[P20] WoM prep fail: ACCEL_CFG HPF");
+        return false;
+    }
 
-    // 3) MOT_THR: Config 값 주입 (32mg/LSB, 25 = 800mg)
     const uint8_t v_th  = (_cfg.wom_threshold > 0) ? _cfg.wom_threshold : 25;
-    mpuWr(G_MPU_MOT_THR, v_th);
+    if (!mpuWr(G_MPU_MOT_THR, v_th)) {
+        D10_LOGW("[P20] WoM prep fail: MOT_THR");
+        return false;
+    }
 
-    // 4) MOT_DUR: Config 값 주입 (스파이크 노이즈 필터 ms)
     const uint8_t v_dur = (_cfg.wom_duration > 0) ? _cfg.wom_duration : 4;
-    mpuWr(G_MPU_MOT_DUR, v_dur);
+    if (!mpuWr(G_MPU_MOT_DUR, v_dur)) {
+        D10_LOGW("[P20] WoM prep fail: MOT_DUR");
+        return false;
+    }
 
-    // 5) INT_PIN_CFG: LATCH | OPEN_DRAIN | ACTIVE_LOW
-    mpuWr(G_MPU_INT_CFG, 0x80 | 0x40 | 0x20);
+    if (!mpuWr(G_MPU_INT_CFG, 0x80 | 0x40 | 0x20)) {
+        D10_LOGW("[P20] WoM prep fail: INT_CFG");
+        return false;
+    }
 
-    // 6) INT_ENABLE: MOT_EN
-    mpuWr(G_MPU_INT_EN, 0x40);
+    if (!mpuWr(G_MPU_INT_EN, 0x40)) {
+        D10_LOGW("[P20] WoM prep fail: INT_EN");
+        return false;
+    }
 
-    // 7) PWR_MGMT_1: CYCLE=1, SLEEP=0 (저전력 가속도계 사이클)
-    mpuWr(G_MPU_PWR_MGMT_1, 0x20);
+    if (!mpuWr(G_MPU_PWR_MGMT_1, 0x20)) {
+        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_1 cycle");
+        return false;
+    }
 
-    // 8) PWR_MGMT_2: LP_WAKE_CTRL=5Hz, Gyro Standby
-    mpuWr(G_MPU_PWR_MGMT_2, 0xC7);
+    if (!mpuWr(G_MPU_PWR_MGMT_2, 0xC7)) {
+        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_2 LP_WAKE");
+        return false;
+    }
     delay(5);
 
-    // 검증: INT_STATUS 읽기 (초기 래치 클리어)
-    (void)mpuRd(G_MPU_INT_STATUS);
+    (void)mpuRd(G_MPU_INT_STATUS);   // 초기 래치 클리어
     return true;
 }
 

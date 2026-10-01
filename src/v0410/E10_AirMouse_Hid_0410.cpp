@@ -56,24 +56,8 @@ bool CL_E10_EliteAirMouse::testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p
     return _enqueueHidCmd(v_cmd);
 }
 
-bool CL_E10_EliteAirMouse::testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs) {
-    if (!_hid.isConnected()) return false;
-    if (_safeMode || _otaGuard) return false;
-
-    uint16_t v_hold = p_holdMs;
-    if (v_hold < 5)   v_hold = 5;
-    if (v_hold > 250) v_hold = 250;
-
-    // [H-4] 웹 태스크 블로킹 제거 → commTask가 실행
-    ST_E10_HidCmd_t v_cmd;
-    memset(&v_cmd, 0, sizeof(v_cmd));
-    v_cmd.cmd    = (uint8_t)EN_E10_HIDCMD_TEST_CLICK;
-    v_cmd.arg0   = p_btnMask;
-    v_cmd.holdMs = v_hold;
-    return _enqueueHidCmd(v_cmd);
-}
-
-// [H-2] 공개 API는 하나의 동작으로 통일: 상태 리셋(즉시) + RELEASE_ALL enqueue
+// [H-2] 공개 API: 상태 리셋(즉시) + RELEASE_ALL enqueue
+// [R3-H-2/3] enqueue 실패 시 _reqCommReleaseAll 위임 → 큐 full 상태에서도 release 100% 보장
 bool CL_E10_EliteAirMouse::forceReleaseButtons() {
     // [H-1] 매크로 취소 토큰 + 상태머신 종료
     _macroAbortToken++;
@@ -90,7 +74,12 @@ bool CL_E10_EliteAirMouse::forceReleaseButtons() {
     ST_E10_HidCmd_t v_cmd;
     memset(&v_cmd, 0, sizeof(v_cmd));
     v_cmd.cmd = (uint8_t)EN_E10_HIDCMD_RELEASE_ALL;
-    (void)_enqueueHidCmd(v_cmd);
+
+    if (!_enqueueHidCmd(v_cmd)) {
+        // 큐 full: commTask 루프 진입부에서 안전망 release 실행
+        _reqCommReleaseAll = true;
+        return false;
+    }
     return true;
 }
 
@@ -102,21 +91,13 @@ bool CL_E10_EliteAirMouse::forceReleaseAllButtons() {
 // [commTask ONLY] HID 실행 프리미티브
 // =======================================================
 void CL_E10_EliteAirMouse::_doReleaseAllButtons() {
-    _mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
-    _mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
-    _mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
-}
-
-void CL_E10_EliteAirMouse::_doTestMouseClick(uint8_t p_mask, uint16_t p_holdMs) {
-    if (p_mask & (uint8_t)EN_E10_BTN_LEFT)   _mouse.mousePress((uint8_t)EN_E10_BTN_LEFT);
-    if (p_mask & (uint8_t)EN_E10_BTN_RIGHT)  _mouse.mousePress((uint8_t)EN_E10_BTN_RIGHT);
-    if (p_mask & (uint8_t)EN_E10_BTN_MIDDLE) _mouse.mousePress((uint8_t)EN_E10_BTN_MIDDLE);
-
-    vTaskDelay(pdMS_TO_TICKS(p_holdMs));
-
-    if (p_mask & (uint8_t)EN_E10_BTN_LEFT)   _mouse.mouseRelease((uint8_t)EN_E10_BTN_LEFT);
-    if (p_mask & (uint8_t)EN_E10_BTN_RIGHT)  _mouse.mouseRelease((uint8_t)EN_E10_BTN_RIGHT);
-    if (p_mask & (uint8_t)EN_E10_BTN_MIDDLE) _mouse.mouseRelease((uint8_t)EN_E10_BTN_MIDDLE);
+    // [R2-C-3] 5버튼 전량 release (EN_E10_*는 L/R/M 3개만 정의)
+    //   - C20 마스크는 Back(0x08)/Forward(0x10) 포함 → stuck 방지
+    _mouse.mouseRelease((uint8_t)EN_C20_M_L);
+    _mouse.mouseRelease((uint8_t)EN_C20_M_R);
+    _mouse.mouseRelease((uint8_t)EN_C20_M_M);
+    _mouse.mouseRelease((uint8_t)EN_C20_M_B);
+    _mouse.mouseRelease((uint8_t)EN_C20_M_F);
 }
 
 // 상태 리셋 + 즉시 HID release (commTask 내부 전용, enqueue 경유하지 않음)

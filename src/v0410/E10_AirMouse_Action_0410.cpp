@@ -261,11 +261,14 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     if (v_old == p_newMode) return;
 
-    // 진행 중 액션 전부 해제 (stuck 방지)
-    _actExec.releaseAll();
-
+    // [R2-C-2] HID release는 큐 경유 (CONTRACT.md §4: _actExec는 commTask 단독 소유)
+    //   - 이전: _actExec.releaseAll() 직접 호출 → sensorTask에서 _mouse.mouseRelease 실행
+    //   - 이후: 아래 forceReleaseButtons()가 RELEASE_ALL enqueue → commTask가 실제 release 수행
+    //   - 순서: 매크로 토큰 abort(위) → 큐 드레인 없이 enqueue → 다음 commTask 루프에서 처리
+    
     // 디스패처 상태 리셋 (클릭 대기 등)
     _btnDisp.resetAll();
+
     
     // [Phase 7] 제스처 상태 리셋
     _gesture.reset();

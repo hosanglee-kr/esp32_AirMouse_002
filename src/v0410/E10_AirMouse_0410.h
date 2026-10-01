@@ -107,8 +107,7 @@ class CL_E10_EliteAirMouse {
     enum EN_E10_HidCmd_t : uint8_t {
         EN_E10_HIDCMD_NONE        = 0,
         EN_E10_HIDCMD_RELEASE_ALL = 1,
-        EN_E10_HIDCMD_TEST_CLICK  = 2,
-        EN_E10_HIDCMD_TEST_PPT    = 3,
+        EN_E10_HIDCMD_TEST_PPT    = 2,
     };
 
     typedef struct ST_E10_HidCmd_t {
@@ -381,7 +380,6 @@ class CL_E10_EliteAirMouse {
 
     // -------- test --------
     bool testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
-    bool testMouseClick(uint8_t p_btnMask, uint16_t p_holdMs = 25);
 
     // ====================================================
     // [v0410] Profile 관리
@@ -418,7 +416,6 @@ class CL_E10_EliteAirMouse {
     // Config apply
     // -----------------------
     bool _applyFromConfig();
-    void _getE10RuntimeConfig(ST_C10_E10Config_t& p_out);
     void _snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out);
     void _applyE10ToRuntime(const ST_C10_E10Config_t& p_e);
 
@@ -451,7 +448,6 @@ class CL_E10_EliteAirMouse {
 
     // ---- HID exec primitives (consumer: commTask ONLY) ----
     void _doReleaseAllButtons();
-    void _doTestMouseClick(uint8_t p_mask, uint16_t p_holdMs);
     void _doForceReleaseNow();
 
     // -----------------------

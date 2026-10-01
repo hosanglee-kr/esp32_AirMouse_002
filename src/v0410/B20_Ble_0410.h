@@ -78,11 +78,11 @@ class CL_B20_Ble {
   private:
     uint8_t _activePeerIndex = 0;
     
-    // [M-1] sensorTask(web/sensor 혼용 접근) — volatile로 재정렬/캐시 방지
-    volatile bool _pairing          = false;
-    uint32_t      _pairingStartMs   = 0;
-    uint32_t      _pairingTimeoutMs = 0;
-    
+    // [M-1, R2-L-1] sensorTask(web/sensor 혼용 접근) — volatile로 재정렬/캐시 방지
+    volatile bool     _pairing          = false;
+    volatile uint32_t _pairingStartMs   = 0;
+    volatile uint32_t _pairingTimeoutMs = 0;
+
     volatile bool _dirty = false;
   
     volatile bool     _whitelistActive  = false;

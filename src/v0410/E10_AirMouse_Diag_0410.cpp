@@ -74,9 +74,12 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
     }
     _unlock();
 
+    // [R2-L-2] _pushErr는 자체 _lock() 재진입 (recursive mutex) — 안전
+    //          희귀 경로이므로 락 사이클 최적화는 스킵
     _pushErr(v_ok ? EN_E10_ERR_I2C_RECOVER_OK : EN_E10_ERR_I2C_RECOVER_FAIL, 0);
     return v_ok;
 }
+
 
 // =======================================================
 // [C-5] 캘리브: 강제 릴리즈 + 버튼 샘플링
@@ -113,13 +116,24 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
             v_cnt++;
         }
 
-        // 캘리브 중 버튼 상태 반영(이동/휠 0)
+        // [R3-D-1/D-2] 캘리브 중 버튼 상태 반영 (6버튼 전량, C20 G_PINS와 1:1)
+        //   - 이전: E10_CONST::PIN_BTN_* 3버튼 하드코딩 → 매핑 드리프트 위험
+        //   - 이후: C20_BtnDispatcher::G_PINS 순서로 6버튼 read
         {
             uint8_t v_btn = 0;
-            if (digitalRead(E10_CONST::PIN_BTN_L) == LOW) v_btn |= (uint8_t)EN_E10_BTN_LEFT;
-            if (digitalRead(E10_CONST::PIN_BTN_R) == LOW) v_btn |= (uint8_t)EN_E10_BTN_RIGHT;
-            if (digitalRead(E10_CONST::PIN_BTN_M) == LOW) v_btn |= (uint8_t)EN_E10_BTN_MIDDLE;
-
+            for (uint8_t v_i = 0; v_i < EN_C20_BTN_MAX; v_i++) {
+                if (digitalRead(CL_C20_BtnDispatcher::G_PINS[v_i]) == LOW) {
+                    // EN_C20_BtnId_t → 물리 버튼 마스크 매핑
+                    switch ((EN_C20_BtnId_t)v_i) {
+                        case EN_C20_BTN_TOP_L:  v_btn |= (uint8_t)EN_E10_BTN_LEFT;   break;
+                        case EN_C20_BTN_TOP_M:  v_btn |= (uint8_t)EN_E10_BTN_MIDDLE; break;
+                        case EN_C20_BTN_TOP_R:  v_btn |= (uint8_t)EN_E10_BTN_RIGHT;  break;
+                        // Side F/C/R은 마우스 버튼 마스크와 무관 (E10 상태에 반영 안 함)
+                        default: break;
+                    }
+                }
+            }
+        
             ST_E10_Frame_t v_fr;
             memset(&v_fr, 0, sizeof(v_fr));
             v_fr.btn_mask = v_btn;
@@ -150,6 +164,10 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     _lock();
 
+    // [R3-D-5] _hid는 commTask 소유이나 isConnected() read는 예외 허용 (STATE.md §1)
+    //   - _lock 보유 중 read: BLE 스택 내부 락 취득 가능성 → 잠재적 lock ordering 이슈
+    //   - 실무 영향 없음 (NimBLE read는 lock-free atomic 수준)
+    //   - 필요 시 _lock 이전으로 이동 가능 (상태 일관성 trade-off)
     p_out.ble_connected = _hid.isConnected();
     p_out.ppt_mode      = _isPptMode;
     p_out.dpi_level     = (uint8_t)_dpiLevel;
@@ -218,13 +236,28 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     p_out.consecutive_recover_fail = _consecutiveRecoverFail;
 
     // health score
-    uint16_t v_score = 1000;
-    v_score = (uint16_t)max(0, (int)v_score - (int)(p_out.gyro_rms * 25.0f));
-    v_score = (uint16_t)max(0, (int)v_score - (int)(p_out.cursor_rms * 18.0f));
-    v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)400, p_out.err_mpu_nan * 20));
-    v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)300, p_out.i2c_recover_count * 35));
-    v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)300, (uint32_t)p_out.spike_count_10s * 12));
-    v_score = (uint16_t)max(0, (int)v_score - (int)min((uint32_t)400, (uint32_t)p_out.consecutive_fail * 18));
+    // [R3-D-4] 클램프 헬퍼로 곱셈 오버플로 방어 (카운터 × 승수 → cap 이전 uint32 승격)
+    auto v_deduce = [](int p_score, uint32_t p_count, uint32_t p_mult, uint32_t p_cap) -> int {
+        // p_count > UINT32_MAX / p_mult 인 경우 안전 처리
+        uint32_t v_penalty;
+        if (p_mult == 0 || p_count > (0xFFFFFFFFu / p_mult)) {
+            v_penalty = p_cap;
+        } else {
+            v_penalty = p_count * p_mult;
+            if (v_penalty > p_cap) v_penalty = p_cap;
+        }
+        int v_ret = p_score - (int)v_penalty;
+        return (v_ret < 0) ? 0 : v_ret;
+    };
+    
+    int v_scoreI = 1000;
+    v_scoreI -= (int)(p_out.gyro_rms * 25.0f);          if (v_scoreI < 0) v_scoreI = 0;
+    v_scoreI -= (int)(p_out.cursor_rms * 18.0f);        if (v_scoreI < 0) v_scoreI = 0;
+    v_scoreI = v_deduce(v_scoreI, p_out.err_mpu_nan,          20, 400);
+    v_scoreI = v_deduce(v_scoreI, p_out.i2c_recover_count,    35, 300);
+    v_scoreI = v_deduce(v_scoreI, p_out.spike_count_10s,      12, 300);
+    v_scoreI = v_deduce(v_scoreI, p_out.consecutive_fail,     18, 400);
+    uint16_t v_score = (uint16_t)v_scoreI;
 
     p_out.health_score = v_score;
     p_out.health       = (v_score >= 820) ? (uint8_t)EN_E10_HEALTH_OK
@@ -244,6 +277,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 // Async requests / clear
 // =======================================================
 bool CL_E10_EliteAirMouse::requestGyroCalibration() {
+    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
+    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
     _lock();
     _reqGyroCalib = true;
     // [D-1] _biasTracker.reset()은 sensorTask로 위임 (SPEC §상태 소유권)
@@ -253,6 +288,9 @@ bool CL_E10_EliteAirMouse::requestGyroCalibration() {
 }
 
 bool CL_E10_EliteAirMouse::requestI2CRecover() {
+    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
+    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
+    
     _lock();
     _reqI2CRecover = true;
     _unlock();
@@ -260,6 +298,9 @@ bool CL_E10_EliteAirMouse::requestI2CRecover() {
 }
 
 bool CL_E10_EliteAirMouse::clearDiagnostics() {
+    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
+    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
+    
     // [D-3] 웹 태스크는 플래그만 설정. 실 클리어는 sensorTask가 담당
     //       (SPEC §상태 소유권: errHist/spikes/RMS 카운터는 sensorTask 소유)
     _lock();

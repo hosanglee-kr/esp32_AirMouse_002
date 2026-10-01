@@ -303,22 +303,6 @@ ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p
     return v_out;
 }
 
-void CL_E10_EliteAirMouse::_getE10RuntimeConfig(ST_C10_E10Config_t& p_out) {
-    memset(&p_out, 0, sizeof(p_out));
-
-    _lock();
-    if (_cfgProfileValid) {
-        p_out = _cfgProfile.e10;
-        _unlock();
-        return;
-    }
-
-    _snapshotRuntimeToE10Config(_cfgProfile.e10);
-    _cfgProfileValid = true;
-    p_out = _cfgProfile.e10;
-    _unlock();
-}
-
 void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out) {
     // [Phase 1~3, 11.6, 11.7] motion_adv, power, button 백업 (makeDefaults로 덮어쓰기 방지)
     ST_C10_MotionAdv_t   v_maBackup = p_out.motion_adv;

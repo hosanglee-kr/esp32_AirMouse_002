@@ -516,16 +516,23 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             // [H-1] 매크로 취소 토큰 + 상태머신 종료
             v_m->_macroAbortToken++;
             v_m->_macroState.active = false;
-
+        
             // 큐 드레인 (overflow 방지)
             ST_E10_HidCmd_t v_drop;
             while (v_m->_qHidCmd &&
                    xQueueReceive(v_m->_qHidCmd, &v_drop, 0) == pdTRUE) { }
-
+        
             ST_ActionCmd_t v_adrop;
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_adrop, 0) == pdTRUE) { }
-                   
+        
+            // [R2-H-2] _qFrame(overwrite, size=1) 최신 프레임 폐기
+            //   - 미드레인 시 gate 해제 후 1회 커서 점프
+            {
+                ST_E10_Frame_t v_fdrop;
+                (void)xQueueReceive(v_m->_qFrame, &v_fdrop, 0);
+            }
+            
             if (!v_releasedOnSafe) {
                 v_m->_actExec.releaseAll();
                 v_m->_doForceReleaseNow();
@@ -556,18 +563,15 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
                         v_m->_actExec.releaseAll();
                         v_m->_doReleaseAllButtons();
                         break;
-                        
-                    case EN_E10_HIDCMD_TEST_CLICK:
-                        v_m->_doTestMouseClick(v_cmd.arg0, v_cmd.holdMs);
-                        break;
-
+                
                     case EN_E10_HIDCMD_TEST_PPT:
                         v_m->_sendPptKey2(v_cmd.arg0, v_cmd.arg1, v_cmd.code);
                         break;
-
+                
                     default:
                         break;
                 }
+
             }
         }
 
