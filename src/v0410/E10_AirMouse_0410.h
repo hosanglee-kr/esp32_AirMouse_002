@@ -346,9 +346,6 @@ class CL_E10_EliteAirMouse {
     
 
 
-    // Top M DOWN 시각 (Mode 3 클릭 판정용)
-    uint32_t _topMDownMs = 0;
-
     // 하드코딩 액션 (자주 쓰는 슬롯)
     static const ST_C20_ActionSlot_t G_SLOT_MOUSE_L_HOLD;
 
@@ -359,9 +356,6 @@ class CL_E10_EliteAirMouse {
 
     // -------- lifecycle --------
     void begin(CL_C10_Config* p_cfg);
-
-    // -------- W10 hooks --------
-    static bool E10_W10Apply(void* p_ctx);
 
     // -------- runtime apply (no persist) --------
     bool applyRuntimeE10(const ST_C10_E10Config_t& p_e);

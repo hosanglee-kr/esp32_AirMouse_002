@@ -56,13 +56,9 @@ CL_W10_WebConfig::CL_W10_WebConfig() : _svr(80) {
 }
 
 void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
-                            bool (*p_applyFn)(void*),
-                            void* p_applyCtx,
                             ST_W10_E10If_t* p_e10if) {
-    _cfg      = p_cfg;
-    _applyFn  = p_applyFn;
-    _applyCtx = p_applyCtx;
-    _e10if    = p_e10if;
+    _cfg   = p_cfg;
+    _e10if = p_e10if;
 
     WiFi.onEvent(s_wifiEvent);
 

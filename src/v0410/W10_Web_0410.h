@@ -73,10 +73,8 @@ private:
     AsyncWebServer _svr;
 
     CL_C10_Config* _cfg = nullptr;
-    bool (*_applyFn)(void*) = nullptr;
-    void* _applyCtx = nullptr;
-    ST_W10_E10If_t* _e10if = nullptr; // (NEW) E10 interface pointer (no cast from _applyCtx)
-
+    ST_W10_E10If_t* _e10if = nullptr;  // E10 interface pointer (유일한 E10 진입 경로)
+    
     ST_C10_WiFiConfig_t _wifi;
     ST_C10_E10Config_t _e10;
 
@@ -116,7 +114,10 @@ private:
 
 public:
     CL_W10_WebConfig();
-
+    
+    void begin(CL_C10_Config* p_cfg,
+               ST_W10_E10If_t* p_e10if);
+               
     void begin(CL_C10_Config* p_cfg,
                bool (*p_applyFn)(void*),
                void* p_applyCtx,
@@ -314,8 +315,6 @@ private:
     // =====================================================
     // /api/ppt
     // =====================================================
-    void apiGetPpt(AsyncWebServerRequest* req);
-    void apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
 
     // =====================================================

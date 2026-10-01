@@ -105,13 +105,6 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     xTaskCreatePinnedToCore(_commTask,   "E10_Comm",   4096, this, 2, &_thComm, 0);
 }
 
-// =======================================================
-// W10 apply hook
-// =======================================================
-bool CL_E10_EliteAirMouse::E10_W10Apply(void* p_ctx) {
-    if (!p_ctx) return false;
-    return ((CL_E10_EliteAirMouse*)p_ctx)->_applyFromConfig();
-}
 
 // =======================================================
 // HID cmd enqueue (producer: any task)

@@ -1,7 +1,7 @@
 # STATE.md — 상태 소유권 및 상태머신(FSM) 명세
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
-> 최종 갱신: 2026-10-01  
+> 최종 갱신: 2026-10-01 (rev1 — 계약 문서 정합성 보완)  
 > 위치: `src/v0410/docs_v0410/contract_doc/STATE.md`
 
 ---
@@ -14,8 +14,10 @@
 |---|---|---|---|---|
 | `_freezeState` | `sensorTask` | `sensorTask` | 독점 (No sync) | Click-Freeze 전용 내부 FSM 상태 |
 | `_snapActiveAxis` | `sensorTask` | `sensorTask` | 독점 (No sync) | Snap-to-Axis 활성 축 추적 상태 |
+| `_snapCandidate` / `_snapCandidateFrames` | `sensorTask` | `sensorTask` | 독점 (No sync) | 축 확정 대기 (Chattering 방지) |
 | `_precSub` | `sensorTask` | `sensorTask` | 독점 (No sync) | Precision FSM 3단계 (ENTRY/TRACK/EXIT) |
 | `_macroState` | `commTask` (start/tick) | `commTask`, `sensorTask` (power) | `volatile bool active` | 스텝 단위 매크로 상태머신 |
+| `_macroAbortToken` | `any` (취소 트리거) | `commTask` (`_tickMacro`) | `volatile uint32_t` | 단조 증가 카운터, 취소 판정 |
 | `_hid` (BleCompositeHID) | `commTask` | `sensorTask`, `webTask` (`isConnected()`만) | Thread-safe API | 마우스/키보드 전송은 `commTask` 전용 |
 | `_mpu`, `Wire` | `sensorTask` | `sensorTask` | 독점 (No sync) | I2C 센서 샘플링 및 복구 전용 |
 | `_biasTracker` | `sensorTask` | `sensorTask` | 독점 (No sync) | 정지 상태 감지 및 자이로 바이어스 보정 |
@@ -27,12 +29,28 @@
 | `_activeMode` | `sensorTask`, `webTask` | `any` | `volatile uint8_t` + `_lock()` | 3-Mode (1=PC, 2=PPT, 3=TV) 시스템 상태 |
 | `_reqSpecialAction` | `webTask` | `sensorTask` | `volatile uint8_t` | Special 액션 비동기 실행 위임 플래그 |
 | `_reqCommReleaseAll` | `webTask` | `commTask` | `volatile bool` | 프로파일 전환 시 HID 안전 Release 위임 플래그 |
+| `_reqResetBtnDisp` | `webTask` | `sensorTask` | `volatile bool` | 프로파일 전환 시 디스패처 리셋 위임 |
+| `_reqResetGesture` | `webTask` | `sensorTask` | `volatile bool` | 프로파일 전환 시 제스처 리셋 위임 |
+| `_reqGyroCalib` | `webTask`/`any` | `sensorTask` | `volatile bool` | 캘리브레이션 위임 |
+| `_reqI2CRecover` | `webTask`/`any` | `sensorTask` | `volatile bool` | I2C 복구 위임 |
+| `_reqClearDiag` | `webTask` | `sensorTask` | `volatile bool` | 진단 초기화 위임 |
+| `_reqSaveCfg` | `any` (BLE dirty, tickConfigSave) | `main loop` | `volatile bool` | 프로파일 저장 요청 |
+| `_powerNotifyPending` | `sensorTask` | `sensorTask` | `volatile bool` | 커서 이동 기반 deferred activity |
+| `_btnLDown` | `sensorTask` (Top L 이벤트) | `sensorTask` (`_applyClickFreeze`) | `volatile bool` | 좌클릭 물리 눌림 플래그 (Phase 1) |
+| `_moveGateHeld` | `sensorTask` (Top M 이벤트) | `sensorTask` (모션 파이프라인) | `volatile bool` | Middle Hold 커서 이동 허용 게이트 |
+| `_frontHoldActive` | `sensorTask` (Side F 이벤트) | `sensorTask` (스크롤 처리) | `volatile bool` | Front Hold 스크롤 전용 상태 플래그 |
+| `_cfgProfile` | `webTask` (write), `sensorTask` (init) | `sensorTask`, `commTask`, `webTask` | `_mutex` (Recursive Mutex) | 프로파일 변경/저장 시 반드시 `_lock()` 하에 접근 |
+| `_state` | `sensorTask` (모션/에러 기록) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 웹 관측용 상태 구조체. 타임아웃 초과 시 miss 카운터 증가 |
+| `_errHist`, `_spikes` | `sensorTask`, `commTask` | `webTask` | `_pushErr`, `_pushSpike` 내부 `_lock()` | 링버퍼 오버플로 방지 및 인덱스 정합성 보호 |
+| `_profileSwitchInProgress` | `webTask` (`switchProfile`) | `webTask`, `sensorTask` | `volatile bool` | 프로파일 전환 재진입 차단 |
+| `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트 |
 
 ---
 
 ## 2. 상태머신(FSM) 상세 명세
 
 ### 2.1 Click-Freeze FSM (`_applyClickFreeze`)
+
 물리 버튼(좌클릭)을 누를 때 손가락 반동으로 인한 커서 튐(Click-Jitter)을 방지하는 최종 게이트 FSM입니다.
 
 | 상태 (State) | 진입 조건 | 이탈 조건 | 동작 및 부수효과 |
@@ -42,21 +60,28 @@
 | **E10_FREEZE_HOLD** | LOCKED 상태에서 버튼 릴리즈 | 1) `accumDistSq > thSq`, `btnDown`, `!_moveGateHeld` → `IDLE`<br>2) `holdTimer >= hold_ms` → `FADEOUT` | `fx = 0`, `fy = 0` (반동 안정화 대기)<br>`holdTimer += 8ms`, 누적 변위 추적 |
 | **E10_FREEZE_FADEOUT** | HOLD 타이머 만료 | 1) `accumDistSq > thSq`, `btnDown`, `!_moveGateHeld` → `IDLE`<br>2) `fadeTimer >= fadeout_ms` → `IDLE` | `scale = fadeTimer / fadeout_ms`<br>`fx *= scale`, `fy *= scale` (선형 감쇠) |
 
+> **활성 조건**: `cfg.enable == true` 이면서 `_moveGateHeld == true`인 경우에만 FSM 진입. Move Gate 해제 시 즉시 `IDLE` 강제 리셋.
+
 ---
 
 ### 2.2 Snap-to-Axis FSM (`_applySnapToAxis`)
+
 직선 드래그, 표 작업, 슬라이더 조절 시 수평/수직 축을 고정(Soft Snap)해주는 FSM입니다.
 
 | 상태 (State) | 조건 | 동작 및 부수효과 |
 |---|---|---|
 | **E10_SNAP_NONE** | 초기 상태 또는 큰 대각선 움직임 | 후보 축 탐색 (수평/수직 비율 및 최소 이동량 검사) |
-| **후보 프레임 축적** | 한쪽 축 우세 (`\|major\| > ratio * \|minor\|`) | `candidateFrames++`, 기준치 도달 시 활성축 확정 |
+| **후보 프레임 축적** | 한쪽 축 우세 (`\|major\| > ratio * \|minor\|`) | `candidateFrames++`, `confirm_frames` 도달 시 활성축 확정 |
 | **E10_SNAP_HORIZ** | 수평 스냅 활성화 | `fy *= (1.0 - strength)` (수직 성분 소프트 감쇠) |
 | **E10_SNAP_VERT** | 수직 스냅 활성화 | `fx *= (1.0 - strength)` (수평 성분 소프트 감쇠) |
+
+> **활성 조건**: `cfg.enable == true` 이면서 `(cfg.mode_mask & (1 << (_activeMode - 1))) != 0`.  
+> **이탈 조건**: 활성 축의 반대축 성분이 `\|minor\| > \|major\| / ratio_enter` 초과 시 후보 리셋.
 
 ---
 
 ### 2.3 Precision FSM (`_fsmUpdate` / `_applyPrecision`)
+
 저속 미세 조작 시 커서 해상도를 비선형 완화하는 3단계 상태머신입니다.
 
 | 상태 (State) | 진입 조건 | 이탈 조건 | 동작 및 부수효과 |
@@ -69,11 +94,63 @@
 ---
 
 ### 2.4 Macro Sequencer FSM (`_tickMacro`)
+
 `commTask` 루프 내에서 프레임 지연 없이 스텝별 딜레이와 실행을 제어하는 비동기 FSM입니다.
 
-| 상태 (State) | 진입 조건 | 이탈 / 전진 조건 | 동작 및 부수효과 |
+> ⚠️ **구현 참고 (개념적 서술)**: 아래 상태 이름은 문서적 이해를 돕기 위한 것이며, 실제 코드에는 **enum으로 존재하지 않는다**. 실 구현은 `_macroState.active` (bool) + `_macroState.stepIdx` (uint8) + `s.delayMs` 경과 여부로 판정한다. "WAIT_DELAY"와 "EXEC_STEP"은 `_tickMacro()` **한 호출 안에서 순차 처리**된다 (별개 프레임 아님).
+
+| 개념 상태 | 진입 조건 | 이탈 / 전진 조건 | 동작 및 부수효과 |
 |---|---|---|---|
-| **INACTIVE** | 초기 상태 또는 실행 완료 | `_startMacro(idx)` 호출 | `active = false`, 아무 동작 안 함 |
+| **INACTIVE** | 초기 상태 또는 실행 완료 | `_startMacro(idx)` 호출 | `_macroState.active == false`, 아무 동작 안 함 |
 | **WAIT_DELAY** | `s.delayMs > 0` 스텝 진입 | `(now - stepStartMs) >= delayMs` | 논블로킹 대기 (커서 전송 지속) |
-| **EXEC_STEP** | 딜레이 경과 또는 delay=0 | 스텝 실행 완료 시 | `_actExec.exec(step)` 호출, `stepIdx++` |
-| **ABORTED** | 토큰 불일치(`startToken != _macroAbortToken`) | 즉시 | `active = false` 강제 종료, 로그 기록 |
+| **EXEC_STEP** | 딜레이 경과 또는 delay=0 | 스텝 실행 완료 시 | `_actExec.exec(step, true)` 호출, `stepIdx++` |
+| **ABORTED** | 토큰 불일치(`startToken != _macroAbortToken`) | 즉시 | `active = false` 강제 종료, WARN 로그 기록 |
+
+---
+
+### 2.5 Macro 대체(Replace) 및 취소(Abort) 정책
+
+매크로 실행 중 상태 변경 요청이 들어올 때의 정책입니다.
+
+| 시나리오 | 동작 | 취소 방식 | 로그 |
+|---|---|---|---|
+| 실행 중 `_startMacro(newIdx)` 호출 | **조용히 대체** (이전 스냅샷 무효화) | 토큰 증가 없음, `_macroSnapshot` 덮어씀 | `WARN: macro replace: prev idx=N step=M` |
+| `switchProfile` 호출 | 즉시 취소 | `_macroAbortToken++` | – |
+| `_setActiveMode` 호출 | 즉시 취소 | `_macroAbortToken++` | – |
+| `forceReleaseButtons()` 호출 | 즉시 취소 | `_macroAbortToken++` | – |
+| BLE disconnect edge (commTask) | 즉시 취소 | `_macroAbortToken++` | – |
+| SafeMode / OTA Gate 진입 | 즉시 취소 | `_macroAbortToken++` | – |
+| 매크로 자연 종료 | `active = false` | stepIdx >= stepCount | `INFO: macro end: idx=N` |
+
+> **대체 vs 취소 구분 원칙**: 사용자 의도가 "새 매크로 실행"인 경우(`_startMacro`)는 대체, "안전 정지"인 경우(프로파일 전환, 모드 전환, 게이트)는 명시적 abort. `_startMacro`가 토큰을 증가시키지 않는 이유는 새 매크로 시작 시 `_macroState.startToken = _macroAbortToken`으로 재설정되기 때문이다.
+
+---
+
+### 2.6 전원 관리 FSM (`sensorTask` 내부, Phase 11.6)
+
+| 상태 | 진입 조건 | 이탈 조건 | 동작 |
+|---|---|---|---|
+| **ACTIVE** | 초기 / Wake 복귀 | 유휴 시간 초과 | 정상 동작, `notifyActivity()`로 타이머 리셋 |
+| **LED_SUSPEND** | Sleep 조건 모두 만족 | – | `_led.suspend(snap)` + Fadeout(RED) |
+| **LIGHT_SLEEP** | `sleepNow()` 진입 | EXT1 Wake (MPU INT / 버튼) | `esp_light_sleep_start()` (RAM 보존) |
+| **WAKE_RESUME** | Light-sleep 복귀 | Fast Recalib 완료 | `_led.resume(snap)` + `fadein` + `biasTracker.startFastRecalibrate(300ms)` |
+| **DEEP_SLEEP** | `deep_idle_timeout_ms` 초과 | 버튼 Wake | `esp_deep_sleep_start()` (재부팅) |
+
+---
+
+## 3. 위임(Delegation) 패턴 정리
+
+Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고 플래그로 위임하는 패턴입니다.
+
+| 플래그 | 소유자 (Writer) | 소비자 (Consumer) | 목적 |
+|---|---|---|---|
+| `_reqSpecialAction` | `webTask` | `sensorTask` 루프 진입부 | Special 액션을 sensorTask 컨텍스트에서 동기 실행 |
+| `_reqCommReleaseAll` | `webTask` (`switchProfile`) | `commTask` 루프 진입부 | 큐 Drop과 무관하게 HID 안전 Release 100% 보장 |
+| `_reqResetBtnDisp` | `webTask` (`switchProfile`) | `sensorTask` 루프 진입부 | `_btnDisp.resetAll()` 위임 |
+| `_reqResetGesture` | `webTask` (`switchProfile`) | `sensorTask` 루프 진입부 | `_gesture.reset()` 위임 |
+| `_reqGyroCalib` | `webTask`/`any` | `sensorTask` 루프 진입부 | 캘리브레이션 + `biasTracker.reset()` 위임 |
+| `_reqI2CRecover` | `webTask`/`any` | `sensorTask` 루프 진입부 | I2C 복구 위임 |
+| `_reqClearDiag` | `webTask` | `sensorTask` 루프 진입부 | 진단 카운터/링버퍼 초기화 |
+| `_reqSaveCfg` | `any` (BLE dirty) | `main loop` (`tickConfigSave`) | 프로파일 저장 |
+
+> **원칙**: 위 플래그는 모두 `volatile`로 선언되며, 설정자(Writer)와 소비자(Consumer)는 서로 다른 태스크에서 실행됨. 소비자는 반드시 **flag read → 즉시 clear → 처리** 순서를 유지하여 재진입을 방지한다.

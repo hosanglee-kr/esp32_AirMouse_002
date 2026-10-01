@@ -1,19 +1,15 @@
-// =======================================================
-// File: src/v0410/W10_WebApi_CtlPpt_0410.cpp
-// =======================================================
 /*
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_CtlPpt_0410.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: Control + PPT)
+ * 모듈명 : Web Config/Status/UI/OTA Server (Split: Control + PPT Test)
  * ------------------------------------------------------
  * 기능 요약
- *  - (0410) /api/control, /api/ppt v0410 Mode 슬롯 방식 재설계
+ *  - /api/control  : Quick Control (PPT/DPI/Precision/SafeMode/OTA Guard/I2C/Gyro)
+ *  - /api/ppt/test : 단발 키 테스트 (page/mod/code)
  *
  * [v0410 변경]
- *  - /api/ppt GET/POST를 Mode 슬롯 매트릭스 방식으로 전환
- *  - ppt2_* 6슬롯 폐기 → Mode별 {slots[15], flick[4], linear[4], tilt[4]}
- *  - ?mode=N 파라미터 추가 (생략 시 active_mode)
+ *  - /api/ppt GET/POST는 폐기됨 (라우팅 미등록). 프로파일 API(/api/profiles)로 통합.
  *  - /api/ppt/test는 기존 유지 (page/mod/code)
  * ------------------------------------------------------
  * [구현 규칙]
@@ -122,18 +118,6 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
     }
     if (ok) _sendOk(req, "control", "", &v_doc, 200);
     else _sendErr(req, "control_failed", "Control failed.", &v_doc);
-}
-
-// =====================================================
-// [v0410] /api/ppt GET/POST — 폐기 (R9: profile API로 통합)
-// =====================================================
-void CL_W10_WebConfig::apiGetPpt(AsyncWebServerRequest* req) {
-    _sendErr(req, "deprecated", "PPT API deprecated in v0410. Use /api/profiles instead.");
-}
-
-void CL_W10_WebConfig::apiPostPpt(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    (void)data; (void)len; (void)index; (void)total;
-    _sendErr(req, "deprecated", "PPT API deprecated in v0410. Use /api/profiles instead.");
 }
 
 // =====================================================

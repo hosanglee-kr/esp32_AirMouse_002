@@ -68,7 +68,6 @@ const ST_C20_ActionSlot_t CL_E10_EliteAirMouse::G_SLOT_MOUSE_L_HOLD =
 // 하드코딩 처리 (config 무관)
 // =======================================================
 bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt) {
-    const uint32_t v_now = (uint32_t)millis();
 
     // ---------- Side C: 모드 전환 / 페어링 / 호스트 순환 ----------
     if (p_btnId == EN_C20_BTN_SIDE_C) {
@@ -95,7 +94,7 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
     if (p_btnId == EN_C20_BTN_TOP_M) {
         if (p_evt == EN_C20_EVT_DOWN) {
             _moveGateHeld = true;
-            _topMDownMs   = v_now;
+
             return true;
         }
         if (p_evt == EN_C20_EVT_UP) {

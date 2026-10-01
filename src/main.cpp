@@ -104,8 +104,8 @@ static bool _w10_execLiveTest(void* ctx,
     if (!ctx) return false;
     return ((CL_E10_EliteAirMouse*)ctx)->execLiveTest(p_kind, p_hMode, p_p16, p_p32);
 }
-// 버튼 핀(기존 E10과 일치 가정)
-static constexpr int G_BTN_MODE = 13;
+
+
 
 // grace
 static constexpr uint32_t G_BOOT_GRACE_MS = 8500;
@@ -129,26 +129,31 @@ void setup() {
     CL_D10_Logger::setLevel(EN_D10_LOG_INFO);
     CL_D10_Logger::enableTimestamp(true);
     CL_D10_Logger::enableMemUsage(false);
-
+    
     // 1) C10 begin
     g_cfg.begin(false);
-
-    // 2) Factory Reset (MODE 6초)
-    if (_holdAtBoot(G_BTN_MODE, 6000)) {
+    
+    // 2) Factory Reset (Side C 6초 hold)
+    if (_holdAtBoot(E10_CONST::PIN_BTN_MODE, 6000)) {
         (void)g_cfg.factoryReset(true);
-        D10_LOGW("[0274] FactoryReset by boot key. rebooting...");
+        D10_LOGW("[0410] FactoryReset by boot key. rebooting...");
         delay(200);
         ESP.restart();
     }
-
-    // 3) Safe Boot 상태 확인
-    if (g_cfg.isSafeMode()) {
-        D10_LOGW("[0274] SAFE BOOT MODE ACTIVE");
-    }
-
+    
+    // 3) SafeMode 상태 스냅샷 (begin 이전 확보)
+    const bool v_safe = g_cfg.isSafeMode();
+    
     // 4) 모듈 시작
     g_e10.begin(&g_cfg);
-    g_e10.setSafeMode(g_cfg.isSafeMode());
+    
+    // SafeMode 활성 시에만 errHist 이벤트 기록
+    if (v_safe) {
+        D10_LOGW("[0410] SAFE BOOT MODE ACTIVE");
+        g_e10.setSafeMode(true);
+    } else {
+        D10_LOGI("[0410] boot normal mode");
+    }
 
     // W10-E10 interface bind
     g_w10E10If.ctx                    = (void*)&g_e10;
@@ -173,9 +178,9 @@ void setup() {
     g_w10E10If.switchProfile          = _w10_switchProfile;
     g_w10E10If.execLiveTest           = _w10_execLiveTest;
 
-    g_w10.begin(&g_cfg, CL_E10_EliteAirMouse::E10_W10Apply, (void*)&g_e10, &g_w10E10If);
-
-    D10_LOGI("[0274] started");
+    g_w10.begin(&g_cfg, &g_w10E10If);
+    
+    D10_LOGI("[0410] started");
 
     g_bootOkDone = false;
 }
@@ -185,7 +190,7 @@ void loop() {
     if (!g_bootOkDone) {
         if (g_cfg.bootMarkOkIfGracePassed(G_BOOT_GRACE_MS)) {
             g_bootOkDone = true;
-            D10_LOGI("[0274] boot grace passed -> boot ok marked");
+            D10_LOGI("[0410] boot grace passed -> boot ok marked");
         }
     }
 
@@ -194,3 +199,4 @@ void loop() {
 
     delay(200);
 }
+
