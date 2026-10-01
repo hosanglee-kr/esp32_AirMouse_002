@@ -166,14 +166,19 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
 
 ---
 
-## 6. 🤖 AI 에이전트 수정 워크플로우
+## 6. 🤖 AI 에이전트 수정 워크플로우 (계약 기반 리뷰)
 
-1. **컨텍스트 확인**:
-   - 수정 대상이 되는 모듈의 접두사(`C10`, `E10`, `W10` 등) 확인
-   - `src/v0410/docs_v0410/SPEC_Manual/00.SPEC_0410_001.md` 및 `Req_ImplPlan/` 내의 설계 의도 파악
+1. **지속 산출물 대조 검토 (Contract Validation)**:
+   - 코드 수정 전 `src/v0410/docs_v0410/contract_doc/`의 5대 산출물 대조:
+     - `CONTRACT.md` (모듈 경계, HID 단일 제어권, Special 격리, 큐 non-blocking)
+     - `STATE.md` (상태 단독 소유권, FSM 규칙)
+     - `FLOW.md` (8ms 모션 파이프라인, 프로파일 스위치 흐름)
+     - `BUDGET.md` (태스크 주기 8ms/7ms/50ms, 블로킹 금지)
+     - `SPEC.md` (요구사항 ID 매핑)
 2. **코드 변경 시**:
    - 명명 규칙(`G_`, `g_`, `CL_`, `ST_`, `EN_`, `_`, `v_`, `p_`) 엄수
-   - FreeRTOS 태스크 간 데이터 전달 시 큐 경유 여부 점검
+   - FreeRTOS 태스크 간 데이터 전달 시 큐 경유 여부 점검 (timeout=0)
+   - 계약/상태/예산에 영향 주는 수정 시 `contract_doc/` 문서 동시 동기화
 3. **검증 및 빌드**:
    - PlatformIO 빌드 명령어로 문법/링크 오류 없음 확인:
      `pio run -e esp32-s3-zero`
