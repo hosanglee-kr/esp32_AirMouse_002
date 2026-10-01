@@ -273,9 +273,10 @@ class CL_E10_EliteAirMouse {
     CL_B20_Ble           _ble;
     
     // ====================================================
-    // [Phase 8] Power Manager (Light-sleep + WoM)
+    // [Phase 8 / 11.6] Power Manager (Light-sleep + WoM)
     // ====================================================
     CL_P20_Power         _power;
+    volatile bool        _powerNotifyPending = false;   // [C-1] 커서 이동 deferred activity
 
     // ====================================================
     // [Phase 4] Zero-rate Bias Tracker
@@ -531,10 +532,11 @@ class CL_E10_EliteAirMouse {
     
     
     // ====================================================
-    // [Phase 5] Action 관련
+    // [Phase 5 / 11.6] Action & Power 콜백
     // ====================================================
     static void _onBtnEvent(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
     static void _onSpecial(void* p_ctx, uint8_t p_special);
+    static void _onPowerWake(void* p_ctx);   // [Phase 11.6 / C-3]
     
     bool _enqueueAction(const ST_C20_ActionSlot_t& p_slot, bool p_isDown);
     

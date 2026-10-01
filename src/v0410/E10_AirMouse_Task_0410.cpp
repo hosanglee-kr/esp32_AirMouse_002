@@ -14,6 +14,9 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
     if (!v_m->_gyroCalibDone) v_m->_runGyroCalibration();
 
+    // [Phase 11.6 / C-3] Wake 콜백 등록
+    v_m->_power.setWakeCallback(&CL_E10_EliteAirMouse::_onPowerWake, v_m);
+
     for (;;) {
         // ------------------------------------------------------------
         // [C-4] motion-critical config 스냅샷
@@ -40,6 +43,77 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         v_cfg.wheelStepMax     = v_m->_wheelStepMax;
         v_cfg.scrollCursorDamp = v_m->_scrollCursorDamp;
         v_m->_unlock();
+
+        // ============================================================
+        // [Phase 11.6] Power Management (절전 판정 및 제어)
+        //   - C-1: 커서 이동 기반 idle 갱신 (deferred flag)
+        //   - C-2: BLE 연결 중 sleep 허용
+        //   - I-6: Pairing 중 sleep 허용
+        //   - I-7: Mode별 idle timeout
+        //   - I-8: 매크로 실행 중 체크
+        //   - N-1: Deep-sleep 옵션
+        // ============================================================
+        {
+            const uint32_t v_nowP = (uint32_t)millis();
+
+            // [C-1] deferred notifyActivity (파이프라인 이전 프레임의 판정)
+            if (v_m->_powerNotifyPending) {
+                v_m->_powerNotifyPending = false;
+                v_m->_power.notifyActivity(v_nowP);
+            }
+
+            // [C-2, I-6] Sleep 조건 판정
+            const bool v_bleConn = v_m->_hid.isConnected();
+            const bool v_pairing = v_m->_ble.isPairing();
+            const bool v_qActBusy =
+                (uxQueueMessagesWaiting(v_m->_qActionExec) > 0) ||
+                (v_m->_macroState.active);   // [I-8] 매크로 실행 중
+
+            const bool v_canSleep =
+                !v_m->_moveGateHeld && !v_m->_frontHoldActive && !v_qActBusy &&
+                !v_m->_safeMode && !v_m->_otaGuard;
+
+            if (v_canSleep && v_m->_cfgProfileValid) {
+                uint32_t v_timeout;
+                if (v_pairing) {
+                    v_timeout = v_m->_cfgProfile.e10.power.pairing_idle_timeout_ms;
+                } else if (v_bleConn) {
+                    v_timeout = v_m->_cfgProfile.e10.power.idle_timeout_ble_ms;
+                } else {
+                    v_timeout = v_m->_power.getIdleTimeout(v_m->_activeMode);
+                }
+
+                const uint32_t v_idleSince = v_m->_power.getIdleSince();
+                const uint32_t v_elapsed   = (v_nowP >= v_idleSince)
+                                           ? (v_nowP - v_idleSince) : 0;
+
+                if (v_elapsed >= v_timeout) {
+                    // [N-1] Deep-sleep 우선 판정
+                    const bool v_didDeepSleep =
+                        v_m->_power.deepSleepNow(v_nowP, v_bleConn, v_pairing);
+
+                    if (!v_didDeepSleep) {
+                        // [I-2] LED 상태 저장
+                        CL_L10_Led::ST_LedSnapshot_t v_snap;
+                        v_m->_led.suspend(v_snap);
+
+                        const bool v_didSleep = v_m->_power.sleepNow(v_nowP);
+
+                        if (v_didSleep) {
+                            // [I-2] LED 상태 복귀
+                            v_m->_led.resume(v_snap);
+
+                            // [I-3] BiasTracker Fast Recalibrate
+                            v_m->_biasTracker.startFastRecalibrate(
+                                v_m->_cfgProfile.e10.power.fast_recalib_ms);
+                        } else {
+                            // [안전 보완] 슬립 조건 미충족/실패 시에도 원래 LED 복원
+                            v_m->_led.resume(v_snap);
+                        }
+                    }
+                }
+            }
+        }
         
         // ---- H-3: 웹 태스크가 위임한 리셋 플래그 처리 ----
         if (v_m->_reqResetBtnDisp) {
@@ -366,6 +440,11 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_fr.btn_mask = 0;
             v_fr.updated  = v_updated;
             v_m->_pushFrame(v_fr);
+
+            // [Phase 11.6 / C-1] 커서 이동 기반 활동 알림 (deferred)
+            if (v_updated) {
+                v_m->_powerNotifyPending = true;
+            }
         }
 
         // ---- pacing / overrun ----
@@ -377,6 +456,19 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_errTaskOverrun++;
             if ((v_m->_errTaskOverrun % 10) == 0) v_m->_pushErr(EN_E10_ERR_TASK_OVERRUN, 0);
         }
+    }
+}
+
+// =======================================================
+// [Phase 11.6 / C-3] Power Wake 콜백
+// =======================================================
+void CL_E10_EliteAirMouse::_onPowerWake(void* p_ctx) {
+    auto* v_m = (CL_E10_EliteAirMouse*)p_ctx;
+    if (!v_m) return;
+
+    // [C-3] commTask 즉시 활성 신호 송출
+    if (v_m->_thComm) {
+        xTaskNotifyGive(v_m->_thComm);
     }
 }
 
@@ -553,7 +645,8 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(7));
+        // [Phase 11.6 / C-3] Wake 신호 대기 (timeout은 tick 주기 7ms)
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(7));
     }
 }
 

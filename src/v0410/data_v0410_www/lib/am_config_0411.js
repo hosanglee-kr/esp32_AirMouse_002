@@ -74,6 +74,25 @@ function configToUi(cfg){
   if (qs("snapStrength"))      qs("snapStrength").value      = String(snap.strength ?? 0.85);
   if (qs("snapConfirmFrames")) qs("snapConfirmFrames").value = String(snap.confirm_frames ?? 3);
 
+  // ====================================================
+  // [Phase 11.6 & 11.7] Power & Button
+  // ====================================================
+  const pw = e.power || {};
+  if (qs("pwrIdleSleepSec"))   qs("pwrIdleSleepSec").value   = String(pw.idle_sleep_sec ?? 60);
+  if (qs("pwrDeepSleepSec"))   qs("pwrDeepSleepSec").value   = String(pw.deep_sleep_sec ?? 600);
+  if (qs("pwrWomThreshold"))   qs("pwrWomThreshold").value   = String(pw.wom_threshold ?? 25);
+  if (qs("pwrWomDuration"))    qs("pwrWomDuration").value    = String(pw.wom_duration ?? 2);
+  if (qs("pwrLedFadeMs"))      qs("pwrLedFadeMs").value      = String(pw.led_fade_ms ?? 800);
+  if (qs("pwrWakeDebounceMs")) qs("pwrWakeDebounceMs").value = String(pw.wake_debounce_ms ?? 150);
+
+  const bt = e.button || {};
+  if (qs("btnDebouncePressMs"))   qs("btnDebouncePressMs").value   = String(bt.debounce_press_ms ?? 20);
+  if (qs("btnDebounceReleaseMs")) qs("btnDebounceReleaseMs").value = String(bt.debounce_release_ms ?? 30);
+  if (qs("btnClickMs"))            qs("btnClickMs").value            = String(bt.click_ms ?? 250);
+  if (qs("btnDblclickGapMs"))      qs("btnDblclickGapMs").value      = String(bt.dblclick_gap_ms ?? 300);
+  if (qs("btnLongPressMs"))        qs("btnLongPressMs").value        = String(bt.long_press_ms ?? 600);
+  if (qs("btnMinClickMs"))         qs("btnMinClickMs").value         = String(bt.min_click_ms ?? 30);
+
   if (qs("cfgJsonArea")) qs("cfgJsonArea").value = pretty(cfg);
 }
 
@@ -148,6 +167,25 @@ function uiToConfig(){
   snap.ratio_enter    = parseNum(qs("snapRatio")?.value, 4.0);
   snap.strength       = parseNum(qs("snapStrength")?.value, 0.85);
   snap.confirm_frames = parseNum(qs("snapConfirmFrames")?.value, 3);
+
+  // ====================================================
+  // [Phase 11.6 & 11.7] Power & Button
+  // ====================================================
+  e.power = e.power || {};
+  e.power.idle_sleep_sec    = parseNum(qs("pwrIdleSleepSec")?.value, 60);
+  e.power.deep_sleep_sec    = parseNum(qs("pwrDeepSleepSec")?.value, 600);
+  e.power.wom_threshold     = parseNum(qs("pwrWomThreshold")?.value, 25);
+  e.power.wom_duration      = parseNum(qs("pwrWomDuration")?.value, 2);
+  e.power.led_fade_ms       = parseNum(qs("pwrLedFadeMs")?.value, 800);
+  e.power.wake_debounce_ms  = parseNum(qs("pwrWakeDebounceMs")?.value, 150);
+
+  e.button = e.button || {};
+  e.button.debounce_press_ms   = parseNum(qs("btnDebouncePressMs")?.value, 20);
+  e.button.debounce_release_ms = parseNum(qs("btnDebounceReleaseMs")?.value, 30);
+  e.button.click_ms            = parseNum(qs("btnClickMs")?.value, 250);
+  e.button.dblclick_gap_ms     = parseNum(qs("btnDblclickGapMs")?.value, 300);
+  e.button.long_press_ms       = parseNum(qs("btnLongPressMs")?.value, 600);
+  e.button.min_click_ms        = parseNum(qs("btnMinClickMs")?.value, 30);
 
   return cfg;
 }

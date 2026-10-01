@@ -208,6 +208,64 @@ struct ST_C10_MotionAdv_t {
     ST_C10_MotionAdv_Snap_t        snap;
 };
 
+// =====================================================
+// [Phase 11.6] Power Management Config
+// =====================================================
+struct ST_C10_PowerConfig_t {
+    // [C-2, I-7] Idle timeout (Mode별 + BLE 연결 시)
+    uint32_t idle_timeout_ms[3];      // Mode 1/2/3 (기본 60s/120s/300s)
+    uint32_t idle_timeout_ble_ms;     // BLE 연결 중 (기본 300s)
+
+    // [I-6] Pairing 중 idle timeout
+    uint32_t pairing_idle_timeout_ms; // 기본 30s
+
+    // [N-1] Deep-sleep idle timeout (0 = 비활성)
+    uint32_t deep_idle_timeout_ms;    // 기본 600s
+
+    // [C-4] Wake Backoff
+    uint16_t wake_min_active_ms;      // 기본 500ms
+
+    // [C-5] MPU WoM 파라미터
+    uint8_t  wom_threshold;           // MOT_THR (기본 25 = 800mg)
+    uint8_t  wom_duration;            // MOT_DUR (기본 4ms)
+
+    // [I-3] Sleep 후 Fast Recalibration
+    uint16_t fast_recalib_ms;         // 기본 300ms
+
+    // [N-5] LED fade
+    uint16_t led_fadeout_ms;          // 기본 500ms
+    uint16_t led_fadein_ms;           // 기본 300ms
+
+    uint8_t  _pad[4];
+};
+
+// =====================================================
+// [Phase 11.7] Button Timing Config
+// =====================================================
+struct ST_C10_ButtonConfig_t {
+    // [C-1, C-4] 비대칭 Debounce (Press/Release 분리)
+    uint16_t debounce_press_ms;      // 20~50 (기본 32, 8ms 배수)
+    uint16_t debounce_release_ms;    // 10~40 (기본 16, 8ms 배수)
+
+    // [I-1] Long press 임계 (실제 누름 시점 기준)
+    uint16_t long_delay_ms;          // 500~1500 (기본 800)
+
+    // [I-2] Double click 윈도우 (debounce 여유 반영)
+    uint16_t double_delay_ms;        // 250~500 (기본 320)
+
+    // Hold 판정
+    uint16_t hold_2s_ms;             // 1500~3000 (기본 2000)
+    uint16_t hold_3s_ms;             // 2500~5000 (기본 3000)
+
+    // [I-3] 최소 클릭 시간 (초단 클릭 discard)
+    uint16_t min_click_ms;           // 5~50 (기본 16, 8ms 배수)
+
+    // [C-3] 하이브리드 debounce: 연속 tick 카운트
+    uint8_t  debounce_min_ticks;     // 2~5 (기본 3)
+
+    uint8_t  _pad[3];
+};
+
 struct ST_C10_E10Config_t {
     uint8_t dpi_level;
     bool    hard_click_lock;
@@ -267,7 +325,9 @@ struct ST_C10_E10Config_t {
     uint8_t  active_mode;
     uint8_t  active_peer_index;
 
-    ST_C10_MotionAdv_t motion_adv;   // [Phase 1~3]
+    ST_C10_MotionAdv_t    motion_adv;   // [Phase 1~3]
+    ST_C10_PowerConfig_t  power;        // [Phase 11.6]
+    ST_C10_ButtonConfig_t button;       // [Phase 11.7]
 };
 
 // 매크로 Step (16 Bytes)

@@ -54,6 +54,25 @@ enum EN_L10_Color_t : uint8_t {
 
 class CL_L10_Led {
   public:
+    enum EN_L10_State_t : uint8_t {
+        EN_L10_ST_IDLE    = 0,
+        EN_L10_ST_FLASH   = 1,
+        EN_L10_ST_BLINK   = 2,
+        EN_L10_ST_FADEOUT = 3,
+        EN_L10_ST_FADEIN  = 4,
+        EN_L10_ST_OFF     = 5,
+    };
+
+    struct ST_LedSnapshot_t {
+        EN_L10_State_t state;
+        EN_L10_Color_t baseColor;
+        EN_L10_Color_t evtColor;
+        uint16_t       stateDurMs;
+        uint16_t       blinkPeriodMs;
+        uint32_t       stateStartMs;
+        bool           blinkOn;
+    };
+
     CL_L10_Led();
     ~CL_L10_Led();
 
@@ -65,7 +84,11 @@ class CL_L10_Led {
     void blink(EN_L10_Color_t p_color, uint16_t p_periodMs, uint16_t p_durationMs = 0);
     void stopBlink();
     void fadeout(EN_L10_Color_t p_color, uint16_t p_ms = 800);
+    void fadein(EN_L10_Color_t p_color, uint16_t p_ms = 300);
     void off();
+
+    void suspend(ST_LedSnapshot_t& p_out);
+    void resume(const ST_LedSnapshot_t& p_in);
 
     void tick();
 
@@ -73,14 +96,6 @@ class CL_L10_Led {
     uint8_t        getBrightness() const { return _brightness; }
 
   private:
-    enum EN_L10_State_t : uint8_t {
-        EN_L10_ST_IDLE    = 0,
-        EN_L10_ST_FLASH   = 1,
-        EN_L10_ST_BLINK   = 2,
-        EN_L10_ST_FADEOUT = 3,
-        EN_L10_ST_OFF     = 4,
-    };
-
     Adafruit_NeoPixel* _strip = nullptr;
     uint8_t            _brightness = 128;
 
@@ -103,5 +118,6 @@ class CL_L10_Led {
     void _enterFlash(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now);
     void _enterBlink(EN_L10_Color_t p_c, uint16_t p_period, uint16_t p_dur, uint32_t p_now);
     void _enterFadeout(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now);
+    void _enterFadein(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now);
     void _enterOff();
 };

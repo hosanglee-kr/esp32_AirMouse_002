@@ -75,8 +75,69 @@ void CL_L10_Led::fadeout(EN_L10_Color_t p_color, uint16_t p_ms) {
     _enterFadeout(p_color, p_ms, (uint32_t)millis());
 }
 
+void CL_L10_Led::fadein(EN_L10_Color_t p_color, uint16_t p_ms) {
+    _enterFadein(p_color, p_ms, (uint32_t)millis());
+}
+
 void CL_L10_Led::off() {
     _enterOff();
+}
+
+void CL_L10_Led::suspend(ST_LedSnapshot_t& p_out) {
+    p_out.state         = _state;
+    p_out.baseColor     = _baseColor;
+    p_out.evtColor      = _evtColor;
+    p_out.stateDurMs    = _stateDurMs;
+    p_out.blinkPeriodMs = _blinkPeriodMs;
+    p_out.stateStartMs  = _stateStartMs;
+    p_out.blinkOn       = _blinkOn;
+
+    _enterOff();
+}
+
+void CL_L10_Led::resume(const ST_LedSnapshot_t& p_in) {
+    _baseColor = p_in.baseColor;
+    _evtColor  = p_in.evtColor;
+
+    if (p_in.state == EN_L10_ST_OFF) {
+        _enterOff();
+        return;
+    }
+
+    const uint32_t v_now = (uint32_t)millis();
+    const uint32_t v_elapsed = (v_now >= p_in.stateStartMs) ? (v_now - p_in.stateStartMs) : 0;
+
+    switch (p_in.state) {
+        case EN_L10_ST_IDLE:
+            _enterIdle(v_now);
+            break;
+        case EN_L10_ST_FLASH:
+            if (v_elapsed < p_in.stateDurMs) {
+                _state = EN_L10_ST_FLASH;
+                _evtColor = p_in.evtColor;
+                _stateStartMs = v_now - v_elapsed;
+                _stateDurMs = p_in.stateDurMs;
+                _apply(_evtColor, 255);
+            } else {
+                _enterIdle(v_now);
+            }
+            break;
+        case EN_L10_ST_BLINK:
+            if (p_in.stateDurMs == 0 || v_elapsed < p_in.stateDurMs) {
+                _state = EN_L10_ST_BLINK;
+                _evtColor = p_in.evtColor;
+                _blinkPeriodMs = p_in.blinkPeriodMs;
+                _stateDurMs = p_in.stateDurMs;
+                _stateStartMs = (p_in.stateDurMs == 0) ? v_now : (v_now - v_elapsed);
+                _blinkOn = p_in.blinkOn;
+            } else {
+                _enterIdle(v_now);
+            }
+            break;
+        default:
+            _enterIdle(v_now);
+            break;
+    }
 }
 
 // =======================================================
@@ -121,6 +182,18 @@ void CL_L10_Led::tick() {
             const uint32_t v_elapsed = v_now - _stateStartMs;
             if (v_elapsed >= _stateDurMs) { _enterOff(); break; }
             const uint32_t v_scale = 255u - (uint32_t)(255u * v_elapsed / _stateDurMs);
+            _apply(_evtColor, (uint8_t)v_scale);
+            break;
+        }
+
+        case EN_L10_ST_FADEIN: {
+            if (_stateDurMs == 0) { _enterIdle((uint32_t)millis()); break; }
+            const uint32_t v_elapsed = v_now - _stateStartMs;
+            if (v_elapsed >= _stateDurMs) {
+                _enterIdle(v_now);
+                break;
+            }
+            const uint32_t v_scale = (uint32_t)(255u * v_elapsed / _stateDurMs);
             _apply(_evtColor, (uint8_t)v_scale);
             break;
         }
@@ -206,6 +279,14 @@ void CL_L10_Led::_enterFadeout(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now
     _stateStartMs = p_now;
     _stateDurMs   = (p_ms == 0) ? 1 : p_ms;
     _apply(_evtColor, 255);
+}
+
+void CL_L10_Led::_enterFadein(EN_L10_Color_t p_c, uint16_t p_ms, uint32_t p_now) {
+    _state        = EN_L10_ST_FADEIN;
+    _evtColor     = p_c;
+    _stateStartMs = p_now;
+    _stateDurMs   = (p_ms == 0) ? 1 : p_ms;
+    _apply(p_c, 0);   // 0 밝기에서 시작
 }
 
 void CL_L10_Led::_enterOff() {

@@ -225,6 +225,26 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
         ratio_enter: 4.0,
         strength: 0.85
       }
+    },
+
+    // ====================================================
+    // [Phase 11.6 & 11.7] Power & Button
+    // ====================================================
+    power: {
+      idle_sleep_sec: 60,
+      deep_sleep_sec: 600,
+      wom_threshold: 25,
+      wom_duration: 2,
+      led_fade_ms: 800,
+      wake_debounce_ms: 150
+    },
+    button: {
+      debounce_press_ms: 20,
+      debounce_release_ms: 30,
+      click_ms: 250,
+      dblclick_gap_ms: 300,
+      long_press_ms: 600,
+      min_click_ms: 30
     }
   },
   
@@ -333,7 +353,7 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
    오프라인 로컬 저장소 (스키마 버전 관리)
    ======================================================= */
 const OFFLINE_STORAGE_KEY  = "airmouse_v0410_offline_store";
-const OFFLINE_STORE_SCHEMA = 2;   // 스키마 bump 시 +1 → 옛 데이터 자동 폐기
+const OFFLINE_STORE_SCHEMA = 5;   // 스키마 bump 시 +1 → 옛 데이터 자동 폐기
 let g_offlineStore = null;
 
 function loadOfflineStore(){

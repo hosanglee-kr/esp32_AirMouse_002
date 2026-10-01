@@ -384,6 +384,36 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     p_out.motion_adv.snap.ratio_enter    = 4.0f;
     p_out.motion_adv.snap.strength       = 0.85f;
     memset(p_out.motion_adv.snap._pad, 0, sizeof(p_out.motion_adv.snap._pad));
+
+    // =====================================================
+    // [Phase 11.6] Power Management
+    // =====================================================
+    p_out.power.idle_timeout_ms[0]      = 60000;    // Mode 1 (PC)
+    p_out.power.idle_timeout_ms[1]      = 120000;   // Mode 2 (PPT)
+    p_out.power.idle_timeout_ms[2]      = 300000;   // Mode 3 (TV)
+    p_out.power.idle_timeout_ble_ms     = 300000;   // 5분
+    p_out.power.pairing_idle_timeout_ms = 30000;    // 30초
+    p_out.power.deep_idle_timeout_ms    = 600000;   // 10분
+    p_out.power.wake_min_active_ms      = 500;
+    p_out.power.wom_threshold           = 25;
+    p_out.power.wom_duration            = 4;
+    p_out.power.fast_recalib_ms         = 300;
+    p_out.power.led_fadeout_ms          = 500;
+    p_out.power.led_fadein_ms           = 300;
+    memset(p_out.power._pad, 0, sizeof(p_out.power._pad));
+
+    // =====================================================
+    // [Phase 11.7] Button Timing
+    // =====================================================
+    p_out.button.debounce_press_ms   = 32;    // 8ms × 4
+    p_out.button.debounce_release_ms = 16;    // 8ms × 2
+    p_out.button.long_delay_ms       = 800;
+    p_out.button.double_delay_ms     = 320;   // 여유 확보
+    p_out.button.hold_2s_ms          = 2000;
+    p_out.button.hold_3s_ms          = 3000;
+    p_out.button.min_click_ms        = 16;    // 8ms × 2
+    p_out.button.debounce_min_ticks  = 3;
+    memset(p_out.button._pad, 0, sizeof(p_out.button._pad));
 }
 
 
@@ -576,6 +606,38 @@ bool CL_C10_Config::validateE10(const ST_C10_E10Config_t& p_e) const {
     if (snap.confirm_frames < 1 || snap.confirm_frames > 10)  return false;
     if (snap.ratio_enter < 2.0f || snap.ratio_enter > 10.0f)  return false;
     if (snap.strength < 0.5f || snap.strength > 1.0f)         return false;
+
+    // =====================================================
+    // [Phase 11.6] Power Management
+    // =====================================================
+    const auto& pw = p_e.power;
+    for (int i = 0; i < 3; i++) {
+        if (pw.idle_timeout_ms[i] < 5000 || pw.idle_timeout_ms[i] > 3600000) return false;
+    }
+    if (pw.idle_timeout_ble_ms < 60000 || pw.idle_timeout_ble_ms > 3600000)  return false;
+    if (pw.pairing_idle_timeout_ms < 10000 || pw.pairing_idle_timeout_ms > 60000) return false;
+    if (pw.deep_idle_timeout_ms != 0 &&
+        (pw.deep_idle_timeout_ms < 300000 || pw.deep_idle_timeout_ms > 7200000)) return false;
+    if (pw.wake_min_active_ms < 100 || pw.wake_min_active_ms > 2000) return false;
+    if (pw.wom_threshold < 5 || pw.wom_threshold > 100) return false;
+    if (pw.wom_duration < 1 || pw.wom_duration > 50)   return false;
+    if (pw.fast_recalib_ms < 100 || pw.fast_recalib_ms > 1000) return false;
+    if (pw.led_fadeout_ms > 1000 || pw.led_fadein_ms > 1000) return false;
+
+    // =====================================================
+    // [Phase 11.7] Button Timing
+    // =====================================================
+    const auto& bt = p_e.button;
+    if (bt.debounce_press_ms < 8    || bt.debounce_press_ms > 100)  return false;
+    if (bt.debounce_release_ms < 8  || bt.debounce_release_ms > 100) return false;
+    if (bt.debounce_press_ms < bt.debounce_release_ms)               return false;   // Press ≥ Release
+    if (bt.long_delay_ms < 300      || bt.long_delay_ms > 2000)     return false;
+    if (bt.double_delay_ms < 150    || bt.double_delay_ms > 800)    return false;
+    if (bt.hold_2s_ms < 1000        || bt.hold_2s_ms > 5000)        return false;
+    if (bt.hold_3s_ms < 2000        || bt.hold_3s_ms > 8000)        return false;
+    if (bt.hold_2s_ms >= bt.hold_3s_ms)                              return false;
+    if (bt.min_click_ms > 100)                                       return false;
+    if (bt.debounce_min_ticks < 1   || bt.debounce_min_ticks > 10)  return false;
 
     return true;
 }
@@ -987,6 +1049,37 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     v_snap["confirm_frames"] = p_in.motion_adv.snap.confirm_frames;
     v_snap["ratio_enter"]    = p_in.motion_adv.snap.ratio_enter;
     v_snap["strength"]       = p_in.motion_adv.snap.strength;
+
+    // =====================================================
+    // [Phase 11.6] Power Management
+    // =====================================================
+    JsonObject v_pw = p_parent["power"].to<JsonObject>();
+    JsonArray v_ito = v_pw["idle_timeout_ms"].to<JsonArray>();
+    v_ito.add(p_in.power.idle_timeout_ms[0]);
+    v_ito.add(p_in.power.idle_timeout_ms[1]);
+    v_ito.add(p_in.power.idle_timeout_ms[2]);
+    v_pw["idle_timeout_ble_ms"]     = p_in.power.idle_timeout_ble_ms;
+    v_pw["pairing_idle_timeout_ms"] = p_in.power.pairing_idle_timeout_ms;
+    v_pw["deep_idle_timeout_ms"]    = p_in.power.deep_idle_timeout_ms;
+    v_pw["wake_min_active_ms"]      = p_in.power.wake_min_active_ms;
+    v_pw["wom_threshold"]           = p_in.power.wom_threshold;
+    v_pw["wom_duration"]            = p_in.power.wom_duration;
+    v_pw["fast_recalib_ms"]         = p_in.power.fast_recalib_ms;
+    v_pw["led_fadeout_ms"]          = p_in.power.led_fadeout_ms;
+    v_pw["led_fadein_ms"]           = p_in.power.led_fadein_ms;
+
+    // =====================================================
+    // [Phase 11.7] Button Timing
+    // =====================================================
+    JsonObject v_btn = p_parent["button"].to<JsonObject>();
+    v_btn["debounce_press_ms"]   = p_in.button.debounce_press_ms;
+    v_btn["debounce_release_ms"] = p_in.button.debounce_release_ms;
+    v_btn["long_delay_ms"]       = p_in.button.long_delay_ms;
+    v_btn["double_delay_ms"]     = p_in.button.double_delay_ms;
+    v_btn["hold_2s_ms"]          = p_in.button.hold_2s_ms;
+    v_btn["hold_3s_ms"]          = p_in.button.hold_3s_ms;
+    v_btn["min_click_ms"]        = p_in.button.min_click_ms;
+    v_btn["debounce_min_ticks"]  = p_in.button.debounce_min_ticks;
 }
 
 void CL_C10_Config::_buildSlotsJson(JsonObject p_parent, const ST_C10_ProfileSlots_t& p_in) {
@@ -1223,6 +1316,48 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
             if (!v_snap["ratio_enter"].isNull())    s.ratio_enter    = (float)v_snap["ratio_enter"];
             if (!v_snap["strength"].isNull())       s.strength       = (float)v_snap["strength"];
         }
+    }
+
+    // =====================================================
+    // [Phase 11.6] Power Management
+    // =====================================================
+    JsonVariantConst v_pw = p_v["power"];
+    if (!v_pw.isNull()) {
+        auto& d = p_io.power;
+        JsonVariantConst v_ito = v_pw["idle_timeout_ms"];
+        if (v_ito.is<JsonArrayConst>()) {
+            JsonArrayConst a = v_ito.as<JsonArrayConst>();
+            if (a.size() >= 3) {
+                d.idle_timeout_ms[0] = (uint32_t)a[0];
+                d.idle_timeout_ms[1] = (uint32_t)a[1];
+                d.idle_timeout_ms[2] = (uint32_t)a[2];
+            }
+        }
+        if (!v_pw["idle_timeout_ble_ms"].isNull())     d.idle_timeout_ble_ms     = (uint32_t)v_pw["idle_timeout_ble_ms"];
+        if (!v_pw["pairing_idle_timeout_ms"].isNull()) d.pairing_idle_timeout_ms = (uint32_t)v_pw["pairing_idle_timeout_ms"];
+        if (!v_pw["deep_idle_timeout_ms"].isNull())    d.deep_idle_timeout_ms    = (uint32_t)v_pw["deep_idle_timeout_ms"];
+        if (!v_pw["wake_min_active_ms"].isNull())      d.wake_min_active_ms      = (uint16_t)v_pw["wake_min_active_ms"];
+        if (!v_pw["wom_threshold"].isNull())           d.wom_threshold           = (uint8_t)v_pw["wom_threshold"];
+        if (!v_pw["wom_duration"].isNull())            d.wom_duration            = (uint8_t)v_pw["wom_duration"];
+        if (!v_pw["fast_recalib_ms"].isNull())         d.fast_recalib_ms         = (uint16_t)v_pw["fast_recalib_ms"];
+        if (!v_pw["led_fadeout_ms"].isNull())          d.led_fadeout_ms          = (uint16_t)v_pw["led_fadeout_ms"];
+        if (!v_pw["led_fadein_ms"].isNull())           d.led_fadein_ms           = (uint16_t)v_pw["led_fadein_ms"];
+    }
+
+    // =====================================================
+    // [Phase 11.7] Button Timing
+    // =====================================================
+    JsonVariantConst v_btn = p_v["button"];
+    if (!v_btn.isNull()) {
+        auto& b = p_io.button;
+        if (!v_btn["debounce_press_ms"].isNull())   b.debounce_press_ms   = (uint16_t)v_btn["debounce_press_ms"];
+        if (!v_btn["debounce_release_ms"].isNull()) b.debounce_release_ms = (uint16_t)v_btn["debounce_release_ms"];
+        if (!v_btn["long_delay_ms"].isNull())       b.long_delay_ms       = (uint16_t)v_btn["long_delay_ms"];
+        if (!v_btn["double_delay_ms"].isNull())     b.double_delay_ms     = (uint16_t)v_btn["double_delay_ms"];
+        if (!v_btn["hold_2s_ms"].isNull())          b.hold_2s_ms          = (uint16_t)v_btn["hold_2s_ms"];
+        if (!v_btn["hold_3s_ms"].isNull())          b.hold_3s_ms          = (uint16_t)v_btn["hold_3s_ms"];
+        if (!v_btn["min_click_ms"].isNull())        b.min_click_ms        = (uint16_t)v_btn["min_click_ms"];
+        if (!v_btn["debounce_min_ticks"].isNull())  b.debounce_min_ticks  = (uint8_t)v_btn["debounce_min_ticks"];
     }
 
     return true;

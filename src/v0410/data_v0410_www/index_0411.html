@@ -411,6 +411,80 @@
       </div>
 
       <!-- =========================================== -->
+      <!-- [Power Management] 전원 관리 (P20)          -->
+      <!-- =========================================== -->
+      <h3>Power Management <span class="hint2" style="font-weight:400;">(P20 절전 & 슬립)</span></h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Idle Sleep (초)</label>
+          <input id="pwrIdleSleepSec" class="inp" type="number" step="1" min="0" max="3600" />
+          <div class="fhelp">라이트 슬립 대기 시간 (0=끄기)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Deep Sleep (초)</label>
+          <input id="pwrDeepSleepSec" class="inp" type="number" step="1" min="0" max="86400" />
+          <div class="fhelp">딥 슬립 대기 시간 (0=끄기)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">WoM 감도</label>
+          <input id="pwrWomThreshold" class="inp" type="number" step="1" min="1" max="255" />
+          <div class="fhelp">웨이크업 가속도 임계 (25 = 800mg)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">WoM 지속시간</label>
+          <input id="pwrWomDuration" class="inp" type="number" step="1" min="1" max="255" />
+          <div class="fhelp">임계 초과 지속 판정 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">LED Fade Time</label>
+          <input id="pwrLedFadeMs" class="inp" type="number" step="10" min="100" max="3000" />
+          <div class="fhelp">슬립 진입 시 LED 페이드아웃 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Wake Debounce</label>
+          <input id="pwrWakeDebounceMs" class="inp" type="number" step="10" min="50" max="1000" />
+          <div class="fhelp">웨이크업 직후 안정화 대기 (ms)</div>
+        </div>
+      </div>
+
+      <!-- =========================================== -->
+      <!-- [Button Timings] 버튼 디바운스 & 타이밍 (C20) -->
+      <!-- =========================================== -->
+      <h3>Button Timings <span class="hint2" style="font-weight:400;">(C20 디바운스 & 제스처 타이밍)</span></h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl">Debounce Press</label>
+          <input id="btnDebouncePressMs" class="inp" type="number" step="1" min="5" max="100" />
+          <div class="fhelp">누름 디바운스 (ms, 20ms 권장)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Debounce Release</label>
+          <input id="btnDebounceReleaseMs" class="inp" type="number" step="1" min="5" max="100" />
+          <div class="fhelp">뗌 디바운스 (ms, 30ms 권장)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Click 인식 시간</label>
+          <input id="btnClickMs" class="inp" type="number" step="10" min="50" max="1000" />
+          <div class="fhelp">단일 클릭 최대 누름 시간 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Double-Click 간격</label>
+          <input id="btnDblclickGapMs" class="inp" type="number" step="10" min="100" max="1000" />
+          <div class="fhelp">더블클릭 최대 허용 간격 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Long-Press 시간</label>
+          <input id="btnLongPressMs" class="inp" type="number" step="50" min="200" max="3000" />
+          <div class="fhelp">길게 누름 인식 시간 (ms)</div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Min-Click 시간</label>
+          <input id="btnMinClickMs" class="inp" type="number" step="5" min="0" max="100" />
+          <div class="fhelp">글리치 무시 최소 누름 시간 (ms)</div>
+        </div>
+      </div>
+
+      <!-- =========================================== -->
       <!-- 프리셋                                       -->
       <!-- =========================================== -->
       <h3>프리셋 (빠른 적용)</h3>

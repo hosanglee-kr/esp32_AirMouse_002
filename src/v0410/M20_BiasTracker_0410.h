@@ -105,11 +105,46 @@ class CL_M20_BiasTracker {
     bool isStill() const { return _stillActive; }
 
     // ================================================
+    // [Phase 11.6 / I-3] Sleep 후 Fast Recalibrate
+    // ================================================
+    void startFastRecalibrate(uint16_t p_durationMs) {
+        _fastRecalibActive     = true;
+        _fastRecalibStartMs    = (uint32_t)millis();
+        _fastRecalibDurationMs = (p_durationMs < 50) ? 50 : p_durationMs;
+        _fastRecalibSumX = _fastRecalibSumY = _fastRecalibSumZ = 0.0f;
+        _fastRecalibCount      = 0;
+    }
+
+    bool isFastRecalibrating() const { return _fastRecalibActive; }
+
+    // ================================================
     // 런타임 update (매 프레임)
     //   p_rawX/p_rawY/p_rawZ: raw gyro (deg/s)
     //   p_nowMs: millis()
     // ================================================
     void update(float p_rawX, float p_rawY, float p_rawZ, uint32_t p_nowMs) {
+        // [I-3] Fast recalib 모드 (Sleep 복귀 후 단시간 집중 재수집)
+        if (_fastRecalibActive) {
+            const float v_mag = fabsf(p_rawX) + fabsf(p_rawY) + fabsf(p_rawZ);
+            if (v_mag < _stillTh * 1.5f) {
+                _fastRecalibSumX += p_rawX;
+                _fastRecalibSumY += p_rawY;
+                _fastRecalibSumZ += p_rawZ;
+                _fastRecalibCount++;
+            }
+
+            if ((p_nowMs - _fastRecalibStartMs) >= _fastRecalibDurationMs) {
+                if (_fastRecalibCount >= 15) {  // 최소 15 샘플 (약 120ms)
+                    _biasX   = _fastRecalibSumX / _fastRecalibCount;
+                    _biasY   = _fastRecalibSumY / _fastRecalibCount;
+                    _biasZ   = _fastRecalibSumZ / _fastRecalibCount;
+                    _seedSet = true;
+                }
+                _fastRecalibActive = false;
+            }
+            return;   // 정규 bias 추종 skip
+        }
+
         // 1) 정지 판정 (합 벡터 vs still_th)
         const float v_mag = fabsf(p_rawX) + fabsf(p_rawY) + fabsf(p_rawZ);
 
@@ -130,4 +165,13 @@ class CL_M20_BiasTracker {
             _stillStartMs = 0;
         }
     }
+
+  private:
+    bool     _fastRecalibActive     = false;
+    uint32_t _fastRecalibStartMs    = 0;
+    uint16_t _fastRecalibDurationMs = 300;
+    float    _fastRecalibSumX       = 0.0f;
+    float    _fastRecalibSumY       = 0.0f;
+    float    _fastRecalibSumZ       = 0.0f;
+    uint16_t _fastRecalibCount      = 0;
 };

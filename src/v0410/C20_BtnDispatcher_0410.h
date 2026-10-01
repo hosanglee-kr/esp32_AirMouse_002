@@ -48,71 +48,87 @@
         7 // SIDE_R
         };
         
-        private:
+    private:
         enum EN_Phase_t : uint8_t {
-        PHASE_IDLE = 0,
-        PHASE_PRESSED,
-        PHASE_WAIT_CLICK,
-        PHASE_DOUBLE
+            PHASE_IDLE = 0,
+            PHASE_PRESSED,
+            PHASE_WAIT_CLICK,
+            PHASE_DOUBLE
         };
-        
+
         struct ST_BtnState_t {
-        EN_Phase_t phase;
-        uint32_t downMs;
-        uint32_t upMs;
-        uint32_t waitClickStartMs;
-        bool longFired;
-        bool hold2sFired;
-        bool hold3sFired;
-        // Debounce
-        bool stableState;
-        bool lastRaw;
-        uint32_t lastRawChangeMs;
+            EN_Phase_t phase;
+            uint32_t   downMs;
+            uint32_t   upMs;
+            uint32_t   waitClickStartMs;
+            bool       longFired;
+            bool       hold2sFired;
+            bool       hold3sFired;
+            // Debounce
+            bool       stableState;
+            bool       lastRaw;
+            uint32_t   lastRawChangeMs;
+            uint8_t    stableCount;      // [C-3] 연속 동일 raw 카운트
+            uint32_t   rawDownMs;        // [I-1, I-3] 최초 물리적 DOWN 시점
         };
-        
+
         ST_BtnState_t _btn[EN_C20_BTN_MAX];
-        EventCallback _cb = nullptr;
-        void* _ctx = nullptr;
-        
-        // 타이밍 (ms)
-        uint16_t _debounceMs = 20;
-        uint16_t _longDelayMs = 800;
-        uint16_t _doubleDelayMs= 300;
-        uint16_t _hold2sMs = 2000;
-        uint16_t _hold3sMs = 3000;
-        
-        public:
+        EventCallback _cb  = nullptr;
+        void*         _ctx = nullptr;
+
+        // 타이밍 (ms / ticks)
+        uint16_t _debouncePressMs   = 32;   // [C-1, C-4]
+        uint16_t _debounceReleaseMs = 16;   // [C-4]
+        uint16_t _longDelayMs       = 800;  // [I-1]
+        uint16_t _doubleDelayMs     = 320;  // [I-2]
+        uint16_t _hold2sMs          = 2000;
+        uint16_t _hold3sMs          = 3000;
+        uint16_t _minClickMs        = 16;   // [I-3]
+        uint8_t  _debounceMinTicks  = 3;    // [C-3]
+
+    public:
         CL_C20_BtnDispatcher();
-        
+
         // 초기화: pinMode + state 초기화
         void begin();
-        
+
         // 콜백 등록
         void setCallback(EventCallback p_cb, void* p_ctx) {
-        _cb = p_cb;
-        _ctx = p_ctx;
+            _cb = p_cb;
+            _ctx = p_ctx;
         }
-        
+
         // 매 프레임 호출 (sensorTask)
         void update();
-        
+
         // Mode 전환 등에서 상태 리셋 (진행 중 hold 정리)
         void resetButton(uint8_t p_btnId);
         void resetAll();
-        
-        // 타이밍 조정 (config 연동)
-        void setTimings(uint16_t p_debounce, uint16_t p_long, uint16_t p_dbl,
-        uint16_t p_hold2s, uint16_t p_hold3s) {
-        _debounceMs = p_debounce;
-        _longDelayMs = p_long;
-        _doubleDelayMs = p_dbl;
-        _hold2sMs = p_hold2s;
-        _hold3sMs = p_hold3s;
+
+        // [Phase 11.7] 타이밍 조정 (config 연동)
+        void setTimings(uint16_t p_press, uint16_t p_release,
+                        uint16_t p_long,  uint16_t p_dbl,
+                        uint16_t p_hold2s, uint16_t p_hold3s,
+                        uint16_t p_minClick, uint8_t p_minTicks) {
+            _debouncePressMs   = (p_press < 8) ? 8 : p_press;
+            _debounceReleaseMs = (p_release < 8) ? 8 : p_release;
+            _longDelayMs       = p_long;
+            _doubleDelayMs     = p_dbl;
+            _hold2sMs          = p_hold2s;
+            _hold3sMs          = p_hold3s;
+            _minClickMs        = p_minClick;
+            _debounceMinTicks  = (p_minTicks < 1) ? 1 : p_minTicks;
         }
-        
-        private:
+
+        // 구버전 오버로드 (호환성 유지)
+        void setTimings(uint16_t p_debounce, uint16_t p_long, uint16_t p_dbl,
+                        uint16_t p_hold2s, uint16_t p_hold3s) {
+            setTimings(p_debounce, p_debounce / 2, p_long, p_dbl, p_hold2s, p_hold3s, 16, 3);
+        }
+
+    private:
         void _updateOne(uint8_t p_btnId, uint32_t p_now);
         void _onStableChange(uint8_t p_btnId, bool p_stable, uint32_t p_now);
         void _checkTimers(uint8_t p_btnId, uint32_t p_now);
         void _emit(uint8_t p_btnId, uint8_t p_evt);
-        };
+};

@@ -329,8 +329,10 @@ void CL_E10_EliteAirMouse::_getE10RuntimeConfig(ST_C10_E10Config_t& p_out) {
 }
 
 void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out) {
-    // [Phase 1~3] motion_adv 백업 (makeDefaults로 덮어쓰기 방지)
-    ST_C10_MotionAdv_t v_maBackup = p_out.motion_adv;
+    // [Phase 1~3, 11.6, 11.7] motion_adv, power, button 백업 (makeDefaults로 덮어쓰기 방지)
+    ST_C10_MotionAdv_t   v_maBackup = p_out.motion_adv;
+    ST_C10_PowerConfig_t  v_pwBackup = p_out.power;
+    ST_C10_ButtonConfig_t v_btBackup = p_out.button;
 
     if (_cfg) {
         _cfg->makeDefaultsE10(p_out);
@@ -338,8 +340,10 @@ void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out
         memset(&p_out, 0, sizeof(p_out));
     }
 
-    // [Phase 1~3] motion_adv 복원
+    // [Phase 1~3, 11.6, 11.7] 복원
     p_out.motion_adv = v_maBackup;
+    p_out.power      = v_pwBackup;
+    p_out.button     = v_btBackup;
     
     p_out.dpi_level       = (uint8_t)_dpiLevel;
     p_out.hard_click_lock = _hardClickLock;
@@ -489,8 +493,36 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     // [Phase 10] Active peer index 반영
     _ble.setActivePeerIndex(p_e.active_peer_index);
     
-    // [Phase 8] Sleep idle timeout 반영
-    _power.setIdleTimeout(p_e.sleep_idle_timeout_ms);
+    // ====================================================
+    // [Phase 11.6] Power config 반영
+    // ====================================================
+    {
+        CL_P20_Power::ST_Config_t v_pcfg;
+        v_pcfg.idle_timeout_ms[0]      = p_e.power.idle_timeout_ms[0];
+        v_pcfg.idle_timeout_ms[1]      = p_e.power.idle_timeout_ms[1];
+        v_pcfg.idle_timeout_ms[2]      = p_e.power.idle_timeout_ms[2];
+        v_pcfg.idle_timeout_ble_ms     = p_e.power.idle_timeout_ble_ms;
+        v_pcfg.pairing_idle_timeout_ms = p_e.power.pairing_idle_timeout_ms;
+        v_pcfg.deep_idle_timeout_ms    = p_e.power.deep_idle_timeout_ms;
+        v_pcfg.wake_min_active_ms      = p_e.power.wake_min_active_ms;
+        v_pcfg.wom_threshold           = p_e.power.wom_threshold;
+        v_pcfg.wom_duration            = p_e.power.wom_duration;
+        v_pcfg.fast_recalib_ms         = p_e.power.fast_recalib_ms;
+        _power.setConfig(v_pcfg);
+    }
+
+    // ====================================================
+    // [Phase 11.7] Button Timing config 반영
+    // ====================================================
+    _btnDisp.setTimings(
+        p_e.button.debounce_press_ms,
+        p_e.button.debounce_release_ms,
+        p_e.button.long_delay_ms,
+        p_e.button.double_delay_ms,
+        p_e.button.hold_2s_ms,
+        p_e.button.hold_3s_ms,
+        p_e.button.min_click_ms,
+        p_e.button.debounce_min_ticks);
 
     _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
