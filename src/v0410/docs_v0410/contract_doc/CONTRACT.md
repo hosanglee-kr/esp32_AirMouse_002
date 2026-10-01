@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0410/docs_v0410/contract_doc/CONTRACT.md`
-> 최종 갱신: 2026-10-01 (rev3 — 레거시 Hook 제거 + main.cpp 검증)  
+> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED suspend/resume 계약)
 
 ---
 
@@ -39,6 +39,10 @@
 | `_pushFrame(fr)` | `sensorTask` only | 논블로킹 Overwrite | `_qFrame` 최신 프레임 유지 | size=1 Overwrite로 항상 성공 |
 | `applyRuntimeE10(e10)` | `W10` (`/api/control` apply-only) | `_lock()` 하 `_applyRuntimeLocked` | E10 파라미터만 런타임 반영 (persist X) | 항상 true (범위 클램프 다수) |
 | `execLiveTest(kind, h, p16, p32)` | `webTask` | SPECIAL은 위임, 그 외 큐 경유 | `_reqSpecialAction` 또는 `_qActionExec` | SafeMode/OTA 차단 시 false |
+| `_led.suspend(snap)` | `sensorTask` only | **blocking** (≤ `led_fadeout_ms + 200ms`) | 스냅샷 백업 + RED fadeout → OFF | sleep 진입 직전. 실패 시 `resume`으로 원복 |
+| `_led.resume(snap)` | `sensorTask` only | **async** (즉시 리턴) | FADEIN 상태 진입 → `_ledTask`가 IDLE 전이 | sleep 복귀 직후. 원본 지속 상태(FLASH/BLINK)는 IDLE로 단순화 |
+| `_led.setFadeTimings(fo, fi)` | `webTask` (`_applyE10ToRuntime`) | 논블로킹 | fade 타이밍 주입 (0 → 1ms 방어) | – |
+
 
 > **W10 → E10 호출 경로 (rev3)**:
 > - `W10.begin(cfg, e10if)`의 유일한 E10 진입은 **`_e10if` (`ST_W10_E10If_t` 함수 포인터 테이블)**.
@@ -229,4 +233,4 @@ commTask 매 루프 후반
 | rev1 | 2026-10-01 | 계약 문서 정합성 보완: `_startMacro` 대체 정책 명시, `_topMDownMs` Dead Code 표기, 위임 플래그/매크로 취소 정책 상세화, SPEC 참조 `_002.md` 갱신 |
 | rev2 | 2026-10-01 | main.cpp 검증(N-1~N-4): Boot Factory Reset 문서화, SafeMode 조건부 실행, `E10_CONST::PIN_BTN_MODE` 통일, 로그 prefix `[0274]` → `[0410]` |
 | rev3 | 2026-10-01 | **레거시 Hook 제거**: `E10_W10Apply` / `_applyFn` / `_applyCtx` 삭제. `W10.begin(cfg, e10if)` 2인자 시그니처. `_e10if` 경유 유일 원칙 명시 |
-| rev4 | 2026-10-02 | Dead Code 정리: `_topMDownMs` (E10), `apiGetPpt`/`apiPostPpt` (W10) 제거 |
+| rev4 | 2026-10-02 | Dead Code 정리(A 카테고리), LED suspend blocking + resume async 계약 명시(B), `_whitelistActive` volatile(C-1) |

@@ -1,8 +1,8 @@
 # STATE.md — 상태 소유권 및 상태머신(FSM) 명세
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
-> 최종 갱신: 2026-10-01 (rev1 — 계약 문서 정합성 보완)  
 > 위치: `src/v0410/docs_v0410/contract_doc/STATE.md`
+> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED fadeout/fadein)
 
 ---
 
@@ -131,9 +131,9 @@
 | 상태 | 진입 조건 | 이탈 조건 | 동작 |
 |---|---|---|---|
 | **ACTIVE** | 초기 / Wake 복귀 | 유휴 시간 초과 | 정상 동작, `notifyActivity()`로 타이머 리셋 |
-| **LED_SUSPEND** | Sleep 조건 모두 만족 | – | `_led.suspend(snap)` + Fadeout(RED) |
+| **LED_SUSPEND** | Sleep 조건 모두 만족 | fadeout 완료 (≤ `led_fadeout_ms + 200ms`) | `_led.suspend(snap)` — **blocking** RED fadeout → OFF (sensorTask 최대 700ms 지연) |
 | **LIGHT_SLEEP** | `sleepNow()` 진입 | EXT1 Wake (MPU INT / 버튼) | `esp_light_sleep_start()` (RAM 보존) |
-| **WAKE_RESUME** | Light-sleep 복귀 | Fast Recalib 완료 | `_led.resume(snap)` + `fadein` + `biasTracker.startFastRecalibrate(300ms)` |
+| **WAKE_RESUME** | Light-sleep 복귀 | Fast Recalib 완료 | `_led.resume(snap)` — **async** base fadein (FADEIN → IDLE) + `biasTracker.startFastRecalibrate(fast_recalib_ms)` |
 | **DEEP_SLEEP** | `deep_idle_timeout_ms` 초과 | 버튼 Wake | `esp_deep_sleep_start()` (재부팅) |
 
 ---
@@ -154,3 +154,14 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | `_reqSaveCfg` | `any` (BLE dirty) | `main loop` (`tickConfigSave`) | 프로파일 저장 |
 
 > **원칙**: 위 플래그는 모두 `volatile`로 선언되며, 설정자(Writer)와 소비자(Consumer)는 서로 다른 태스크에서 실행됨. 소비자는 반드시 **flag read → 즉시 clear → 처리** 순서를 유지하여 재진입을 방지한다.
+
+
+---
+
+## 4. 개정 이력
+
+| 버전 | 날짜 | 변경 사항 |
+|---|---|---|
+| rev0 | 2026-09-15 | 최초 작성 |
+| rev1 | 2026-10-01 | §2.5 Macro 대체/취소 정책 신설, §2.4 Macro FSM 개념적 서술 경고, `_topMDownMs` Dead Code 표기 |
+| rev4 | 2026-10-02 | LED suspend/resume FSM 상세화 (blocking/async 구분), Dead Code 정리 반영 |

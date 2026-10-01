@@ -8,7 +8,7 @@
 **소스 버전 접미사: `_0410` (백엔드) / `_0411` (프론트엔드)**
 **API 버전: `G_W10_API_VER = 410`**
 **문서 대상: 개발자, 유지보수자, AI 어시스턴트**
-> 최종 갱신: 2026-10-01 (rev3 — main.cpp 부팅 시퀀스 + 레거시 Hook 제거)  
+> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED suspend/resume 실구현)  
 
 ---
 
@@ -752,14 +752,15 @@ struct ST_C20_ActionSlot_t {
 | Mode 전환 | 신규 색 + 흰색 500ms flash |
 | Pairing 진입 | 현재 Mode 색 1Hz blink |
 | Host Cycle | 흰색 500ms flash |
-| Sleep 진입 | `suspend(snap)` → `fadeout(RED, 500ms)` → OFF |
-| Wake 복귀 | `fadein(ModeColor, 300ms)` → `resume(snap)` 원상태 복구 |
+| Sleep 진입 | `suspend(snap)` → **blocking** `fadeout(RED, led_fadeout_ms=500)` → OFF (최대 700ms 대기) |
+| Wake 복귀 | `resume(snap)` → **async** `fadein(ModeColor, led_fadein_ms=300)` → IDLE (원상태 복원) |
 | Sleep 실패/취소 | 즉시 `resume(snap)` 복구 (영구 소등 방지) |
 
 ### 슬립 연동 수명주기 API (Phase 11.6)
-- `fadein(EN_L10_Color_t p_color, uint16_t p_ms = 300)`: 지정 색상으로 점진적 밝기 증가
-- `suspend(ST_LedSnapshot_t& p_out)`: 현재 LED 상태, 베이스/이벤트 색상, 잔여 타이머 스냅샷 백업
-- `resume(const ST_LedSnapshot_t& p_in)`: 백업된 상태머신 및 타이머 스냅샷 복원
+- `setFadeTimings(uint16_t p_fadeoutMs, uint16_t p_fadeinMs)`: 프로파일의 `power.led_fadeout_ms`/`led_fadein_ms` 주입 (0 방어 → 1ms)
+- `suspend(ST_LedSnapshot_t& p_out)`: 스냅샷 백업 + **blocking** RED fadeout → OFF (deadline = `_fadeoutMs + 200ms`)
+- `resume(const ST_LedSnapshot_t& p_in)`: OFF → **async** base color fadein (원본 FADEIN/BLINK 등 지속 상태는 sleep과 무관하므로 IDLE로 복원)
+- `fadein(EN_L10_Color_t p_color, uint16_t p_ms = 300)`: 지정 색상으로 점진적 밝기 증가 (비동기)
 
 **실행자**: `_ledTask` 단독 tick (50ms)
 
@@ -818,14 +819,15 @@ struct ST_C20_ActionSlot_t {
 
 ### 2. Light-sleep 진입 및 복귀 시퀀스
 ```
-[유휴 판정] ──> LED Suspend (스냅샷 백업) ──> LED Fadeout (RED, 500ms) ──> OFF
+[유휴 판정] ──> LED suspend(snap): blocking fadeout(RED, led_fadeout_ms) ──> OFF
                                                                              │
 [Wake 이벤트: WoM 또는 버튼] <── ESP32 Light-Sleep (esp_light_sleep_start) <──┘
            │
-           ├──> LED Resume (스냅샷 복원) & Fadein (ModeColor, 300ms)
-           ├──> M20 BiasTracker startFastRecalibrate(300ms) (온도 드리프트 흡수)
-           ├──> Wake Debounce (wake_min_active_ms=500ms 백오프 적용, 연속 슬립 재진입 방지)
-           └──> commTask 지연 통지 (_powerNotifyPending = true)
+           ├──> LED resume(snap): async fadein(base, led_fadein_ms)  [FADEIN → IDLE]
+           ├──> M20 BiasTracker startFastRecalibrate(fast_recalib_ms=300)
+           ├──> Wake Debounce (wake_min_active_ms=500 백오프)
+           └──> commTask 지연 통지 (_onPowerWake → xTaskNotifyGive)
+
 ```
 
 ### 3. Deep-sleep 조건 및 동작
@@ -1341,6 +1343,29 @@ extra_scripts = pre:src/v0410/tools_v0410/pio_gzip_0410.py
 - **`apiGetPpt` / `apiPostPpt` 제거**: `/api/ppt` GET/POST는 라우팅 미등록 상태로 스텁만 존재 → 완전 삭제
 - `/api/ppt/test`는 유지 (Live Test 용도)
 
+### Dead Code 정리 + SPEC 실구현 (rev4, 2026-10-02)
+- **Dead Code 제거 (A 카테고리, A-5 제외)**:
+  - A-1: `M10::updateOrientation` 단일축 overload 삭제
+  - A-2: SPECIAL 콜백 체인 전체 삭제 (`setSpecialCallback` / `_specialCb` / `_specialCtx` / `_execSpecial` / `_onSpecial`)
+  - A-3: W10 미사용 메서드 3종 삭제 (`_wantsEnvelope`, `_resPrintJsonString` ×2, `_addEtagHeadersNoStore`)
+  - A-4: E10 `isSafeMode()` public getter 삭제
+  - A-6: B20 `clearAllBonds` / `getConnectedCount` / `isWhitelistActive` 삭제
+  - A-7: C10 `duplicateProfile` / `getActiveProfile` 삭제
+  - A-8: P20 `setIdleTimeout` / `isIdle` / 3개 getter 삭제
+  - A-9: L10 `stopBlink` 삭제
+- **B 카테고리 (SPEC 실구현)**:
+  - B-1: `L10::suspend()` → blocking RED fadeout (SPEC 준수)
+  - B-2: `L10::resume()` → async base color fadein (SPEC 준수)
+  - `L10::setFadeTimings()` 신규 + `E10::_applyE10ToRuntime`에서 프로파일값 주입
+- **C 카테고리 (개선)**:
+  - C-1: B20 `_whitelistActive` / `_whitelistUntilMs` → volatile
+  - C-2: E10 `_thLed` 핸들 제거 (관측 미사용)
+  - C-3: `main.cpp::_holdAtBoot` 1초마다 시리얼 `.` 피드백
+  - C-4: `switchProfile` race window 주석 명시
+  - C-5: `_reqSaveCfg` single-writer 원칙 주석
+- **빌드 영향**: Flash −200 B / RAM −8 B (링커 DCE로 이미 최적화된 상태). 경고/에러 0건
+
+
 ---
 
 ## 📎 부록: 주요 상수
@@ -1358,6 +1383,8 @@ extra_scripts = pre:src/v0410/tools_v0410/pio_gzip_0410.py
 | `CALIB_STILL_TH` | 3.0 | – |
 | `SPIKE_TH_DEG` | 650.0 | – |
 | `ERR_HIST_CAP` | 16 | – |
+| `_fadeoutMs` (L10) | 500 (기본), 프로파일 주입 | `power.led_fadeout_ms` |
+| `_fadeinMs` (L10) | 300 (기본), 프로파일 주입 | `power.led_fadein_ms` |
 | Sensor 주기 | 8ms (125Hz) | – |
 | Comm 주기 | 7ms | – |
 | LED tick 주기 | 50ms | – |

@@ -1,8 +1,8 @@
 # FLOW.md — 기능별 데이터 흐름 및 파이프라인 명세
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
-> 최종 갱신: 2026-10-01 (rev1 — 계약 문서 정합성 보완)  
 > 위치: `src/v0410/docs_v0410/contract_doc/FLOW.md`
+> 최종 갱신: 2026-10-02 (rev4 — LED fadeout/fadein 흐름 반영)  
 
 ---
 
@@ -183,13 +183,13 @@ flowchart TD
     TimeoutCheck -- 충족 --> DeepCheck{deep_idle_timeout 초과?}
     
     DeepCheck -- 예 --> Deep[deepSleepNow: RTC 딥슬립]
-    DeepCheck -- 아니오 --> LEDSuspend[_led.suspend(snap)]
+    DeepCheck -- 아니오 --> LEDSuspend[_led.suspend: blocking fadeout RED]
     LEDSuspend --> Sleep[P20.sleepNow: esp_light_sleep_start]
     
     Sleep --> Wake[Wake 이벤트: WoM / 버튼]
-    Wake --> LEDResume[_led.resume(snap) + fadein]
-    LEDResume --> FastRecalib[_biasTracker.startFastRecalibrate 300ms]
-    FastRecalib --> Notify[_powerNotifyPending = true]
+    Wake --> LEDResume[_led.resume: async fadein base color]
+    LEDResume --> FastRecalib[_biasTracker.startFastRecalibrate fast_recalib_ms]
+    FastRecalib --> Notify[_onPowerWake: xTaskNotifyGive commTask]
     Notify --> Next
 ```
 

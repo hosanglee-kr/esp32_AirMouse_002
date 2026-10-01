@@ -1,8 +1,8 @@
 # BUDGET.md — 시간 및 자원 예산 명세
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
-> 최종 갱신: 2026-10-01 (rev1 — 계약 문서 정합성 보완)  
 > 위치: `src/v0410/docs_v0410/contract_doc/BUDGET.md`
+> 최종 갱신: 2026-10-02 (rev4 — LED suspend blocking 추가)  
 
 ---
 
@@ -32,6 +32,7 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | 프로파일 I/O (`LittleFS`) | `webTask` | ~35 ms | Web API 응답 지연 | Core 0 백그라운드 처리, sensorTask와 독립 |
 | Mutex 획득 (`_lock`) | `sensorTask` (`_state`) | 2 ms 제한 (`pdMS_TO_TICKS(2)`) | 초과 시 `_errMutexMiss` 증가 | 락 대기 시간 엄격 제한으로 센서 주기(8ms) 보장 |
 | `_holdAtBoot(E10_CONST::PIN_BTN_MODE, 6000)` | `setup()` (부팅 1회) | 최대 6000 ms | 부팅 지연 (런타임 무관) | Factory Reset 트리거. 조기 릴리즈 시 즉시 탈출 (`digitalRead != LOW` → return false) |
+| `_led.suspend(snap)` | `sensorTask` (sleep 진입) | 최대 ~700 ms (`led_fadeout_ms + 200ms`) | 센서 루프 지연, 이어서 즉시 sleep 진입 | LED RED fadeout 완료 대기. deadline 초과 시 강제 OFF. `_ledTask`(Core 0) 병렬 tick |
 
 ---
 
