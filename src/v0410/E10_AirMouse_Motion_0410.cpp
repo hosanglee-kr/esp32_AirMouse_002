@@ -214,7 +214,8 @@ void CL_E10_EliteAirMouse::_applyClickFreeze(float& p_fx, float& p_fy,
                                              bool  p_btnDown) {
     const auto& cfg = _cfgProfile.e10.motion_adv.click_freeze;
 
-    if (!cfg.enable || _moveGateHeld) {
+    // Move Gate가 활성 상태일 때만 커서가 이동하므로, Move Gate가 풀리면 Click-Freeze도 IDLE 리셋
+    if (!cfg.enable || !_moveGateHeld) {
         _freezeState = E10_FREEZE_IDLE;
         return;
     }

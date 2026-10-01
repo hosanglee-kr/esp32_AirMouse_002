@@ -221,6 +221,21 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         const float v_gyRaw = v_g.gyro.y * RAD_TO_DEG;
         const float v_gzRaw = v_g.gyro.z * RAD_TO_DEG;
 
+        // ---- NaN guard (BiasTracker 및 FSM으로의 NaN 오염 원천 차단) ----
+        if (isnan(v_gxRaw) || isnan(v_gyRaw) || isnan(v_gzRaw) ||
+            isnan(v_a.acceleration.x) || isnan(v_a.acceleration.y) || isnan(v_a.acceleration.z)) {
+            v_m->_errMpuNan++;
+            v_m->_consecutiveFail++;
+            v_m->_pushErr(EN_E10_ERR_MPU_NAN, 0);
+
+            if ((v_m->_errMpuNan % 5) == 0) (void)v_m->_recoverI2C();
+
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+            continue;
+        } else {
+            if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
+        }
+
         v_m->_biasTracker.update(v_gxRaw, v_gyRaw, v_gzRaw, (uint32_t)millis());
 
         const float v_gx = v_m->_biasTracker.correctX(v_gxRaw);
@@ -237,20 +252,6 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         //  [Phase 5] SCROLL/MODE 토글 폐기 → 2·3번째 인자는 항상 false
         //            (SCROLL은 제스처 Phase 7에서 재설계)
         v_m->_fsmUpdate(false, false, v_gyroAbs);
-
-        // ---- NaN guard ----
-        if (isnan(v_gx) || isnan(v_gy) || isnan(v_gz)) {
-            v_m->_errMpuNan++;
-            v_m->_consecutiveFail++;
-            v_m->_pushErr(EN_E10_ERR_MPU_NAN, 0);
-
-            if ((v_m->_errMpuNan % 5) == 0) (void)v_m->_recoverI2C();
-
-            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
-            continue;
-        } else {
-            if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
-        }
 
         // ---- stats + motion engine ----
         v_m->_welfordAdd(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);

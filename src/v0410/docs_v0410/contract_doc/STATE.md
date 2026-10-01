@@ -37,10 +37,10 @@
 
 | 상태 (State) | 진입 조건 | 이탈 조건 | 동작 및 부수효과 |
 |---|---|---|---|
-| **E10_FREEZE_IDLE** | 초기 상태 또는 타임아웃/이탈 | `btnDown && \|gyro\| < gyro_th` | 정상 커서 출력 통과 |
-| **E10_FREEZE_LOCKED** | IDLE에서 좌클릭 눌림 감지 | 1) 버튼 뗌 (`!btnDown`) → `HOLD` 전이<br>2) `freezeTimer > max_ms` → `IDLE`<br>3) `\|gyro\| > freeze_move_th` → `IDLE` | `fx = 0`, `fy = 0` (완전 고정)<br>`freezeTimer += 8ms` |
-| **E10_FREEZE_HOLD** | LOCKED 상태에서 버튼 릴리즈 | 1) `accumDistSq > thSq` 또는 `btnDown` → `IDLE`<br>2) `holdTimer >= hold_ms` → `FADEOUT` | `fx = 0`, `fy = 0` (반동 안정화 대기)<br>`holdTimer += 8ms`, 누적 변위 추적 |
-| **E10_FREEZE_FADEOUT** | HOLD 타이머 만료 | 1) `accumDistSq > thSq` 또는 `btnDown` → `IDLE`<br>2) `fadeTimer >= fadeout_ms` → `IDLE` | `scale = fadeTimer / fadeout_ms`<br>`fx *= scale`, `fy *= scale` (선형 감쇠) |
+| **E10_FREEZE_IDLE** | 초기 상태, Move Gate 해제(`!_moveGateHeld`) 또는 타임아웃/이탈 | `btnDown && \|gyro\| < gyro_th && _moveGateHeld` | 정상 커서 출력 통과 (Move Gate 누름 중만 활성) |
+| **E10_FREEZE_LOCKED** | IDLE에서 좌클릭 눌림 감지 | 1) 버튼 뗌 (`!btnDown`) → `HOLD` 전이<br>2) `freezeTimer > max_ms` → `IDLE`<br>3) `\|gyro\| > freeze_move_th` 또는 `!_moveGateHeld` → `IDLE` | `fx = 0`, `fy = 0` (완전 고정)<br>`freezeTimer += 8ms` |
+| **E10_FREEZE_HOLD** | LOCKED 상태에서 버튼 릴리즈 | 1) `accumDistSq > thSq`, `btnDown`, `!_moveGateHeld` → `IDLE`<br>2) `holdTimer >= hold_ms` → `FADEOUT` | `fx = 0`, `fy = 0` (반동 안정화 대기)<br>`holdTimer += 8ms`, 누적 변위 추적 |
+| **E10_FREEZE_FADEOUT** | HOLD 타이머 만료 | 1) `accumDistSq > thSq`, `btnDown`, `!_moveGateHeld` → `IDLE`<br>2) `fadeTimer >= fadeout_ms` → `IDLE` | `scale = fadeTimer / fadeout_ms`<br>`fx *= scale`, `fy *= scale` (선형 감쇠) |
 
 ---
 

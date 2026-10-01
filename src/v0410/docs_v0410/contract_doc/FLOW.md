@@ -12,7 +12,9 @@ MPU6050 센서 원시 데이터가 가공되어 최종 HID 전달 큐(`_qFrame`)
 
 ```mermaid
 flowchart TD
-    A[MPU6050 Raw Gyro/Accel] --> B[BiasTracker 보정]
+    A[MPU6050 Raw Gyro/Accel] --> NaN{NaN 감지?}
+    NaN -- NaN 발생 --> NaN_Err[_errMpuNan++ / I2C 복구 / Skip Tick]
+    NaN -- 정상 수치 --> B[BiasTracker 보정]
     B --> C[M10 AdvancedMotionProcessor]
     subgraph M10_Engine [M10 모션 엔진]
         C --> C1[적응형 EMA 필터]
@@ -36,7 +38,7 @@ flowchart TD
 ```
 
 ### 실패 및 예외 복구 경로
-- **MPU NaN 감지 시**: `_errMpuNan++` 증가 후 `_recoverI2C()` 비동기 요청 플래그 설정 및 해당 틱 건너뜀.
+- **MPU NaN 감지 시 (선제적 Guard)**: `BiasTracker` 및 `FSM` 유입 전에 NaN을 감지하여 `_errMpuNan++` 증가, 5회 연속 시 `_recoverI2C()` 실행 및 해당 틱 조기 건너뜀 (내부 누적 바이어스 오염 완벽 방지).
 - **Mutex Miss 발생 시 (`_state` 갱신 2ms 초과)**: `_errMutexMiss++` 증가 후 프레임 전송은 계속 진행 (커서 프레임 누락 방지).
 
 ---

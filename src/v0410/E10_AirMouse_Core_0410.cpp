@@ -665,11 +665,13 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     // 6) 새 프로파일 로드 + 런타임 반영
     const bool v_reloadOk = _reloadActiveProfile();
 
-    // 7) Active Mode도 새 프로파일 기준으로
+    // 7) Active Mode도 새 프로파일 기준으로 (_lock 보호 하에 원자적 갱신)
     if (v_reloadOk && _cfgProfileValid) {
         const uint8_t v_m = _cfgProfile.e10.active_mode;
         if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
+            _lock();
             _activeMode = v_m;
+            _unlock();
         }
     }
 
