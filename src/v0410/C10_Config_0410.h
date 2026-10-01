@@ -51,14 +51,13 @@ class CL_C10_Config {
     bool loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out);
     bool saveProfile(uint8_t p_idx, const ST_C10_ProfileConfig_t& p_in);
     bool createProfile(const char* p_newName, uint8_t& p_outIdx);
-    bool duplicateProfile(uint8_t p_srcIdx, const char* p_newName, uint8_t& p_outIdx);
+    
     bool deleteProfile(uint8_t p_idx);
     bool renameProfile(uint8_t p_idx, const char* p_newName);
 
     bool loadActiveProfile(ST_C10_ProfileConfig_t& p_out);
     bool saveActiveProfile(const ST_C10_ProfileConfig_t& p_in);
-    const ST_C10_ProfileConfig_t& getActiveProfile() const { return _activeProfile; }
-
+    
     // ---------- Defaults Generator ----------
     void makeDefaultsWiFi  (ST_C10_WiFiConfig_t&   p_out);
     void makeDefaultsE10   (ST_C10_E10Config_t&    p_out);

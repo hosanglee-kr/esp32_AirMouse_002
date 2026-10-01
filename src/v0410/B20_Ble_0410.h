@@ -40,11 +40,7 @@ class CL_B20_Ble {
 
     // ---- Bond 정보 ----
     uint8_t getBondCount() const;
-    bool    clearAllBonds();
-
-    // 현재 연결된 peer 수 (NimBLE 서버 기준)
-    uint8_t getConnectedCount() const;
-
+    
     // ---- Active Peer Index (config 연동) ----
     uint8_t getActivePeerIndex() const { return _activePeerIndex; }
     void    setActivePeerIndex(uint8_t p_idx) { _activePeerIndex = (p_idx < MAX_PEERS) ? p_idx : 0; }
@@ -63,8 +59,6 @@ class CL_B20_Ble {
     // ====================================================
     bool reconnectToActivePeer(uint32_t p_whitelistMs = 10000);
     void clearWhitelist();
-
-    bool isWhitelistActive() const { return _whitelistActive; }
 
     // ---- Pairing Mode ----
     bool enterPairing(uint32_t p_timeoutMs = 30000);
@@ -91,8 +85,8 @@ class CL_B20_Ble {
     
     volatile bool _dirty = false;
   
-    bool     _whitelistActive  = false;
-    uint32_t _whitelistUntilMs = 0;
+    volatile bool     _whitelistActive  = false;
+    volatile uint32_t _whitelistUntilMs = 0;
 
     // advertising 재시작 (라이브러리 소유 광고 위에 재구성)
     //   - NimBLE-Arduino 2.5.1 API 제약으로 whitelist 필터 없이 stop/start만

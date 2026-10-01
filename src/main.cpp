@@ -111,14 +111,27 @@ static bool _w10_execLiveTest(void* ctx,
 static constexpr uint32_t G_BOOT_GRACE_MS = 8500;
 
 // 내부: 부팅 시 p_ms 이상 계속 눌림이면 true
+//   - 1초마다 '.' 출력 → 사용자에게 진행 피드백 (LED는 아직 초기화 안 됨)
 static bool _holdAtBoot(int p_pin, uint32_t p_ms) {
     pinMode(p_pin, INPUT_PULLUP);
 
     const uint32_t v_t0 = (uint32_t)millis();
+    uint32_t v_lastBeep = v_t0;
+    Serial.print("[boot-hold] keep held: ");
+
     while (((uint32_t)millis() - v_t0) < p_ms) {
-        if (digitalRead(p_pin) != LOW) return false;
+        if (digitalRead(p_pin) != LOW) {
+            Serial.println(" (released)");
+            return false;
+        }
+        const uint32_t v_now = (uint32_t)millis();
+        if ((uint32_t)(v_now - v_lastBeep) >= 1000) {
+            v_lastBeep = v_now;
+            Serial.print(".");
+        }
         delay(10);
     }
+    Serial.println(" OK (factory reset)");
     return true;
 }
 

@@ -120,12 +120,7 @@ class CL_M10_AdvancedMotionProcessor {
                + (1.0f - G_COMP_ALPHA) * v_accelPitch;
     }
 
-    void updateOrientation(float p_ay, float p_az, float p_gx_deg_s, float p_dt_s) {
-        float v_accelRoll = atan2f(p_ay, p_az);
-        _roll  = G_COMP_ALPHA * (_roll + (p_gx_deg_s * DEG_TO_RAD) * p_dt_s)
-               + (1.0f - G_COMP_ALPHA) * v_accelRoll;
-    }
-
+ 
     // ================================================
     // 커서 좌표 계산 (Roll 보상 + Adaptive EMA + Sigmoid + Zero Snap)
     // ================================================

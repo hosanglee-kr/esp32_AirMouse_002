@@ -75,8 +75,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _power.begin();
     
     // LED 태스크 (저우선, 50ms tick)
-    xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, &_thLed, 0);
-
+    xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, nullptr, 0);
     
     // ====================================================
     // [Phase 5] Dispatcher + Executor 초기화
@@ -85,8 +84,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _btnDisp.setCallback(&CL_E10_EliteAirMouse::_onBtnEvent, this);
     
     _actExec.begin(&_mouse, &_keyboard);
-    _actExec.setSpecialCallback(&CL_E10_EliteAirMouse::_onSpecial, this);
-    
+
     _qActionExec = xQueueCreate(8, sizeof(ST_ActionCmd_t));
     if (!_qActionExec) {
         D10_LOGE("[E10] _qActionExec create failed");
@@ -543,7 +541,8 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     }
     
     _led.setBrightness(p_e.led_brightness);
-    
+    _led.setFadeTimings(p_e.power.led_fadeout_ms, p_e.power.led_fadein_ms);
+
     // [Phase 5] Mode → _isPptMode 동기화 (FSM 호환)
     if (p_e.active_mode >= 1 && p_e.active_mode <= C10_DEF::MODE_COUNT) {
         _activeMode = p_e.active_mode;
@@ -613,10 +612,14 @@ bool CL_E10_EliteAirMouse::getActiveProfileInfo(uint8_t& p_outIdx, uint8_t& p_ou
 
 bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     if (!_cfg) return false;
+    // [C-4] AsyncWebServer는 단일 이벤트 태스크에서 직렬 처리되므로
+    //   isProfileSwitchInProgress → setProfileSwitchInProgress 사이의
+    //   이론적 race는 실무적으로 발생하지 않는다. (재진입 방어 목적)
     if (_cfg->isProfileSwitchInProgress()) {
         D10_LOGW("[E10] switchProfile: already in progress");
         return false;
     }
+    
     if (p_idx >= _cfg->getProfileCount()) {
         D10_LOGW("[E10] switchProfile: invalid idx=%u", (unsigned)p_idx);
         return false;

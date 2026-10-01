@@ -272,7 +272,3 @@ void CL_C20_ActionExec::_execConsumerRep(const ST_C20_ActionSlot_t& s, bool p_is
     }
 }
 
-void CL_C20_ActionExec::_execSpecial(const ST_C20_ActionSlot_t& s) {
-    if (!_specialCb) return;
-    _specialCb(_specialCtx, (uint8_t)s.param16);
-}

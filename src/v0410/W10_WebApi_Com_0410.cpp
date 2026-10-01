@@ -41,17 +41,14 @@
  * ------------------------------------------------------
  */
 
- // 여기에 아래 함수들을 "그대로 잘라서" 붙여넣기:
+ // API 공통 헬퍼 구현:
 // - _sendJsonStream
-// - _resPrintJsonString(2)
 // - _formatEtagQuoted
 // - _ifNoneMatchHit
 // - _send304NoStoreEtag
 // - _sendOk / _httpFromCode / _sendErr
 // - _isSafeMode / _isApiAllowedInSafeMode / _gateSafeModeOrReply
-// - _wantsEnvelope
 // - _wifiDiffMask / _markNeedReboot / _markLastApply / _rebootReasonsString
-// - _addEtagHeadersNoStore
 
 
 #include "W10_Web_0410.h"
@@ -68,26 +65,6 @@ void CL_W10_WebConfig::_sendJsonStream(AsyncWebServerRequest* req, JsonDocument&
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
     serializeJson(d, *res);
     req->send(res);
-}
-
-
-// =====================================================
-// Envelope streaming safe string writer (Option-2)
-// - prints a JSON string literal with proper escaping
-// - output example: "abc\"def\n"
-// =====================================================
-void CL_W10_WebConfig::_resPrintJsonString(AsyncResponseStream* res, const String& v) {
-    if (!res) return;
-    JsonDocument d;
-    d.set(v);
-    serializeJson(d, *res);
-}
-
-void CL_W10_WebConfig::_resPrintJsonString(AsyncResponseStream* res, const char* v) {
-    if (!res) return;
-    JsonDocument d;
-    d.set(v ? v : "");
-    serializeJson(d, *res);
 }
 
 
@@ -318,36 +295,6 @@ bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     return true;
 }
 
-// =====================================================
-// (STEP12) Envelope selector helper
-// =====================================================
-bool CL_W10_WebConfig::_wantsEnvelope(AsyncWebServerRequest* req) {
-    if (!req) return false;
-
-    if (req->hasParam("envelope")) {
-        const AsyncWebParameter* p = req->getParam("envelope");
-        if (p) {
-            const String v = p->value();
-            if (v == "1") return true;
-            if (v == "0") return false;
-            if (v == "auto") {
-                // fallthrough
-            } else {
-                return false;
-            }
-        }
-    }
-
-    if (req->hasHeader("Accept")) {
-        const AsyncWebHeader* h = req->getHeader("Accept");
-        if (h) {
-            const String a = h->value();
-            if (a.indexOf("application/vnd.snw.envelope+json") >= 0) return true;
-        }
-    }
-    return false;
-}
-
 
 // =====================================================
 // reboot reason helpers
@@ -397,30 +344,4 @@ String CL_W10_WebConfig::_rebootReasonsString(uint32_t m) {
     if (m & G_W10_REBOOT_OTHER) add("other");
     return s;
 }
-
-
-
-
-// =====================================================
-// 200 공통 (API/config/export): no-store + ETag + X-Config-Size
-// - 정적과 달리 gzip variant가 없으므로 Vary 필요 없음(정적만 Vary 표준화)
-// =====================================================
-void CL_W10_WebConfig::_addEtagHeadersNoStore(AsyncWebServerResponse* res,
-                                             bool p_hasEtag,
-                                             uint32_t p_etag,
-                                             size_t p_size) {
-    if (!res) return;
-
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-
-    if (p_hasEtag) {
-        char v_tag[16];
-        memset(v_tag, 0, sizeof(v_tag));
-        _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
-        res->addHeader("ETag", v_tag);
-        res->addHeader("X-Config-Size", String((unsigned int)p_size));
-    }
-}
-
-
 

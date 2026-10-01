@@ -82,10 +82,12 @@ class CL_L10_Led {
     void setModeColor(uint8_t p_mode);
     void flash(EN_L10_Color_t p_color, uint16_t p_ms = 50);
     void blink(EN_L10_Color_t p_color, uint16_t p_periodMs, uint16_t p_durationMs = 0);
-    void stopBlink();
     void fadeout(EN_L10_Color_t p_color, uint16_t p_ms = 800);
     void fadein(EN_L10_Color_t p_color, uint16_t p_ms = 300);
     void off();
+    
+    // [B-1/B-2] Sleep/wake 시 사용할 페이드 타이밍 (프로파일에서 주입)
+    void setFadeTimings(uint16_t p_fadeoutMs, uint16_t p_fadeinMs);
 
     void suspend(ST_LedSnapshot_t& p_out);
     void resume(const ST_LedSnapshot_t& p_in);
@@ -97,7 +99,9 @@ class CL_L10_Led {
 
   private:
     Adafruit_NeoPixel* _strip = nullptr;
-    uint8_t            _brightness = 128;
+    uint8_t  _brightness = 128;
+    uint16_t _fadeoutMs  = 500;   // [B-1] suspend 시 RED fadeout
+    uint16_t _fadeinMs   = 300;   // [B-2] resume 시 mode color fadein
 
     EN_L10_State_t _state       = EN_L10_ST_OFF;
     EN_L10_Color_t _baseColor   = EN_L10_COLOR_OFF;

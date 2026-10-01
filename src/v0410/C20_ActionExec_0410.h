@@ -28,16 +28,9 @@
 #include "C20_Action_0410.h"
 
 class CL_C20_ActionExec {
-  public:
-    // Special action 콜백 (E10이 처리: GyroRecalib, Sleep, ModeCycle 등)
-    using SpecialCallback = void (*)(void* p_ctx, uint8_t p_special);
-
   private:
     MouseDevice*    _mouse    = nullptr;
     KeyboardDevice* _keyboard = nullptr;
-
-    SpecialCallback _specialCb  = nullptr;
-    void*           _specialCtx = nullptr;
 
     // Hold/Repeat 런타임 상태 (슬롯별)
     //  slotId: 고유 식별 (mode*50 + group*20 + idx 정도)
@@ -59,10 +52,6 @@ class CL_C20_ActionExec {
     CL_C20_ActionExec();
 
     void begin(MouseDevice* p_mouse, KeyboardDevice* p_keyboard);
-    void setSpecialCallback(SpecialCallback p_cb, void* p_ctx) {
-        _specialCb  = p_cb;
-        _specialCtx = p_ctx;
-    }
 
     // ====================================================
     // 슬롯 실행 (commTask에서 호출)
@@ -92,8 +81,7 @@ class CL_C20_ActionExec {
     void _execKbRepeat    (const ST_C20_ActionSlot_t& s, bool isDown);
     void _execConsumerTap (const ST_C20_ActionSlot_t& s);
     void _execConsumerRep (const ST_C20_ActionSlot_t& s, bool isDown);
-    void _execSpecial     (const ST_C20_ActionSlot_t& s);
-
+    
     // 슬롯 비교 (kind/hold/p16/p32)
     static bool _slotEq(const ST_C20_ActionSlot_t& a,
                         const ST_C20_ActionSlot_t& b) {

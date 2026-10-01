@@ -67,19 +67,16 @@ class CL_P20_Power {
 
     // Config 반영
     void setConfig(const ST_Config_t& p_cfg);
-    void setIdleTimeout(uint32_t p_ms);
-    uint32_t getIdleTimeout() const { return _cfg.idle_timeout_ms[0]; }
+
     uint32_t getIdleTimeout(uint8_t p_mode) const {
         if (p_mode < 1 || p_mode > 3) return 60000;
         return _cfg.idle_timeout_ms[p_mode - 1];
     }
-    uint32_t getIdleTimeoutBle() const { return _cfg.idle_timeout_ble_ms; }
+    
     uint32_t getIdleSince() const { return _lastActivityMs; }
 
     // 활동 알림 (버튼 DOWN, 커서 이동, Move Gate Held 등)
     void notifyActivity(uint32_t p_nowMs);
-
-    bool isIdle() const { return _idle; }
 
     // ============================================
     // 실제 Light-sleep 진입
@@ -100,9 +97,6 @@ class CL_P20_Power {
     void setWakeCallback(WakeCallback_t p_cb, void* p_ctx) {
         _wakeCb = p_cb; _wakeCtx = p_ctx;
     }
-
-    EN_WakeReason_t getLastWakeReason() const { return _lastWakeReason; }
-    uint32_t        getWakeCount() const      { return _wakeCount; }
 
   private:
     ST_Config_t     _cfg = {};

@@ -172,11 +172,7 @@ private:
     // JSON stream helpers (AsyncResponseStream)
     // =====================================================
     void _sendJsonStream(AsyncWebServerRequest* req, JsonDocument& d, int p_code = 200);
-
-    // Envelope streaming safe string writer (Option-2)
-    void _resPrintJsonString(AsyncResponseStream* res, const String& v);
-    void _resPrintJsonString(AsyncResponseStream* res, const char* v);
-
+    
     // =====================================================
     // ETag/If-None-Match 최소 호환
     //  - 따옴표/Weak ETag/콤마 리스트 대응
@@ -205,11 +201,6 @@ private:
                                          uint32_t p_etag,
                                          size_t p_size);
 
-    // 200 공통 (API/config/export): no-store + ETag(+size) 헤더 부착
-    void _addEtagHeadersNoStore(AsyncWebServerResponse* res, bool p_hasEtag, uint32_t p_etag, size_t p_size);
-
-
-
     void _sendOk(AsyncWebServerRequest* req,
                  const char* p_code,
                  const char* p_msg,
@@ -233,11 +224,6 @@ private:
     // =====================================================
     bool _wantsJson(AsyncWebServerRequest* req) const;
     void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg);
-
-    // =====================================================
-    // Envelope selector helper
-    // =====================================================
-    bool _wantsEnvelope(AsyncWebServerRequest* req);
 
     // =====================================================
     // Body Collector

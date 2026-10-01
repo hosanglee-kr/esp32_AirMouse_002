@@ -28,20 +28,6 @@ uint8_t CL_B20_Ble::getBondCount() const {
     return (uint8_t)NimBLEDevice::getNumBonds();
 }
 
-bool CL_B20_Ble::clearAllBonds() {
-    const uint8_t v_n = getBondCount();
-    if (v_n == 0) return true;
-
-    NimBLEDevice::deleteAllBonds();
-    D10_LOGW("[B20] deleteAllBonds: %u removed", (unsigned)v_n);
-    return true;
-}
-
-uint8_t CL_B20_Ble::getConnectedCount() const {
-    NimBLEServer* v_srv = NimBLEDevice::getServer();
-    if (!v_srv) return 0;
-    return (uint8_t)v_srv->getConnectedCount();
-}
 
 // =======================================================
 // Pairing Mode

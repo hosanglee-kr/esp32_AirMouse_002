@@ -262,8 +262,11 @@ class CL_E10_EliteAirMouse {
     volatile bool    _reqCommReleaseAll = false;  // [REQ-FIX-03] HID release delegation (Profile switch -> commTask)
     
     // [Phase 10] config 저장 필요 플래그 (main loop에서 처리)
+    //   - set: tickConfigSave() 내부에서 _ble.consumeDirty() 결과로만 true
+    //   - clear: tickConfigSave() 저장 완료 시 false
+    //   - 외부에서 직접 set 금지 (single-writer 원칙)
     volatile bool _reqSaveCfg = false;
-    
+
     // ====================================================
     // [Phase 6-J] LED 컨트롤러
     // ====================================================
@@ -343,8 +346,6 @@ class CL_E10_EliteAirMouse {
     EN_E10_SnapAxis_t _snapActiveAxis      = E10_SNAP_NONE;
     EN_E10_SnapAxis_t _snapCandidate       = E10_SNAP_NONE;
     uint8_t           _snapCandidateFrames = 0;
-    
-
 
     // 하드코딩 액션 (자주 쓰는 슬롯)
     static const ST_C20_ActionSlot_t G_SLOT_MOUSE_L_HOLD;
@@ -367,8 +368,6 @@ class CL_E10_EliteAirMouse {
     bool setHardClickLock(bool p_enable);
     bool setSafeMode(bool p_enable);
     bool setOtaGuard(bool p_enable);
-
-    bool isSafeMode() const { return _safeMode; }
 
     // -------- diagnostics --------
     void getStatus(ST_E10_Status_t& p_out);
@@ -524,14 +523,11 @@ class CL_E10_EliteAirMouse {
     }
     
     static void _ledTask(void* p_pv);
-    TaskHandle_t _thLed = nullptr;
-    
     
     // ====================================================
     // [Phase 5 / 11.6] Action & Power 콜백
     // ====================================================
     static void _onBtnEvent(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
-    static void _onSpecial(void* p_ctx, uint8_t p_special);
     static void _onPowerWake(void* p_ctx);   // [Phase 11.6 / C-3]
     
     bool _enqueueAction(const ST_C20_ActionSlot_t& p_slot, bool p_isDown);

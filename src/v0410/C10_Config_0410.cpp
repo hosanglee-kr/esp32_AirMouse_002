@@ -203,38 +203,7 @@ bool CL_C10_Config::createProfile(const char* p_newName, uint8_t& p_outIdx) {
     return true;
 }
 
-bool CL_C10_Config::duplicateProfile(uint8_t p_srcIdx, const char* p_newName, uint8_t& p_outIdx) {
-    if (p_srcIdx >= _index.profileCount) return false;
-    if (_index.profileCount >= C10_DEF::PROFILE_MAX) return false;
 
-    ST_C10_ProfileConfig_t v_src;
-    if (!loadProfile(p_srcIdx, v_src)) return false;
-
-    const uint8_t v_newIdx = _index.profileCount;
-    if (p_newName && p_newName[0]) {
-        strlcpy(v_src.name, p_newName, sizeof(v_src.name));
-    } else {
-        // "src copy"
-        char v_buf[C10_DEF::PROFILE_NAME_LEN];
-        snprintf(v_buf, sizeof(v_buf), "%s copy", v_src.name);
-        v_buf[C10_DEF::PROFILE_NAME_LEN - 1] = '\0';
-        strlcpy(v_src.name, v_buf, sizeof(v_src.name));
-    }
-
-    if (!saveProfile(v_newIdx, v_src)) return false;
-
-    _index.profileCount = v_newIdx + 1;
-    if (!_saveIndex()) {
-        char v_p[64];
-        if (C10_DEF::makeProfilePath(v_p, sizeof(v_p), v_newIdx))
-            (void)LittleFS.remove(v_p);
-        _index.profileCount = v_newIdx;
-        return false;
-    }
-
-    p_outIdx = v_newIdx;
-    return true;
-}
 
 bool CL_C10_Config::deleteProfile(uint8_t p_idx) {
     if (_index.profileCount <= 1) return false;   // 최소 1개 유지

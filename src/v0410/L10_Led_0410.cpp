@@ -46,6 +46,11 @@ void CL_L10_Led::setBrightness(uint8_t p_b) {
     if (_state == EN_L10_ST_IDLE) _applyBase();
 }
 
+void CL_L10_Led::setFadeTimings(uint16_t p_fadeoutMs, uint16_t p_fadeinMs) {
+    _fadeoutMs = (p_fadeoutMs == 0) ? 1 : p_fadeoutMs;
+    _fadeinMs  = (p_fadeinMs  == 0) ? 1 : p_fadeinMs;
+}
+
 // =======================================================
 // 상태 제어
 // =======================================================
@@ -67,9 +72,6 @@ void CL_L10_Led::blink(EN_L10_Color_t p_color, uint16_t p_periodMs, uint16_t p_d
     _enterBlink(p_color, p_periodMs, p_durationMs, (uint32_t)millis());
 }
 
-void CL_L10_Led::stopBlink() {
-    if (_state == EN_L10_ST_BLINK) _enterIdle((uint32_t)millis());
-}
 
 void CL_L10_Led::fadeout(EN_L10_Color_t p_color, uint16_t p_ms) {
     _enterFadeout(p_color, p_ms, (uint32_t)millis());
@@ -92,52 +94,34 @@ void CL_L10_Led::suspend(ST_LedSnapshot_t& p_out) {
     p_out.stateStartMs  = _stateStartMs;
     p_out.blinkOn       = _blinkOn;
 
-    _enterOff();
+    // [B-1] RED fadeout → OFF (동기 대기, 최대 _fadeoutMs+200ms)
+    //   - _ledTask(Core 0, prio 1)가 병렬로 tick하며 상태 전이를 완료함
+    //   - 센서 태스크 블로킹이지만, 곧이어 sleepNow() 진입이므로 허용
+    _enterFadeout(EN_L10_COLOR_RED, _fadeoutMs, (uint32_t)millis());
+
+    const uint32_t v_deadline = (uint32_t)millis() + _fadeoutMs + 200;
+    while (_state == EN_L10_ST_FADEOUT &&
+           (int32_t)((uint32_t)millis() - v_deadline) < 0) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    if (_state != EN_L10_ST_OFF) _enterOff();
 }
+
 
 void CL_L10_Led::resume(const ST_LedSnapshot_t& p_in) {
     _baseColor = p_in.baseColor;
     _evtColor  = p_in.evtColor;
 
+    // 이전 상태가 OFF였으면 그대로 OFF 유지
     if (p_in.state == EN_L10_ST_OFF) {
         _enterOff();
         return;
     }
 
-    const uint32_t v_now = (uint32_t)millis();
-    const uint32_t v_elapsed = (v_now >= p_in.stateStartMs) ? (v_now - p_in.stateStartMs) : 0;
-
-    switch (p_in.state) {
-        case EN_L10_ST_IDLE:
-            _enterIdle(v_now);
-            break;
-        case EN_L10_ST_FLASH:
-            if (v_elapsed < p_in.stateDurMs) {
-                _state = EN_L10_ST_FLASH;
-                _evtColor = p_in.evtColor;
-                _stateStartMs = v_now - v_elapsed;
-                _stateDurMs = p_in.stateDurMs;
-                _apply(_evtColor, 255);
-            } else {
-                _enterIdle(v_now);
-            }
-            break;
-        case EN_L10_ST_BLINK:
-            if (p_in.stateDurMs == 0 || v_elapsed < p_in.stateDurMs) {
-                _state = EN_L10_ST_BLINK;
-                _evtColor = p_in.evtColor;
-                _blinkPeriodMs = p_in.blinkPeriodMs;
-                _stateDurMs = p_in.stateDurMs;
-                _stateStartMs = (p_in.stateDurMs == 0) ? v_now : (v_now - v_elapsed);
-                _blinkOn = p_in.blinkOn;
-            } else {
-                _enterIdle(v_now);
-            }
-            break;
-        default:
-            _enterIdle(v_now);
-            break;
-    }
+    // [B-2] OFF → base color 로 fadein (비동기, _ledTask가 FADEIN→IDLE 전이)
+    //   - 지속 상태(FLASH/BLINK)는 sleep과 겹치지 않으므로 IDLE 복원으로 충분
+    //   - 원본 stateStartMs/DurMs는 참고용으로 보존(디버깅 목적)하며 실 사용 안 함
+    _enterFadein(_baseColor, _fadeinMs, (uint32_t)millis());
 }
 
 // =======================================================

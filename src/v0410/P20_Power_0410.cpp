@@ -96,9 +96,6 @@ void CL_P20_Power::setConfig(const ST_Config_t& p_cfg) {
              (unsigned)_cfg.deep_idle_timeout_ms);
 }
 
-void CL_P20_Power::setIdleTimeout(uint32_t p_ms) {
-    _cfg.idle_timeout_ms[0] = p_ms;
-}
 
 // =======================================================
 // 활동 알림

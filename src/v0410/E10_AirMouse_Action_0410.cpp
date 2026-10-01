@@ -236,12 +236,6 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
     }
 }
 
-void CL_E10_EliteAirMouse::_onSpecial(void* p_ctx, uint8_t p_special) {
-    auto* v_m = (CL_E10_EliteAirMouse*)p_ctx;
-    if (!v_m) return;
-    v_m->_handleSpecial(p_special);
-}
-
 // =======================================================
 // Mode 전환
 // =======================================================
