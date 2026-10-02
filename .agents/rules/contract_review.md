@@ -7,12 +7,12 @@ description: AirMouse 프로젝트의 모든 코드 수정, 기능 추가, 코�
 
 이 프로젝트의 소스 코드(`.h`, `.cpp`)를 수정, 신규 기능 추가 또는 리뷰할 때는 **반드시** 아래 경로에 위치한 5대 지속 산출물(Persistent Artifacts)을 대조 기준으로 삼아 정합성을 검증해야 합니다.
 
-- 계약 문서 경로: `src/v0410/docs_v0410/contract_doc/`
-  1. `CONTRACT.md`: 모듈 경계, 호출 권한, FreeRTOS 큐 계약, 공유 변수 동기화 및 원자성 계약
-  2. `STATE.md`: 상태 변수 단독 소유권(Writer/Reader) 및 FSM(Click-Freeze, Snap, Precision, Macro) 명세
-  3. `FLOW.md`: 모션 파이프라인, 프로파일 전환 시퀀스, 액션/제스처 디스패치 흐름
-  4. `BUDGET.md`: FreeRTOS 태스크 주기(8ms/7ms/50ms), Worst-case 실행 시간, 블로킹 금지 규칙
-  5. `SPEC.md`: 요구사항 ID ↔ 구현 소스 추적성 매트릭스
+- 계약 문서 경로: `src/v0412/docs_v0412/contract_doc/`
+  1. `CONTRACT_0412.md`: 모듈 경계, 호출 권한, FreeRTOS 큐 계약, 공유 변수 동기화 및 원자성 계약
+  2. `STATE_0412.md`: 상태 변수 단독 소유권(Writer/Reader) 및 FSM(Click-Freeze, Snap, Precision, Macro) 명세
+  3. `FLOW_0412.md`: 모션 파이프라인, 프로파일 전환 시퀀스, 액션/제스처 디스패치 흐름
+  4. `BUDGET_0412.md`: FreeRTOS 태스크 주기(8ms/7ms/50ms), Worst-case 실행 시간, 블로킹 금지 규칙
+  5. `SPEC_0412.md`: 요구사항 ID ↔ 구현 소스 추적성 매트릭스
 
 ---
 

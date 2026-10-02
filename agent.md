@@ -31,8 +31,8 @@
 ## 2. 📂 활성 소스 코드 및 디렉터리 체계
 
 > [!IMPORTANT]
-> **현재 활성(Active) 릴리스 버전은 `v0410` 입니다.**
-> 모든 신규 기능 구현, 버그 수정, 설정 관리는 `src/v0410/` 디렉터리 내의 파일들을 대상으로 해야 합니다. (레거시 `v001` ~ `v0400` 폴더는 참조용이며 빌드에서 제외됨)
+> **현재 활성(Active) 릴리스 버전은 `v0412` 입니다.**
+> 모든 신규 기능 구현, 버그 수정, 설정 관리는 `src/v0412/` 디렉터리 내의 파일들을 대상으로 해야 합니다. (레거시 `v001` ~ `v0410` 폴더는 참조용이며 빌드에서 제외됨)
 
 ```text
 esp32_AirMouse_002/
@@ -42,38 +42,39 @@ esp32_AirMouse_002/
 ├── README.md                # 전체 프로젝트 사양 및 설명서
 ├── src/
 │   ├── main.cpp             # 펌웨어 진입점, W10-E10 브릿지 콜백, 루프 감시
-│   └── v0410/               # [★ 최신 활성 코드베이스]
-│       ├── A40_ComFunc_0410.h           # 공용 유틸리티 및 헬퍼 함수
-│       ├── B20_Ble_0410.h / .cpp        # NimBLE 기반 HID Composite 제어
-│       ├── C10_Def_0410.h               # 설정 데이터 구조체 (ST_C10_Config_t 등)
-│       ├── C10_Config_0410.h / .cpp     # LittleFS 원자적 JSON 저장/로드
-│       ├── C20_Action_0410.h            # 액션 ID, 레지스트리 정의
-│       ├── C20_ActionExec_0410.h / .cpp # 액션 실행기 (HID 커맨드 생성)
-│       ├── C20_BtnDispatcher_0410.h/.cpp# 물리 버튼 상태 처리 및 슬롯 매핑
-│       ├── D10_Logger_0410.h            # 고속 링버퍼 기반 로거 & 시스템 진단
-│       ├── E10_Def_0410.h               # 에어마우스 상태/큐/모드 정의
-│       ├── E10_AirMouse_0410.h          # 에어마우스 메인 클래스 선언
-│       ├── E10_AirMouse_Core_0410.cpp   # 초기화, FSM, 생명주기 관리
-│       ├── E10_AirMouse_Hid_0410.cpp    # BLE HID 큐 소비 및 전송
-│       ├── E10_AirMouse_Motion_0410.cpp # IMU 읽기 및 좌표 계산
-│       ├── E10_AirMouse_Diag_0410.cpp   # 진단, 바이어스 캘리브레이션
-│       ├── E10_AirMouse_Task_0410.cpp   # RTOS 태스크 진입점 및 스케줄링
-│       ├── E10_AirMouse_Action_0410.cpp # 특수 액션 실행 (모드 전환 등)
-│       ├── L10_Led_0410.h / .cpp        # WS2812 NeoPixel 비동기 제어
-│       ├── M10_MotionProc_0410.h        # 자이로 필터링 및 가속 곡선 엔진
-│       ├── M20_BiasTracker_0410.h       # 실시간 제로 레이트 바이어스 추적기
-│       ├── M30_Gesture_0410.h / .cpp    # 3계층 제스처 인식 엔진
-│       ├── P20_Power_0410.h / .cpp      # Light-sleep, WoM 전원 관리
-│       ├── W10_Def_0410.h               # 웹 서버 데이터 구조체/상수
-│       ├── W10_Web_0410.h               # AsyncWebServer 관리자
-│       ├── W10_Web_init_0410.cpp        # WiFi AP/STA 및 서버 초기화
-│       ├── W10_Web_Static_0410.cpp      # 정적 웹 파일(Gzip) 라우팅
+│   └── v0412/               # [★ 최신 활성 코드베이스]
+│       ├── A40_ComFunc_0412.h           # 공용 유틸리티 및 헬퍼 함수
+│       ├── B20_Ble_0412.h / .cpp        # NimBLE 기반 HID Composite 제어
+│       ├── C10_Def_0412.h               # 설정 데이터 구조체 (ST_C10_Config_t 등)
+│       ├── C10_Config_0412.h / .cpp     # LittleFS 원자적 JSON 저장/로드
+│       ├── C20_Action_0412.h            # 액션 ID, 레지스트리 정의
+│       ├── C20_ActionExec_0412.h / .cpp # 액션 실행기 (HID 커맨드 생성)
+│       ├── C20_BtnDispatcher_0412.h/.cpp# 물리 버튼 상태 처리 및 슬롯 매핑
+│       ├── D10_Logger_0412.h            # 고속 링버퍼 기반 로거 & 시스템 진단
+│       ├── E10_Def_0412.h               # 에어마우스 상태/큐/모드 정의
+│       ├── E10_AirMouse_0412.h          # 에어마우스 메인 클래스 선언
+│       ├── E10_AirMouse_Core_0412.cpp   # 초기화, FSM, 생명주기 관리
+│       ├── E10_AirMouse_Hid_0412.cpp    # BLE HID 큐 소비 및 전송
+│       ├── E10_AirMouse_Motion_0412.cpp # IMU 읽기 및 좌표 계산
+│       ├── E10_AirMouse_Diag_0412.cpp   # 진단, 바이어스 캘리브레이션
+│       ├── E10_AirMouse_Task_0412.cpp   # RTOS 태스크 진입점 및 스케줄링
+│       ├── E10_AirMouse_Action_0412.cpp # 특수 액션 실행 (모드 전환 등)
+│       ├── L10_Led_0412.h / .cpp        # WS2812 NeoPixel 비동기 제어
+│       ├── M10_MotionProc_0412.h        # 자이로 필터링 및 가속 곡선 엔진
+│       ├── M20_BiasTracker_0412.h       # 실시간 제로 레이트 바이어스 추적기
+│       ├── M30_Gesture_0412.h / .cpp    # 3계층 제스처 인식 엔진
+│       ├── P20_Power_0412.h / .cpp      # Light-sleep, WoM 전원 관리
+│       ├── W10_Def_0412.h               # 웹 서버 데이터 구조체/상수
+│       ├── W10_Web_0412.h               # AsyncWebServer 관리자
+│       ├── W10_Web_init_0412.cpp        # WiFi AP/STA 및 서버 초기화
+│       ├── W10_Web_Static_0412.cpp      # 정적 웹 파일(Gzip) 라우팅
 │       ├── W10_WebApi_*.cpp             # 모듈별 REST API 라우트
-│       ├── data_v0410/                  # LittleFS에 플래시될 파일 (index.html.gz 등)
-│       ├── docs_v0410/                  # v0410 상세 요구사항 및 기술 사양서
+│       ├── data_v0412/                  # LittleFS에 플래시될 파일 (index_0412.html.gz 등)
+│       ├── docs_v0412/                  # v0412 상세 요구사항 및 기술 사양서
+│       │   ├── contract_doc/            # CONTRACT_0412.md 등 5대 불변 계약 문서
 │       │   ├── Req_ImplPlan/            # 요구사항 정의서 & 구현 계획서
-│       │   └── SPEC_Manual/             # 00.SPEC_0410_001.md, 사용자 매뉴얼
-│       └── tools_v0410/                 # 빌드 보조 스크립트 (pio_gzip_0410.py)
+│       │   └── SPEC_Manual/             # 00.SPEC_0412_002.md, 00.UserManual_0412_003.md
+│       └── tools_v0412/                 # 빌드 보조 스크립트 (pio_gzip_0412.py)
 ```
 
 ---
@@ -162,19 +163,19 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
 ### ⚠️ 동기화 필수 준수 사항
 1. **HID 직접 접근 금지**: Web 태스크나 메인 루프에서 HID 함수를 직접 부르면 패닉이 발생할 수 있습니다. 반드시 커맨드 큐를 경유해야 합니다.
 2. **Special 액션 단독 실행 권한**: 모드 변경, 센서 캘리브레이션, 세이프모드 전환 등 시스템 상태를 흔드는 작업은 오직 `_sensorTask`에서만 처리합니다.
-3. **E10 모듈 분할 보존**: E10 관련 코드는 기능에 따라 분할된 7개 파일(`Core`, `Hid`, `Motion`, `Diag`, `Task`, `Action`, `_0410.cpp`)에 맞추어 작성되어야 하며, 임의로 단일 거대 파일로 합치지 마십시오.
+3. **E10 모듈 분할 보존**: E10 관련 코드는 기능에 따라 분할된 7개 파일(`Core`, `Hid`, `Motion`, `Diag`, `Task`, `Action`, `_0412.cpp`)에 맞추어 작성되어야 하며, 임의로 단일 거대 파일로 합치지 마십시오.
 
 ---
 
 ## 6. 🤖 AI 에이전트 수정 워크플로우 (계약 기반 리뷰)
 
 1. **지속 산출물 대조 검토 (Contract Validation)**:
-   - 코드 수정 전 `src/v0410/docs_v0410/contract_doc/`의 5대 산출물 대조:
-     - `CONTRACT.md` (모듈 경계, HID 단일 제어권, Special 격리, 큐 non-blocking)
-     - `STATE.md` (상태 단독 소유권, FSM 규칙)
-     - `FLOW.md` (8ms 모션 파이프라인, 프로파일 스위치 흐름)
-     - `BUDGET.md` (태스크 주기 8ms/7ms/50ms, 블로킹 금지)
-     - `SPEC.md` (요구사항 ID 매핑)
+   - 코드 수정 전 `src/v0412/docs_v0412/contract_doc/`의 5대 산출물 대조:
+     - `CONTRACT_0412.md` (모듈 경계, HID 단일 제어권, Special 격리, 큐 non-blocking)
+     - `STATE_0412.md` (상태 단독 소유권, FSM 규칙)
+     - `FLOW_0412.md` (8ms 모션 파이프라인, 프로파일 스위치 흐름)
+     - `BUDGET_0412.md` (태스크 주기 8ms/7ms/50ms, 블로킹 금지)
+     - `SPEC_0412.md` (요구사항 ID 매핑)
 2. **코드 변경 시**:
    - 명명 규칙(`G_`, `g_`, `CL_`, `ST_`, `EN_`, `_`, `v_`, `p_`) 엄수
    - FreeRTOS 태스크 간 데이터 전달 시 큐 경유 여부 점검 (timeout=0)
@@ -182,18 +183,28 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
 3. **검증 및 빌드**:
    - PlatformIO 빌드 명령어로 문법/링크 오류 없음 확인:
      `pio run -e esp32-s3-zero`
-4. **지식 베이스 동기화**:
-   - 코드 변경 후 `graphify update .` 실행
+### 5. 버전 업그레이드 시 동기화 체크리스트 (Version Bump Protocol)
+펌웨어 버전(예: `v0410` → `v0412`)이 변경될 때는 소스 코드뿐만 아니라 아래 산출물을 반드시 함께 갱신해야 합니다:
+1. **GitHub Actions CI/CD 워크플로우**:
+   - [`.github/workflows/ci_1_build_010.yml`](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/.github/workflows/ci_1_build_010.yml)의 paths 트리거, staging 디렉터리 검증, gzip 스크립트 경로를 새 버전 경로(`src/v{VER}/...`)로 현행화.
+2. **에이전트 규칙 및 스킬/워크플로우 문서**:
+   - [`.agents/rules/contract_review.md`](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/.agents/rules/contract_review.md) 내 계약 산출물 경로 및 파일명(`*_0412.md`).
+   - 스킬 및 에이전트 지침서([`agent.md`](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/agent.md))의 활성 디렉터리, 파일 테이블, 계약 문서 목록.
+3. **계약 문서 (5대 산출물)**:
+   - `src/v{VER}/docs_v{VER}/contract_doc/` 내부 파일명(`*_0412.md`) 및 파일 간 상호 참조 링크 동기화.
+4. **지식 베이스(Graphify) 갱신**:
+   - `graphify update .`를 실행하여 새로운 버전 트리 및 변경된 AST 노드 반영.
 
 ---
 
-## 7. 🚀 v0410 다중 프로파일 & 매크로 라이브러리 구현 현황 (완료)
+## 7. 🚀 v0412 릴리스 정리 및 현행화 현황 (완료)
 
-| 마일스톤 | 대상 모듈 | 구현 내용 | 상태 |
+| 항목 | 대상 모듈 | 정리 및 현행화 내용 | 상태 |
 |---|---|---|:---:|
-| **M1: 스키마 & 모델** | `C10_Config`, `C20_Action` | Schema v5 데이터 구조 정의, Profile CRUD(최대 5개), MacroLib(8×8), 27개 고정 트리거(4개 잠금 비트), LittleFS 원자적 I/O | ✅ 완료 |
-| **M2: 백엔드 런타임** | `E10_AirMouse_*` | 프로파일 동적 스위칭/재로드, Global+Override 2단 슬롯 리졸버(`_resolveSlot`), 10ms 단위 비동기 안전 취소 매크로 시퀀서(`_runMacro`), Live Test 지원 | ✅ 완료 |
-| **M3: REST API & 브릿지** | `W10_Web*`, `main.cpp` | `/api/profiles/*`, `/api/triggers`, `/api/action/test`, `/api/action/test_macro` 구현, SafeMode Guard 연동, E10 브릿지 확장 | ✅ 완료 |
-| **M4: Web UI 3-View** | `data_v0410_www/` | `index_0410.html`, `style_0410.css`, `app_0410.002.js` 전면 개편. Online/Offline 모드(상수 및 모킹), Profile Bar, Slot Editor(Global/M1/M2/M3), Macro Editor(8×8, 순서이동, 딜레이), Config/Diag 연동 | ✅ 완료 |
-| **검증 & 빌드** | PlatformIO / Graphify | `pio run -e esp32-s3-zero` 빌드 성공 (RAM 40.9%, Flash 45.5%), `graphify update .` 최신화 완료 | ✅ 완료 |
+| **디렉터리 및 소스** | `src/v0412/` | `v0410`에서 `v0412`로 버전 업그레이드 복사 및 38개 파일/폴더명, 심볼, 인클루드 전수 현행화 | ✅ 완료 |
+| **빌드 환경** | `platformio.ini`, `main.cpp` | `data_dir = ./src/v0412/data_v0412`, `src_filter = +<v0412/> -<v0410/>`, `extra_scripts` 및 `main.cpp` 인클루드/로그 전환 | ✅ 완료 |
+| **Web UI & 번들** | `data_v0412_www/`, `data_v0412/` | HTML/CSS/JS 및 manifest/schema v0412 동기화, Gzip 사전 스테이징 검증 | ✅ 완료 |
+| **계약 산출물** | `docs_v0412/contract_doc/` | 5대 문서(CONTRACT, STATE, FLOW, BUDGET, SPEC) rev5 Round 2/3 조치 및 v0412 경로 현행화 | ✅ 완료 |
+| **검증 & 빌드** | PlatformIO / Graphify | `platformio run -e esp32-s3-zero` 빌드 성공 (RAM 41.1%, Flash 45.9%), `graphify update .` 지식 그래프 갱신 (18,363 노드) | ✅ 완료 |
+
 

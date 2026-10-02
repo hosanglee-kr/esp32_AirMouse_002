@@ -5,10 +5,10 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-#include "v0410/A40_ComFunc_0410.h" // 내부에서 D10_Logger_0410.h 포함
-#include "v0410/C10_Config_0410.h"
-#include "v0410/E10_AirMouse_0410.h"
-#include "v0410/W10_Web_0410.h"
+#include "v0412/A40_ComFunc_0412.h" // 내부에서 D10_Logger_0412.h 포함
+#include "v0412/C10_Config_0412.h"
+#include "v0412/E10_AirMouse_0412.h"
+#include "v0412/W10_Web_0412.h"
 
 static CL_C10_Config        g_cfg;
 static CL_E10_EliteAirMouse g_e10;
@@ -193,7 +193,7 @@ void setup() {
 
     g_w10.begin(&g_cfg, &g_w10E10If);
     
-    D10_LOGI("[0410] started");
+    D10_LOGI("[0412] started");
 
     g_bootOkDone = false;
 }
@@ -203,7 +203,7 @@ void loop() {
     if (!g_bootOkDone) {
         if (g_cfg.bootMarkOkIfGracePassed(G_BOOT_GRACE_MS)) {
             g_bootOkDone = true;
-            D10_LOGI("[0410] boot grace passed -> boot ok marked");
+            D10_LOGI("[0412] boot grace passed -> boot ok marked");
         }
     }
 
