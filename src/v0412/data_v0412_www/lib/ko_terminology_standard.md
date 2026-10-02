@@ -25,7 +25,7 @@
 | Device Config | Device Config |
 | Config | Config |
 | 진단 | 진단 |
-| Diagnostics | Diagnostics |
+| Diagnostics | 진단 |
 | 로그 | 로그 |
 | Recent Events | Recent Events |
 | 펌웨어 업데이트 | 펌웨어 업데이트 |
@@ -34,11 +34,11 @@
 | Uptime | Uptime |
 | 여유 메모리 | 여유 메모리 |
 | Heap Free | Heap Free |
-| 와이파이 연결 | 와이파이 연결 |
+| 와이파이 연결 | Wi-Fi 연결 |
 | Wi-Fi | Wi-Fi |
 | 빠른 제어 | 빠른 제어 |
 | Quick Control | Quick Control |
-| 발표 모드 | 발표 모드 |
+| 발표 모드 | Presentation 모드 |
 | 일반 마우스 | 일반 마우스 |
 | 스마트 TV | 스마트 TV |
 | 미디어 | 미디어 |
@@ -54,18 +54,18 @@
 | 정밀 모드 | 정밀 모드 |
 | Precision | Precision |
 | 안전 모드 | 안전 모드 |
-| SafeMode | SafeMode |
+| SafeMode | 안전 모드 |
 | 연결 기기 전환 | 연결 기기 전환 |
 | 호스트 순환 | 호스트 순환 |
-| SafeBoot 상태 | SafeBoot 상태 |
-| SafeBoot 해제 | SafeBoot 해제 |
-| SafeBoot | SafeBoot |
+| SafeBoot 상태 | 안전 부팅 상태 |
+| SafeBoot 해제 | 안전 부팅 해제 |
+| SafeBoot | 안전 부팅 |
 | 공장 초기화 | 공장 초기화 |
-| Factory Reset | Factory Reset |
+| Factory Reset | 공장 초기화 |
 | 기본 공통 | 기본 공통 |
 | Global | Global |
 | 프레젠테이션 | 프레젠테이션 |
-| 트리거 | 트리거 |
+| 트리거 | Trigger |
 | Button Triggers | Button Triggers |
 | 제스처 | 제스처 |
 | 공중 털기 | 공중 털기 |
@@ -82,7 +82,7 @@
 | 하드 클릭 | 하드 클릭 |
 | 상태 표시등 | 상태 표시등 |
 | LED 밝기 | LED 밝기 |
-| WS2812 | WS2812 |
+| WS2812 | LED |
 | 가속 시작 속도 | 가속 시작 속도 |
 | 가속 곡선 | 가속 곡선 |
 | 임계값 | 임계값 |
@@ -93,7 +93,7 @@
 | 재발생 방지 대기시간 | 재발생 방지 대기시간 |
 | Cooldown | Cooldown |
 | 커서 동결 | 커서 동결 |
-| Click-Freeze | Click-Freeze |
+| Click-Freeze | 커서 동결 |
 | 정지 판정 | 정지 판정 |
 | 각속도 | 각속도 |
 | 동결 유지 | 동결 유지 |
@@ -134,11 +134,11 @@
 | 뗌 튕김 방지 | 뗌 튕김 방지 |
 | 단일 클릭 | 단일 클릭 |
 | 더블클릭 | 더블클릭 |
-| 길게 누름 | 길게 누름 |
+| 길게 누름 | Long-Press |
 | Long-Press | Long-Press |
 | 미세 글리치 | 미세 글리치 |
 | 모션 프리셋 | 모션 프리셋 |
-| 프리셋 | 프리셋 |
+| 프리셋 | Preset |
 | Preset | Preset |
 | 카운터 초기화 | 카운터 초기화 |
 | 자동 갱신 | 자동 갱신 |
@@ -146,7 +146,7 @@
 | 단발 키 전송 | 단발 키 전송 |
 | Key Test | Key Test |
 | 키보드 일반 | 키보드 일반 |
-| KB | KB |
+| KB | 키보드 |
 | 미디어 키 | 미디어 키 |
 | Consumer | Consumer |
 | 조합키 | 조합키 |
@@ -168,7 +168,7 @@
 | 닫기 | 닫기 |
 | 테스트 | 테스트 |
 | 되돌리기 | 되돌리기 |
-| 재로드 | 재로드 |
+| 재로드 | Reload |
 | Reload | Reload |
 | 삭제 | 삭제 |
 | 생성 | 생성 |
