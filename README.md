@@ -1,58 +1,55 @@
-# 📝 AirMouse Elite S3 (v0320) 기술 사양서 & AI 컨텍스트
+# 📝 AirMouse Elite S3 (v0410) 종합 가이드 & 기술 사양서
 
-본 문서는 **ESP32-S3-Zero** 및 **MPU6050 6축 IMU** 기반 에어마우스 플랫폼의 최신(**v0320**) 소스 코드 기준 기술 사양 및 개발 가이드라인입니다.
+> **ESP32-S3-Zero** 및 **MPU6050 6축 IMU** 기반 에어마우스 플랫폼의 **v0410** 정식 배포 기준 기술 사양 및 개발 가이드라인입니다.
+> 
+> **핵심 아키텍처:** 다중 프로파일(최대 5개) × 8×8 매크로 라이브러리 × Global/Mode 2단 슬롯 매트릭스(27개 고정 트리거) × Web UI 3-View 통합
 
-* **소스 파일 버전 접미사**: `_0320` 통일 (Config, Sensor, Motion, Web, API 전체 일괄 적용)
+* **소스 파일 버전 접미사**: 백엔드 `_0410` 통일 / 프론트엔드 `_0411` (7-모듈 구조)
+* **스키마 버전**: Schema v5 (**`G_C10_CFG_VER = 410`**)
+* **API 버전**: `G_W10_API_VER = 410`
 
 ---
 
 ## 📑 목차 (Table of Contents)
 
 1. [AI 어시스턴트를 위한 핵심 요약 (Read First)](#1-ai-어시스턴트를-위한-핵심-요약-read-first)
-2. [프로젝트 개요](#2-프로젝트-개요)
+2. [프로젝트 개요 & 핵심 특징](#2-프로젝트-개요--핵심-특징)
 3. [시스템 아키텍처](#3-시스템-아키텍처)
    - [FreeRTOS 태스크 모델](#31-freertos-태스크-모델)
    - [데이터 흐름 및 파이프라인](#32-데이터-흐름-및-파이프라인)
    - [상태 소유권 및 동기화 매트릭스](#33-상태-소유권-및-동기화-매트릭스)
    - [Mutex 동기화 정책](#34-mutex-동기화-정책)
 4. [프로젝트 디렉터리 구조](#4-프로젝트-디렉터리-구조)
-   - [E10 모듈 6파일 분할 기준](#41-e10-모듈-6파일-분할-기준)
-5. [빌드 시스템 (PlatformIO)](#5-빌드-시스템-platformio)
+   - [E10 모듈 7파일 분할 기준](#41-e10-모듈-7파일-분할-기준)
+   - [프론트엔드 7-모듈 구조](#42-프론트엔드-7-모듈-구조)
+5. [빌드 시스템 (PlatformIO CLI)](#5-빌드-시스템-platformio-cli)
 6. [명명 규칙 & 코드 정책](#6-명명-규칙--코드-정책)
    - [명명 규칙 (Strict Naming Conventions)](#61-명명-규칙-strict-naming-conventions)
    - [ArduinoJson v7 전용 코딩 정책](#62-arduinojson-v7-전용-코딩-정책)
-   - [문자열 및 버퍼 관리 정책](#63-문자열-및-버퍼-관리-정책)
-   - [안전 원자적 IO 정책 (Atomic Storage)](#64-안전-원자적-io-정책-atomic-storage)
-7. [핵심 기능 상세 사양](#7-핵심-기능-상세-사양)
-   - [1. 물리 모션 엔진 (`M10_MotionProc_0320`)](#71-물리-모션-엔진-m10_motionproc_0320)
-   - [2. Precision Mode FSM](#72-precision-mode-fsm)
-   - [3. 자이로 캘리브레이션](#73-자이로-캘리브레이션)
-   - [4. RTOS 큐 파이프라인](#74-rtos-큐-파이프라인)
-   - [5. PPT 제스처 및 Keymap v2](#75-ppt-제스처-및-keymap-v2)
-   - [6. SafeBoot 및 OTA Guard](#76-safeboot-및-ota-guard)
-   - [7. Config 영속화 메커니즘](#77-config-영속화-메커니즘)
-   - [8. 웹 커스터마이징 및 REST API](#78-웹-커스터마이징-및-rest-api)
-8. [하드웨어 사양 및 핀맵](#8-하드웨어-사양-및-핀맵)
-9. [운용 및 사용 가이드](#9-운용-및-사용-가이드)
-   - [9.1. 하드웨어 버튼 및 제스처 운용](#91-하드웨어-버튼-및-제스처-운용)
-   - [9.2. 웹 UI 기능 및 원격 제어 가이드](#92-웹-ui-기능-및-원격-제어-가이드)
-10. [시스템 진단 지표](#10-시스템-진단-지표)
-11. [주의사항](#11-주의사항)
-12. [프로젝트 구조 요약 테이블](#12-프로젝트-구조-요약-테이블)
-13. [리팩터링 이력 (Phase 1 ~ Track 5)](#13-리팩터링-이력-phase-1--track-5)
-14. [알려진 유보 이슈 (Known Deferred Issues)](#14-알려진-유보-이슈-known-deferred-issues)
-15. [버전별 사양 변경 비교 (v0.0.6 vs v0320)](#15-버전별-사양-변경-비교-v006-vs-v0320)
-16. [프로젝트 핵심 설계 철학](#16-프로젝트-핵심-설계-철학)
+   - [안전 원자적 IO 정책 (Atomic Storage)](#63-안전-원자적-io-정책-atomic-storage)
+7. [v0410 핵심 기능 상세 사양](#7-v0410-핵심-기능-상세-사양)
+   - [7.1. 3-Mode 시스템 (PC / PPT / TV)](#71-3-mode-시스템-pc--ppt--tv)
+   - [7.2. 2단 슬롯 매트릭스 (Global + Mode Override)](#72-2단-슬롯-매트릭스-global--mode-override)
+   - [7.3. 4대 필수 슬롯 잠금 (🔒)](#73-4대-필수-슬롯-잠금-)
+   - [7.4. 8×8 매크로 라이브러리 & 안전 취소 시퀀서](#74-88-매크로-라이브러리--안전-취소-시퀀서)
+   - [7.5. M10 물리 모션 엔진 & M30 제스처](#75-m10-물리-모션-엔진--m30-제스처)
+   - [7.6. Front Hold 스크롤](#76-front-hold-스크롤)
+   - [7.7. SafeBoot & OTA Guard (method-aware)](#77-safeboot--ota-guard-method-aware)
+   - [7.8. 다중 프로파일 시스템 (Schema v5)](#78-다중-프로파일-시스템-schema-v5)
+   - [7.9. REST API 사양](#79-rest-api-사양)
+8. [Web UI 3-View 프론트엔드 가이드](#8-web-ui-3-view-프론트엔드-가이드)
+9. [하드웨어 사양 및 핀맵](#9-하드웨어-사양-및-핀맵)
+10. [리팩터링 이력 (Phase 1 ~ Phase 11)](#10-리팩터링-이력-phase-1--phase-11)
 
 ---
 
 ## 1. 📌 AI 어시스턴트를 위한 핵심 요약 (Read First)
 
 > [!IMPORTANT]
-> 본 프로젝트의 코드를 수정하거나 기능을 추가하기 전, 반드시 다음 **6가지 핵심 규칙**을 숙지해야 합니다.
+> 본 프로젝트의 코드를 수정하거나 기능을 추가하기 전, 반드시 다음 **10가지 핵심 규칙**을 숙지해야 합니다.
 
 1. **모듈 약어 체계**:
-   - `A40`(공용 유틸), `C10`(설정 관리), `D10`(로거/진단), `E10`(에어마우스 핵심), `M10`(모션 물리엔진), `W10`(웹서버/API).
+   - `A40`(공용 유틸), `B20`(BLE), `C10`(설정/프로파일), `C20`(Action/버튼), `D10`(로거/진단), `E10`(에어마우스 핵심), `L10`(LED), `M10`(모션 물리엔진), `M20`(BiasTracker), `M30`(제스처), `P20`(전원), `W10`(웹서버/API).
    - 각 접두사는 파일명, 클래스명, 전역 심볼에 일관되게 반영되어야 합니다.
 2. **엄격한 명명 규칙 준수**:
    - 전역 상수 `G_`, 전역 변수 `g_`, 클래스 `CL_`, 구조체 `ST_`, 열거형 `EN_`, private 멤버 `_` 접두사, 로컬 변수 `v_` 접두사, 매개변수 `p_` 접두사.
@@ -61,27 +58,40 @@
    - 오직 `JsonDocument` 단일 타입만 허용합니다.
    - `containsKey`, `createNestedArray`, `createNestedObject`, `StaticJsonDocument`, `DynamicJsonDocument` 사용 절대 금지.
    - 중첩 구조 접근 시 `doc["a"]["b"].to<JsonObject>()` 패턴을 사용합니다.
-4. **E10 모듈 6파일 분할**:
-   - 헤더(`.h`) + `Core` / `Hid` / `Motion` / `Diag` / `Task_0320.cpp`로 분할되어 있습니다. 기능 수정/추가 시 반드시 역할에 맞는 cpp 파일을 선택해야 합니다.
+4. **E10 모듈 7파일 분할 유지**:
+   - 헤더(`.h`) + `Core`, `Hid`, `Motion`, `Diag`, `Task`, `Action_0410.cpp`로 분할되어 있습니다. 기능 수정/추가 시 반드시 역할에 맞는 cpp 파일을 선택해야 합니다.
 5. **태스크 및 상태 소유권 절대 준수**:
    - `_sensorTask`(Core 1)와 `_commTask`(Core 0)는 FreeRTOS 큐로만 통신합니다.
    - 웹 태스크(AsyncWebServer)는 HID 드라이버에 직접 접근할 수 없으며 반드시 커맨드 큐(`_qHidCmd`)를 경유해야 합니다.
-6. **리팩터링 컨텍스트 유지**:
-   - Phase 1~4 (E10 핵심 수정), Track 2 (JSON/JS 정합), Track 3 (W10 점검)을 완료한 상태입니다. 신규 변경 사항은 반드시 기존 리팩터링 설계 위에서 진행되어야 합니다.
+   - `Special` 액션은 오직 `_sensorTask`에서만 단독 실행합니다.
+6. **다중 프로파일 시스템 (v0410)**:
+   - 최대 5개 프로파일(0~4). 단일 `config_0410.json`은 폐기되었으며, `/json/active_profile.json` (인덱스) 및 `/json/profiles/profile_N.json` 디렉토리 기반 원자적 IO로 동작합니다.
+7. **2단 슬롯 매트릭스 & 리졸버**:
+   - 27개 고정 트리거(Button 15개, Flick 4개, Linear 4개, Tilt Hold 4개)에 대해 `Global` 공통 기본값과 `Mode 1~3` 모드별 오버라이드를 분리하여 `_resolveSlot(mode, trigIdx)`로 해석합니다. **`_resolveSlot`은 `_lock()` 하에 스냅샷** (프로파일 스위치 중 부분 갱신 방지).
+8. **8×8 매크로 라이브러리 & 비동기 상태머신**:
+   - 프로파일당 최대 8개 매크로 × 8개 Step(0~2000ms delay). **commTask 블로킹 없이** `_startMacro()` (스냅샷) + `_tickMacro()` (상태머신) 방식으로 실행.
+   - **취소는 `_macroAbortToken` 카운터 방식** (bool 재실행 초기화 경합 제거).
+9. **4대 필수 슬롯 잠금 (🔒)**:
+   - S1(좌클릭), S5(무브게이트), S12(모드순환), S13(BLE페어링)은 브릭 방지를 위해 서버 및 클라이언트 양측에서 수정이 원천 차단됩니다.
+10. **프론트엔드 7-모듈 구조 (`_0411`)**:
+    - `am_base` → `am_offline` → `am_profile` → `am_macro` → `am_config` → `am_status` → `app_0411_0001` 순 로드. 모든 파일명은 `_NNNN` 규칙 준수(immutable 캐시).
 
 ---
 
-## 2. 🎯 프로젝트 개요
+## 2. 🎯 프로젝트 개요 & 핵심 특징
 
-ESP32-S3-Zero와 MPU6050을 기반으로 마우스패드 없이 공중에서 3차원 움직임을 감지하는 자이로 전용 공간 포인팅 에어마우스입니다. BLE HID Composite(Mouse + Keyboard) 인터페이스를 통해 호스트 기기에 연결되며, 내장 웹 서버를 통해 실시간 파라미터 튜닝 및 진단 기능을 제공합니다.
+ESP32-S3-Zero와 MPU6050을 기반으로 마우스패드 없이 공중에서 3차원 움직임을 감지하는 자이로 전용 공간 포인팅 에어마우스입니다. BLE HID Composite(Mouse + Keyboard + Consumer) 인터페이스를 통해 PC/Mac/스마트TV에 연결되며, 내장 웹 서버를 통해 3-View 실시간 커스터마이징을 제공합니다.
 
 ### 🌟 핵심 특징
-* **자이로 기반 공간 포인팅**: 상보 필터 + 시그모이드(Sigmoid) 가속 곡선 + 적응형 LPF 탑재.
-* **Precision 안정화 FSM**: 미세 포인팅 보정을 위한 5개 프로파일 × 4개 상태 머신.
-* **PPT 제스처 & Keymap v2**: 손목 Yaw Flick 감지 및 커스텀 키맵(Keyboard / Consumer 추상화) 지원.
-* **SafeBoot / OTA Guard**: 부팅 실패 카운트 기반 브릭 방지 및 펌웨어 업데이트 중 오동작 차단.
-* **실시간 웹 설정/진단 UI**: 30개 이상의 REST API를 통한 파라미터 실시간 조정 및 모니터링.
-* **원자적(Atomic) 설정 영속화**: 임시 파일 검증 및 `.bak` 자동 롤백을 통한 Flash 무결성 보장.
+* **다중 프로파일 시스템 (Schema v5, `ver=410`)**: 최대 5개 독립 프로파일(작업/게임/발표/미디어 등) 지원, 인덱스 기반 원자적 스위칭.
+* **Global + Override 2단 슬롯 매트릭스**: 27개 고정 트리거 대상 Global 공통 기본값 + Mode 1~3(PC/PPT/TV) 오버라이드 마스크 운용. `_resolveSlot`은 락 보호.
+* **8×8 매크로 라이브러리 (비동기)**: 최대 8개 매크로, 각 8단계(키/마우스/소비자키 + 0~2000ms 딜레이). commTask 블로킹 없는 상태머신 + 토큰 기반 취소.
+* **4대 필수 기능 잠금 🔒**: 좌클릭/포인팅게이트/모드순환/BLE페어링 수정 차단으로 조작 불능(브릭) 원천 방지.
+* **3-Mode 시스템**: PC(1: 파랑) / Presentation(2: 초록) / Smart TV(3: 주황) 상황별 슬롯 매트릭스 자동 매핑.
+* **자이로 기반 공간 포인팅**: 상보 필터 + 시그모이드(Sigmoid) 가속 곡선 + 적응형 LPF + Zero Snap 탑재.
+* **제스처 3계층 & Front Hold**: Flick (P2P) / Linear (임펄스) / Tilt Hold (Mode 3 전용 D-Pad) 및 Side F 스크롤(커서 감쇠 + 휠/팬).
+* **SafeBoot / OTA Guard**: 부팅 실패 카운트 기반 브릭 방지, method-aware API 게이트, OTA 중 HID 차단.
+* **Web UI 3-View 프론트엔드**: Profile Bar, Slot Editor, Macro Editor, Config, Diag/OTA 통합 (7-모듈 + 오프라인 시뮬레이터).
 
 ---
 
@@ -91,190 +101,204 @@ ESP32-S3-Zero와 MPU6050을 기반으로 마우스패드 없이 공중에서 3�
 
 | 태스크명 | 할당 Core | 우선순위 (Priority) | 실행 주기 | 스택 크기 (Stack) | 주요 역할 |
 |:---|:---:|:---:|:---:|:---:|:---|
-| `_sensorTask` | Core 1 | 3 | 8ms (125Hz) | 8192 B | IMU 읽기, FSM 처리, 모션 계산, 프레임/커맨드 생성 |
-| `_commTask` | Core 0 | 2 | 7ms | 4096 B | 큐 소비 $\rightarrow$ BLE HID 전송, 특수 커맨드 실행 |
-| `AsyncWebServer` | Core 0/1 | (IDF 내부) | 이벤트 구동 | - | HTTP 요청 처리, E10 제어 요청 큐잉 |
-| `main loop` | Core 0 | - | 200ms | - | 시스템 Grace time 통과 판정 및 백그라운드 관리 |
-
----
+| `_sensorTask` | Core 1 | 3 (High) | 8ms (125Hz) | 8192 B | IMU 읽기, FSM 처리, 모션 계산, 프레임/커맨드 생성, **Special 액션 단독 실행**, `_reqReset*` 플래그 소비 |
+| `_commTask` | Core 0 | 2 (Mid) | 7ms | 4096 B | 큐 소비 → BLE HID 전송, **`_startMacro()` + `_tickMacro()` 비동기 상태머신**, repeat tick |
+| `_ledTask` | Core 0 | 1 (Low) | 50ms | 2048 B | WS2812 LED 상태머신 **단독** Tick |
+| `AsyncWebServer` | Core 0 | - | 이벤트 구동 | - | HTTP 요청 처리, E10 제어 요청 큐잉 (`_qHidCmd`, `_qActionExec`) |
+| `main loop` | Core 0 | - | 200ms | - | Grace time 통과 판정, `tickConfigSave()` (BLE dirty 저장) |
 
 ### 3.2. 데이터 흐름 및 파이프라인
 
 ```
-┌─────────────────┐           overwrite (size=1)           ┌──────────────┐
-│   sensorTask    ├─────push─────> _qFrame ─────recv──────>│   commTask   ├────> BLE HID
-└────────┬────────┘                                        └──────┬───────┘
-         │                                                        ▲
-         │ (관측 갱신)                                            │
-         └────lock────> _state ──read──> getStatus() [Web]        │
-                                                                  │
-┌────────────────────────┐      enqueue (size=4, timeout=0)       │
-│ Web API / sensorTask   ├────────────────────────────────────────┘
-└────────────────────────┘
+sensorTask (Core 1) ──push──> _qFrame (size=1, overwrite) ──recv──> commTask (Core 0) ──> BLE HID
+       │                                                                  ▲
+       │ (상태 관측)                                                      │
+       └──lock──> _state ──read──> getStatus() (웹 API)                   │
+                                                                          │
+sensorTask ──enqueue──> _qActionExec (size=8) ──recv──────────────────────┤
+web/sensorTask ──enqueue──> _qHidCmd (size=4) ──recv──────────────────────┘
+
+Special 액션:  sensorTask에서 _handleSpecial() 직접 호출 (commTask 경유 금지)
+매크로:        commTask에서 _startMacro() (스냅샷, 즉시 리턴) + _tickMacro() (매 루프 진행)
+LED 상태머신:  _ledTask(50ms) 단독 구동
+Bias reset:    sensorTask가 _reqGyroCalib 플래그 처리 시 _biasTracker.reset() 실행
+BtnDisp/Gest:  web 태스크는 _reqReset* 플래그만 설정 → sensorTask가 실제 리셋
 ```
 
-> [!CAUTION]
-> #### 아키텍처 절대 금지 사항
-> 1. **웹 태스크의 HID 직접 접근 금지**: `_mouse` 및 `_keyboard` 인스턴스를 직접 호출하지 말고, 반드시 `_qHidCmd` 큐를 통해 위임해야 합니다.
-> 2. **`sensorTask`의 HID 직접 호출 금지**: 센서 태스크에서 HID 전송을 직접 수행하지 않고 `_qHidCmd`를 경유합니다.
-> 3. **`commTask`의 `_state` 무단 접근 금지**: 상태 변수에 직접 접근하지 않고 `_qFrame` 데이터만 사용합니다.
-
----
+**절대 금지:**
+- 웹 태스크가 `_mouse`/`_keyboard` 직접 호출 → 반드시 `_qHidCmd` 경유
+- sensorTask가 HID 직접 호출 → 반드시 `_qActionExec` 경유
+- commTask가 `_state` 접근 → `_qFrame`만 사용
+- commTask가 `_handleSpecial()` 실행 → **sensorTask 단독**
+- commTask가 `_led.tick()` 호출 → **_ledTask 단독**
+- 매크로 실행 블로킹 → **스텝 단위 상태머신 (`_tickMacro`)**
+- web 태스크가 `_biasTracker.reset()` / `_btnDisp.resetAll()` / `_gesture.reset()` 직접 호출 → **sensorTask 위임**
 
 ### 3.3. 상태 소유권 및 동기화 매트릭스
 
-| 상태 / 리소스 | 소유자 (Writer) | 접근 방식 (Reader) | 동기화 메커니즘 및 정책 |
-|:---|:---|:---|:---|
-| `_state` (`ST_E10_State_t`) | `sensorTask` (상태 갱신), `web` (`setSafeMode` 등) | `getStatus()` 등 (웹) | `_lock()` / `_unlock()` 뮤텍스 보호 |
-| `_qFrame` | `sensorTask` (write) | `commTask` (read) | FreeRTOS Queue (`size=1`, lock-free overwrite) |
-| `_qHidCmd` | `web`, `sensorTask` (write) | `commTask` (read) | FreeRTOS Queue (`size=4`, `timeout=0`) |
-| `_cfgE10Runtime` | 설정 변경 경로 | 각 모듈 | `_lock()` 하에만 접근 (H-3 원자화 경로) |
-| Motion Config | Setter (외부) | `sensorTask` | Setter는 lock 후 기록, Reader는 루프 시작 시 스냅샷 (C-4) |
-| `_errHist`, `_spikes` | 내부 로직 | 진단 모듈 | `_pushErr` / `_pushSpike` 내부에서 mutex lock (C-2) |
-| `_hid` (`BleCompositeHID`) | `commTask` 단독 | `commTask` (예외: `isConnected()` 웹 조회) | 단일 태스크 전담 소유 |
-| `_mpu`, `Wire` | `sensorTask` 단독 | `sensorTask` 단독 | I2C 복구(`_recoverI2C`)도 `sensorTask` 내부에서만 실행 |
-
----
+| 상태 / 리소스 | 소유자 | 접근 방식 |
+|---|---|---|
+| `_state` (`ST_E10_State_t`) | sensorTask (관측), web (setSafeMode 등) | `_lock()` / `_unlock()` 하에 read/write |
+| `_qFrame` | sensorTask (write), commTask (read) | FreeRTOS queue (size=1, overwrite, lock-free) |
+| `_qActionExec` | sensorTask / web (write), commTask (read) | FreeRTOS queue (timeout=0, 블로킹 금지) |
+| `_qHidCmd` | web (write), commTask (read) | FreeRTOS queue (timeout=0, 블로킹 금지) |
+| `_cfgProfile` | `_lock()` 보호 | 프로파일 로드/저장/스냅샷 (C-4) |
+| `_macroAbortToken` | 모든 태스크 (증가만) | `volatile uint32_t` (H-1) |
+| `_macroState.active` | 모든 태스크 | `volatile bool` |
+| `_macroSnapshot` | `_startMacro` 스냅샷 | 락 하 스냅샷 후 참조 (H-4) |
+| `_reqResetBtnDisp` / `_reqResetGesture` | web set / sensorTask consume | `volatile bool` (H-3) |
+| `_reqGyroCalib` | web set / sensorTask consume | `volatile bool`, sensorTask가 `_biasTracker.reset()` 실행 (D-1) |
+| `_hid` (`BleCompositeHID`) | **commTask 단독 접근** | web/sensorTask는 직접 호출 절대 금지 |
+| `_mpu`, `Wire` | **sensorTask 단독 접근** | I2C 복구도 sensorTask 단독 |
+| `_biasTracker` | **sensorTask 단독** | reset도 sensorTask |
+| `_led` | **_ledTask 단독 tick** | 색상 설정/플래시는 모든 태스크에서 가능 |
+| `_frontHoldActive` / `_moveGateHeld` / `_activeMode` | sensorTask | `volatile`, 원자적 |
+| `_ble._pairing` / `_dirty` | sensorTask + web | `volatile bool` (M-1) |
 
 ### 3.4. Mutex 동기화 정책
-
-* **Recursive Mutex 채택**: `_mutex`는 `xSemaphoreCreateRecursiveMutex()`로 생성됩니다.
-  * *이유*: `setSafeMode()`나 `setOtaGuard()`가 이미 락을 보유한 상태에서 `_pushErr()`를 호출하는 등 재진입 상황 대응.
-* **수동 락 관리**: `_lock()`과 `_unlock()`은 RAII 형태가 아니므로 모든 예외/분기 경로에서 엄격하게 쌍을 맞추어야 합니다.
-* **Non-blocking Enqueue**: `_qHidCmd` enqueue는 `timeout=0`으로 호출되어 웹 태스크가 블로킹되지 않도록 합니다. 큐가 가득 차면 패킷을 드롭합니다.
+- `_mutex`: **Recursive Mutex** (`xSemaphoreCreateRecursiveMutex`). 이유: `setSafeMode`/`setOtaGuard`/`_recoverI2C`가 락 보유 중 `_pushErr` 재진입.
+- `_lock()` / `_unlock()`: RAII 아님. 모든 경로에서 짝 맞춤.
+- 웹 태스크 큐 인큐 시 `timeout=0`으로 설정하여 웹 워커 스레드가 블로킹되지 않도록 보장.
 
 ---
 
 ## 4. 📁 프로젝트 디렉터리 구조
 
+### 4.0. 백엔드 (`src/v0410/`)
+
 ```
 src/
-├── main.cpp                              # 메인 진입점 (setup / loop, Grace 감시)
-└── v032/                                 # v0320 모듈 루트
-    ├── A40_ComFunc_0320.h                # 공용 유틸 (JSON 직렬화, Mutex, 원자적 IO)
-    ├── C10_Config_0320.h                 # 설정 로드/저장/검증 및 Boot State (Header-only)
-    ├── C10_Def_0320.h                    # Config 스키마 상수, 구조체, 파일 경로 정의
-    ├── D10_Logger_0320.h                 # 링버퍼 로거 및 진단 카운터 (Header-only)
-    ├── M10_MotionProc_0320.h             # 모션 물리 엔진 (상보 필터, LPF, 가속) (Header-only)
-    │
-    ├── E10_Def_0320.h                    # E10 모듈 상수, 열거형, 구조체 정의
-    ├── E10_AirMouse_0320.h               # E10 메인 클래스 선언 및 인라인 유틸
-    ├── E10_AirMouse_Core_0320.cpp        # 라이프사이클 초기화, 런타임 설정 적용, setter
-    ├── E10_AirMouse_Hid_0320.cpp         # HID 패킷 송출, 테스트 클릭, 강제 릴리즈
-    ├── E10_AirMouse_Motion_0320.cpp      # Precision FSM 및 Motion FSM 연산
-    ├── E10_AirMouse_Diag_0320.cpp        # 오류/스파이크 로깅, I2C 복구, 자이로 캘리브레이션
-    ├── E10_AirMouse_Task_0320.cpp        # _sensorTask 및 _commTask 루프 구현
-    │
-    ├── W10_Def_0320.h                    # 웹서버 상수, 응답 타입, 키코드 매핑 테이블
-    ├── W10_Web_0320.h                    # 웹서버 메인 클래스 선언
-    ├── W10_Web_init_0320.cpp             # 서버 초기화, 라우팅 등록, WiFi/mDNS 구성
-    ├── W10_Web_Static_0320.cpp           # 정적 파일 서빙, LittleFS 바디 슬롯 관리
-    ├── W10_WebApi_Com_0320.cpp           # API 공통 처리, CORS, 보안 정책, ETag 생성
-    ├── W10_WebApi_Config_0320.cpp        # /api/config/* 라우트 핸들러
-    ├── W10_WebApi_CtlPpt_0320.cpp        # /api/control, /api/ppt 핸들러
-    ├── W10_WebApi_OtaBoot_0320.cpp       # /api/ota, /api/safeboot, /api/reboot 핸들러
-    ├── W10_WebApi_Status_0320.cpp        # /api/status, /api/diag, /api/keycodes 핸들러
-    │
-    ├── tools_v032/
-    │   └── pio_gzip_0320.py              # 빌드 전 www 정적 파일 gzip 압축 및 LittleFS 동기화 스크립트
-    │
-    ├── data_v032_www/                    # [VCS 소스] 웹 프론트엔드 원본 리소스 (Git 추적 대상)
-    │   ├── index_0320.html               # SPA 메인 HTML (Quick Ctl, Dashboard, Diag, OTA UX)
-    │   ├── app_0320.js                   # SPA 프론트엔드 컨트롤러 (실시간 폴링, API 통신, XHR OTA)
-    │   ├── style_0320.css                # 반응형 다크 테마 UI 스타일시트
-    │   └── images/
-    │
-    └── data_v032/                        # LittleFS 업로드 이미지 디렉터리 (빌드 타깃)
-        ├── www/                          # [빌드 파생물] Gzip 압축된 웹 파일 (Git 제외: .gitignore)
-        │   ├── index_0320.html.gz
-        │   ├── app_0320.js.gz
-        │   ├── style_0320.css.gz
-        │   └── images/
-        └── json/                         # 시스템 설정 및 메타데이터
+├── main.cpp                            # Setup, Loop, W10-E10 브릿지 바인딩
+└── v0410/
+    ├── A40_ComFunc_0410.h              # 공용 유틸 (JSON, Mutex, IO)
+    ├── B20_Ble_0410.h / .cpp           # BLE Manager (Pairing, Multi-Host Cycle)
+    ├── C10_Config_0410.h / .cpp        # 다중 프로파일 관리 & LittleFS 원자적 I/O
+    ├── C10_Def_0410.h                  # Schema v5, Profile/MacroLib 데이터 구조체
+    ├── C20_Action_0410.h               # Action Registry (EN_C20_ACT_MACRO 포함)
+    ├── C20_ActionExec_0410.h / .cpp    # Action 실행기 (HID 레포트 패킷 조립)
+    ├── C20_BtnDispatcher_0410.h / .cpp # 버튼 디바운스 & 더블/롱클릭 상태머신
+    ├── D10_Logger_0410.h               # 링버퍼 진단 로거
+    ├── E10_Def_0410.h                  # E10 상수 및 데이터 타입
+    ├── E10_AirMouse_0410.h             # E10 클래스 선언
+    ├── E10_AirMouse_Core_0410.cpp      # 초기화, 프로파일 스위칭, _resolveSlot(락)
+    ├── E10_AirMouse_Hid_0410.cpp       # HID primitives & forceRelease (macro 토큰)
+    ├── E10_AirMouse_Motion_0410.cpp    # Precision FSM & 적응형 필터
+    ├── E10_AirMouse_Diag_0410.cpp      # 진단/캘리브(bias reset 위임, ble.tick 포함)
+    ├── E10_AirMouse_Task_0410.cpp      # sensorTask, commTask, ledTask (+매크로 tick)
+    ├── E10_AirMouse_Action_0410.cpp    # 27개 트리거 매핑, _startMacro/_tickMacro, Special
+    ├── L10_Led_0410.h / .cpp           # WS2812 NeoPixel 비동기 제어기
+    ├── M10_MotionProc_0410.h           # 자이로 6축 물리 엔진 (Roll/Pitch/Yaw)
+    ├── M20_BiasTracker_0410.h          # 실시간 Zero-rate Bias 자동 보정기
+    ├── M30_Gesture_0410.h / .cpp       # Flick / Linear / Tilt Hold (Tilt은 Mode 3 전용)
+    ├── P20_Power_0410.h / .cpp         # Light-sleep & WoM(Wake-on-Motion) 전원 관리
+    ├── W10_Def_0410.h                  # 웹 서버 데이터 구조체 (ST_W10_E10If_t)
+    ├── W10_Web_0410.h                  # AsyncWebServer 관리자
+    ├── W10_Web_init_0410.cpp           # WiFi AP/STA 및 라우트 초기화
+    ├── W10_Web_Static_0410.cpp         # 정적 웹 파일(Gzip) 서빙 & Diag 이벤트
+    ├── W10_WebApi_Com_0410.cpp         # API 게이트웨이, SafeMode (method-aware)
+    ├── W10_WebApi_Config_0410.cpp      # /api/config/* (프로파일 기반 패치)
+    ├── W10_WebApi_Profile_0410.cpp     # /api/profiles/*, /api/triggers, /api/action/test*
+    ├── W10_WebApi_CtlPpt_0410.cpp      # /api/control, /api/ppt/test
+    ├── W10_WebApi_OtaBoot_0410.cpp     # OTA, SafeBoot, Reboot, reboot/check
+    ├── W10_WebApi_Status_0410.cpp      # /api/status/diag/keycodes (+ config.profile_*)
+    ├── tools_v0410/pio_gzip_0410.py    # Gzip 빌드 스크립트
+    ├── data_v0410_www/                 # 웹 프론트엔드 원본 소스 (VCS 대상)
+    └── data_v0410/                     # LittleFS 플래시 이미지 디렉토리
+        ├── www/                        # 압축된 Gzip 웹 산출물 (.gz)
+        │   ├── index_0411.html.gz
+        │   ├── style_0411.css.gz
+        │   ├── app_0411_0001.js.gz
+        │   └── lib/
+        │       ├── am_base_0411.js.gz
+        │       ├── am_offline_0411.js.gz
+        │       ├── am_profile_0411.js.gz
+        │       ├── am_macro_0411.js.gz
+        │       ├── am_config_0411.js.gz
+        │       └── am_status_0411.js.gz
+        └── json/                       # (자동 생성 가능)
+            ├── active_profile.json
+            ├── boot_state_0410.json
+            ├── profiles/
+            │   ├── profile_0.json
+            │   └── profile_N.json
             └── public/
-                ├── manifest_0320.json
-                └── schema_0320.json
+                └── manifest_0410.json
 ```
+
+### 4.1. E10 모듈 7파일 분할 기준
+
+| 파일 | 역할 및 분할 기준 |
+|---|---|
+| `Core` | `begin`, 프로파일 스위칭/재로드, `_resolveSlot`(**C-4 락**), `saveActiveProfile`, `execLiveTest`, setter 원자적 RMW, `tickConfigSave` |
+| `Hid` | 마우스/키보드/소비자키 탭 및 홀드 프리미티브, `forceReleaseButtons` (**`_macroAbortToken++`**), `_doReleaseAllButtons` |
+| `Motion` | Precision Mode FSM, 적응형 LPF 가속 계산 |
+| `Diag` | 자이로 캘리브(**D-1 bias reset 위임, D-2 `_ble.tick()`**), I2C 복구, `getStatus`, `clearDiagnostics`(**D-3 플래그만**) |
+| `Task` | `sensorTask` (**H-3 리셋 플래그 소비**), `commTask` (`_startMacro`/`_tickMacro`), `ledTask` (단독 구동) |
+| `Action` | `_handleHardcodedButton` (**C-1 Top M CLICK 슬롯 위임**), `_handleSlotButton`, `_handleGesture`, `_setActiveMode`, `_handleSpecial`, `_startMacro` (**H-4 스냅샷**), `_tickMacro` (**H-1 토큰**) |
+| `.h` | 클래스 선언, 인라인 유틸 (`_lock`, `_unlock`, `_pushFrame`, `_mouseSend`, `_welfordAdd`, `_calcRms`) |
+
+### 4.2. 프론트엔드 7-모듈 구조
+
+```
+www/
+├── index_0411.html              # 메인 UI
+├── style_0411.css               # 스타일 (배너/스피너/Quick Tuning/Tilt)
+├── app_0411_0001.js             # UI 바인딩 + Main (7-모듈 로더)
+└── lib/
+    ├── am_base_0411.js          # 상수/유틸/API 래퍼/전역/로딩 헬퍼
+    ├── am_offline_0411.js       # 오프라인 시뮬레이터 (localStorage 스키마 v2)
+    ├── am_profile_0411.js       # 프로파일 CRUD/Slots/ActionEditor
+    ├── am_macro_0411.js         # 매크로 편집기 (8×8)
+    ├── am_config_0411.js        # E10 Config/Control/SafeBoot/Factory
+    └── am_status_0411.js        # Status/Diag/OTA/재부팅 배너/Quick Tuning
+```
+
+**로드 순서 (index_0411.html)**:
+```html
+<script src="./lib/am_base_0411.js"></script>
+<script src="./lib/am_offline_0411.js"></script>
+<script src="./lib/am_profile_0411.js"></script>
+<script src="./lib/am_macro_0411.js"></script>
+<script src="./lib/am_config_0411.js"></script>
+<script src="./lib/am_status_0411.js"></script>
+<script src="./app_0411_0001.js"></script>
+```
+
+**캐시 정책 (`W10_hasVersionToken`)**:
+- HTML, `/json/public/*`, `/api/*`: `no-store`
+- `_NNNN` 규칙 준수 파일(`am_base_0411.js` 등): `immutable` (max-age=31536000)
+- 나머지 정적: `short` (1h)
 
 ---
 
-### 4.1. E10 모듈 6파일 분할 기준
+## 5. 🛠️ 빌드 시스템 (PlatformIO CLI)
 
-E10 모듈의 유지보수 시 변경할 기능에 따라 아래 담당 파일로 이동하여 작업합니다.
+### 필수 명령어
 
-| 소스 파일명 | 담당 핵심 역할 |
-|:---|:---|
-| `E10_AirMouse_Core_0320.cpp` | `begin()`, 생성자, `applyRuntimeE10()`, `set*` 계열 함수(`PptMode`, `Dpi`, `Precision`, `HardClick`, `SafeMode`, `OtaGuard`), `_applyFromConfig()`, `_applyE10ToRuntime()`, `_snapshotRuntimeToE10Config()`, `_enqueueHidCmd()`, `_applyRuntimeLocked()` |
-| `E10_AirMouse_Hid_0320.cpp` | `_tapComboUsageKb()`, `_tapUsageKb()`, `_tapConsumerMask()`, `_sendPptKey2()`, `_processGesturesDeg()`, `testPptKey2()`, `testMouseClick()`, `forceReleaseButtons()`, `_doReleaseAllButtons()`, `_doTestMouseClick()`, `_doForceReleaseNow()` |
-| `E10_AirMouse_Motion_0320.cpp` | `_applyPrecision()`, `_fsmUpdate()` |
-| `E10_AirMouse_Diag_0320.cpp` | `_pushErr()`, `_pushSpike()`, `_recoverI2C()`, `_runGyroCalibration()`, `getStatus()`, `requestGyroCalibration()`, `requestI2CRecover()`, `clearDiagnostics()` |
-| `E10_AirMouse_Task_0320.cpp` | `_sensorTask()`, `_commTask()` |
-| `E10_AirMouse_0320.h` | 클래스 선언, 인라인 유틸 함수(`_lock`, `_unlock`, `_pushFrame`, `_welfordAdd`, `_calcRms`, `_mouseSend`) |
+- **펌웨어 컴파일**:
+  ```powershell
+  pio run -e esp32-s3-zero
+  ```
+- **펌웨어 플래시 업로드**:
+  ```powershell
+  pio run -e esp32-s3-zero -t upload
+  ```
+- **LittleFS 파일시스템 빌드 & 업로드**:
+  ```powershell
+  pio run -e esp32-s3-zero -t buildfs
+  pio run -e esp32-s3-zero -t uploadfs
+  ```
+- **빌드 캐시 클린**:
+  ```powershell
+  pio run -e esp32-s3-zero -t clean
+  ```
 
----
+### 리소스 사용 (v0410 최종)
 
-## 5. ⚙️ 빌드 시스템 (PlatformIO)
-
-### `platformio.ini` 환경 설정
-
-```ini
-[platformio]
-default_envs    = esp32-s3-zero
-build_cache_dir = .pio/cache
-data_dir        = ./src/v032/data_v032
-
-[ESP32_common]
-platform                = espressif32
-framework               = arduino
-board_build.filesystem  = littlefs
-monitor_speed           = 115200
-monitor_filters         = esp32_exception_decoder, colorize
-
-src_filter =
-    +<main.cpp>
-    +<v032/>
-    -<v001/> -<v010/> -<v030/> -<v031/> -<src_backup/>
-
-lib_archive = yes
-lib_ldf_mode = chain+
-lib_deps =
-    bblanchon/ArduinoJson @ ^7.4.3
-    h2zero/NimBLE-Arduino @ ^2.3.7
-    https://github.com/Mystfit/ESP32-BLE-CompositeHID.git
-    adafruit/Adafruit MPU6050@^2.2.9
-    esp32async/ESPAsyncWebServer @ ^3.10.0
-
-build_unflags = -std=gnu++11
-build_flags =
-    -std=gnu++17
-    -D CONFIG_BT_NIMBLE_ENABLED=1
-    -D CONFIG_BT_BLE_ENABLED=1
-    -D E10_HAS_JOYSTICK=0
-
-[env:esp32-s3-zero]
-extends                 = ESP32_common
-board                   = esp32-s3-devkitc-1
-board_build.mcu         = esp32s3
-board_build.f_cpu       = 240000000L
-board_build.f_flash     = 80000000L
-board_build.flash_mode  = qio
-board_upload.flash_size = 4MB
-board_build.partitions  = default_4MB.csv
-
-build_flags =
-    ${ESP32_common.build_flags}
-    -Desp_cpu_get_cycle_count=xthal_get_ccount
-    -DBOARD_HAS_PSRAM
-    -mfix-esp32-psram-cache-issue
-    -D ARDUINO_USB_MODE=1
-    -D ARDUINO_USB_CDC_ON_BOOT=1
-
-extra_scripts = pre:src/v032/tools_v032/pio_gzip_0320.py
-```
-
-> [!NOTE]
-> * `src_filter`에 `+<v032/>`가 지정되어 있어 신규 소스 파일 추가 시 `platformio.ini`를 수정할 필요가 없습니다.
-> * `tools_v032/pio_gzip_0320.py` 스크립트가 빌드 전 `data_v032/www/` 내부 정적 에셋의 `.gz` 압축 파일을 자동 생성합니다.
+| 항목 | 값 |
+|---|---|
+| RAM | ~40% (131 KB / 320 KB) |
+| Flash | ~45% (1.42 MB / 3.14 MB) |
 
 ---
 
@@ -282,469 +306,345 @@ extra_scripts = pre:src/v032/tools_v032/pio_gzip_0320.py
 
 ### 6.1. 명명 규칙 (Strict Naming Conventions)
 
-| 대상 | 접두사 / 접미사 | 네이밍 예시 |
-|:---|:---|:---|
-| 네임스페이스 (Namespace) | `{모듈}_` | `A40_ComFunc`, `C10_DEF`, `E10_CONST` |
-| 전역 상수 / 매크로 | `G_{모듈}_` | `G_C10_CFG_VER`, `G_W10_API_VER` |
-| 전역 변수 | `g_{모듈}_` | `g_cfg`, `g_e10` |
-| 전역 함수 | `{모듈}_` | `W10_hasVersionToken()` |
-| 구조체 / 타입 정의 | `ST_{모듈}_`, 접미사 `_t` | `ST_C10_WiFiConfig_t`, `ST_E10_Status_t` |
-| 열거형 (Enum) 상수 | `EN_{모듈}_` | `EN_C10_WIFI_AUTO` |
-| 클래스명 | `CL_{모듈}_` | `CL_E10_EliteAirMouse` |
-| Private 멤버 변수/함수 | `_` 접두사 | `_state`, `_lock()` |
-| 클래스 정적(Static) 멤버 | `s_` 접두사 | `s_buffer`, `s_mux` |
-| 함수 로컬 변수 | `v_` 접두사 | `v_dt`, `v_gyroAbs` |
-| 함수 매개변수 (Parameter) | `p_` 접두사 | `p_enable`, `p_code` |
-
----
+| 구분 | 접두사 / 규칙 | 예시 |
+|---|---|---|
+| **네임스페이스** | `모듈명_` | `A40_ComFunc`, `C10_DEF` |
+| **전역 상수 / 매크로** | `G_모듈명_` | `G_C10_CFG_VER`, `G_W10_API_VER` |
+| **전역 변수** | `g_모듈명_` | `g_cfg`, `g_e10`, `g_w10E10If` |
+| **구조체 타입** | `ST_모듈명_` / `_t` | `ST_C10_ProfileConfig_t` |
+| **열거형 상수** | `EN_모듈명_` | `EN_C20_ACT_MACRO` |
+| **클래스명** | `CL_모듈명_` | `CL_E10_EliteAirMouse` |
+| **private 멤버** | `_` 접두사 | `_macroAbortToken`, `_resolveSlot` |
+| **로컬 변수** | `v_` 접두사 | `v_idx`, `v_doc`, `v_ok` |
+| **함수 매개변수** | `p_` 접두사 | `p_idx`, `p_name`, `p_out` |
 
 ### 6.2. ArduinoJson v7 전용 코딩 정책
+- 오직 `JsonDocument doc;` 단일 인스턴스만 사용.
+- `containsKey`, `createNestedArray`, `createNestedObject`, `StaticJsonDocument`, `DynamicJsonDocument` 사용 절대 금지.
+- 중첩 객체/배열은 `doc["slots"]["global"].to<JsonArray>()` 패턴 준수.
 
-> [!WARNING]
-> 본 프로젝트는 ArduinoJson v7을 표준으로 사용합니다. 이전 v6 스타일 API는 컴파일 에러를 발생시키거나 메모리 누수를 유발하므로 절대 사용하지 마십시오.
+### 6.3. 안전 원자적 IO 정책 (Atomic Storage)
+- `.tmp` 파일 생성 → 파싱 및 무결성 검증 → 기존 파일 `.old` 백업 → `.tmp`를 원본으로 원자적 Rename → 검증 → `.old` 제거.
+- 쓰기 실패 시 자동으로 `.old`에서 복원.
+- 프로파일 인덱스(`active_profile.json`)는 별도 `.tmp` + rename 방식.
 
-#### ✅ 권장 패턴
+---
+
+## 7. 🚀 v0410 핵심 기능 상세 사양
+
+### 7.1. 3-Mode 시스템 (PC / PPT / TV)
+
+| Mode | 이름 | LED 기본 색상 | 주요 용도 |
+|:---:|---|:---:|---|
+| **1** | **PC Air Mouse** | 🔵 Blue | 데스크톱 마우스 포인팅, 드래그, 윈도우 단축키, 스크롤 |
+| **2** | **Presentation** | 🟢 Green | 파워포인트/슬라이드 넘기기, 레이저 포인터, 블랙아웃 |
+| **3** | **Smart TV** | 🟠 Orange | 스마트 TV 리모컨, D-Pad 네비게이션, 볼륨/채널 제어 |
+
+- **모드 전환**: Side C 더블클릭 시 `1 → 2 → 3 → 1` 순환. 전환 시 흰색 500ms Flash 점등.
+- **모드 전환 시 안전 처리**: `_macroAbortToken++` (매크로 즉시 취소) + `_macroState.active = false`, 모든 키/버튼 Release, FSM 리셋, `_frontHoldActive = false`, 페어링 취소, LED 재설정.
+
+### 7.2. 2단 슬롯 매트릭스 (Global + Mode Override)
+
+27개 고정 트리거에 대해 **Global 기본값**과 **Mode 1~3별 Override 마스크(`mask`)**를 운용하여 메모리를 절약하고 일관성을 보장합니다.
+
 ```cpp
-JsonDocument doc;
-doc["a"] = 1;
-doc["b"]["c"] = 2;
+// E10_AirMouse_Core_0410.cpp: _resolveSlot (C-4 락 보호)
+ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p_trig) const {
+    auto* v_self = const_cast<CL_E10_EliteAirMouse*>(this);
+    v_self->_lock();
 
-JsonObject o = doc["x"].to<JsonObject>();
-JsonArray arr = doc["y"].to<JsonArray>();
-JsonVariant v = doc["z"];
+    ST_C20_ActionSlot_t v_out;
+    if (!_cfgProfileValid) {
+        v_out = { EN_C20_ACT_NONE, EN_C20_HOLD_NONE, 0, 0 };
+    } else {
+        v_out = C10_ResolveSlot(_cfgProfile.slots, p_mode, p_trig);
+    }
 
-if (!v.isNull()) { /* 처리 */ }
-if (!v["k"].isNull()) { /* 처리 */ }
+    v_self->_unlock();
+    return v_out;
+}
 ```
 
-#### ❌ 금지 패턴
-```cpp
-JsonObject o = doc.createNestedObject("x");     // 금지: v7 지원 중단
-JsonArray a = doc.createNestedArray("y");       // 금지: v7 지원 중단
-if (doc.containsKey("k")) { ... }               // 금지: isNull() 패턴 사용
-StaticJsonDocument<256> d;                      // 금지: v6 전용
-DynamicJsonDocument d(256);                     // 금지: v6 전용
-```
+### 7.3. 4대 필수 슬롯 잠금 (🔒)
+
+기기 조작 불능(브릭)을 방지하기 위해 다음 4개 트리거는 서버(`G_C10_TRIG_LOCKED[]`) 및 웹 클라이언트(`am_profile_0411.js`) 양측에서 수정을 원천 차단합니다:
+
+| 슬롯 Index | 트리거 이름 | 기능 | 잠금 사유 |
+|:---:|---|---|---|
+| **0 (S1)** | Top L Click | 마우스 좌클릭 홀드 | 기본 선택 및 드래그 보장 |
+| **4 (S5)** | Top M Hold | Move Gate | 포인팅 활성화 게이트 보장 |
+| **11 (S12)** | Side C Double | Mode Cycle | PC ↔ PPT ↔ TV 모드 순환 보장 |
+| **12 (S13)** | Side C 2s Hold | BLE Pairing Mode | 페어링 모드 진입 보장 |
+
+### 7.4. 8×8 매크로 라이브러리 & 안전 취소 시퀀서
+
+- **규격**: 프로파일당 최대 8개 매크로 정의 가능, 매크로당 최대 8개 Step 실행.
+- **Step 구성**: Action Kind(키보드/마우스/소비자키) + 파라미터 + `delayMs` (0~2000ms).
+- **중첩 방지**: 매크로 Step 내에는 `SPECIAL` 및 `MACRO` 사용 불가 (validateMacroStep).
+- **비동기 상태머신 실행 (C-3 개선)**:
+  - `commTask`는 큐에서 MACRO kind 수신 시 `_startMacro(idx)` 호출 → 스냅샷만 취하고 **즉시 리턴**.
+  - 매 루프 후반에 `_tickMacro()` 호출 → delay 경과 시 다음 step 실행. **커서 프레임 소비 지속** (블로킹 없음).
+- **토큰 기반 취소 (H-1 개선)**:
+  - `_macroAbortToken` 카운터와 `_macroState.startToken` 비교.
+  - 취소 트리거: `switchProfile`, `_setActiveMode`, `forceReleaseButtons`, BLE disconnect edge, SafeMode/OTA gate 진입.
+  - **재실행 시 초기화 경합 제거** (bool 재실행 문제 해결).
+
+### 7.5. M10 물리 모션 엔진 & M30 제스처
+- **상보 필터**: 가속도계와 자이로스코프를 융합하여 Roll/Pitch/Yaw 3축 각속도 추출.
+- **시그모이드 가속 곡선**: 손목의 미세한 떨림은 흡수하고 빠른 회전에는 높은 배율 적용.
+- **적응형 LPF**: `alpha = (delta > 3.0) ? 0.50 : 0.12`
+- **Zero Snap**: `|out| < 0.6 → 0`
+- **3계층 제스처** (Mode별 활성 조건):
+
+| 제스처 | 활성 Mode | 조건 |
+|---|---|---|
+| Flick L/R | 모든 Mode | 항상 (gz 기반 회전) |
+| Flick U/D | 모든 Mode | Middle Hold 해제 시 |
+| Linear | 모든 Mode | Middle Hold 중 |
+| **Tilt Hold** | **Mode 3 전용** | Middle Hold 해제 + 자세 유지 300ms |
+
+### 7.6. Front Hold 스크롤
+- **동작**: Side F 버튼을 누르고 있는 동안 마우스 커서 속도가 25%로 감쇠되며, 상하 틸트로 수직 휠, 좌우 틸트로 수평 팬 스크롤을 수행합니다.
+- **모든 Mode 일관**.
+
+### 7.7. SafeBoot & OTA Guard (method-aware)
+
+- 부팅 실패 카운트가 2회 이상이면 SafeMode로 진입하여 AP SSID에 `-SAFE`를 붙이고 안전 API만 허용.
+- OTA 펌웨어 업로드 중에는 HID 입력을 원천 차단하여 벽돌 방지.
+
+**SafeMode 허용 API (method-aware)**:
+- 전체 허용: `/api/status`, `/api/diag`, `/api/diag/clear`, `/api/keycodes`, `/api/safeboot`, `/api/ota`, `/api/ota/status`, `/api/factory_reset`, `/api/reboot`, `/api/reboot/check`, `/api/config/export`, `/api/config/rollback`
+- **GET만 허용**: `/api/profiles/active`, `/api/profiles`, `/api/triggers`
+- **차단**: `/api/config/save`, `/api/config/apply`, `/api/config/import`, `/api/control`, `/api/ppt/*`, `/api/profiles/switch`, `/api/profiles/create`, `/api/profiles/delete`, `/api/profiles/rename`, `/api/action/test`, `/api/action/test_macro`
+
+### 7.8. 다중 프로파일 시스템 (Schema v5)
+
+- **저장 위치**: LittleFS `/json/active_profile.json` (인덱스) 및 `/json/profiles/profile_N.json`.
+- **프로파일 용량**: 최대 5개 독립 프로파일.
+- **원자적 저장**: `.tmp` → 검증 → `.old` → 원자적 Rename → 검증 → `.old` 제거.
+- **인덱스 스키마**:
+  ```json
+  { "active_index": 0, "profile_count": 1 }
+  ```
+- **프로파일 스키마**:
+  ```json
+  {
+    "ver": 410,
+    "name": "Default",
+    "wifi": { "mode": 0, "sta": {...}, "ap": {...}, "mdns": {...} },
+    "e10": { /* DPI, 감도, 제스처, precision, bias, ... */ },
+    "slots": {
+      "global": [ /* 27개 슬롯 */ ],
+      "modes": [
+        { "mask": 0, "slots": [] },
+        { "mask": 134217727, "slots": [ /* 27개 */ ] },
+        { "mask": 134217727, "slots": [ /* 27개 */ ] }
+      ]
+    },
+    "macros": [ /* 최대 8개 */ ]
+  }
+  ```
+
+### 7.9. REST API 사양
+
+| Method | Endpoint | 설명 |
+|---|---|---|
+| `GET` | `/api/status` | 전체 시스템/센서/프로파일 상태 스냅샷 (**config.profile_idx/name/count 포함**) |
+| `GET` | `/api/diag` | 통신 에러 카운터 및 최근 이벤트 로그 |
+| `POST`| `/api/diag/clear` | 진단 카운터 리셋 |
+| `GET` | `/api/keycodes` | 키코드/메타데이터 (action_kinds, specials, consumer, triggers, slots_meta, groups, directions) |
+| `GET` | `/api/triggers` | 27개 고정 트리거 및 4대 잠금(locked) 메타데이터 |
+| `GET` | `/api/profiles` | 프로파일 목록 및 활성 인덱스 조회 |
+| `GET` | `/api/profiles/active` | 현재 활성 프로파일 전체 JSON 조회 |
+| `POST`| `/api/profiles/active` | 활성 프로파일 설정 패치 및 즉시 저장 |
+| `POST`| `/api/profiles/switch` | `{"idx": N}` 활성 프로파일 전환 |
+| `POST`| `/api/profiles/create` | `{"name": "..."}` 신규 프로파일 생성 (최대 5개) |
+| `POST`| `/api/profiles/delete` | `{"idx": N}` 프로파일 삭제 (최소 1개 보장) |
+| `POST`| `/api/profiles/rename` | `{"idx": N, "name": "..."}` 프로파일 이름 변경 |
+| `POST`| `/api/action/test` | Action Live Test 비동기 실행 |
+| `POST`| `/api/action/test_macro` | Macro Live Test 비동기 실행 |
+| `POST`| `/api/ppt/test` | 단발 키 테스트 (KB/Consumer) |
+| `GET` | `/api/config/export` | 활성 프로파일 JSON 다운로드 |
+| `POST`| `/api/config/import` | 프로파일 JSON 업로드 |
+| `POST`| `/api/control` | 빠른 제어 명령 (PPT/DPI/Precision/SafeMode/OTA Guard/I2C/Gyro) |
+| `POST`| `/api/ota` | 백그라운드 OTA 펌웨어 업로드 |
+| `GET` | `/api/ota/status` | OTA 진행 상태 폴링 |
+| `GET` | `/api/safeboot` | SafeBoot 상태 확인 |
+| `POST`| `/api/safeboot` | `{exit:true}` SafeMode 해제 + 재부팅 |
+| `POST`| `/api/factory_reset` | 공장 초기화 |
+| `POST`| `/api/reboot` | 안전 재부팅 |
+| `GET` | `/api/reboot/check` | 재부팅 필요 확인 (`required`, `mask`, `reasons`) |
 
 ---
 
-### 6.3. 문자열 및 버퍼 관리 정책
-* **메모리 안정성**: 가변 `String` 객체 생성을 지양하고, `memset` + `strlcpy` 고정 버퍼 조합을 사용합니다.
-* **버퍼 오버플로우 방지**: 포맷팅 시 `snprintf`를 사용하고 반환값 및 오버플로우 여부를 필수 검증합니다.
-* **JSON 이스케이프**: JSON 직렬화 시 `_appendJsonEscaped` 또는 `_resPrintJsonString`을 통하여 제어 문자를 안전하게 인코딩합니다.
+## 8. 🖥️ Web UI 3-View 프론트엔드 가이드
+
+* **상단 배너**: 재부팅 필요 시 조건부 표시 (`policy.reboot_required` 감지)
+* **Profile Bar (상단 고정)**:
+  - 프로파일 드롭다운 전환 (busy 플래그로 재진입 방지), `+ 새로`, `이름`, `삭제` (1개 남았을 때 보호 + 활성 경고), `재로드(↻)`
+* **Dashboard 탭**:
+  - 시스템 Uptime, Heap, WiFi, BLE 상태, 활성 프로파일 표시 (`config.profile_*`)
+  - Quick Control: PPT ON/OFF, 자이로 캘리브 (RMS/Bias 피드백), 강제 릴리즈, I2C 복구 (성공/실패 피드백)
+  - **Quick Tuning** (apply-only): DPI 1/2/3, Precision OFF/LOW/MED/HIGH/PPT
+  - **SafeMode 진입/해제** (세션 유지), **Host Cycle**, **SafeBoot 해제**, **Factory Reset** (진행 표시)
+* **Slots 탭 (Slot Editor)**:
+  - 뷰 토글: `Global` / `Mode 1 · PC` / `Mode 2 · PPT` / `Mode 3 · TV`
+  - 27개 고정 트리거 대상 액션 종류 지정
+  - **KB 드롭다운** (usage 숫자 대신 이름 그룹화: 없음/알파벳/숫자/기본/펑션/네비/기타)
+  - `[G]` 기본값 ↔ `[Mx]` 오버라이드 뱃지 원클릭 토글
+  - **Tilt 그룹 Mode 3 제한**: Mode 1/2 뷰에서 회색 + 사선 + 편집 비활성 (경고 배너)
+  - **slots_meta 부가 라벨**: `Top L Click (TOP_L / CLICK)` 형태
+  - 4대 필수 슬롯 🔒 잠금 표시 및 편집 차단
+  - 각 슬롯별 즉시 시험 실행 `Test` 버튼 (최신 배열 재조회로 stale 회피)
+* **Macros 탭 (Macro Editor)**:
+  - 좌측: 등록된 매크로 리스트 (최대 8개)
+  - 우측: 매크로 편집기 (이름, 최대 8개 Step, 파라미터 빌더, 0~2000ms 딜레이)
+  - 스텝 순서 변경(`▲`/`▼`), 삭제(`✕`), 새 스텝 추가
+  - 매크로 즉시 실행 `Test` 버튼 (저장 후 test_macro API 호출)
+* **Config 탭**:
+  - E10 파라미터 (DPI, 가속도, 휠 틸트 각도, 스크롤 커서 감쇠) 조정
+  - Export (서버 파일 사용), Import
+  - **Rollback (비활성 안내)** — v0410 폐기, 프로파일 스위치 또는 Factory Reset 권장
+* **Diagnostics & OTA 탭**:
+  - 통신 오류 카운터, 이벤트 로그, **카운터 초기화** 버튼
+  - **Key Test** (KB/Consumer 단발 키 테스트)
+  - 무선 펌웨어 업데이트 (OTA Guard 스위치 포함)
+* **전역 로딩 오버레이**: 프로파일 전환/삭제/캘리브/Factory 진행 중 스피너 표시
 
 ---
 
-### 6.4. 안전 원자적 IO 정책 (Atomic Storage)
-* **저장 5단계 프로세스**:
-  1. `.tmp` 파일 생성 및 쓰기
-  2. `.tmp` 파싱을 통한 무결성 검증 (`verify`)
-  3. 기존 메인 설정 파일을 `.bak`로 회전 (`rename` 우선, 실패 시 `copy`)
-  4. `.tmp`를 메인 경로로 커밋
-  5. 최종 파일 재검증 (실패 시 `.bak`에서 롤백)
-* **백업 파일 보존**: 쓰기가 성공하더라도 복구 여지를 위해 `.bak` 파일을 유지합니다.
-* **복구 정책**: `rollbackFromBak()` 수행 시 파일 보존을 위해 `rename` 대신 `copy` 방식을 우선 적용합니다.
-
----
-
-## 7. 🚀 핵심 기능 상세 사양
-
-### 7.1. 물리 모션 엔진 (`M10_MotionProc_0320`)
-단순 센서 값 변환이 아닌, 인체공학적 손 떨림 해석 및 정밀 제어를 제공합니다.
-
-* **상보 필터 (Complementary Filter)**:
-  $$\text{roll} = 0.98 \times (\text{roll} + \text{gyro} \times dt) + 0.02 \times \text{accelRoll}$$
-* **시그모이드(Sigmoid) 비선형 가속**:
-  $$\text{dpiGain} = 15 + (\text{dpi\_level} \times 7)$$
-  $$\text{out} = \frac{\text{dpiGain}}{1 + \exp(-0.8 \times (|\text{in}| - 2))}$$
-* **적응형 LPF (Low-Pass Filter)**:
-  * 모션 변화량 $\Delta > 3.0$ 일 때: $\alpha = 0.50$ (반응성 우선)
-  * 정적/미세 움직임 시: $\alpha = 0.12$ (떨림 완화 우선)
-* **Zero Snap**: $|v| < 0.6^\circ/\text{s}$ 이하의 미세 노이즈는 강제로 0으로 스냅.
-* **Click-Lock 메커니즘 (150ms)**:
-  * `hard_click_lock = true`: 클릭 순간 좌표 완전 고정 ($\text{outX} = \text{outY} = 0$)
-  * `hard_click_lock = false`: 클릭 순간 좌표 95% 감쇠 ($\times 0.05$)
-
----
-
-### 7.2. Precision Mode FSM
-
-미세 조준/포인팅을 위한 5단계 프로파일과 4단계 FSM 상태 머신을 운영합니다.
-
-#### 프로파일 매트릭스
-| 모드 (ID) | 프로파일 명 | Gain | Alpha ($\alpha$) | 가속 제한 (accel_limit) |
-|:---:|:---|:---:|:---:|:---:|
-| `0` | **OFF** | 1.00 | 0 | 0 |
-| `1` | **LOW** | 0.85 | 64 | 0 |
-| `2` | **MED** | 0.70 | 128 | 0 |
-| `3` | **HIGH** | 0.55 | 180 | 0 |
-| `4` | **PPT** | 0.45 | 210 | 1.5 |
-
-#### FSM 상태 전이
-$$\text{OFF} \longrightarrow \text{ENTRY} \longrightarrow \text{TRACK} \rightleftarrows \text{EXIT}$$
-* **ENTRY $\rightarrow$ TRACK**: $\text{gyro} \le \text{entry\_still\_deg}$ 상태가 $\text{entry\_ms}$ 동안 유지될 때 진입.
-* **TRACK $\rightarrow$ EXIT**: $\text{gyro} \ge \text{exit\_move\_deg}$ 감지 시 이탈 준비.
-* **EXIT $\rightarrow$ TRACK**: 다시 안정화되어 $\text{exit\_ms}$ 경과 시 복귀.
-
----
-
-### 7.3. 자이로 캘리브레이션
-* 부팅 직후 1초간(`CALIB_MS = 1000`) 자이로 정지 샘플링(`CALIB_STILL_TH = 3.0 deg/s`)을 수집하여 Offset을 연산합니다.
-* **논블로킹 버튼 샘플링**: 캘리브레이션 중에도 버튼 입력이 멈추지 않도록 프레임을 주기적으로 push합니다.
-* 웹 API(`/api/control` `{"cmd":"gyro_calib"}`)를 통해 런타임 재보정이 가능합니다.
-
----
-
-### 7.4. RTOS 큐 파이프라인
-* **`_qFrame` (Size: 1, Overwrite Mode)**: 최신 센서 데이터 프레임만 유지하여 커서 랙을 원천 차단합니다.
-* **버튼 상태 디바운싱**: `commTask`에서 이전 프레임과의 차분(diff)을 비교하여 처리하므로 패킷 드롭 시에도 버튼 고착(stuck)이 방지됩니다.
-* **`_qHidCmd` (Size: 4, Non-blocking Enqueue)**: 웹이나 센서 태스크에서 발행한 특수 명령(`RELEASE_ALL`, `TEST_CLICK`, `TEST_PPT`)을 `commTask`가 안전하게 직렬 실행합니다.
-
----
-
-### 7.5. PPT 제스처 및 Keymap v2
-* **Z축(Yaw) Flick 제스처**:
-  * $gz > +\text{flick\_deg} \rightarrow \text{이전 슬라이드(Prev)}$
-  * $gz < -\text{flick\_deg} \rightarrow \text{다음 슬라이드(Next)}$
-  * 쿨다운: `gesture_cooldown_ms` (기본 600ms)
-  * 스크롤 버튼 눌림 상태 또는 SafeMode/OTA Guard 활성화 시 제스처 자동 무시
-* **Keymap v2 추상화 구조**:
-  * 키보드 페이지: `page="kb"` (Usage ID + Modifier 키)
-  * 컨슈머 페이지: `page="consumer"` (32-bit Usage Mask)
-  * 지원 액션 6종: `start`, `exit`, `next`, `prev`, `black`, `laser`
-
----
-
-### 7.6. SafeBoot 및 OTA Guard
-
-부팅 상태 정보는 `/json/boot_state_0320.json`에 영속화됩니다.
-
-#### 동작 알고리즘
-1. `begin()` 호출 시 부팅 상태 JSON 로드
-2. 이전 부팅이 완료되지 않고(`pending=true`) 재부팅 원인이 비정상일 경우 `fail_count` 증가
-   * *비정상 원인*: `PANIC`, `INT_WDT`, `TASK_WDT`, `WDT`, `BROWNOUT`
-3. `fail_count >= SAFE_FAIL_THRESHOLD(2)` 도달 시 자동으로 **SafeMode** 활성화
-4. 정상 진입 후 유예 시간(`bootMarkOkIfGracePassed`, 8500ms) 경과 시 `pending=false` 처리
-5. 부팅 실패 시 플래시 마모 방지를 위해 30초 백오프 적용
-
-#### SafeMode 및 OTA Guard 진입 시 시스템 동작
-* **AP SSID 변경**: 네트워크 식별을 위해 AP SSID 뒤에 `-SAFE` 접미사 자동 부여.
-* **HID 출력 완전 차단**: 마우스 커서 및 키 입력이 호스트로 방출되지 않음.
-* **API 정책 제한 (H-1)**:
-  * **허용 엔드포인트**: `/api/status`, `/api/diag`, `/api/diag/clear`, `/api/keycodes`, `/api/safeboot`, `/api/ota`, `/api/ota/status`, `/api/factory_reset`, `/api/reboot`, `/api/reboot/check`, `GET /api/config`, `/api/config/export`, `/api/export`, `/api/config/rollback`
-  * **차단 엔드포인트**: `/api/config/save`, `/api/config/apply`, `/api/config/import`, `/api/control`, `/api/ppt`, `/api/ppt/test`
-* **OTA Guard**: 펌웨어 전송 중 키 고착을 방지하며, 비정상 중단 시 30초 후 stale 상태를 자동 회수합니다.
-
----
-
-### 7.7. Config 영속화 메커니즘
-
-#### 시스템 파일 경로 (`C10_Def_0320.h`)
-```cpp
-CFG_PATH  = "/json/config_0320.json";
-CFG_TMP   = "/json/config_0320.json.tmp";
-CFG_BAK   = "/json/config_0320.json.bak";
-BOOT_PATH = "/json/boot_state_0320.json";
-```
-
-* **무결성 캐싱**: FNV-1a 32-bit 알고리즘 기반 ETag를 생성하여 웹 클라이언트 캐시 무효화를 제어합니다.
-
----
-
-### 7.8. 웹 커스터마이징 및 REST API
-
-* **접속 프로토콜**: AP 및 STA 동시 지원, mDNS 도메인(`http://elite-airmouse.local`) 지원.
-* **정적 파일 서빙**: HTML, CSS, JS에 대한 Gzip 자동 서빙 및 버전 토큰(`_0320`) 기반 Immutable 캐싱.
-* **보안**: 파일 확장자 화이트리스트 검사 및 경로 탐색(`..`) 차단.
-
-#### 주요 REST API 엔드포인트
-| HTTP Method | URI Endpoint | 기능 설명 | 주요 파라미터 / 페이로드 |
-|:---|:---|:---|:---|
-| `GET` | `/api/status` | 시스템, E10 모듈, 정책 플래그, 센서 진단 스냅샷 반환 | `?compact=1` (실시간 경량 모니터링) |
-| `GET` | `/api/diag` | 시스템 진단 카운터, RTOS 태스크 진단, E10 센서 에러 링버퍼 로그 반환 | - |
-| `POST` | `/api/diag/clear` | 진단 카운터 및 이벤트 로그 초기화 | - |
-| `GET` | `/api/keycodes` | 키보드 Modifiers, Usage ID, Consumer 코드 목록 반환 | - |
-| `GET` | `/api/config` | 전체 JSON 설정값 조회 (ETag 지원) | - |
-| `POST` | `/api/config/save` | 변경 설정 검증, 영속화 및 런타임 즉시 적용 | 전체 JSON Body |
-| `POST` | `/api/config/apply` | 플래시 저장 없이 런타임에만 임시 적용 | 전체 JSON Body |
-| `GET` | `/api/config/export` | 현재 설정을 JSON 파일로 다운로드 | - |
-| `POST` | `/api/config/import` | 외부 JSON 설정을 검증 후 가져오기 | Multi-part 파일 |
-| `POST` | `/api/config/rollback` | `.bak` 백업 파일로부터 설정 복원 | - |
-| `POST` | `/api/control` | 모드 및 비상 복구 제어 | `dpi_level`(1/2/3), `gyro_calibrate`(true), `force_release`(true), `i2c_recover`(true), `ppt_mode`, `precision_profile`, `safe_mode`, `ota_guard` |
-| `GET` | `/api/ppt` | PPT 액션별 키 매핑 테이블 조회 | - |
-| `POST` | `/api/ppt` | PPT 액션별 키 매핑 테이블 저장 | PPT 액션 JSON 매핑 |
-| `POST` | `/api/ppt/test` | 특정 PPT 단일 키 송출 테스트 | `{"action": "next"}` 등 |
-| `POST` | `/api/ota` | 펌웨어 바이너리 멀티파트 업로드 | Multi-part 바이너리 (`.bin`) |
-| `GET` | `/api/ota/status` | OTA 진행률 및 성공/실패 상태 폴링 | - |
-| `GET` | `/api/safeboot` | SafeBoot 카운터 및 활성화 상태 확인 | - |
-| `POST` | `/api/safeboot` | SafeMode 강제 해제 (`{"exit": true}`) | `{"exit": true}` |
-| `POST` | `/api/factory_reset`| 플래시 설정을 초기 기본값으로 리셋 | - |
-| `POST` | `/api/reboot` | 시스템 소프트 리셋 (`reason_mask` 검증) | `{"reason": 1}` |
-| `GET` | `/api/reboot/check` | 설정 변경에 따른 재부팅 요구 여부 조회 | - |
-
----
-
-## 8. 🔌 하드웨어 사양 및 핀맵
-
-### 8.1. 주요 하드웨어 제원
-| 구분 | 상세 사양 |
-|:---|:---|
-| **MCU** | ESP32-S3 (Dual-Core Xtensa LX7, 최대 240MHz) |
-| **메모리** | Flash 4MB (QIO, 80MHz), PSRAM 내장 지원 (`BOARD_HAS_PSRAM`) |
-| **센서** | InvenSense MPU6050 (자이로 $\pm 250^\circ/\text{s}$, 가속도 $\pm 2\text{G}$, DLPF 21Hz) |
-| **통신 버스** | I2C Fast Mode (400kHz) |
-| **무선 인터페이스** | BLE 5.0 (NimBLE 스택 기반 HID over GATT) |
-| **HID 인터페이스** | Composite HID (마우스 5버튼/휠 + 키보드 멀티미디어) |
-| **센서 샘플링** | 125Hz (8ms 고정 인터벌) |
-| **HID 리포트 주기**| BLE 연결 간격(Connection Interval) 종속 (통상 7.5ms ~ 15ms) |
-| **파일 시스템** | LittleFS (내장 플래시 파티션 기반) |
-| **호환 OS** | Windows, macOS, Linux, Android, iOS (표준 드라이버 불필요) |
-
----
-
-### 8.2. 배선도 (Wiring Diagram)
+## 9. 🔌 하드웨어 사양 및 핀맵
 
 ```
-┌──────────────────┐               ┌──────────────────┐
-│  ESP32-S3-Zero   │               │     MPU6050      │
-│                  │               │                  │
-│             3V3  ├───────────────┤  VCC             │
-│             GND  ├───────────────┤  GND             │
-│           GPIO4  ├───────────────┤  SDA             │
-│           GPIO5  ├───────────────┤  SCL             │
-└──────────────────┘               └──────────────────┘
+      [Top 면]
+   [L] [M] [R]      ← 앞쪽 3버튼
+   
+   ┌─────────────┐
+[F]│             │
+[C]│             │  ← 좌측면 3버튼 (Front/Center/Rear)
+[R]│             │
+   └─────────────┘
 ```
 
----
+| 버튼 / 핀 | GPIO | 기본 하드코딩 동작 |
+|---|:---:|---|
+| **Top L** | GPIO 12 | 마우스 좌클릭 홀드 (선택/드래그) |
+| **Top M** | GPIO 16 | Move Gate (누르고 있을 때 커서 활성화). CLICK/LONG은 슬롯 매핑(S4) 위임 |
+| **Top R** | GPIO 15 | 마우스 우클릭 (슬롯 설정 가능) |
+| **Side F** | GPIO 14 | Front Hold 스크롤 (누르고 있을 때 틸트 스크롤) |
+| **Side C** | GPIO 13 | 더블클릭: Mode 순환 / 2초 홀드: BLE 페어링 / 3초+Top L: 호스트 순환 |
+| **Side R** | GPIO 7 | 보조 기능 (볼륨 다운 등 슬롯 설정 가능) |
+| **I2C SDA** | GPIO 4 | MPU6050 센서 통신 |
+| **I2C SCL** | GPIO 5 | MPU6050 센서 통신 |
+| **MPU INT1** | GPIO 6 | Motion Detection (WoM wake) |
+| **WS2812 LED** | GPIO 21 | Mode 표시등 (Core 0 ledTask 전용 구동) |
 
-### 8.3. GPIO 핀 할당표 (`E10_Def_0320.h`)
+**MPU6050 설정**: Gyro Range 250°/s, Accel Range 2G, DLPF 21Hz, I2C 400kHz, INT open-drain/active-low/latch.
 
-| 기능 명칭 | GPIO 핀 번호 | 입출력 특성 및 상세 설명 |
-|:---|:---:|:---|
-| **I2C SDA** | `GPIO 4` | MPU6050 센서 데이터 라인 (400kHz) |
-| **I2C SCL** | `GPIO 5` | MPU6050 센서 클럭 라인 (400kHz) |
-| **BTN_L** | `GPIO 12` | 마우스 좌클릭 입력 (Click-Lock 제어 트리거) |
-| **BTN_MODE** | `GPIO 13` | 짧게: DPI 순환 (1$\rightarrow$2$\rightarrow$3), 길게(1초): PPT 모드 토글 |
-| **BTN_SCROLL** | `GPIO 14` | 누른 상태 유지: 수직 스크롤 모드 진입 |
-| **BTN_R** | `GPIO 15` | 마우스 우클릭 입력 |
-| **BTN_M** | `GPIO 16` | 마우스 휠(미들) 클릭 입력 |
-
-> [!NOTE]
-> 물리 레이저 포인터 모듈은 안전 및 반응 속도를 위해 MCU를 거치지 않고 하드웨어 스위치로 직결 구동됩니다.
-
----
-
-## 9. 🖱️ 운용 및 사용 가이드
-
-### 9.1. 하드웨어 버튼 및 제스처 운용
-* **기본 커서 동작**:
-  * 기기 전원을 켜면 BLE 페어링 대기 후 자동으로 연결됩니다. 공중에서 기기를 움직이면 커서가 이동합니다.
-  * `BTN_L`을 누르면 기본 좌클릭이 수행됩니다.
-* **DPI 단계 변경**:
-  * `BTN_MODE` 버튼을 짧게(0.3초 미만) 누르면 DPI 단계가 `1` $\rightarrow$ `2` $\rightarrow$ `3` $\rightarrow$ `1` 순서로 즉시 순환 변경됩니다.
-* **화면 스크롤**:
-  * `BTN_SCROLL`을 누른 채로 기기를 위아래로 기울이면 휠 스크롤이 발생합니다.
-  * 기울기 민감도는 `wheel_threshold_deg`(기본 90°), 가속 상한은 `wheel_step_max`(기본 6), 커서 움직임 억제율은 `scroll_cursor_damp`로 튜닝합니다.
-* **프레젠테이션(PPT) 제스처 모드**:
-  * `BTN_MODE`를 1초 이상 길게 누르면 PPT 모드가 활성화됩니다.
-  * 손목을 왼쪽으로 가볍게 채면(Yaw Flick) **이전 슬라이드**, 오른쪽으로 채면 **다음 슬라이드** 명령이 전송됩니다.
-* **정밀 조준 (Precision Mode)**:
-  * 웹 UI 혹은 API를 통해 원하는 감도 프로파일(LOW, MED, HIGH, PPT)을 활성화하면 미세 조준 시 커서 떨림이 완벽히 제어됩니다.
-
-### 9.2. 웹 UI 기능 및 원격 제어 가이드
-* **원클릭 퀵 컨트롤 (Quick Control)**:
-  * 웹 대시보드 상단의 퀵 컨트롤 패널을 통해 마우스 기기를 만지지 않고도 실시간 튜닝 및 긴급 제어가 가능합니다:
-    * `[DPI 1]` / `[DPI 2]` / `[DPI 3]`: 원클릭으로 런타임 DPI 레벨 즉시 전환 (현재 활성 단계는 강조 색상으로 자동 하이라이트).
-    * `[자이로 보정]`: 공중 또는 거치 상태에서 커서 흐름(Drift) 발생 시 정지 상태에서 즉시 오프셋 재계측.
-    * `[버튼 강제 릴리즈]`: 통신 지연이나 조작 실수로 마우스 버튼 또는 키보드 키가 눌린 채 고착되었을 때 원격 비상 해제.
-    * `[I2C 복구]`: MPU6050 버스 정체나 데이터 이상 징후 감지 시 소프트웨어 I2C 버스 리셋 및 센서 재초기화 트리거.
-* **실시간 대시보드 모니터링 (Dashboard Status)**:
-  * 현재 활성 DPI 단계(`DPI Level`), 실시간 손떨림 지표(`Cursor RMS`), 센서 다이 내부 온도(`Sensor Temp` ℃), 센서 실제 샘플링 인터벌 및 주파수(`Sampling` ms / Hz)를 실시간 관측합니다.
-* **통합 진단 및 오류 로그 뷰어 (Diagnostics)**:
-  * 웹 서버 내부 에러 외에도 MPU NaN 에러, 뮤텍스 획득 실패, RTOS 태스크 타임 슬라이스 오버런, I2C 복구 횟수, 비상 릴리즈 횟수, 센서/통신 태스크 잔여 스택 워드를 실시간 배지로 확인 가능합니다 (0 초과 시 붉은색 경고 표시).
-  * 진단 탭 하단에 E10 센서 링버퍼 에러 로그(`diagErrHist`) 전용 뷰어를 제공하여 최근 발생한 하드웨어 예외를 타임스탬프와 함께 열람할 수 있습니다.
-* **무선 펌웨어 업데이트 (OTA Update UX)**:
-  * 웹 OTA 탭에서 펌웨어 바이너리(`.bin`)를 선택하고 업로드를 시작하면 실시간 XHR 전송 진행률 바(0~100% 및 전송 KB)가 표시됩니다.
-  * 업데이트 진행 중에는 마우스 오동작 방지를 위해 `OTA Guard` 경고 배너가 표시되며 모든 HID 입력이 차단됩니다. 업로드 완료 후 기기가 자동으로 안전하게 재부팅됩니다.
-* **SafeBoot 복구 및 공장 초기화**:
-  * 비정상 부팅 반복으로 SafeMode 진입 시 `POST /api/safeboot {"exit":true}` 호출 후 재부팅하면 일반 모드로 복구됩니다.
-  * 복구 불가 오류 발생 시 `POST /api/factory_reset`을 통해 설정을 기본값으로 초기화할 수 있습니다.
+**좌표계**:
+| 물리 축 | 사용자 용어 | 용도 |
+|---|---|---|
+| gx | Roll (긴 축) | 커서 Y, Linear U/D, Flick U/D, Front Hold 수평 팬 |
+| gy | Pitch (좌우 축) | 휠, Linear L/R, Front Hold 수직 휠 |
+| gz | Yaw (수직 축) | 커서 X, Flick L/R |
 
 ---
 
-## 10. 🔬 시스템 진단 지표
+## 10. 🗂️ 리팩터링 이력 (Phase 1 ~ Phase 11)
 
-`/api/status?compact=1` 및 `/api/diag` 엔드포인트를 통해 실시간 시스템 상태를 모니터링할 수 있습니다.
+- **Phase 1~4 (E10 핵심 안정화)**: 큐 인큐 누락 방지, recursive mutex 도입, 캘리브레이션 비차단 샘플링, 웹 태스크 직접 호출 차단, 공유 변수 락, 전용 에러코드.
+- **Phase 5 (3-Mode & 슬롯 매핑)**: PC / PPT / TV 3-Mode 시스템 구축.
+- **Phase 6-J (LED 서브시스템)**: WS2812 전용 `_ledTask` 도입.
+- **Phase 7 (제스처 엔진)**: M30 Flick / Linear / Tilt Hold 제스처 3계층 완성.
+- **Phase 8 (전원 관리)**: Light-sleep + WoM (EXT1 wake) 및 저전력 모드 연동.
+- **Phase 9~10 (BLE Multi-Host)**: 페어링 모드 및 3개 호스트 순환 재연결.
+- **Front Hold 스크롤**: Side F 누름 시 커서 감쇠 및 틸트 기반 2축 스크롤.
 
-### 진단 데이터 그룹
-* **E10 상태 정보**:
-  * `ble_connected`: 호스트와의 BLE HID 연결 여부
-  * `ppt_mode`, `dpi_level`, `precision_mode`: 현재 동작 모드 플래그
-  * `fsm_state`, `fsm_sub`: Precision 머신 현재 상태
-  * `safe_mode`, `gate.*`, `health.*`: 시스템 보호 게이트 동작 여부
-* **센서 및 모션 정보**:
-  * `gyro.*`: 3축 자이로 각속도 실측값
-  * `cursor_rms`: 커서 떨림 정도를 나타내는 RMS 지표
-  * `temp_c`: 센서 다이 온도 (℃)
-  * `sampling.*`: 실제 센서 샘플링 주기(dt, ms) 및 주파수(Hz), 지터 모니터링
-* **하드웨어 및 RTOS 에러 카운터 (7종)**:
-  * `err.mpu_nan`: MPU 센서 데이터 비정상(NaN) 발생 횟수
-  * `err.mutex_miss`: FreeRTOS 뮤텍스 획득 경합 실패 횟수
-  * `err.task_overrun`: 태스크 타임 슬라이스(데드라인) 초과 카운트
-  * `err.i2c_recover`: I2C 버스 락 발생에 따른 버스 리셋 복구 발동 횟수
-  * `err.failsafe_rel`: 버튼 누름 고착 방지를 위한 강제 릴리즈 발동 횟수
-  * `err.stack_sensor`: `_sensorTask` 최소 잔여 스택 워드 (워터마크)
-  * `err.stack_comm`: `_commTask` 최소 잔여 스택 워드 (워터마크)
-* **센서 링버퍼 에러 로그 (`diagErrHist` / `e10.err_hist`)**:
-  * 최근 발생한 센서/통신 하드웨어 오류 내역(시간, 오류 코드, 상세 메시지)을 순환 링버퍼로 보관 및 웹 뷰어 표출
-* **웹서버 진단 카운터**:
-  * `body_too_large`, `body_no_slot`: 요청 바디 슬롯 부족 현황
-  * `bad_json`: JSON 파싱 실패 건수
-  * `safe_blocked`, `ota_blocked`: 보호 모드에 의해 차단된 API 호출 수
+- **Phase 11 (v0410 정식 배포: 다중 프로파일 & 매크로 라이브러리)**:
+  - 다중 프로파일(Schema v5, `ver=410`, 최대 5개) 및 LittleFS 원자적 디렉토리 I/O.
+  - 27개 고정 트리거 대상 Global 공통 기본값 + Mode 1~3 오버라이드 매트릭스 및 슬롯 리졸버.
+  - 8×8 매크로 라이브러리 및 안전 취소 시퀀서.
+  - 4대 필수 슬롯 잠금 🔒 원천 차단.
+  - Web UI 3-View (Profile Bar, Slot Editor, Macro Editor, Config, Diag/OTA) 전면 개편.
 
----
+- **Phase 11 후속 (프론트엔드 안정성 + 누락 기능 + 백엔드 크리티컬 패치)**:
 
-## 11. ⚠️ 주의사항
+  **백엔드 크리티컬 수정 (C-1~C-4, H-1~H-4, M-1, M-2, D-1~D-3)**
+  - C-1: Top M CLICK 슬롯(S4) 도달 (하드코딩 제거)
+  - C-2: `switchProfile` HID 직접 호출 제거 → `forceReleaseButtons()` 큐 경유
+  - C-3: 매크로 블로킹 제거 → `_startMacro` + `_tickMacro` 상태머신
+  - C-4: `_resolveSlot` 락 보호
+  - H-1: `_macroAbortToken` 카운터 (bool 재실행 초기화 경합 제거)
+  - H-2: `switchProfile` 큐 드레인
+  - H-3: `_reqResetBtnDisp` / `_reqResetGesture` 플래그 위임
+  - H-4: `_startMacro` 스냅샷 (OOB 방지)
+  - M-1: `_pairing` / `_dirty` volatile
+  - M-2: SafeMode 게이트 method-aware
+  - D-1: `_biasTracker.reset()` sensorTask 위임
+  - D-2: 캘리브 루프에 `_ble.tick()` 포함
+  - D-3: `clearDiagnostics`는 플래그만 설정
 
-* **부팅 시 1초 정치 유지**: 부팅 시 센서 오프셋을 자동 계산하므로 기기를 평평한 곳에 약 1초간 정지 상태로 두어야 합니다.
-* **스크롤 과민 반응 조치**: 스크롤이 지나치게 민감할 경우 `wheel_threshold_deg`를 높이거나 `wheel_step_max`를 낮추십시오.
-* **스크롤 중 커서 흔들림**: 스크롤 도중 커서가 함께 움직이지 않게 하려면 `scroll_cursor_damp`를 `0`으로 설정하십시오.
-* **정지 상태 미세 떨림**: 손떨림으로 인해 커서가 떨리는 경우 Precision Mode를 켜거나 `zero_snap` 임계값을 상향 조정하십시오.
-* **네트워크 설정 적용**: WiFi 접속 정보(SSID/PW)를 변경한 후에는 반드시 시스템을 재부팅해야 합니다 (`/api/reboot/check`).
+  **프론트엔드 안정성 (C-01~C-07)**
+  - C-01: `renderActionEditor` `const` → `let` (오프라인 폴백 재할당)
+  - C-02: `/api/status config`에 `profile_idx/name/count` 추가 (백엔드)
+  - C-03: `getSlotsArray()` 배열 27 강제
+  - C-04: `profileSwitch` busy 플래그
+  - C-05: 오프라인 `G_OFFLINE_KEYCODES` 확장 (directions/groups/slots_meta)
+  - C-06: `_kbUsageLabel` "None (없음)" 처리
+  - C-07: `setInterval` 오버랩 방지
 
----
+  **누락 기능 21종 (N-1~N-21)**
+  - Phase 1: SafeBoot 해제(N-1), OTA Guard 토글(N-2), Diag 초기화(N-3)
+  - Phase 2: SafeMode 토글(N-4), 재부팅 배너(N-5), DPI/Precision(N-7), Host Cycle(N-8), I2C 피드백(N-18)
+  - Phase 3: reboot check(N-6), Key Test(N-9), 서버 Export(N-10), Rollback 안내(N-11), 캘리브 피드백(N-19), Factory 진행(N-20)
+  - Phase 4: 로딩 오버레이(N-13), slots_meta 라벨(N-14), reboot 폴링(N-16), Export 별칭(N-17), 삭제 경고(N-21)
 
-## 12. 🗂️ 프로젝트 구조 요약 테이블
-
-| 파일 경로 | 담당 역할 및 주요 기능 | 관리 모듈 |
-|:---|:---|:---:|
-| `main.cpp` | 하드웨어 셋업, `sensorTask`/`commTask` 생성, Grace Time 감시 | Core |
-| `src/v032/A40_ComFunc_0320.h` | JSON 보조 함수, 뮤텍스 래퍼, 원자적 파일 I/O | `A40` |
-| `src/v032/C10_Config_0320.h` | 설정 로드, 저장, 무결성 검증, 부팅 상태 관리 | `C10` |
-| `src/v032/C10_Def_0320.h` | 설정 스키마 정의, 시스템 경로 및 열거형 정의 | `C10` |
-| `src/v032/D10_Logger_0320.h` | 링버퍼 메모리 로거 및 진단 이벤트 카운터 관리 | `D10` |
-| `src/v032/E10_Def_0320.h` | E10 상수, 제어 열거형, 런타임 상태 구조체 | `E10` |
-| `src/v032/E10_AirMouse_0320.h` | 에어마우스 클래스 선언 및 인라인 연산 유틸 | `E10` |
-| `src/v032/E10_AirMouse_Core_0320.cpp` | 시스템 초기화, 런타임 파라미터 적용, Setter 로직 | `E10` |
-| `src/v032/E10_AirMouse_Hid_0320.cpp` | BLE HID 패킷 출력, 제스처 번역, 버튼 안전 릴리즈 | `E10` |
-| `src/v032/E10_AirMouse_Motion_0320.cpp` | Precision FSM 상태 처리 및 모션 가속 필터링 | `E10` |
-| `src/v032/E10_AirMouse_Diag_0320.cpp` | 자이로 오프셋 보정, I2C 복구 루틴, 상태 모니터링 | `E10` |
-| `src/v032/E10_AirMouse_Task_0320.cpp` | 센서 취득 루프(`_sensorTask`), 통신 전송 루프(`_commTask`) | `E10` |
-| `src/v032/M10_MotionProc_0320.h` | 상보 필터, 적응형 LPF, 시그모이드 가속 물리 엔진 | `M10` |
-| `src/v032/W10_Def_0320.h` | 웹서버 상수, MIME 타입 매핑, HID 키코드 테이블 | `W10` |
-| `src/v032/W10_Web_0320.h` | 비동기 웹서버 메인 클래스 인터페이스 정의 | `W10` |
-| `src/v032/W10_Web_init_0320.cpp` | 서버 초기화, URL 라우팅 등록, WiFi/mDNS 시작 | `W10` |
-| `src/v032/W10_Web_Static_0320.cpp` | LittleFS 기반 정적 리소스 서빙, 업로드 버퍼 관리 | `W10` |
-| `src/v032/W10_WebApi_Com_0320.cpp` | API 공통 인증, 응답 포맷터, ETag 계산 모듈 | `W10` |
-| `src/v032/W10_WebApi_Config_0320.cpp` | `/api/config/*` 설정 조회, 저장, 백업, 롤백 라우트 | `W10` |
-| `src/v032/W10_WebApi_CtlPpt_0320.cpp` | `/api/control`, `/api/ppt` 장치 제어 라우트 | `W10` |
-| `src/v032/W10_WebApi_OtaBoot_0320.cpp` | `/api/ota`, `/api/safeboot`, `/api/reboot` 관리 라우트 | `W10` |
-| `src/v032/W10_WebApi_Status_0320.cpp` | `/api/status`, `/api/diag`, `/api/keycodes` 진단 라우트 | `W10` |
-| `src/v032/tools_v032/pio_gzip_0320.py` | 웹 프론트엔드 정적 파일(`.gz`) 사전 압축 및 LittleFS 빌드 동기화 스크립트 | Build |
-| `src/v032/data_v032_www/*` | SPA 프론트엔드 원본 소스코드 (HTML/JS/CSS, Git 버전관리 대상) | Web Source |
-| `src/v032/data_v032/www/*` | 빌드 시 사전 압축 생성되는 파생물 (LittleFS 패킹 대상, Git 제외) | Web Dist |
-| `src/v032/data_v032/json/public/*` | 브라우저 설정 스키마 및 매니페스트 | Web |
+  **SPEC/UserManual 문서 현행화**
+  - SPEC §7.9 API 표 갱신, schema ver=410 확정, method-aware SafeMode, Tilt Mode 3 제한 명시
+  - UserManual §3 Slot Editor 상세 가이드 (27개 트리거 표, Global/Mode Override, 10가지 Action Kind별 예시)
+  - UserManual §4 Macro Editor 상세 가이드 (편집 절차, 실전 매크로 7가지 예시)
 
 ---
 
-## 13. 📚 참고: 리팩터링 이력 (Phase 1 ~ Track 5)
+## 📎 부록: 주요 상수
 
-### Phase 1 — E10 치명 버그 수정
-* **C-1**: `sensorTask` 정상 경로에서 `_pushFrame()` 누락으로 인해 HID 큐가 초기 1회만 채워지고 이후 마우스 좌표/버튼이 전송되지 않던 치명적 결함 수정.
-* **C-2**: `_pushErr` 및 `_pushSpike` 함수에 대한 다중 태스크 무보호 접근 문제를 재귀적 뮤텍스(Recursive Mutex) 기반 내부 락으로 해결.
-* **C-5**: 자이로 보정 중 1초간 전체 태스크가 멈추던 문제를 개선하여 캘리브레이션 중에도 버튼 샘플링 프레임을 지속 push하도록 수정.
-* **모듈 분할**: 단일 거대 파일이던 `E10` 소스를 6개 전문 파일로 분할.
-
-### Phase 2 — HID 전송 파이프라인 일원화
-* **C-3**: 웹 태스크에서 `_mouse` 및 `_keyboard` 객체를 직접 호출하던 위험 요소를 제거하고 `_qHidCmd` 큐를 도입하여 `commTask` 전담 실행 구조로 전환.
-* **H-2**: 중복 선언되었던 `forceReleaseButtons()`와 `forceReleaseAll()`을 통합 단일화.
-* **H-4**: 웹 태스크에서 발생하던 250ms 블로킹 클릭 테스트를 논블로킹 enqueue 방식으로 전면 개편.
-
-### Phase 3 — 원자성 보장 및 API 정책 정립
-* **H-3**: `setDpiLevel` 등에서 발생하던 비원자적 Read-Modify-Write 문제를 `_applyRuntimeLocked()` 기반 원자적 커밋으로 변경.
-* **C-4**: `sensorTask` 루프 시작 시 동작 파라미터(DPI, 가속 계수, 휠 설정)를 안전하게 로컬 스냅샷으로 캡처하도록 분리.
-* **H-1**: SafeMode 활성화 시 위조 설정 주입 방지를 위해 `/api/config/import` 엔드포인트 차단.
-
-### Phase 4 — 플래시 마모 방지 및 복구 신뢰성 확보
-* **M-1**: `bootMarkOkIfGracePassed` 실패 시 플래시 마모를 막기 위해 30초 백오프 지연 적용.
-* **M-2**: `_recoverI2C` 카운터 접근에 뮤텍스 보호를 통일 적용.
-* **M-4**: SAFE 및 OTA 게이트 진입/이탈 추적을 위한 전용 시스템 에러 코드 추가.
-* **M-5**: `rollbackFromBak()` 실행 시 파일 삭제 방지를 위해 복사(`copy`) 방식을 우선 적용.
-
-### Track 2 — JSON 스키마 및 프론트엔드 일관성 확보
-* **J-1**: `boot_state_0320.json`의 키 명칭을 `boot_ms` 및 `last_reset_reason`으로 통일.
-* **J-2**: `app_0320.js`에서 참조하는 스키마 파일명을 `schema_0320.json`으로 갱신.
-* **J-3**: UI 및 설정 스키마 전반에 걸쳐 DPI 레벨을 1~3 정수 범위로 통일.
-* **J-4 / J-4b**: 레거시 `precision.enable`을 제거하고 `precision.mode` 키로 통일.
-* **J-5**: `config_0320.json` 내부의 불필요한 `meta` 노드 정리 및 `index_0320.html`의 중복 선택자 제거.
-
-### Track 3 — W10 웹서버 안정화
-* **H-W1**: WiFi 설정 스키마의 모드 열거형을 `AUTO` / `AP` / `STA`로 명확히 규정.
-* **H-W2**: OTA 진행 중 연결이 끊겼을 때 상태 플래그(`_otaInProgress`)가 잠기는 문제를 30초 타임아웃 회수 로직으로 해결.
-* **R-1**: OTA 파일 업로드 콜백 내 괄호 불일치 버그 수정.
-
-### Track 4 — 빌드 파이프라인(Gzip) 동기화, CI 및 Git 추적 정상화
-* **B-1 (`pio_gzip_0320.py`)**: SCons에서 `buildfs` 실행 시 `littlefs.bin`이 먼저 빌드되고 뒤늦게 동기화되어 웹 파일이 누락되거나 구버전이 패킹되던 치명적 타이밍 버그 해결 (SCons 이미지 타깃 PreAction 및 CLI 타깃 즉시 동기화 등록).
-* **B-2 (`.gitignore` & `git rm --cached`)**: 빌드 시 자동 생성되는 `src/**/data_*/www/` 파생물 10건을 Git 인덱스 추적에서 안전하게 제외하고, `compile_commands.json`, `.clangd/`, 런타임 임시파일(`*.tmp`, `*.bak`), Python/OS 캐시 일괄 제외.
-* **B-3 (`ci_1_build_009.yml`)**: PR 트리거 `paths` 필터에서 소스인 `src/v032/data_v032/json/**`이 제외(`!`)되어 CI가 무시되던 결함 수정 및 매트릭스 환경별 `clean` 명령 보완.
-
-### Track 5 — 프론트엔드 UI/UX 고도화 및 백엔드 전 기능 연동 (4단계)
-* **FE-1 (Quick Control)**: 대시보드에서 런타임 즉시 감도를 바꾸는 `[DPI 1/2/3]` 원클릭 버튼(현재 DPI 자동 하이라이트), 커서 드리프트 즉시 보정 `[자이로 보정]`, 키 고착 비상 해제 `[버튼 강제 릴리즈]`, 버스 이상 복구 `[I2C 복구]` 버튼 추가 및 `/api/control` 완벽 연동.
-* **FE-2 (Dashboard Status)**: 대시보드 상태 요약 카드에 `DPI Level`, 커서 손떨림 지표 `Cursor RMS`, 센서 다이 온도 `Sensor Temp` (℃), 실제 센서 샘플링 주기 `Sampling` (ms/Hz) 실시간 모니터링 연동.
-* **FE-3 (Diagnostics)**: 웹 카운터 외에 하드웨어/RTOS 에러 카운터 7종(`mpu_nan`, `mutex_miss`, `task_overrun`, `i2c_recover`, `failsafe_rel`, `stack_sensor`, `stack_comm`) 배지 추가, 0 초과 시 붉은색 경고 하이라이트 적용, E10 센서 링버퍼 에러 로그(`diagErrHist` / `e10.err_hist`) 전용 로그 뷰어 구축.
-* **FE-4 (OTA Update UX)**: XHR 기반 실시간 진행률 프로그레스 바(0~100% 및 전송 KB), 펌웨어 업로드 중 마우스 입력 차단 안내를 위한 `OTA Guard` 경고 배너 추가.
+| 항목 | 값 |
+|---|---|
+| `G_C10_CFG_VER` | **410** (Schema v5) |
+| `G_W10_API_VER` | **410** |
+| `G_W10_BODY_MAX` | 8192 |
+| `G_W10_BODY_SLOTS` | 4 |
+| `G_W10_DEFAULT_INDEX_PATH` | `/www/index_0411.html` |
+| `SAFE_FAIL_THRESHOLD` | 2 |
+| `G_BOOT_GRACE_MS` | 8500 |
+| `CALIB_MS` | 1000 |
+| `CALIB_STILL_TH` | 3.0 |
+| `SPIKE_TH_DEG` | 650.0 |
+| `ERR_HIST_CAP` | 16 |
+| Sensor 주기 | 8ms (125Hz) |
+| Comm 주기 | 7ms |
+| LED tick 주기 | 50ms |
+| `_qFrame` size | 1 (overwrite) |
+| `_qHidCmd` size | 4 |
+| `_qActionExec` size | 8 |
+| `CONFIG_BT_NIMBLE_MAX_BONDS` | 3 |
+| 오프라인 스키마 (`_v`) | 2 |
 
 ---
 
-## 14. 🔧 알려진 유보 이슈 (Known Deferred Issues)
+## 🎯 프로젝트 철학
 
-향후 추가 고도화 작업 시 AI 어시스턴트가 참고할 미해결/유보 이슈 목록입니다.
+AirMouse Elite S3는 **상용급 입력 디바이스 아키텍처**입니다.
 
-| 식별자 | 내용 및 증상 | 관련 파일 | 추후 트리거 조건 |
-|:---:|:---|:---|:---|
-| **H-5** | `commTask`가 HID 테스트 커맨드 실행 중(최대 250ms) 프레임 처리를 일시 정지함 | `E10_AirMouse_Task_0320.cpp` | `test_click` 실행 중 커서가 순간 멈추는 현상이 체감될 때 |
-| **M-6** | `_qFrame` 큐가 크기 1 덮어쓰기 모드이므로 극단적인 고속 스크롤 시 휠 패킷 누락 가능성 | `E10_AirMouse_Core_0320.cpp` | 고속 스크롤 시 휠 입력 손실이 실제 보고될 때 |
-| **M-7** | `_state.updated` 변수가 쓰기만 되고 읽히지 않는 미사용 상태로 남아있음 | 여러 파일 | 소스 정리 및 가독성 개선 작업 시 |
-| **M-W2** | `mode=STA`로 지정되었으나 `sta_ssid`가 비어있을 때 폴백 모드 없이 무선 연결 불가 | `W10_Web_init_0320.cpp` | WiFi 자동 AP 폴백 정책 수립 시 |
-| **M-W1** | `apiKeycodes` 응답 시 캐시가 없어 매 요청마다 232개 엔트리를 순회 생성함 | `W10_WebApi_Status_0320.cpp` | 웹 응답 레이턴시 최적화 요구 시 |
-| **L-1** | `getStatus()` 함수가 락을 잡은 상태에서 `_hid.isConnected()`를 호출함 | `E10_AirMouse_Diag_0320.cpp` | 락 점유 시간 단축 최적화 시 |
-| **L-4** | `_sendPptKey2FromCfg` 함수가 호출되지 않는 데드 코드로 남아있음 | `E10_AirMouse_Hid_0320.cpp` | 데드 코드 정리 시점 |
-| **L-5** | `_getE10RuntimeConfig` 함수가 구현되었으나 현재 사용되지 않음 | `E10_AirMouse_Core_0320.cpp` | 데드 코드 정리 시점 |
+- 태스크/상태 소유권 명확
+- 락 정책 일관 (recursive, 짝맞춤)
+- Special 액션 sensorTask 단독 실행
+- 매크로 비동기 시퀀서 (블로킹 제로, 토큰 취소)
+- LED `_ledTask` 단독 tick
+- 브릭 방지 (SafeBoot / Atomic Config / OTA Guard / AP fallback)
+- 관측성 (RMS / 스택 / dt / 오류 이력)
+- 정책 일관성 (SafeMode API 게이트 method-aware, Action 큐 일원화)
+- 프론트엔드 7-모듈 구조 (로드 순서 명확, 캐시 immutable)
+- 오프라인 시뮬레이터 (localStorage 스키마 버전 관리)
 
----
-
-## 15. 📌 부록: 버전별 사양 변경 비교 (v0.0.6 vs v0320)
-
-| 항목 | 레거시 버전 (v0.0.6) | 현행 버전 (v0320) |
-|:---|:---|:---|
-| **물리 버튼 수** | 3버튼 (`BTN_L`, `MODE`, `SCROLL`) | **5버튼** (`BTN_L`, `BTN_R`, `BTN_M`, `MODE`, `SCROLL`) |
-| **GPIO 할당** | 우클릭 / 휠클릭 핀 미할당 | **`GPIO 15` (R), `GPIO 16` (M)** 신규 추가 |
-| **스크롤 동작** | 커서 완전 분리 (100% 락) | 감쇠율 조정 가능 (**기본 25% 보존**) |
-| **Click-Lock** | Hard 모드만 지원 | **Hard(완전 고정) / Soft(95% 감쇠)** 2가지 모드 지원 |
-| **정밀 조준** | 미지원 | **5단계 프로파일 × 4상태 FSM** 지원 |
-| **PPT 제스처 키맵** | 고정 키코드 사용 | **Keymap v2** (Keyboard Usage + Consumer Mask 추상화) |
-| **SafeBoot** | 미지원 | 부팅 실패 누적(`fail_count`) 감지 및 **SafeMode 자동 진입** |
-| **OTA 보호** | 미지원 | 펌웨어 업로드 중 **OTA Guard** HID 차단 게이트 작동 |
-| **웹 관리 API** | 초기 프로토타입 수준 | **30개 이상의 RESTful 엔드포인트** 완비 |
-| **설정 영속화** | 단순 직접 파일 덮어쓰기 | **원자적 저장 (tmp $\rightarrow$ bak $\rightarrow$ verify $\rightarrow$ rollback)** |
-| **시스템 진단** | 단순 디버그 로그 출력 | **커서 RMS, 에러 이력, FreeRTOS 태스크 스택/dt 모니터링** |
-| **샘플링 주기** | 단순 125Hz 표기 | 센서 취득 **125Hz 고정**, HID 전송 **BLE 간격 동기화** |
-| **블루투스 스택** | 레거시 BLE 라이브러리 | **NimBLE-Arduino** 기반 고효율 HID over GATT |
-| **E10 코드 구조** | 단일 거대 cpp 파일 | **기능별 6개 파일 모듈화 분할** |
-| **HID 실행 권한** | 다중 태스크 무분별 직접 접근 | **`commTask` 단일 태스크 전담 실행** |
-| **HID 명령 전달** | 인스턴스 직접 호출 | FreeRTOS **`_qHidCmd` 큐를 통한 비동기 위임** |
-
----
-
-## 16. ✅ 프로젝트 핵심 설계 철학
-
-AirMouse Elite S3는 단순 아두이노 예제를 넘어 상용 입력 디바이스 수준의 견고성과 신뢰성을 지향합니다.
-
-1. **엄격한 태스크 및 상태 소유권 분리**: 각 리소스는 명확한 단일 소유 태스크를 가지며, 태스크 간 데이터 교환은 FreeRTOS 큐를 통합니다.
-2. **일관성 있는 동기화 규칙**: 재귀적 뮤텍스(`recursive mutex`)와 명확한 락/언락 짝맞춤을 보장합니다.
-3. **다중 브릭 방지 시스템**: SafeBoot, 원자적 설정 쓰기, 백업 롤백, OTA Guard를 통해 어떤 상황에서도 장치가 복구 불능 상태에 빠지지 않도록 합니다.
-4. **철저한 시스템 관측성(Observability)**: 커서 RMS, 센서 드리프트, 태스크별 스택 워터마크, 에러 카운터를 노출하여 문제 발생 시 원인을 즉각 추적할 수 있도록 합니다.
-5. **정책 기반 API 게이트**: 안전 모드 또는 업데이트 중에는 위험한 설정 변경 및 HID 입력을 원천 차단합니다.
-
-> [!TIP]
-> 향후 본 코드베이스에 새로운 기능을 추가하거나 수정할 때는 반드시 위 설계 원칙에 위배되지 않는지 검토한 후 작업을 진행하십시오.
+**새 기능 추가 시 위 원칙 위반 여부를 먼저 판단.**
