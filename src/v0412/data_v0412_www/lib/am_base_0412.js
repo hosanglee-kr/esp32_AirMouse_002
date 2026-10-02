@@ -167,6 +167,74 @@ function _kbUsageName(code) {
   return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
 }
 
+/* ---------------- 사용자 친화 라벨 매핑 헬퍼 ---------------- */
+function getActionKindFriendlyName(name, val) {
+  const MAP = {
+    "NONE": "없음 (동작 안 함)",
+    "MOUSE_CLICK": "마우스 클릭 (단발)",
+    "MOUSE_HOLD": "마우스 누르고 있기 (드래그용)",
+    "MOUSE_WHEEL": "마우스 휠 스크롤",
+    "KB_TAP": "키보드 단일 키 입력",
+    "KB_COMBO": "키보드 단축키 (최대 3개 동시)",
+    "KB_REPEAT": "키보드 연속 입력 (누르는 동안 반복)",
+    "CONSUMER_TAP": "미디어 / 볼륨 제어",
+    "CONSUMER_REPEAT": "미디어 연속 제어 (볼륨 등)",
+    "SPECIAL": "특수 기기 동작 (자이로/슬립/모드)",
+    "MACRO": "매크로 시퀀스 실행"
+  };
+  const desc = MAP[name];
+  return desc ? `${name} — ${desc}` : (name || `Kind ${val}`);
+}
+
+function getModifierFriendlyName(name) {
+  const MAP = {
+    "None": "없음 (조합 키 없음)",
+    "L_CTRL": "Ctrl (왼쪽)",
+    "L_SHIFT": "Shift (왼쪽)",
+    "L_ALT": "Alt (왼쪽)",
+    "L_GUI": "Win / Command (왼쪽)",
+    "R_CTRL": "Ctrl (오른쪽)",
+    "R_SHIFT": "Shift (오른쪽)",
+    "R_ALT": "Alt (오른쪽)",
+    "R_GUI": "Win / Command (오른쪽)"
+  };
+  return MAP[name] || name;
+}
+
+function getConsumerFriendlyName(name) {
+  const MAP = {
+    "VOL_UP": "볼륨 올리기 (Volume +)",
+    "VOL_DOWN": "볼륨 내리기 (Volume -)",
+    "MUTE": "음소거 (Mute)",
+    "PLAY_PAUSE": "재생 / 일시정지 (Play/Pause)",
+    "STOP": "정지 (Stop)",
+    "NEXT_TRACK": "다음 곡 / 트랙 (Next)",
+    "PREV_TRACK": "이전 곡 / 트랙 (Prev)",
+    "FF": "빨리감기 (Fast Forward)",
+    "REWIND": "되감기 (Rewind)",
+    "AC_BACK": "웹 뒤로가기 (Back)",
+    "AC_HOME": "웹 홈으로 (Home)",
+    "AC_SEARCH": "검색창 열기 (Search)",
+    "POWER": "전원 끄기 / 대기 (Power)",
+    "TV_INPUT": "외부입력 전환 (TV Input)",
+    "CH_UP": "채널 올리기 (Channel +)",
+    "CH_DOWN": "채널 내리기 (Channel -)"
+  };
+  return MAP[name] ? `${name} — ${MAP[name]}` : name;
+}
+
+function getSpecialFriendlyName(name) {
+  const MAP = {
+    "NONE": "없음",
+    "GYRO_RECALIB": "자이로 영점 재보정 (수평 정렬)",
+    "SLEEP_NOW": "즉시 절전 모드 진입",
+    "MODE_CYCLE": "동작 모드 순환 전환 (1 → 2 → 3)",
+    "PAIRING": "블루투스 페어링 모드 시작",
+    "HOST_CYCLE": "연결 호스트(기기) 전환"
+  };
+  return MAP[name] ? `${name} — ${MAP[name]}` : name;
+}
+
 // usage dropdown 생성 + 값 세팅 (오프라인 폴백 포함)
 function populateKbUsageSelect(p_selectEl, p_currentCode) {
   if (!p_selectEl) return;

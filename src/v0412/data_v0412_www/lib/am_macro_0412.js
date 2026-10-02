@@ -235,11 +235,11 @@ function buildMacroStepParams(container, s){
 
   const selKind = document.createElement("select");
   selKind.className = "select mini";
-  selKind.innerHTML = `<option value="0">NONE</option>`;
+  selKind.innerHTML = `<option value="0">NONE (동작 없음)</option>`;
   for (const k of allowedKinds){
     const o = document.createElement("option");
     o.value = String(k.value);
-    o.textContent = k.name;
+    o.textContent = getActionKindFriendlyName(k.name, k.value);
     selKind.appendChild(o);
   }
   selKind.value = String(s.k ?? 0);
@@ -256,12 +256,12 @@ function buildMacroStepParams(container, s){
       const sel = document.createElement("select");
       sel.className = "select mini";
       sel.innerHTML = `
-        <option value="0">None</option>
-        <option value="1">Left</option>
-        <option value="2">Right</option>
-        <option value="4">Middle</option>
-        <option value="8">Back</option>
-        <option value="16">Forward</option>`;
+        <option value="0">None (선택 안 함)</option>
+        <option value="1">Left (마우스 좌클릭)</option>
+        <option value="2">Right (마우스 우클릭)</option>
+        <option value="4">Middle (마우스 휠클릭)</option>
+        <option value="8">Back (뒤로가기 버튼)</option>
+        <option value="16">Forward (앞으로가기 버튼)</option>`;
       sel.value = String(s.p16 ?? 0);
       sel.onchange = () => { s.p16 = parseIntFlex(sel.value, 0); };
       container.appendChild(sel);
@@ -269,10 +269,10 @@ function buildMacroStepParams(container, s){
     else if (k === 3){
       const axisSel = document.createElement("select");
       axisSel.className = "select mini";
-      axisSel.innerHTML = `<option value="0">Y</option><option value="1">X</option>`;
+      axisSel.innerHTML = `<option value="0">Y (세로 스크롤)</option><option value="1">X (가로 팬)</option>`;
       const dirSel = document.createElement("select");
       dirSel.className = "select mini";
-      dirSel.innerHTML = `<option value="0">Up/Left</option><option value="1">Down/Right</option>`;
+      dirSel.innerHTML = `<option value="0">위로 / 왼쪽 (Up / Left)</option><option value="1">아래로 / 오른쪽 (Down / Right)</option>`;
 
       axisSel.value = String((s.p16 >>> 8) & 0xFF);
       dirSel.value  = String(s.p16 & 0xFF);
@@ -285,11 +285,11 @@ function buildMacroStepParams(container, s){
     else if (k === 4 || k === 6){
       const selMod = document.createElement("select");
       selMod.className = "select mini";
-      selMod.innerHTML = `<option value="0">None</option>`;
+      selMod.innerHTML = `<option value="0">None (조합 키 없음)</option>`;
       for (const mm of mods){
         const o = document.createElement("option");
         o.value = String(mm.mask);
-        o.textContent = mm.name;
+        o.textContent = getModifierFriendlyName(mm.name);
         selMod.appendChild(o);
       }
       selMod.value = String((s.p32 ?? 0) & 0xFF);
@@ -306,11 +306,11 @@ function buildMacroStepParams(container, s){
     else if (k === 5){
       const selMod = document.createElement("select");
       selMod.className = "select mini";
-      selMod.innerHTML = `<option value="0">None</option>`;
+      selMod.innerHTML = `<option value="0">None (조합 키 없음)</option>`;
       for (const mm of mods){
         const o = document.createElement("option");
         o.value = String(mm.mask);
-        o.textContent = mm.name;
+        o.textContent = getModifierFriendlyName(mm.name);
         selMod.appendChild(o);
       }
       selMod.value = String((s.p32 ?? 0) & 0xFF);
@@ -337,11 +337,11 @@ function buildMacroStepParams(container, s){
     else if (k === 7 || k === 8){
       const sel = document.createElement("select");
       sel.className = "select mini";
-      sel.innerHTML = `<option value="0">None</option>`;
+      sel.innerHTML = `<option value="0">None (선택 안 함)</option>`;
       for (const c of consumer){
         const o = document.createElement("option");
         o.value = String(c.mask >>> 0);
-        o.textContent = c.name;
+        o.textContent = getConsumerFriendlyName(c.name);
         sel.appendChild(o);
       }
       sel.value = String(s.p32 >>> 0);

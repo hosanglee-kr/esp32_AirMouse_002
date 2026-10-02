@@ -481,7 +481,7 @@ function renderActionEditor(slot, editable, onChange) {
     for (const kk of kinds){
       const o = document.createElement("option");
       o.value = String(kk.value);
-      o.textContent = kk.name;
+      o.textContent = getActionKindFriendlyName(kk.name, kk.value);
       selKind.appendChild(o);
     }
     selKind.value = String(cur.k);
@@ -502,12 +502,12 @@ function renderActionEditor(slot, editable, onChange) {
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
       sel.innerHTML = `
-        <option value="0">None</option>
-        <option value="1">Left</option>
-        <option value="2">Right</option>
-        <option value="4">Middle</option>
-        <option value="8">Back</option>
-        <option value="16">Forward</option>`;
+        <option value="0">None (선택 안 함)</option>
+        <option value="1">Left (마우스 좌클릭)</option>
+        <option value="2">Right (마우스 우클릭)</option>
+        <option value="4">Middle (마우스 휠클릭)</option>
+        <option value="8">Back (뒤로가기 버튼)</option>
+        <option value="16">Forward (앞으로가기 버튼)</option>`;
       sel.value = String(cur.p16);
       sel.onchange = () => { cur.p16 = parseIntFlex(sel.value, 0); emit(); };
       wrap.appendChild(sel);
@@ -516,13 +516,13 @@ function renderActionEditor(slot, editable, onChange) {
       const axisSel = document.createElement("select");
       axisSel.className = "select mini"; axisSel.disabled = !editable;
       axisSel.innerHTML = `
-        <option value="0">Y (Vertical)</option>
-        <option value="1">X (Pan)</option>`;
+        <option value="0">Y (세로 상하 스크롤)</option>
+        <option value="1">X (가로 좌우 팬)</option>`;
       const dirSel = document.createElement("select");
       dirSel.className = "select mini"; dirSel.disabled = !editable;
       dirSel.innerHTML = `
-        <option value="0">Up / Left</option>
-        <option value="1">Down / Right</option>`;
+        <option value="0">위로 / 왼쪽 (Up / Left)</option>
+        <option value="1">아래로 / 오른쪽 (Down / Right)</option>`;
 
       axisSel.value = String((cur.p16 >>> 8) & 0xFF);
       dirSel.value  = String(cur.p16 & 0xFF);
@@ -541,11 +541,11 @@ function renderActionEditor(slot, editable, onChange) {
       const selMod = document.createElement("select");
       selMod.className = "select mini";
       selMod.disabled = !editable;
-      selMod.innerHTML = `<option value="0">None</option>`;
+      selMod.innerHTML = `<option value="0">None (조합 키 없음)</option>`;
       for (const m of mods){
         const o = document.createElement("option");
         o.value = String(m.mask);
-        o.textContent = m.name;
+        o.textContent = getModifierFriendlyName(m.name);
         selMod.appendChild(o);
       }
       selMod.value = String(cur.p32 & 0xFF);
@@ -566,11 +566,11 @@ function renderActionEditor(slot, editable, onChange) {
     else if (k === 5){
       const selMod = document.createElement("select");
       selMod.className = "select mini"; selMod.disabled = !editable;
-      selMod.innerHTML = `<option value="0">None</option>`;
+      selMod.innerHTML = `<option value="0">None (조합 키 없음)</option>`;
       for (const m of mods){
         const o = document.createElement("option");
         o.value = String(m.mask);
-        o.textContent = m.name;
+        o.textContent = getModifierFriendlyName(m.name);
         selMod.appendChild(o);
       }
       selMod.value = String(cur.p32 & 0xFF);
@@ -600,11 +600,11 @@ function renderActionEditor(slot, editable, onChange) {
     else if (k === 7 || k === 8){
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
-      sel.innerHTML = `<option value="0">None</option>`;
+      sel.innerHTML = `<option value="0">None (선택 안 함)</option>`;
       for (const c of consumer){
         const o = document.createElement("option");
         o.value = String(c.mask >>> 0);
-        o.textContent = c.name;
+        o.textContent = getConsumerFriendlyName(c.name);
         sel.appendChild(o);
       }
       sel.value = String(cur.p32 >>> 0);
@@ -617,7 +617,7 @@ function renderActionEditor(slot, editable, onChange) {
       for (const s of specials){
         const o = document.createElement("option");
         o.value = String(s.value);
-        o.textContent = s.name;
+        o.textContent = getSpecialFriendlyName(s.name);
         sel.appendChild(o);
       }
       sel.value = String(cur.p16);
