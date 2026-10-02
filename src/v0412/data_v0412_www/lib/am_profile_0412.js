@@ -68,7 +68,7 @@ async function profileSwitch(idx){
 
   try {
     const u = unwrapApi(await apiPostJson("/api/profiles/switch", { idx }));
-    if (!u.ok){ alert("switch failed: " + (u.msg || u.code)); return; }
+    if (!u.ok){ alert(`${t("pop.switch_fail")} ${u.msg || u.code}`); return; }
 
     await profileReloadAll();
     renderSlotEditor();
@@ -83,14 +83,14 @@ async function profileSwitch(idx){
 }
 
 async function profileCreate(){
-  const name = prompt("새 프로파일 이름 (max 15자):", "New");
+  const name = prompt(t("pop.prof_name_prompt"), "New");
   if (!name) return;
 
-  showLoading("프로파일 생성 중…");
+  showLoading(t("loading.processing"));
   try {
     const u = unwrapApi(await apiPostJson("/api/profiles/create",
       { name: name.trim().substring(0, 15) }));
-    if (!u.ok){ alert("create failed: " + (u.msg || u.code)); return; }
+    if (!u.ok){ alert(`${t("pop.prof_create_fail")} ${u.msg || u.code}`); return; }
     await profileReloadAll();
     renderSlotEditor();
     macroRenderList();
@@ -108,18 +108,16 @@ async function profileDelete(){
 
   let msg;
   if (v_count > 1){
-    msg = `⚠ 현재 활성 프로파일(#${g_profile.idx})을 삭제합니다.\n\n` +
-          `삭제 후 자동으로 다른 프로파일로 전환됩니다.\n` +
-          `계속하시겠습니까?`;
+    msg = t("pop.prof_delete_active_confirm", { idx: g_profile.idx });
   } else {
-    msg = `프로파일 #${g_profile.idx} "${g_profile.config?.name || ""}" 삭제하시겠습니까?`;
+    msg = t("pop.prof_delete_confirm", { idx: g_profile.idx, name: g_profile.config?.name || "" });
   }
   if (!confirm(msg)) return;
 
-  showLoading("프로파일 삭제 중…");
+  showLoading(t("loading.processing"));
   try {
     const u = unwrapApi(await apiPostJson("/api/profiles/delete", { idx: g_profile.idx }));
-    if (!u.ok){ alert("delete failed: " + (u.msg || u.code)); return; }
+    if (!u.ok){ alert(`${t("pop.prof_delete_fail")} ${u.msg || u.code}`); return; }
     await profileReloadAll();
     renderSlotEditor();
     macroRenderList();
@@ -132,11 +130,11 @@ async function profileDelete(){
 async function profileRename(){
   if (!g_profile) return;
   const cur = (g_profile.config && g_profile.config.name) || "";
-  const name = prompt("새 이름 (max 15자):", cur);
+  const name = prompt(t("pop.prof_rename_prompt"), cur);
   if (!name) return;
   const u = unwrapApi(await apiPostJson("/api/profiles/rename",
     { idx: g_profile.idx, name: name.trim().substring(0, 15) }));
-  if (!u.ok){ alert("rename failed: " + (u.msg || u.code)); return; }
+  if (!u.ok){ alert(`${t("pop.prof_rename_fail")} ${u.msg || u.code}`); return; }
   await profileReloadAll();
 }
 
@@ -271,9 +269,9 @@ function renderSlotEditor(){
   root.innerHTML = "";
 
   const groups = [
-    { key: "button",  label: "Button Triggers" },
-    { key: "gesture", label: "Gesture (Flick / Linear)" },
-    { key: "tilt",    label: "Tilt Hold" }
+    { key: "button",  label: t("slots.grp_btn") },
+    { key: "gesture", label: t("slots.grp_gesture") },
+    { key: "tilt",    label: t("slots.grp_tilt") }
   ];
 
   // [N-14] slots_meta 조회용
@@ -288,7 +286,7 @@ function renderSlotEditor(){
     const head = document.createElement("div");
     head.className = "trig-group-head";
     if (isTiltGroup) {
-      head.textContent = "Tilt Hold (Mode 3 · TV 전용)";
+      head.textContent = t("slots.grp_tilt");
       if (tiltDisabled) head.classList.add("dim");
     } else {
       head.textContent = g.label;
@@ -302,13 +300,10 @@ function renderSlotEditor(){
 
       if (isGlobal) {
         banner.classList.add("info");
-        banner.textContent =
-          "ℹ 여기서 설정한 Global 값은 Mode 3 (TV) 에 자동 상속됩니다.";
+        banner.textContent = t("slots.tilt_global_info");
       } else if (tiltDisabled) {
         banner.classList.add("warn");
-        banner.textContent =
-          "⚠ Tilt Hold 는 Mode 3 (TV) 에서만 실제 발동합니다. " +
-          "이 뷰에서는 편집할 수 없습니다. Global 또는 Mode 3 에서 설정하세요.";
+        banner.textContent = t("slots.tilt_disabled_warn");
       }
 
       if (banner.textContent) root.appendChild(banner);
@@ -349,7 +344,7 @@ function renderSlotEditor(){
       if (tiltDisabled) {
         badge.textContent = "M3";
         badge.classList.add("g");
-        badge.title = "Mode 3 (TV) 전용 — Global 값 상속";
+        badge.title = t("slots.badge_m3_title");
         row.appendChild(badge);
       } else if (isGlobal) {
         badge.textContent = "G";
@@ -358,7 +353,7 @@ function renderSlotEditor(){
       } else if (isOver) {
         badge.textContent = `M${mi + 1}`;
         badge.classList.add("m");
-        badge.title = "클릭하여 Global 로 되돌림";
+        badge.title = t("slots.badge_m_title");
         if (!t.locked) {
           badge.style.cursor = "pointer";
           badge.onclick = () => {
@@ -370,7 +365,7 @@ function renderSlotEditor(){
       } else {
         badge.textContent = "G";
         badge.classList.add("g");
-        badge.title = "클릭하여 이 Mode 에 override 생성";
+        badge.title = t("slots.badge_g_title");
         if (!t.locked) {
           badge.style.cursor = "pointer";
           badge.onclick = () => {
@@ -414,12 +409,12 @@ function renderSlotEditor(){
         btn.onclick = async () => {
           const arr = getSlotsArray();
           const s = (arr && arr[idx]) ? arr[idx] : slot;
-          if (!s || s.k === 0){ alert("할당된 액션이 없습니다."); return; }
-          if (!confirm(`Live Test 실행? (kind: ${s.k})`)) return;
+          if (!s || s.k === 0){ alert(t("pop.no_action_assigned")); return; }
+          if (!confirm(t("pop.live_test_confirm", { kind: s.k }))) return;
           const u = unwrapApi(await apiPostJson("/api/action/test", {
             k: s.k, h: s.h, p16: s.p16, p32: s.p32
           }));
-          if (!u.ok) alert("Test failed: " + (u.msg || u.code));
+          if (!u.ok) alert(`${t("pop.test_fail")} ${u.msg || u.code}`);
         };
         testCell.appendChild(btn);
       }
@@ -501,13 +496,9 @@ function renderActionEditor(slot, editable, onChange) {
     else if (k === 1 || k === 2){
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
-      sel.innerHTML = `
-        <option value="0">None (선택 안 함)</option>
-        <option value="1">Left (마우스 좌클릭)</option>
-        <option value="2">Right (마우스 우클릭)</option>
-        <option value="4">Middle (마우스 휠클릭)</option>
-        <option value="8">Back (뒤로가기 버튼)</option>
-        <option value="16">Forward (앞으로가기 버튼)</option>`;
+      sel.innerHTML = [0, 1, 2, 4, 8, 16].map(v => 
+        `<option value="${v}">${getMouseButtonFriendlyName(v)}</option>`
+      ).join("");
       sel.value = String(cur.p16);
       sel.onchange = () => { cur.p16 = parseIntFlex(sel.value, 0); emit(); };
       wrap.appendChild(sel);
@@ -516,13 +507,13 @@ function renderActionEditor(slot, editable, onChange) {
       const axisSel = document.createElement("select");
       axisSel.className = "select mini"; axisSel.disabled = !editable;
       axisSel.innerHTML = `
-        <option value="0">Y (세로 상하 스크롤)</option>
-        <option value="1">X (가로 좌우 팬)</option>`;
+        <option value="0">${getScrollFriendlyName(true, 0)}</option>
+        <option value="1">${getScrollFriendlyName(true, 1)}</option>`;
       const dirSel = document.createElement("select");
       dirSel.className = "select mini"; dirSel.disabled = !editable;
       dirSel.innerHTML = `
-        <option value="0">위로 / 왼쪽 (Up / Left)</option>
-        <option value="1">아래로 / 오른쪽 (Down / Right)</option>`;
+        <option value="0">${getScrollFriendlyName(false, 0)}</option>
+        <option value="1">${getScrollFriendlyName(false, 1)}</option>`;
 
       axisSel.value = String((cur.p16 >>> 8) & 0xFF);
       dirSel.value  = String(cur.p16 & 0xFF);
@@ -680,16 +671,16 @@ function renderActionEditor(slot, editable, onChange) {
 async function saveProfile(){
   if (!g_profile) return;
 
-  showLoading("프로파일 저장 중…");
+  showLoading(t("loading.processing"));
   try {
     const u = unwrapApi(await apiPostJson("/api/profiles/active", g_profile.config));
-    if (!u.ok){ alert("save failed: " + (u.msg || u.code)); return; }
+    if (!u.ok){ alert(`${t("pop.slot_save_fail")} ${u.msg || u.code}`); return; }
     await profileReloadAll();
     renderSlotEditor();
     macroRenderList();
     macroRenderEditor();
     await refreshStatus();
-    setMsg("프로파일 저장 완료", true);
+    setMsg("Profile 저장 완료", true);
   } finally {
     hideLoading();
   }

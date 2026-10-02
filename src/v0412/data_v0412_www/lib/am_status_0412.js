@@ -89,11 +89,11 @@ function _updateQuickTuningActive(dpi, prec){
    [N-3] Diag 카운터 초기화
    ======================================================= */
 async function diagClear(){
-  if (!confirm("진단 카운터 및 이벤트 로그를 초기화하시겠습니까?")) return;
+  if (!confirm(t("pop.diag_reset_confirm"))) return;
 
   const u = unwrapApi(await apiPostJson("/api/diag/clear", {}));
   if (!u.ok){
-    alert("초기화 실패: " + (u.msg || u.code));
+    alert(`${t("pop.diag_reset_fail")} ${u.msg || u.code}`);
     return;
   }
   setMsg("진단 카운터 초기화 완료", true);
@@ -107,7 +107,7 @@ async function ctlSetDpi(level){
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "set_dpi", level: level, snapshot: true
   }));
-  if (!u.ok) alert("DPI 변경 실패: " + (u.msg || u.code));
+  if (!u.ok) alert(`DPI 변경 실패: ${u.msg || u.code}`);
   else setMsg(`DPI ${level} 적용`, true);
   await refreshStatus();
 }
@@ -116,7 +116,7 @@ async function ctlSetPrecision(mode){
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "set_precision", mode: mode, snapshot: true
   }));
-  if (!u.ok) alert("Precision 변경 실패: " + (u.msg || u.code));
+  if (!u.ok) alert(`Precision 변경 실패: ${u.msg || u.code}`);
   else setMsg(`Precision ${mode} 적용`, true);
   await refreshStatus();
 }
@@ -125,12 +125,12 @@ async function ctlSetPrecision(mode){
    [N-8] Host Cycle
    ======================================================= */
 async function ctlHostCycle(){
-  if (!confirm("다른 저장된 호스트로 순환하시겠습니까?\n(연결이 끊겼다가 재연결됩니다)")) return;
+  if (!confirm(t("pop.host_cycle_confirm"))) return;
 
   const u = unwrapApi(await apiPostJson("/api/action/test", {
     k: 9, h: 0, p16: 5, p32: 0
   }));
-  if (!u.ok) alert("Host Cycle 실패: " + (u.msg || u.code));
+  if (!u.ok) alert(`${t("pop.host_cycle_fail")} ${u.msg || u.code}`);
   else setMsg("호스트 순환 요청됨", true);
 }
 
@@ -138,7 +138,7 @@ async function ctlHostCycle(){
    [N-18] I2C 복구 결과 표시
    ======================================================= */
 async function ctlI2cRecoverWithFeedback(){
-  if (!confirm("MPU6050 I2C 복구를 진행하시겠습니까?")) return;
+  if (!confirm(t("pop.i2c_recover_confirm"))) return;
 
   const v_beforeCnt = (g_lastStatus
       && g_lastStatus.groups
@@ -174,7 +174,7 @@ async function ctlI2cRecoverWithFeedback(){
         setMsg(`I2C 복구 완료 (성공) · 총 ${v_afterCnt}회`, true);
       } else {
         setMsg(`I2C 복구 실패 · 총 ${v_afterCnt}회`, false);
-        alert("I2C 복구가 실패했습니다.\nMPU6050 배선/전원을 확인하세요.");
+        alert(t("pop.i2c_recover_hardware_warn"));
       }
     } else {
       setMsg("I2C 복구 요청 전송됨 (결과 미확인)", true);
@@ -206,7 +206,7 @@ async function keyTest(page, mod, code){
    [N-19] 자이로 캘리브 피드백
    ======================================================= */
 async function ctlGyroCalibWithFeedback(){
-  if (!confirm("기기를 평평한 곳에 놓고 정지 유지하세요.\n자이로 캘리브레이션을 진행하시겠습니까?")) return;
+  if (!confirm(t("pop.gyro_calib_confirm"))) return;
 
   const v_beforeRms = _getE10GyroRms();
 
@@ -214,11 +214,11 @@ async function ctlGyroCalibWithFeedback(){
     cmd: "gyro_calib", snapshot: false
   }));
   if (!u.ok){
-    alert("자이로 캘리브 요청 실패: " + (u.msg || u.code));
+    alert(`${t("pop.gyro_calib_fail")} ${u.msg || u.code}`);
     return;
   }
 
-  showLoading("자이로 캘리브 진행 중… (약 1초)");
+  showLoading(t("loading.processing"));
 
   setTimeout(async () => {
     await refreshStatus();
@@ -288,7 +288,7 @@ async function _updateRebootCheckAsync(){
    ======================================================= */
 function toggleAppMode(){
   const targetMode = (g_appMode === APP_MODE_ONLINE) ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
-  if (!confirm(`현재 모드: ${g_appMode}\n${targetMode} 모드로 전환하시겠습니까?`)) return;
+  if (!confirm(t("pop.net_mode_switch_confirm", { current: g_appMode, target: targetMode }))) return;
 
   setAppMode(targetMode);
   setMsg(`모드 전환 완료: ${g_appMode}`, true);
@@ -379,7 +379,7 @@ async function refreshDiag(){
    ======================================================= */
 async function otaUpload(){
   const f = qs("otaFile")?.files?.[0];
-  if (!f){ alert("파일을 선택하세요."); return; }
+  if (!f){ alert(t("pop.file_select_req")); return; }
 
   qs("otaHint").textContent = `uploading: ${f.name}...`;
   const r = await fetch("/api/ota", { method: "POST", body: f });

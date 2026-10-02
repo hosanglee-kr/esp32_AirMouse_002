@@ -301,8 +301,8 @@ async function ctlForceRelease(){
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "force_release", snapshot: false
   }));
-  if (!u.ok) alert("force_release failed: " + (u.msg || u.code));
-  else       alert("모든 버튼/키 해제 완료");
+  if (!u.ok) alert(`${t("pop.test_fail")} ${u.msg || u.code}`);
+  else       alert(t("pop.force_release_ok"));
   await refreshStatus();
 }
 
@@ -316,13 +316,13 @@ async function safeInfo(){
 
 /* [N-1] SafeBoot 해제 (재부팅 포함) */
 async function safeBootExit(){
-  if (!confirm("SafeMode를 해제하고 재부팅하시겠습니까?")) return;
+  if (!confirm(t("pop.safeboot_exit_confirm"))) return;
 
   setMsg("SafeBoot 해제 요청 중…", true);
 
   const u = unwrapApi(await apiPostJson("/api/safeboot", { exit: true }));
   if (!u.ok){
-    alert("SafeBoot 해제 실패: " + (u.msg || u.code));
+    alert(`${t("pop.safeboot_exit_fail")} ${u.msg || u.code}`);
     setMsg("SafeBoot 해제 실패", false);
     return;
   }
@@ -344,7 +344,7 @@ async function safeBootExit(){
     if (v_tries >= 15){
       clearInterval(v_timer);
       hideLoading();
-      alert("재부팅이 지연되고 있습니다. 페이지를 새로고침 해주세요.");
+      alert(t("pop.reboot_delay_warn"));
     }
   }, 1000);
 }
@@ -352,15 +352,15 @@ async function safeBootExit(){
 /* [N-4] SafeMode 수동 토글 */
 async function safeModeSet(enable){
   const msg = enable
-    ? "SafeMode로 진입합니다.\nHID 입력이 차단됩니다 (웹 설정은 계속 가능)."
-    : "SafeMode를 해제합니다.\nHID 입력이 재개됩니다.";
+    ? t("pop.safemode_enter_confirm")
+    : t("pop.safemode_exit_confirm");
   if (!confirm(msg)) return;
 
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "set_safe_mode", enable: !!enable, snapshot: true
   }));
   if (!u.ok){
-    alert("SafeMode 변경 실패: " + (u.msg || u.code));
+    alert(`${t("pop.safemode_change_fail")} ${u.msg || u.code}`);
     return;
   }
   setMsg("SafeMode " + (enable ? "진입" : "해제") + " 완료", true);
@@ -383,14 +383,14 @@ async function otaGuardSet(enable){
 
 /* [N-20] Factory Reset (진행 표시 + 자동 재접속) */
 async function factoryReset(){
-  if (!confirm("Factory Reset 진행?\n\n모든 프로파일이 삭제되고 기본값으로 재부팅됩니다.")) return;
+  if (!confirm(t("pop.factory_reset_confirm"))) return;
 
   const hint = qs("factoryHint");
   if (hint) hint.textContent = "요청 전송 중…";
 
   try {
     const r = await fetch("/api/factory_reset", { method: "POST" });
-    const t = await r.text();
+    const t_res = await r.text();
 
     if (hint) hint.textContent = "재부팅 대기 중…";
     showLoading("재부팅 대기 중…");
@@ -410,21 +410,21 @@ async function factoryReset(){
         clearInterval(v_timer);
         hideLoading();
         if (hint) hint.textContent = "재부팅 지연 — 새로고침하세요";
-        alert("재부팅이 지연되고 있습니다. 페이지를 새로고침 해주세요.");
+        alert(t("pop.reboot_delay_warn"));
       }
     }, 1000);
 
   } catch(e){
     hideLoading();
-    alert("Factory Reset 실패: " + e.message);
+    alert(`${t("pop.factory_reset_fail")} ${e.message}`);
   }
 }
 
 async function rebootDevice(){
-  if (!confirm("디바이스를 재부팅하시겠습니까?")) return;
+  if (!confirm(t("pop.reboot_confirm"))) return;
   const u = unwrapApi(await apiPostJson("/api/reboot", { delay_ms: 500 }));
-  alert(u.ok ? "재부팅 요청 완료 (약 3초 후 재접속)"
-             : "재부팅 요청 실패: " + (u.msg || u.code));
+  alert(u.ok ? t("pop.reboot_requested")
+             : `${t("pop.reboot_fail")} ${u.msg || u.code}`);
 }
 
 /* =======================================================
@@ -462,7 +462,7 @@ async function applyMotionPreset(presetKey) {
   const p = MOTION_PRESETS[presetKey];
   if (!p) return;
 
-  if (!confirm(`프리셋 "${presetKey}"을 현재 프로파일에 적용하시겠습니까?\n(저장 후 기기에 반영됩니다)`)) return;
+  if (!confirm(t("pop.preset_apply_confirm", { preset: presetKey }))) return;
 
   // [Phase 1] Click-Freeze UI 반영
   if (qs("cfEnable"))    qs("cfEnable").value    = String(p.click_freeze.enable ? "true" : "false");
@@ -484,5 +484,5 @@ async function applyMotionPreset(presetKey) {
   await cfgSave();
 
   const hint = qs("presetHint");
-  if (hint) hint.textContent = `프리셋 "${presetKey}" 적용 및 저장 완료`;
+  if (hint) hint.textContent = t("pop.preset_applied", { preset: presetKey });
 }

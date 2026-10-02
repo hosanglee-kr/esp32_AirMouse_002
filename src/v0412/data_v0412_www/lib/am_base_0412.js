@@ -200,6 +200,38 @@ function getActionKindFriendlyName(name, val) {
   return desc ? `${name} — ${desc}` : (name || `Kind ${val}`);
 }
 
+function getMouseButtonFriendlyName(val) {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  const MAP_KO = {
+    0: "None (선택 안 함)",
+    1: "Left (마우스 좌클릭)",
+    2: "Right (마우스 우클릭)",
+    4: "Middle (마우스 휠클릭)",
+    8: "Back (뒤로가기 버튼)",
+    16: "Forward (앞으로가기 버튼)"
+  };
+  const MAP_EN = {
+    0: "None",
+    1: "Left (Left Click)",
+    2: "Right (Right Click)",
+    4: "Middle (Wheel Click)",
+    8: "Back (Back Button)",
+    16: "Forward (Forward Button)"
+  };
+  return (isEn ? MAP_EN[val] : MAP_KO[val]) || `Button ${val}`;
+}
+
+function getScrollFriendlyName(isAxis, val) {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  if (isAxis) {
+    if (val === 0) return isEn ? "Y (Vertical Scroll)" : "Y (세로 상하 스크롤)";
+    return isEn ? "X (Horizontal Pan)" : "X (가로 좌우 팬)";
+  } else {
+    if (val === 0) return isEn ? "Up / Left" : "위로 / 왼쪽 (Up / Left)";
+    return isEn ? "Down / Right" : "아래로 / 오른쪽 (Down / Right)";
+  }
+}
+
 function getModifierFriendlyName(name) {
   const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
   const MAP_KO = {

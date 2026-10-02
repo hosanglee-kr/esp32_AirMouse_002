@@ -27,7 +27,7 @@ function macroRenderList(){
   if (macros.length === 0){
     const div = document.createElement("div");
     div.className = "hint2";
-    div.textContent = "등록된 매크로가 없습니다.";
+    div.textContent = t("macros.empty_hint");
     root.appendChild(div);
     return;
   }
@@ -70,7 +70,7 @@ function macroRenderEditor(){
   const macros = getMacrosArray();
 
   if (g_macroSel < 0 || g_macroSel >= macros.length){
-    root.innerHTML = '<div class="hint2">좌측 목록에서 매크로를 선택하세요.</div>';
+    root.innerHTML = `<div class="hint2">${t("macros.select_hint")}</div>`;
     return;
   }
 
@@ -84,31 +84,31 @@ function macroRenderEditor(){
   const nameInp = document.createElement("input");
   nameInp.type = "text";
   nameInp.maxLength = 15;
-  nameInp.placeholder = "매크로 이름";
+  nameInp.placeholder = t("macros.name_ph");
   nameInp.value = m.name || "";
   nameInp.oninput = () => { m.name = nameInp.value; };
   head.appendChild(nameInp);
 
   const btnTest = document.createElement("button");
   btnTest.className = "btn primary mini";
-  btnTest.textContent = "Test";
+  btnTest.textContent = t("btn.test");
   btnTest.onclick = async () => {
-    if (!m.steps || m.steps.length === 0){ alert("빈 매크로입니다."); return; }
-    if (!confirm(`매크로 "${m.name}" 실행?`)) return;
+    if (!m.steps || m.steps.length === 0){ alert(t("pop.macro_empty")); return; }
+    if (!confirm(t("pop.macro_test_confirm", { name: m.name }))) return;
 
     const saved = await macroSave(true);
-    if (!saved){ alert("저장 실패"); return; }
+    if (!saved){ alert(t("pop.macro_save_fail")); return; }
 
     const u = unwrapApi(await apiPostJson("/api/action/test_macro", { idx: g_macroSel }));
-    if (!u.ok) alert("매크로 실행 실패: " + (u.msg || u.code));
+    if (!u.ok) alert(`${t("pop.macro_exec_fail")} ${u.msg || u.code}`);
   };
   head.appendChild(btnTest);
 
   const btnDel = document.createElement("button");
   btnDel.className = "btn danger mini";
-  btnDel.textContent = "삭제";
+  btnDel.textContent = t("macros.btn_del");
   btnDel.onclick = async () => {
-    if (!confirm(`매크로 "${m.name}" 삭제하시겠습니까?`)) return;
+    if (!confirm(t("pop.macro_del_confirm", { name: m.name }))) return;
     macros.splice(g_macroSel, 1);
     g_macroSel = macros.length > 0 ? Math.min(g_macroSel, macros.length - 1) : -1;
     await macroSave(true);
@@ -155,7 +155,7 @@ function macroRenderEditor(){
     delayWrap.appendChild(delayInp);
     const dl = document.createElement("span");
     dl.className = "macro-step-delay-label";
-    dl.textContent = "delay ms (0~2000)";
+    dl.textContent = t("macros.delay_label");
     delayWrap.appendChild(dl);
     row.appendChild(delayWrap);
 
@@ -197,7 +197,7 @@ function macroRenderEditor(){
   const btnAddStep = document.createElement("button");
   btnAddStep.className = "btn";
   btnAddStep.style.marginTop = "10px";
-  btnAddStep.textContent = "+ Step 추가";
+  btnAddStep.textContent = t("macros.add_step");
   btnAddStep.disabled = (m.steps.length >= 8);
   btnAddStep.onclick = () => {
     if (m.steps.length >= 8) return;
@@ -255,13 +255,9 @@ function buildMacroStepParams(container, s){
     if (k === 1 || k === 2){
       const sel = document.createElement("select");
       sel.className = "select mini";
-      sel.innerHTML = `
-        <option value="0">None (선택 안 함)</option>
-        <option value="1">Left (마우스 좌클릭)</option>
-        <option value="2">Right (마우스 우클릭)</option>
-        <option value="4">Middle (마우스 휠클릭)</option>
-        <option value="8">Back (뒤로가기 버튼)</option>
-        <option value="16">Forward (앞으로가기 버튼)</option>`;
+      sel.innerHTML = [0, 1, 2, 4, 8, 16].map(v => 
+        `<option value="${v}">${getMouseButtonFriendlyName(v)}</option>`
+      ).join("");
       sel.value = String(s.p16 ?? 0);
       sel.onchange = () => { s.p16 = parseIntFlex(sel.value, 0); };
       container.appendChild(sel);
@@ -269,10 +265,14 @@ function buildMacroStepParams(container, s){
     else if (k === 3){
       const axisSel = document.createElement("select");
       axisSel.className = "select mini";
-      axisSel.innerHTML = `<option value="0">Y (세로 스크롤)</option><option value="1">X (가로 팬)</option>`;
+      axisSel.innerHTML = `
+        <option value="0">${getScrollFriendlyName(true, 0)}</option>
+        <option value="1">${getScrollFriendlyName(true, 1)}</option>`;
       const dirSel = document.createElement("select");
       dirSel.className = "select mini";
-      dirSel.innerHTML = `<option value="0">위로 / 왼쪽 (Up / Left)</option><option value="1">아래로 / 오른쪽 (Down / Right)</option>`;
+      dirSel.innerHTML = `
+        <option value="0">${getScrollFriendlyName(false, 0)}</option>
+        <option value="1">${getScrollFriendlyName(false, 1)}</option>`;
 
       axisSel.value = String((s.p16 >>> 8) & 0xFF);
       dirSel.value  = String(s.p16 & 0xFF);
@@ -368,7 +368,7 @@ async function macroAdd(){
   const macros = getMacrosArray();
   if (macros.length >= 8) return;
 
-  const name = prompt("새 매크로 이름 (max 15자):", "Macro");
+  const name = prompt(t("pop.macro_new_prompt"), "Macro");
   if (!name) return;
 
   macros.push({
@@ -389,7 +389,7 @@ async function macroSave(silent = false){
   const patch = { macros: getMacrosArray() };
   const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
   if (!u.ok){
-    if (!silent) alert("매크로 저장 실패: " + (u.msg || u.code));
+    if (!silent) alert(`${t("pop.macro_save_fail")} ${u.msg || u.code}`);
     return false;
   }
   if (!silent){
@@ -397,7 +397,7 @@ async function macroSave(silent = false){
     macroRenderList();
     macroRenderEditor();
     renderSlotEditor();
-    setMsg("매크로 저장 완료", true);
+    setMsg("Macro 저장 완료", true);
   }
   return true;
 }
