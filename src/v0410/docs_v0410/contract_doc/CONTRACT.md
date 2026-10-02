@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0410/docs_v0410/contract_doc/CONTRACT.md`
-> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED suspend/resume 계약)
+> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 조치 + enqueue 실패 안전망)
 
 ---
 
@@ -27,9 +27,10 @@
 | `_resolveSlot(mode, trig)` | `sensorTask`, `commTask`, `webTask` | Read-only | 없음 (Global + Mode Override O(1) 해석) | 비정상 인덱스 시 `EN_C20_ACT_NONE` 반환 |
 | `switchProfile(idx)` | `webTask` only | 진행 중 재진입 차단 (`_cfgProfileValid`) | `_macroAbortToken++`, 큐 드레인, 리셋 위임, HID release | 전환 중이면 `false` 반환 및 조기 종료 |
 | `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링 시작, 캘리브레이션 요청 등 | 알 수 없는 코드 시 무시 |
-| `forceReleaseButtons()` | `any` (web, sensor, comm) | 논블로킹 | `_qHidCmd`에 `RELEASE_ALL` 인큐 + `_macroAbortToken++` | 큐 Full 시 drop (false) |
-| `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_freezeState` 전이 및 커서 좌표 0 클램프 | 없음 |
-| `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | 활성 축 외 성분 감쇠(Soft Snap) | 미활성화 시 원본 유지 |
+| `forceReleaseButtons()` | `any` (web, sensor, comm) | 논블로킹 | `_macroAbortToken++` + 상태 리셋 + `_qHidCmd`에 `RELEASE_ALL` 인큐 | **큐 Full 시 `_reqCommReleaseAll = true` 위임 + false 반환** (commTask 진입부에서 release 100% 보장) [R3-H-2/3] |
+| `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_lock()` 하 config 스냅샷 read + `_freezeState` 전이 | `motion_adv.click_freeze` 로컬 복사 (switchProfile과 race 방지) [R2-C-1] |
+| `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | `_lock()` 하 config 스냅샷 read + 활성 축 감쇠 | `motion_adv.snap` 로컬 복사 [R2-C-1] |
+| `mpuWr(reg,val)` | `sensorTask` (`_prepareMpuWom`) | 논블로킹 I2C | `Wire.endTransmission()` 반환값 리턴 | WoM prep 실패 시 조기 반환 → sleep 금지 [R2-M-2] |
 | `_recoverI2C()` | `sensorTask` only | I2C 버스 재초기화 | `Wire.end()`, `Wire.begin()`, `_mpu.begin()` | 실패 시 `_consecutiveRecoverFail++` |
 | `_runGyroCalibration()` | `sensorTask` only | 초기 부팅 또는 정지 시 1000ms 측정 | 자이로 오프셋 산출, `_gyroCalibDone = true` | 측정 중 큰 움직임 시 재시도. 루프 내 `_ble.tick()` 유지 |
 | `_snapshotRuntimeToE10Config(out)` | `sensorTask`/`commTask`/`webTask` | `_lock()` 하에 호출 필수 | 런타임 → config 구조체 반영 | `motion_adv`/`power`/`button` 백업 후 재적용 |
@@ -50,6 +51,15 @@
 > - `/api/config/apply`는 `/api/config/save` 별칭으로 통합되어 `_e10if->reloadProfile` 사용.
 > - `applyRuntimeE10`은 `/api/control`의 apply-only 요청 (persist X)에서만 사용.
 > - **신규 기능 추가 시 `_e10if`에 함수 포인터를 등록하는 방식이 유일한 원칙**.
+
+> **enqueue 실패 안전망 (rev5)**:
+> - 모든 큐 enqueue(`_enqueueHidCmd`, `_enqueueAction`)는 `timeout=0`으로 즉시 반환.
+> - **HID `RELEASE_ALL` 요청**은 큐 Full 시 반드시 `_reqCommReleaseAll` 위임 플래그를 set해야 한다.
+> - 이유: HID stuck(키/버튼 눌림 고정)은 사용자 체감 치명적. 큐 상태와 무관하게 release 100% 보장 필요.
+> - 소비: `commTask` 루프 진입부에서 `_reqCommReleaseAll` 체크 → `_actExec.releaseAll()` + `_doReleaseAllButtons()`.
+> - `_enqueueAction`(액션 슬롯)은 drop 허용 (다음 프레임 재시도 가능).
+> - `_pushFrame`은 `size=1 Overwrite`이므로 실패 없음.
+> - `_reqSpecialAction` / `_reqResetBtnDisp` / `_reqResetGesture` / `_reqGyroCalib` / `_reqI2CRecover` / `_reqClearDiag` / `_reqSaveCfg` / `_reqCommReleaseAll`은 **위임 플래그** (volatile, 재시도 없이 다음 소비 시점에 처리).
 
 ---
 
@@ -114,6 +124,8 @@ struct ST_E10_HidCmd_t {
 | `_profileSwitchInProgress` | `webTask` (`switchProfile`) | `webTask`, `sensorTask` | `volatile bool` | 프로파일 전환 재진입 차단 (busy 플래그) |
 | `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트 |
 | `_pairing` / `_dirty` (B20) | `sensorTask` (`_ble.tick`), `webTask` (`enterPairing`) | `sensorTask`, `webTask` | `volatile bool` | Pairing 상태 및 config 저장 필요 플래그 |
+| `_pairingStartMs` / `_pairingTimeoutMs` (B20) | `webTask` (`enterPairing`) | `sensorTask` (`tick`) | `volatile uint32_t` | Pairing 타임아웃 판정 [R2-L-1] |
+| `_whitelistActive` / `_whitelistUntilMs` (B20) | `webTask` (`reconnectToActivePeer`) | `sensorTask` (`tick`) | `volatile bool` / `volatile uint32_t` | 재연결 윈도우 추적 [C-1] |
 
 ---
 
@@ -161,6 +173,11 @@ commTask 매 루프 후반
 2. `_macroSnapshot` 덮어씀
 3. `_macroState.stepIdx = 0`, `stepStartMs = now`
 4. `startToken = _macroAbortToken` (현재 값)
+
+### 매크로/런타임 관련 제거 이력 (rev5)
+- `_getE10RuntimeConfig` 삭제 [R2-H-1]: Dead code + `_cfgProfile.e10` uninit 접근 latent bug.
+- `testMouseClick` / `_doTestMouseClick` 삭제 [R3-H-1]: W10/main 미호출 Dead code.
+- `EN_E10_HIDCMD_TEST_CLICK` 삭제: 위 함수와 함께 제거.
 
 ---
 
@@ -234,3 +251,4 @@ commTask 매 루프 후반
 | rev2 | 2026-10-01 | main.cpp 검증(N-1~N-4): Boot Factory Reset 문서화, SafeMode 조건부 실행, `E10_CONST::PIN_BTN_MODE` 통일, 로그 prefix `[0274]` → `[0410]` |
 | rev3 | 2026-10-01 | **레거시 Hook 제거**: `E10_W10Apply` / `_applyFn` / `_applyCtx` 삭제. `W10.begin(cfg, e10if)` 2인자 시그니처. `_e10if` 경유 유일 원칙 명시 |
 | rev4 | 2026-10-02 | Dead Code 정리(A 카테고리), LED suspend blocking + resume async 계약 명시(B), `_whitelistActive` volatile(C-1) |
+| rev5 | 2026-10-02 | Round 2/3 조치: `forceReleaseButtons` enqueue 실패 안전망, `motion_adv` config 스냅샷 락, `_qFrame` gate 드레인, 캘리브 6버튼, `testMouseClick` 삭제, health_score 클램프 |

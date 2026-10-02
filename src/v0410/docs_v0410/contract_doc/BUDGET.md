@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0410/docs_v0410/contract_doc/BUDGET.md`
-> 최종 갱신: 2026-10-02 (rev4 — LED suspend blocking 추가)  
+> 최종 갱신: 2026-10-02 (rev5 — R2/R3 조치 반영)  
 
 ---
 
@@ -33,6 +33,9 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | Mutex 획득 (`_lock`) | `sensorTask` (`_state`) | 2 ms 제한 (`pdMS_TO_TICKS(2)`) | 초과 시 `_errMutexMiss` 증가 | 락 대기 시간 엄격 제한으로 센서 주기(8ms) 보장 |
 | `_holdAtBoot(E10_CONST::PIN_BTN_MODE, 6000)` | `setup()` (부팅 1회) | 최대 6000 ms | 부팅 지연 (런타임 무관) | Factory Reset 트리거. 조기 릴리즈 시 즉시 탈출 (`digitalRead != LOW` → return false) |
 | `_led.suspend(snap)` | `sensorTask` (sleep 진입) | 최대 ~700 ms (`led_fadeout_ms + 200ms`) | 센서 루프 지연, 이어서 즉시 sleep 진입 | LED RED fadeout 완료 대기. deadline 초과 시 강제 OFF. `_ledTask`(Core 0) 병렬 tick |
+| `_applyClickFreeze` / `_applySnapToAxis` (`_lock`) | `sensorTask` | ≤ 10 μs (락 짧음) | 없음 | config 스냅샷 read. switchProfile과의 race 방지 [R2-C-1]. recursive mutex 재진입 안전 |
+| `_prepareMpuWom` (I2C write 8회) | `sensorTask` | ~1 ms (`Wire` 400kHz + delay 2+5ms) | sleep 직전 1회 | 각 write 검증 실패 시 false 반환 → sleep 금지 [R2-M-2] |
+| `_runGyroCalibration` 버튼 read (6회) | `sensorTask` | ~50 μs (digitalRead) | 없음 | C20 `G_PINS` 순회 [R3-D-1/2]. 이전 3버튼 하드코딩에서 확장 |
 
 ---
 
@@ -72,3 +75,4 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | `failsafe_release_count` | SafeMode/OTA/연결해제로 인한 강제 release |
 | `err_mutex_miss` | `_state` 락 2ms 타임아웃 |
 | `err_task_overrun` | sensorTask overrun 누적 |
+| `health_score` | 1000 기준 감점 방식. 클램프 헬퍼로 곱셈 오버플로 방어 [R3-D-4] |

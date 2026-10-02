@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0410/docs_v0410/contract_doc/STATE.md`
-> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED fadeout/fadein)
+> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 조치 반영)
 
 ---
 
@@ -12,8 +12,8 @@
 
 | 상태 변수 / 객체 | 단독 소유자(Writer) | 허용된 Reader | 동기화 방식 | 원칙 및 라이프사이클 |
 |---|---|---|---|---|
-| `_freezeState` | `sensorTask` | `sensorTask` | 독점 (No sync) | Click-Freeze 전용 내부 FSM 상태 |
-| `_snapActiveAxis` | `sensorTask` | `sensorTask` | 독점 (No sync) | Snap-to-Axis 활성 축 추적 상태 |
+| `_freezeState` | `sensorTask` | `sensorTask` | 독점 (No sync) | Click-Freeze 전용 FSM. `motion_adv.click_freeze`는 `_lock()` 하 스냅샷 read [R2-C-1] |
+| `_snapActiveAxis` | `sensorTask` | `sensorTask` | 독점 (No sync) | Snap-to-Axis 활성 축 추적. `motion_adv.snap`은 `_lock()` 하 스냅샷 read [R2-C-1] |
 | `_snapCandidate` / `_snapCandidateFrames` | `sensorTask` | `sensorTask` | 독점 (No sync) | 축 확정 대기 (Chattering 방지) |
 | `_precSub` | `sensorTask` | `sensorTask` | 독점 (No sync) | Precision FSM 3단계 (ENTRY/TRACK/EXIT) |
 | `_macroState` | `commTask` (start/tick) | `commTask`, `sensorTask` (power) | `volatile bool active` | 스텝 단위 매크로 상태머신 |
@@ -138,6 +138,17 @@
 
 ---
 
+### 2.7 Button Dispatcher Phase 전이 (rev5)
+`PHASE_DOUBLE`은 Long/Hold 타이머 검사에서 **제외** [R2-M-1]. 이유: Side C Double(Mode Cycle) 후 계속 hold 시 Pairing/Host Cycle이 뒤이어 오발화하는 UX 문제 방지.
+| Phase | Long/Hold 검사 | Double 대기 | CLICK 발화 |
+|---|:---:|:---:|:---:|
+| `PHASE_IDLE` | – | – | – |
+| `PHASE_PRESSED` | ✓ (`longFired`/`hold2sFired`/`hold3sFired`) | – | – |
+| `PHASE_WAIT_CLICK` | – | ✓ (`double_delay_ms`) | ✓ (타임아웃 시) |
+| `PHASE_DOUBLE` | **✗ (제외)** | – | – |
+
+---
+
 ## 3. 위임(Delegation) 패턴 정리
 
 Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고 플래그로 위임하는 패턴입니다.
@@ -145,7 +156,7 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | 플래그 | 소유자 (Writer) | 소비자 (Consumer) | 목적 |
 |---|---|---|---|
 | `_reqSpecialAction` | `webTask` | `sensorTask` 루프 진입부 | Special 액션을 sensorTask 컨텍스트에서 동기 실행 |
-| `_reqCommReleaseAll` | `webTask` (`switchProfile`) | `commTask` 루프 진입부 | 큐 Drop과 무관하게 HID 안전 Release 100% 보장 |
+| `_reqCommReleaseAll` | `webTask` (`switchProfile`), `any` (`forceReleaseButtons` 큐 Full 시) | `commTask` 루프 진입부 | 큐 Drop과 무관하게 HID 안전 Release 100% 보장 [R3-H-2/3] |
 | `_reqResetBtnDisp` | `webTask` (`switchProfile`) | `sensorTask` 루프 진입부 | `_btnDisp.resetAll()` 위임 |
 | `_reqResetGesture` | `webTask` (`switchProfile`) | `sensorTask` 루프 진입부 | `_gesture.reset()` 위임 |
 | `_reqGyroCalib` | `webTask`/`any` | `sensorTask` 루프 진입부 | 캘리브레이션 + `biasTracker.reset()` 위임 |
@@ -165,3 +176,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev0 | 2026-09-15 | 최초 작성 |
 | rev1 | 2026-10-01 | §2.5 Macro 대체/취소 정책 신설, §2.4 Macro FSM 개념적 서술 경고, `_topMDownMs` Dead Code 표기 |
 | rev4 | 2026-10-02 | LED suspend/resume FSM 상세화 (blocking/async 구분), Dead Code 정리 반영 |
+| rev5 | 2026-10-02 | motion_adv config 스냅샷 락 [R2-C-1], `_reqCommReleaseAll` 확장 소비자 [R3-H-2/3], PHASE_DOUBLE hold 제외 [R2-M-1] |

@@ -8,7 +8,7 @@
 **소스 버전 접미사: `_0410` (백엔드) / `_0411` (프론트엔드)**
 **API 버전: `G_W10_API_VER = 410`**
 **문서 대상: 개발자, 유지보수자, AI 어시스턴트**
-> 최종 갱신: 2026-10-02 (rev4 — Dead Code 정리 + LED suspend/resume 실구현)  
+> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 조치 반영)  
 
 ---
 
@@ -537,6 +537,7 @@ v0410은 모드마다 독립 배열을 중복 저장하지 않고 **Global 기�
 - **Top L**: DOWN → Mouse Hold press, UP → release, CLICK → 스킵(중복 방지)
 - **Top M**: DOWN → `_moveGateHeld=true`, UP → false. **CLICK/LONG은 슬롯 매핑(S4) 위임** (C-1 수정)
 - **Side C**: DOUBLE → Mode Cycle, HOLD_2S → Pairing, **HOLD_3S → Host Cycle (단독)**
+- **[R2-M-1] PHASE_DOUBLE에서는 Hold 타이머 미발화**: Double 후 hold 시 Pairing 오발화 방지. C20 BtnDispatcher의 `_checkTimers`가 `PHASE_PRESSED`만 검사
 - **Side F**: DOWN → `_frontHoldActive=true`, UP → false (CLICK/LONG은 슬롯 매핑 위임)
 
 ### 버튼 디스패처 및 타이밍 (C20, Phase 11.7)
@@ -896,6 +897,12 @@ struct ST_C20_ActionSlot_t {
 - `/api/control {cmd:set_ota_guard, enable}` → HID 차단 + OTA 업로드 거부
 - Stale 회수: `_otaStartedMs` 30초 경과 시 강제 해제
 - 웹 UI: OTA 탭의 Guard 스위치 (`otaGuardManual`)
+
+### getStatus 관측성 (rev5)
+`getStatus()`는 `_hid.isConnected()`를 `_lock()` 하 read한다 [R3-D-5].
+- `_hid`는 commTask 소유이지만 `isConnected()` read는 STATE.md §1 예외 허용.
+- NimBLE `isConnected()`는 lock-free atomic 수준이므로 실무 문제 없음.
+- 잠재적 lock ordering 이슈는 이론적 존재. 필요 시 `_lock` 이전 read로 이동 가능 (상태 일관성 trade-off).
 
 ### WiFi 브릭 방지
 - `mode=STA` + 연결 실패 시 **AP fallback**
@@ -1364,6 +1371,30 @@ extra_scripts = pre:src/v0410/tools_v0410/pio_gzip_0410.py
   - C-4: `switchProfile` race window 주석 명시
   - C-5: `_reqSaveCfg` single-writer 원칙 주석
 - **빌드 영향**: Flash −200 B / RAM −8 B (링커 DCE로 이미 최적화된 상태). 경고/에러 0건
+
+### Round 2/3 이슈 조치 (rev5, 2026-10-02)
+**Round 2 (10건)**:
+- R2-C-1: `_applyClickFreeze` / `_applySnapToAxis` — `motion_adv` config 스냅샷 락
+- R2-C-2: `_setActiveMode` — `_actExec.releaseAll()` 직접 호출 제거 (계약 위반 해소)
+- R2-C-3: `_doReleaseAllButtons` — 5버튼(L/R/M/B/F) 전량 release
+- R2-H-1: `_getE10RuntimeConfig` 삭제 (Dead + latent bug)
+- R2-H-2: `_commTask` gate 진입 시 `_qFrame` 드레인
+- R2-M-1: C20 `_checkTimers` PHASE_DOUBLE 제외
+- R2-M-2: P20 `mpuWr` bool 반환 + WoM prep 검증
+- R2-M-3: `apiProfilesActiveGet` envelope 수동 스트리밍 (triple-copy 회피)
+- R2-L-1: B20 `_pairingStartMs`/`_pairingTimeoutMs` volatile
+- R2-L-2: `_recoverI2C` 락 재진입 주석
+
+**Round 3 (9건)**:
+- R3-H-1: `testMouseClick` / `_doTestMouseClick` / `EN_E10_HIDCMD_TEST_CLICK` 삭제
+- R3-H-2/3: `forceReleaseButtons` — 큐 Full 시 `_reqCommReleaseAll` 위임 + false 반환
+- R3-D-1/2: `_runGyroCalibration` — 6버튼 + `C20_BtnDispatcher::G_PINS` 경유
+- R3-D-3: req 플래그 락 정책 주석 (3개 함수)
+- R3-D-4: `health_score` 클램프 헬퍼 (곱셈 오버플로 방어)
+- R3-D-5: `getStatus` `_hid.isConnected()` 락 보유 read 주석
+- R3-D-6: `_prepareMpuWom` I2C 반환값 전수 체크
+- R3-D-7: `_tickMacro` 매크로 교체/취소 토큰 일관성 유지
+- R3-D-8: `_applyClickFreeze` deadzone/clamp 방어 로직 정비
 
 
 ---

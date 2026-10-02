@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0410` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0410/docs_v0410/contract_doc/FLOW.md`
-> 최종 갱신: 2026-10-02 (rev4 — LED fadeout/fadein 흐름 반영)  
+> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 흐름 반영)  
 
 ---
 
@@ -130,19 +130,18 @@ flowchart TD
 flowchart TD
     Producer[Web Task / Sensor Task] --> Enq[_enqueueHidCmd(cmd), timeout=0]
     Enq --> QHid[_qHidCmd size=4]
-    QHid -- Full --> Drop1[Drop: false 반환]
+    QHid -- Full --> Fallback[RELEASE_ALL이면 _reqCommReleaseAll = true]
     QHid -- OK --> Comm[commTask 매 루프]
-    
-    Comm --> Discard{QUEUE 비었나?}
+    Fallback --> Comm
+    Comm --> GateCheck{_reqCommReleaseAll?}
+    GateCheck -- Yes --> ForceRel[_actExec.releaseAll + _doReleaseAllButtons]
+    GateCheck -- No --> Discard{QUEUE 비었나?}
+    ForceRel --> Discard
     Discard -- 비었음 --> Next[다음 처리: _qActionExec]
     Discard -- 있음 --> CmdKind{cmd 종류}
-    
     CmdKind -- RELEASE_ALL --> R1[_actExec.releaseAll + _doReleaseAllButtons]
-    CmdKind -- TEST_CLICK --> R2[_doTestMouseClick]
     CmdKind -- TEST_PPT --> R3[_sendPptKey2]
-    
     R1 --> Next
-    R2 --> Next
     R3 --> Next
 ```
 
@@ -227,6 +226,18 @@ flowchart TD
 ### SafeMode 게이트 정책 (method-aware)
 - **허용**: `/api/status`, `/api/diag`, `/api/keycodes`, `/api/safeboot`, `/api/ota`, `/api/factory_reset`, `/api/reboot`, `GET /api/profiles*`, `GET /api/triggers`, `/api/config/export`
 - **차단**: `/api/config/save`, `/api/config/apply`, `/api/control`, `/api/action/test*`, `/api/profiles/{switch,create,delete,rename}`
+
+### commTask Gate 진입 시퀀스 (rev5, [R2-H-2])
+게이트 진입(safeMode || otaGuard) 시 commTask는 다음 순서로 큐를 정리한다:
+```
+1. _macroAbortToken++ (매크로 취소)
+2. _qHidCmd 드레인 (모든 대기 cmd 폐기)
+3. _qActionExec 드레인 (모든 대기 액션 폐기)
+4. _qFrame 1회 receive (최신 stale frame 폐기) ← [R2-H-2] 신규
+5. 최초 1회만 _actExec.releaseAll + _doForceReleaseNow
+6. 20ms 대기 후 continue
+```
+**이유**: `_qFrame`은 size=1 Overwrite이므로 최대 1개 stale frame이 남아있다. 드레인 없이 gate 해제 시 sensorTask가 생성한 stale frame이 HID로 전송되어 **1회 커서 점프** 발생. 매 gate 진입 시 폐기.
 
 ---
 
