@@ -23,11 +23,15 @@
       <div class="sub">v0412</div>
     </div>
     <div class="right">
+      <select class="select mini" id="selLang" style="width: auto; padding: 4px 8px; font-weight: 600;" title="언어 선택 (Language)">
+        <option value="ko">한국어 (KO)</option>
+        <option value="en">English (EN)</option>
+      </select>
       <div class="pill" id="pillNet" style="cursor:pointer;" title="클릭하여 Online/Offline 모드 전환">NET: -</div>
       <div class="pill" id="pillBle">BLE: -</div>
       <div class="pill" id="pillSafe">SAFE: -</div>
-      <button class="btn" id="btnRefresh">새로고침</button>
-      <button class="btn warn" id="btnReboot">재부팅</button>
+      <button class="btn" id="btnRefresh" data-i18n="top.refresh">새로고침</button>
+      <button class="btn warn" id="btnReboot" data-i18n="top.reboot">재부팅</button>
     </div>
   </header>
 
@@ -60,43 +64,43 @@
 
   <main class="wrap">
     <nav class="tabs">
-      <button class="tab on" data-tab="dash">대시보드 (Dashboard)</button>
-      <button class="tab" data-tab="slots">동작 배정 (Slots)</button>
-      <button class="tab" data-tab="macros">연속 동작 (Macros)</button>
-      <button class="tab" data-tab="config">세부 설정 (Config)</button>
-      <button class="tab" data-tab="diag">문제 진단 (Diagnostics)</button>
-      <button class="tab" data-tab="ota">펌웨어 업데이트 (OTA)</button>
+      <button class="tab on" data-tab="dash" data-i18n="tab.dash">대시보드 (Dashboard)</button>
+      <button class="tab" data-tab="slots" data-i18n="tab.slots">동작 배정 (Slots)</button>
+      <button class="tab" data-tab="macros" data-i18n="tab.macros">연속 동작 (Macros)</button>
+      <button class="tab" data-tab="config" data-i18n="tab.config">세부 설정 (Config)</button>
+      <button class="tab" data-tab="diag" data-i18n="tab.diag">문제 진단 (Diagnostics)</button>
+      <button class="tab" data-tab="ota" data-i18n="tab.ota">펌웨어 업데이트 (OTA)</button>
     </nav>
 
     <!-- ======================= DASH ======================= -->
     <section class="card tabpane on" id="tab-dash">
-      <h2>현재 상태 (Status)</h2>
+      <h2 data-i18n="dash.status_title">현재 상태 (Status)</h2>
       <div class="row">
-        <div class="kv"><div class="k">가동 시간 (Uptime)</div><div class="v" id="stUptime">-</div></div>
-        <div class="kv"><div class="k">여유 메모리 (Heap Free)</div><div class="v" id="stHeap">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.uptime">가동 시간 (Uptime)</div><div class="v" id="stUptime">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.heap">여유 메모리 (Heap Free)</div><div class="v" id="stHeap">-</div></div>
       </div>
       <div class="row">
-        <div class="kv"><div class="k">와이파이 연결 (WiFi)</div><div class="v" id="stWiFi">-</div></div>
-        <div class="kv"><div class="k">현재 프로파일 (Profile)</div><div class="v" id="stProfile">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.wifi">와이파이 연결 (WiFi)</div><div class="v" id="stWiFi">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.cur_prof">현재 프로파일 (Profile)</div><div class="v" id="stProfile">-</div></div>
       </div>
 
       <div class="sep"></div>
-      <h3>빠른 제어 (Quick Control)</h3>
+      <h3 data-i18n="dash.quick_ctl">빠른 제어 (Quick Control)</h3>
       <div class="row">
-        <button class="btn" id="btnCtlPptOn" title="프리젠터 모드 전환">발표 모드 ON</button>
-        <button class="btn" id="btnCtlPptOff" title="일반 마우스 모드 전환">발표 모드 OFF</button>
+        <button class="btn" id="btnCtlPptOn" title="프리젠터 모드 전환" data-i18n="dash.ppt_on">발표 모드 ON</button>
+        <button class="btn" id="btnCtlPptOff" title="일반 마우스 모드 전환" data-i18n="dash.ppt_off">발표 모드 OFF</button>
         <span style="margin-left:16px"></span>
-        <button class="btn" id="btnGyroCalib" title="평평한 바닥에 두고 센서 영점 재측정">센서 영점 맞추기 (자이로 캘리브)</button>
-        <button class="btn" id="btnForceRelease" title="눌린 채 고정된 키보드/마우스 키 강제 해제">키 누름 강제 해제</button>
-        <button class="btn" id="btnI2cRecover" title="센서 통신 멈춤 시 하드웨어 버스 복구">센서 연결 초기화 (I2C)</button>
+        <button class="btn" id="btnGyroCalib" title="평평한 바닥에 두고 센서 영점 재측정" data-i18n="dash.calib">센서 영점 맞추기 (자이로 캘리브)</button>
+        <button class="btn" id="btnForceRelease" title="눌린 채 고정된 키보드/마우스 키 강제 해제" data-i18n="dash.force_rel">키 누름 강제 해제</button>
+        <button class="btn" id="btnI2cRecover" title="센서 통신 멈춤 시 하드웨어 버스 복구" data-i18n="dash.i2c_rec">센서 연결 초기화 (I2C)</button>
       </div>
 
-      <h3>빠른 튜닝 (Quick Tuning) <span class="hint2" style="font-weight:400;">(임시 적용 · 기기 재부팅 시 원래대로 복구됨)</span></h3>
+      <h3><span data-i18n="dash.quick_tune">빠른 튜닝 (Quick Tuning)</span> <span class="hint2" style="font-weight:400;" data-i18n="dash.quick_tune_hint">(임시 적용 · 기기 재부팅 시 원래대로 복구됨)</span></h3>
       <div class="row">
-        <span class="hint">커서 속도 (DPI):</span>
-        <button class="btn mini" data-dpi="1" id="btnDpi1">1 (느림)</button>
-        <button class="btn mini" data-dpi="2" id="btnDpi2">2 (표준)</button>
-        <button class="btn mini" data-dpi="3" id="btnDpi3">3 (빠름)</button>
+        <span class="hint" data-i18n="dash.dpi_label">커서 속도 (DPI):</span>
+        <button class="btn mini" data-dpi="1" id="btnDpi1" data-i18n="dash.dpi_1">1 (느림)</button>
+        <button class="btn mini" data-dpi="2" id="btnDpi2" data-i18n="dash.dpi_2">2 (표준)</button>
+        <button class="btn mini" data-dpi="3" id="btnDpi3" data-i18n="dash.dpi_3">3 (빠름)</button>
         <span style="margin-left:16px"></span>
         <span class="hint">정밀 모드 (Precision):</span>
         <button class="btn mini" data-prec="0" id="btnPrec0">OFF</button>
@@ -593,6 +597,7 @@
 
   <!-- ===== v0412 모듈 로드 ===== -->
   <script src="./lib/am_base_0412.js"></script>
+  <script src="./lib/am_i18n_0412.js"></script>
   <script src="./lib/am_offline_0412.js"></script>
   <script src="./lib/am_profile_0412.js"></script>
   <script src="./lib/am_macro_0412.js"></script>

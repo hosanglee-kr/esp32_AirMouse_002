@@ -167,9 +167,10 @@ function _kbUsageName(code) {
   return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
 }
 
-/* ---------------- 사용자 친화 라벨 매핑 헬퍼 ---------------- */
+/* ---------------- 사용자 친화 라벨 매핑 헬퍼 (다국어 i18n 연동) ---------------- */
 function getActionKindFriendlyName(name, val) {
-  const MAP = {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  const MAP_KO = {
     "NONE": "없음 (동작 안 함)",
     "MOUSE_CLICK": "마우스 클릭 (단발)",
     "MOUSE_HOLD": "마우스 누르고 있기 (드래그용)",
@@ -182,12 +183,26 @@ function getActionKindFriendlyName(name, val) {
     "SPECIAL": "특수 기기 동작 (자이로/슬립/모드)",
     "MACRO": "매크로 시퀀스 실행"
   };
-  const desc = MAP[name];
+  const MAP_EN = {
+    "NONE": "None (No Action)",
+    "MOUSE_CLICK": "Mouse Click (Single)",
+    "MOUSE_HOLD": "Mouse Hold (Drag)",
+    "MOUSE_WHEEL": "Mouse Wheel Scroll",
+    "KB_TAP": "Keyboard Single Tap",
+    "KB_COMBO": "Keyboard Hotkey Combo",
+    "KB_REPEAT": "Keyboard Repeat",
+    "CONSUMER_TAP": "Media / Volume Tap",
+    "CONSUMER_REPEAT": "Media Repeat",
+    "SPECIAL": "Special Device Action",
+    "MACRO": "Execute Macro Sequence"
+  };
+  const desc = isEn ? MAP_EN[name] : MAP_KO[name];
   return desc ? `${name} — ${desc}` : (name || `Kind ${val}`);
 }
 
 function getModifierFriendlyName(name) {
-  const MAP = {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  const MAP_KO = {
     "None": "없음 (조합 키 없음)",
     "L_CTRL": "Ctrl (왼쪽)",
     "L_SHIFT": "Shift (왼쪽)",
@@ -198,11 +213,23 @@ function getModifierFriendlyName(name) {
     "R_ALT": "Alt (오른쪽)",
     "R_GUI": "Win / Command (오른쪽)"
   };
-  return MAP[name] || name;
+  const MAP_EN = {
+    "None": "None",
+    "L_CTRL": "Left Ctrl",
+    "L_SHIFT": "Left Shift",
+    "L_ALT": "Left Alt",
+    "L_GUI": "Left Win / Cmd",
+    "R_CTRL": "Right Ctrl",
+    "R_SHIFT": "Right Shift",
+    "R_ALT": "Right Alt",
+    "R_GUI": "Right Win / Cmd"
+  };
+  return (isEn ? MAP_EN[name] : MAP_KO[name]) || name;
 }
 
 function getConsumerFriendlyName(name) {
-  const MAP = {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  const MAP_KO = {
     "VOL_UP": "볼륨 올리기 (Volume +)",
     "VOL_DOWN": "볼륨 내리기 (Volume -)",
     "MUTE": "음소거 (Mute)",
@@ -220,11 +247,31 @@ function getConsumerFriendlyName(name) {
     "CH_UP": "채널 올리기 (Channel +)",
     "CH_DOWN": "채널 내리기 (Channel -)"
   };
-  return MAP[name] ? `${name} — ${MAP[name]}` : name;
+  const MAP_EN = {
+    "VOL_UP": "Volume Up",
+    "VOL_DOWN": "Volume Down",
+    "MUTE": "Mute",
+    "PLAY_PAUSE": "Play / Pause",
+    "STOP": "Stop",
+    "NEXT_TRACK": "Next Track",
+    "PREV_TRACK": "Previous Track",
+    "FF": "Fast Forward",
+    "REWIND": "Rewind",
+    "AC_BACK": "Browser Back",
+    "AC_HOME": "Browser Home",
+    "AC_SEARCH": "Search",
+    "POWER": "Power",
+    "TV_INPUT": "TV Input",
+    "CH_UP": "Channel Up",
+    "CH_DOWN": "Channel Down"
+  };
+  const desc = isEn ? MAP_EN[name] : MAP_KO[name];
+  return desc ? `${name} — ${desc}` : name;
 }
 
 function getSpecialFriendlyName(name) {
-  const MAP = {
+  const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
+  const MAP_KO = {
     "NONE": "없음",
     "GYRO_RECALIB": "자이로 영점 재보정 (수평 정렬)",
     "SLEEP_NOW": "즉시 절전 모드 진입",
@@ -232,7 +279,16 @@ function getSpecialFriendlyName(name) {
     "PAIRING": "블루투스 페어링 모드 시작",
     "HOST_CYCLE": "연결 호스트(기기) 전환"
   };
-  return MAP[name] ? `${name} — ${MAP[name]}` : name;
+  const MAP_EN = {
+    "NONE": "None",
+    "GYRO_RECALIB": "Recalibrate Gyro Zero",
+    "SLEEP_NOW": "Enter Sleep Now",
+    "MODE_CYCLE": "Cycle Mode (1 → 2 → 3)",
+    "PAIRING": "Bluetooth Pairing Mode",
+    "HOST_CYCLE": "Switch Host Device"
+  };
+  const desc = isEn ? MAP_EN[name] : MAP_KO[name];
+  return desc ? `${name} — ${desc}` : name;
 }
 
 // usage dropdown 생성 + 값 세팅 (오프라인 폴백 포함)

@@ -32,6 +32,9 @@ function bindUi() {
 	bindViewToggle();
 	
 	/* 상단 바 */
+	qs("selLang")?.addEventListener("change", (e) => {
+		setLanguage(e.target.value);
+	});
 	qs("pillNet")?.addEventListener("click", toggleAppMode);
 	qs("btnRefresh")?.addEventListener("click", refreshStatus);
 	qs("btnReboot")?.addEventListener("click", rebootDevice);
@@ -182,6 +185,7 @@ function bindUi() {
    Main
    ======================================================= */
 async function main() {
+	if (typeof initI18n === "function") initI18n();
 	updateAppModeUi();
 	bindUi();
 	
