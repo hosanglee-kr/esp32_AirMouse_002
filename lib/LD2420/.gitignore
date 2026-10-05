@@ -1,0 +1,33 @@
+# Arduino
+build/
+*.hex
+*.elf
+*.bin
+*.map
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+*.kate-swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 로그 및 임시 파일
+*.log
+*.tmp
+*.bak
+*~
+
+# 아카이브
+*.zip
+*.tar.gz
