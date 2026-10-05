@@ -2,7 +2,7 @@
    File: /www/lib/am_config_0412.js
    Elite AirMouse WebConfig v0412 — E10 Config / Control / SafeBoot
    - 로드 순서: 5
-   - 의존: am_base_0412.js, am_profile_0412.js
+   - 의존: am_base_0413.js, am_profile_0412.js
    - [v0412] N-1 (safeBootExit), N-2 (otaGuardSet), N-4 (safeModeSet),
              N-10 (cfgExport 서버화), N-20 (factoryReset 진행 표시),
              Phase 1~3 (Motion Advanced UI + 프리셋)

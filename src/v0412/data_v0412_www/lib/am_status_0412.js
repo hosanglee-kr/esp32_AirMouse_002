@@ -2,7 +2,7 @@
    File: /www/lib/am_status_0412.js
    Elite AirMouse WebConfig v0412 — Status / Diag / OTA
    - 로드 순서: 6
-   - 의존: am_base_0412.js
+   - 의존: am_base_0413.js
    - [v0412] N-3 (diagClear), N-5 (배너), N-6 (rebootCheck),
              N-7 (ctlSetDpi/Precision), N-8 (ctlHostCycle),
              N-9 (keyTest), N-18 (I2C 피드백), N-19 (캘리브 피드백)

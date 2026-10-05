@@ -3,7 +3,7 @@
    Elite AirMouse WebConfig v0412 — Offline Simulator
    - 오프라인 기본 데이터 + localStorage 스토어 + 모킹 라우터
    - 로드 순서: 2
-   - 의존: am_base_0412.js
+   - 의존: am_base_0413.js
    - [v0412] C-05 (keycodes 확장), 스키마 v2, ver/wifi 필드
    ======================================================= */
 

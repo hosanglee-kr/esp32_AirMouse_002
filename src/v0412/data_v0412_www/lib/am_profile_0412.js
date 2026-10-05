@@ -2,7 +2,7 @@
    File: /www/lib/am_profile_0412.js
    Elite AirMouse WebConfig v0412 — Profile / Slots / ActionEditor
    - 로드 순서: 3
-   - 의존: am_base_0412.js
+   - 의존: am_base_0413.js
    - [v0412] C-01 (const→let), C-03 (배열 27 강제), C-04 (busy),
              N-13 (오버레이), N-14 (slots_meta 라벨), N-21 (삭제 경고)
    ======================================================= */

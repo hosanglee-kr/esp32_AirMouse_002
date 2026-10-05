@@ -2,7 +2,7 @@
    File: /www/lib/am_macro_0412.js
    Elite AirMouse WebConfig v0412 — Macro Editor
    - 로드 순서: 4
-   - 의존: am_base_0412.js, am_profile_0412.js
+   - 의존: am_base_0413.js, am_profile_0412.js
    - [v0412] 파일명만 변경 (내용은 v0412과 동일 + 오프라인 폴백)
    ======================================================= */
 
