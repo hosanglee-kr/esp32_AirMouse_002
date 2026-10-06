@@ -47,37 +47,29 @@
 
 // -------- 시스템 상수 --------
 namespace E10_CONST {
-    static constexpr int      PIN_BTN_L      = 12;
-    static constexpr int      PIN_BTN_R      = 15;
-    static constexpr int      PIN_BTN_M      = 16;
-    
-    static constexpr int      PIN_BTN_MODE   = 13;
-    static constexpr int      PIN_BTN_SCROLL = 14;
-    
-    // class-static fixed pins (board wiring)
-    static constexpr int      PIN_I2C_SDA = 4;
-    static constexpr int      PIN_I2C_SCL = 5;
+static constexpr int PIN_BTN_L = 12;
+static constexpr int PIN_BTN_R = 15;
+static constexpr int PIN_BTN_M = 16;
 
-    static constexpr uint32_t CALIB_MS       = 1000;
-    static constexpr float    CALIB_STILL_TH = 3.0f;
+static constexpr int PIN_BTN_MODE   = 13;
+static constexpr int PIN_BTN_SCROLL = 14;
 
-    static constexpr float    SPIKE_TH_DEG   = 650.0f;
+// class-static fixed pins (board wiring)
+static constexpr int PIN_I2C_SDA = 4;
+static constexpr int PIN_I2C_SCL = 5;
 
-    static constexpr uint8_t  ERR_HIST_CAP   = 16;
-    static constexpr uint8_t  SPIKE_CAP      = 32;
-}
+static constexpr uint32_t CALIB_MS       = 1000;
+static constexpr float    CALIB_STILL_TH = 3.0f;
 
+static constexpr float SPIKE_TH_DEG = 650.0f;
 
-enum EN_C10_KEYPAGE_t : uint8_t {
-    EN_C10_KEYPAGE_KB       = 0,
-    EN_C10_KEYPAGE_CONSUMER = 1
-};
+static constexpr uint8_t ERR_HIST_CAP = 16;
+static constexpr uint8_t SPIKE_CAP    = 32;
+} // namespace E10_CONST
 
-enum EN_E10_Health_t : uint8_t {
-    EN_E10_HEALTH_OK = 0,
-    EN_E10_HEALTH_WARN = 1,
-    EN_E10_HEALTH_DEGRADED = 2
-};
+enum EN_C10_KEYPAGE_t : uint8_t { EN_C10_KEYPAGE_KB = 0, EN_C10_KEYPAGE_CONSUMER = 1 };
+
+enum EN_E10_Health_t : uint8_t { EN_E10_HEALTH_OK = 0, EN_E10_HEALTH_WARN = 1, EN_E10_HEALTH_DEGRADED = 2 };
 
 // [M-4] OTA/SAFE 진입·이탈을 전용 코드로 분리
 //       (이전: EN_E10_ERR_OTA_GUARD + value(0/1/2/3) 조합)
@@ -96,26 +88,12 @@ enum EN_E10_ErrCode_t : uint8_t {
 
 // -------- Motion FSM --------
 // State: 0=AIR, 1=SCROLL, 2=PPT, 3=PRECISION
-enum EN_FSM_t : uint8_t {
-    EN_FSM_AIR = 0,
-    EN_FSM_SCROLL = 1,
-    EN_FSM_PPT = 2,
-    EN_FSM_PREC = 3
-};
+enum EN_FSM_t : uint8_t { EN_FSM_AIR = 0, EN_FSM_SCROLL = 1, EN_FSM_PPT = 2, EN_FSM_PREC = 3 };
 
 // Precision sub: 0=OFF, 1=ENTRY, 2=TRACK, 3=EXIT
-enum EN_PREC_SUB_t : uint8_t {
-    EN_PREC_OFF = 0,
-    EN_PREC_ENTRY = 1,
-    EN_PREC_TRACK = 2,
-    EN_PREC_EXIT = 3
-};
+enum EN_PREC_SUB_t : uint8_t { EN_PREC_OFF = 0, EN_PREC_ENTRY = 1, EN_PREC_TRACK = 2, EN_PREC_EXIT = 3 };
 
-enum EN_E10_MouseBtnMask_t : uint8_t {
-    EN_E10_BTN_LEFT = 0x01,
-    EN_E10_BTN_RIGHT = 0x02, 
-    EN_E10_BTN_MIDDLE = 0x04 
-};
+enum EN_E10_MouseBtnMask_t : uint8_t { EN_E10_BTN_LEFT = 0x01, EN_E10_BTN_RIGHT = 0x02, EN_E10_BTN_MIDDLE = 0x04 };
 
 struct ST_E10_PrecProfile_t {
     float   gain;
@@ -124,11 +102,11 @@ struct ST_E10_PrecProfile_t {
 };
 
 static constexpr ST_E10_PrecProfile_t G_E10_PREC_PROFILES[] = {
-    {1.00f,   0, 0.0f},  // OFF
-    {0.85f,  64, 0.0f},  // LOW
-    {0.70f, 128, 0.0f},  // MED
-    {0.55f, 180, 0.0f},  // HIGH
-    {0.45f, 210, 1.5f},  // PPT
+    {1.00f,   0, 0.0f}, // OFF
+    {0.85f,  64, 0.0f}, // LOW
+    {0.70f, 128, 0.0f}, // MED
+    {0.55f, 180, 0.0f}, // HIGH
+    {0.45f, 210, 1.5f}, // PPT
 };
 
 struct ST_E10_ErrEvt_t {
@@ -147,24 +125,24 @@ struct ST_E10_State_t {
     int16_t y;
     int16_t wheel;
     uint8_t btn_mask; // EN_E10_MouseBtnMask_t OR-mask
-    bool updated;
+    bool    updated;
 };
 
 struct ST_E10_Status_t {
     bool    ble_connected;
     bool    ppt_mode;
     uint8_t dpi_level;
-    
+
     uint8_t btn_mask;
-    
+
     // ---- (C) gate 상태 노출 ----
-    bool    safe_mode;          // 현재 SafeMode 게이트
-    bool    ota_guard;          // OTA Guard 게이트
-    uint32_t ota_guard_count;   // OTA guard 진입 횟수
+    bool     safe_mode;           // 현재 SafeMode 게이트
+    bool     ota_guard;           // OTA Guard 게이트
+    uint32_t ota_guard_count;     // OTA guard 진입 횟수
     uint32_t ota_guard_uptime_ms; // 마지막 OTA guard 진입 후 경과(ms)
 
     uint8_t precision_mode;
-    
+
     uint8_t fsm_state; // 디버깅용
     uint8_t fsm_sub;   // precision substate
 

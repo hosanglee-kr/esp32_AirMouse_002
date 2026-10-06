@@ -1,1766 +1,2803 @@
 <!doctype html>
 <html lang="ko">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Elite AirMouse v0413 — Standalone (Collapsible Mode + Preview Tabs)</title>
-<style>
-:root{
-  --bg-main:#0b0e14;--bg-card:#131722;--bg-sub:#1c2233;--bg-input:#10141e;
-  --border:#232a3d;--border-focus:#4c7dff;
-  --txt-main:#e2e8f0;--txt-muted:#828fa3;--txt-strong:#fff;
-  --primary:#4c7dff;--primary-hover:#3b6ae8;
-  --warn:#ffaa00;--danger:#ff4d4d;--success:#22c55e;
-}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg-main);color:var(--txt-main);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;
-  font-size:14px;line-height:1.5;overflow-x:hidden;}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Elite AirMouse v0413 — Standalone (Collapsible Mode + Preview Tabs)</title>
+  <style>
+    :root {
+      --bg-main: #0b0e14;
+      --bg-card: #131722;
+      --bg-sub: #1c2233;
+      --bg-input: #10141e;
+      --border: #232a3d;
+      --border-focus: #4c7dff;
+      --txt-main: #e2e8f0;
+      --txt-muted: #828fa3;
+      --txt-strong: #fff;
+      --primary: #4c7dff;
+      --primary-hover: #3b6ae8;
+      --warn: #ffaa00;
+      --danger: #ff4d4d;
+      --success: #22c55e;
+    }
 
-/* ============ Header ============ */
-.top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);
-  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
-.hamburger{width:40px;height:40px;border-radius:10px;background:var(--bg-sub);
-  border:1px solid var(--border);color:var(--txt-strong);font-size:1.25rem;font-weight:700;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
-.hamburger:active{transform:scale(.94);background:#242c40;}
-.brand{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--primary);flex:0 0 auto;}
-.title{font-weight:700;font-size:1rem;color:var(--txt-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sub{font-size:.72rem;color:var(--primary);background:rgba(76,125,255,.15);padding:2px 6px;border-radius:4px;flex:0 0 auto;}
-.right{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
-.pill{padding:4px 10px;border-radius:20px;font-size:.74rem;font-weight:600;
-  border:1px solid var(--border);background:rgba(255,255,255,.03);white-space:nowrap;
-  display:inline-flex;align-items:center;gap:4px;}
-.pm-sep{opacity:.5;}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-/* ============ Drawer ============ */
-.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);
-  z-index:998;opacity:0;pointer-events:none;transition:opacity .22s;}
-.drawer-backdrop.on{opacity:1;pointer-events:auto;}
-.drawer{position:fixed;top:0;left:0;bottom:0;width:min(320px,86vw);background:var(--bg-card);
-  border-right:1px solid var(--border);z-index:999;transform:translateX(-100%);
-  transition:transform .26s cubic-bezier(.22,.61,.36,1);display:flex;flex-direction:column;
-  box-shadow:4px 0 32px rgba(0,0,0,.5);overflow-y:auto;}
-.drawer.on{transform:translateX(0);}
-.drawer-header{padding:14px 16px 10px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--bg-card);z-index:2;}
-.drawer-header .brand{flex:1;}
-.drawer-close{width:34px;height:34px;border-radius:8px;background:var(--bg-sub);
-  border:1px solid var(--border);color:var(--txt-muted);font-size:1.1rem;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;}
-.drawer-profile{padding:12px 16px;border-bottom:1px solid var(--border);background:#0f131c;}
-.drawer-profile .flbl{font-size:.78rem;color:var(--txt-muted);font-weight:600;margin-bottom:6px;display:block;}
-.drawer-profile .select{width:100%;}
-.drawer-profile-actions{display:flex;gap:6px;margin-top:8px;}
-.drawer-profile-actions .btn{flex:1;justify-content:center;font-size:.78rem;padding:7px 4px;}
-.drawer-nav{padding:8px;display:flex;flex-direction:column;gap:2px;}
-.drawer-item{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:10px;
-  background:none;border:none;color:var(--txt-main);font-size:.92rem;font-weight:500;
-  cursor:pointer;text-align:left;width:100%;transition:all .12s;}
-.drawer-item:active,.drawer-item:hover{background:var(--bg-sub);}
-.drawer-item.on{background:rgba(76,125,255,.14);color:#fff;font-weight:700;
-  border-left:3px solid var(--primary);padding-left:11px;}
-.drawer-ico{font-size:1.15rem;flex:0 0 22px;text-align:center;}
-.drawer-divider{height:1px;background:var(--border);margin:8px 12px;}
-.drawer-lang{padding:10px 14px;display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--txt-muted);}
-.drawer-lang-label{flex:1;}
-.drawer-lang .btn{padding:6px 12px;font-size:.82rem;}
+    body {
+      background: var(--bg-main);
+      color: var(--txt-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
 
-/* ============ Main ============ */
-.wrap{max-width:1200px;margin:12px auto;padding:0 12px;}
-.tabpane{display:none;}
-.tabpane.on{display:block;}
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;}
-.sep{height:1px;background:var(--border);margin:16px 0;}
-.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    /* ============ Header ============ */
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-/* Buttons */
-.btn{background:var(--bg-sub);border:1px solid var(--border);color:var(--txt-main);
-  padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:500;
-  transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
-.btn:hover{background:#242c40;border-color:#384566;}
-.btn:disabled{opacity:.4;cursor:not-allowed;}
-.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
-.btn.warn{background:rgba(255,170,0,.15);border-color:rgba(255,170,0,.4);color:#ffbe33;}
-.btn.danger{background:rgba(255,77,77,.15);border-color:rgba(255,77,77,.4);color:#ff6666;}
-.btn.mini{padding:6px 11px;font-size:.8rem;}
-.btn.on{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .hamburger {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      color: var(--txt-strong);
+      font-size: 1.25rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
 
-.select,.inp{padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);
-  color:var(--txt-main);border-radius:8px;font-size:.88rem;outline:none;}
-.select.mini,.inp.mini{padding:5px 8px;font-size:.8rem;}
-.hint{color:var(--txt-muted);font-size:.85rem;font-weight:500;}
-.hint2{color:var(--txt-muted);font-size:.78rem;margin:4px 0;}
-.msg{padding:6px 12px;border-radius:6px;border:1px solid transparent;font-size:.85rem;}
+    .hamburger:active {
+      transform: scale(.94);
+      background: #242c40;
+    }
 
-/* Home flow */
-.home-flow{display:flex;flex-direction:column;gap:12px;}
-.home-section-title{display:flex;justify-content:space-between;align-items:center;
-  font-weight:700;font-size:.95rem;color:var(--txt-strong);margin-bottom:10px;}
-.home-section-title .hint2{margin:0;font-weight:400;}
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+    }
 
-/* ============ [1] 작동 모드 (접힘 카드, compact) ============ */
-.mode-selector-wrap{
-  background:var(--bg-sub);
-  border:1px solid var(--border);
-  border-radius:10px;
-  overflow:hidden;
-}
-.mode-selector-summary{
-  padding:10px 14px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  cursor:pointer;
-  list-style:none;
-  user-select:none;
-  min-height:48px;
-  gap:8px;
-}
-.mode-selector-summary::-webkit-details-marker{display:none;}
-.ms-current{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width:0;
-  flex:1;
-}
-.ms-ico{font-size:1.2rem;flex:0 0 auto;line-height:1;}
-.ms-text{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;}
-.ms-title{font-weight:700;font-size:.9rem;color:var(--txt-strong);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ms-sub{font-size:.72rem;color:var(--txt-muted);white-space:nowrap;}
-.mode-selector-wrap[open] .fold-arrow{transform:rotate(180deg);}
-.mode-selector-body{border-top:1px solid var(--border);padding:10px;}
-.mode-selector-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex: 0 0 auto;
+    }
 
-/* Mode buttons (작게) */
-.mode-btn-sm{
-  background:var(--bg-card);
-  border:1.5px solid var(--border);
-  border-radius:10px;
-  padding:10px 4px;
-  cursor:pointer;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:4px;
-  transition:all .15s;
-  color:var(--txt-main);
-  min-height:64px;
-}
-.mode-btn-sm:active{transform:scale(.97);}
-.mode-btn-sm .m-icon{font-size:1.3rem;line-height:1;}
-.mode-btn-sm .m-text{font-size:.74rem;font-weight:600;}
-.mode-btn-sm.on{
-  border-color:var(--primary);
-  background:rgba(76,125,255,.14);
-  color:#fff;
-  font-weight:700;
-  box-shadow:0 0 0 2px rgba(76,125,255,.18);
-}
-@keyframes modeBtnPop{0%{transform:scale(1);}50%{transform:scale(1.05);}100%{transform:scale(1);}}
-.mode-btn-sm.on{animation:modeBtnPop .28s ease-out;}
+    .title {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--txt-strong);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-/* ============ [2] Virtual Controller ============ */
-.remote-center-container{display:flex;justify-content:center;align-items:center;width:100%;}
-.virtual-remote-card{background:#11151f;border:2px solid #232c42;border-radius:24px;
-  padding:16px 16px 14px;box-shadow:0 12px 32px rgba(0,0,0,.5);
-  display:flex;flex-direction:column;align-items:center;user-select:none;
-  width:100%;max-width:440px;transition:border-color .3s;}
-.virtual-remote-card.mode-pc{border-color:rgba(76,125,255,.5);}
-.virtual-remote-card.mode-ppt{border-color:rgba(34,197,94,.5);}
-.virtual-remote-card.mode-tv{border-color:rgba(255,170,0,.5);}
-@keyframes remotePulse{
-  0%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 0 rgba(76,125,255,.5);}
-  60%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 16px rgba(76,125,255,0);}
-  100%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 0 rgba(76,125,255,0);}
-}
-.virtual-remote-card.remote-flash{animation:remotePulse .6s ease-out;}
-.remote-head{width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-.remote-head-left{display:flex;align-items:center;gap:8px;min-width:0;}
-.remote-title{font-size:.88rem;font-weight:700;color:#8fa0bd;white-space:nowrap;}
-.remote-mode-badge{font-size:.7rem;padding:3px 9px;border-radius:7px;font-weight:700;
-  border:1px solid transparent;white-space:nowrap;}
-.virtual-remote-card.mode-pc .remote-mode-badge{background:rgba(76,125,255,.15);color:#4c7dff;border-color:rgba(76,125,255,.3);}
-.virtual-remote-card.mode-ppt .remote-mode-badge{background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3);}
-.virtual-remote-card.mode-tv .remote-mode-badge{background:rgba(255,170,0,.15);color:#ffaa00;border-color:rgba(255,170,0,.3);}
-.remote-fold-btn{background:none;border:1px solid var(--border);color:var(--txt-muted);
-  cursor:pointer;padding:5px 10px;border-radius:6px;font-size:.78rem;flex:0 0 auto;}
+    .sub {
+      font-size: .72rem;
+      color: var(--primary);
+      background: rgba(76, 125, 255, .15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
 
-/* Preview tabs */
-.preview-tabs{
-  width:100%;
-  display:flex;
-  gap:4px;
-  background:rgba(0,0,0,.28);
-  border-radius:10px;
-  padding:4px;
-  margin-bottom:10px;
-}
-.preview-tab{
-  flex:1;
-  background:none;
-  border:none;
-  color:var(--txt-muted);
-  font-size:.76rem;
-  font-weight:700;
-  padding:8px 4px;
-  border-radius:7px;
-  cursor:pointer;
-  transition:all .15s;
-  min-height:34px;
-  white-space:nowrap;
-}
-.preview-tab:active{transform:scale(.96);}
-.preview-tab.on{
-  background:var(--primary);
-  color:#fff;
-  box-shadow:0 2px 8px rgba(76,125,255,.4);
-}
-.virtual-remote-card.mode-ppt .preview-tab.on{background:#22c55e;box-shadow:0 2px 8px rgba(34,197,94,.4);}
-.virtual-remote-card.mode-tv .preview-tab.on{background:#ffaa00;color:#111;box-shadow:0 2px 8px rgba(255,170,0,.4);}
+    .right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
 
-/* Preview warn */
-.preview-warn{
-  width:100%;
-  background:rgba(255,170,0,.12);
-  border:1px solid rgba(255,170,0,.35);
-  border-radius:8px;
-  padding:8px 10px;
-  margin-bottom:10px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  justify-content:space-between;
-  font-size:.76rem;
-  color:#ffbe33;
-}
-.preview-warn.hidden{display:none;}
-.preview-warn-text{flex:1;min-width:0;}
-.preview-warn .btn{padding:4px 10px;font-size:.72rem;flex:0 0 auto;}
+    .pill {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: .74rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, .03);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
 
-.remote-collapsible-body{width:100%;display:flex;flex-direction:column;align-items:center;
-  gap:12px;transition:all .25s ease-in-out;}
-.remote-collapsible-body.folded{display:none;}
-.remote-row{width:100%;display:flex;justify-content:space-around;gap:10px;}
-.btn-with-desc{display:flex;flex-direction:column;align-items:center;flex:1;gap:5px;min-width:0;}
-.btn-sub-lbl{font-size:.7rem;color:var(--txt-muted);white-space:nowrap;}
+    .pm-sep {
+      opacity: .5;
+    }
 
-.remote-btn{background:#1c2333;border:2px solid #2d3852;color:#dce4f0;border-radius:14px;
-  padding:14px 12px;cursor:pointer;font-weight:700;font-size:.95rem;width:100%;
-  text-align:center;min-height:48px;transition:all .15s;
-  display:flex;align-items:center;justify-content:center;}
-.remote-btn:active{transform:scale(.95);}
-.virtual-remote-card.mode-pc .remote-btn:active{background:#4c7dff;border-color:#4c7dff;color:#fff;}
-.virtual-remote-card.mode-ppt .remote-btn:active{background:#22c55e;border-color:#22c55e;color:#fff;}
-.virtual-remote-card.mode-tv .remote-btn:active{background:#ffaa00;border-color:#ffaa00;color:#fff;}
+    /* ============ Drawer ============ */
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .55);
+      backdrop-filter: blur(2px);
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s;
+    }
 
-.hybrid-dpad-wrapper{display:flex;justify-content:center;align-items:center;padding:4px 0;touch-action:none;}
-.dpad-ring{position:relative;width:190px;height:190px;
-  background:radial-gradient(circle,#1a2234 0%,#10141f 100%);border-radius:50%;
-  border:2px solid #28334d;box-shadow:inset 0 2px 12px rgba(0,0,0,.6),0 6px 20px rgba(0,0,0,.35);
-  user-select:none;flex:0 0 auto;}
-.ring-btn{position:absolute;background:none;border:none;color:#7f91b0;font-weight:800;
-  font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  z-index:1;transition:all .15s;border-radius:8px;}
-.ring-btn:active{transform:scale(.9);background:rgba(255,255,255,.06);}
-.ring-up{top:6px;left:65px;width:60px;height:44px;}
-.ring-down{bottom:6px;left:65px;width:60px;height:44px;}
-.ring-left{top:65px;left:6px;width:44px;height:60px;}
-.ring-right{top:65px;right:6px;width:44px;height:60px;}
-.joy-stick-knob{position:absolute;top:50%;left:50%;width:76px;height:76px;
-  margin-top:-38px;margin-left:-38px;
-  background:radial-gradient(circle at 35% 35%,#2a344d 0%,#151b27 100%);
-  border-radius:50%;border:2px solid #3c4a6b;
-  box-shadow:0 6px 16px rgba(0,0,0,.55),inset 0 2px 6px rgba(255,255,255,.14);
-  display:flex;justify-content:center;align-items:center;cursor:grab;z-index:2;
-  touch-action:none;transition:transform .05s ease-out;}
-.joy-knob-text{font-size:.88rem;font-weight:800;color:#94a3b8;pointer-events:none;}
-.dpad-guide-hint{font-size:.72rem;color:var(--txt-muted);text-align:center;margin-top:-2px;line-height:1.45;padding:0 4px;}
-.remote-paddle-row{width:100%;display:flex;justify-content:space-between;gap:8px;}
-.paddle-col{display:flex;flex-direction:column;gap:6px;flex:1;align-items:center;min-width:0;}
-.mini-btn{font-size:.78rem;padding:10px 6px;border-radius:10px;min-width:0;width:100%;min-height:44px;}
+    .drawer-backdrop.on {
+      opacity: 1;
+      pointer-events: auto;
+    }
 
-/* ============ Collapsible ============ */
-.collapsible-card{background:var(--bg-sub);border:1px solid var(--border);
-  border-radius:12px;overflow:hidden;}
-.collapsible-summary{padding:14px 16px;font-weight:700;font-size:.92rem;cursor:pointer;
-  display:flex;justify-content:space-between;align-items:center;list-style:none;
-  user-select:none;min-height:52px;gap:8px;}
-.collapsible-summary::-webkit-details-marker{display:none;}
-.collapsible-summary .summary-left{display:flex;align-items:center;gap:10px;min-width:0;}
-.collapsible-summary .summary-badge{
-  font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:6px;
-  background:rgba(76,125,255,.15);color:#7fa5ff;border:1px solid rgba(76,125,255,.3);
-  white-space:nowrap;
-}
-.fold-arrow{font-size:.75rem;color:var(--txt-muted);transition:transform .2s;flex:0 0 auto;}
-.collapsible-card[open] .fold-arrow{transform:rotate(180deg);}
-.collapsible-content{padding:14px 16px;border-top:1px solid var(--border);}
+    .drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: min(320px, 86vw);
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      z-index: 999;
+      transform: translateX(-100%);
+      transition: transform .26s cubic-bezier(.22, .61, .36, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 4px 0 32px rgba(0, 0, 0, .5);
+      overflow-y: auto;
+    }
 
-/* Tool groups */
-.tool-group{margin-bottom:14px;}
-.tool-group:last-child{margin-bottom:0;}
-.tool-group-title{font-size:.78rem;font-weight:700;color:#8fa0bd;
-  text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
-.tool-btns{display:flex;flex-wrap:wrap;gap:8px;}
-.tool-btn{background:#1c2333;border:1px solid #2d3852;color:#dce4f0;
-  border-radius:10px;padding:10px 14px;font-size:.85rem;font-weight:600;
-  cursor:pointer;min-height:44px;transition:all .12s;
-  display:inline-flex;align-items:center;gap:6px;}
-.tool-btn:active{transform:scale(.95);background:rgba(76,125,255,.2);
-  border-color:var(--primary);color:#fff;}
-.tool-btn.danger:active{background:rgba(255,77,77,.2);border-color:var(--danger);color:#fff;}
-.tool-btn.warn:active{background:rgba(255,170,0,.2);border-color:var(--warn);color:#fff;}
-.tool-ico{font-size:1rem;}
+    .drawer.on {
+      transform: translateX(0);
+    }
 
-/* Log */
-.log{background:#0a0c12;border:1px solid var(--border);border-radius:8px;
-  padding:10px;font-family:monospace;font-size:.78rem;color:#94a3b8;
-  max-height:220px;overflow:auto;}
-.logline{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.02);}
+    .drawer-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 2;
+    }
 
-/* KV */
-.kv{display:flex;flex-direction:column;background:var(--bg-sub);padding:10px 14px;
-  border-radius:8px;border:1px solid var(--border);min-width:140px;flex:1;}
-.kv .k{font-size:.74rem;color:var(--txt-muted);}
-.kv .v{font-weight:700;font-size:1rem;}
+    .drawer-header .brand {
+      flex: 1;
+    }
 
-/* Tune / form */
-.tune-box{display:flex;flex-direction:column;gap:12px;}
-.tune-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.tune-group .hint{min-width:110px;}
-.btn-group{display:inline-flex;gap:6px;flex-wrap:wrap;}
-.form.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0;}
-.frow{display:flex;flex-direction:column;gap:6px;}
-.flbl{font-weight:600;font-size:.88rem;color:#cbd5e1;}
+    .drawer-close {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      color: var(--txt-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* Footer / Loading */
-.foot{text-align:center;color:var(--txt-muted);font-size:.75rem;padding:24px 0;}
-.loading-overlay{position:fixed;inset:0;background:rgba(11,14,20,.75);
-  display:none;justify-content:center;align-items:center;z-index:9999;}
-.loading-overlay.on{display:flex;}
-.loading-box{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;
-  padding:22px 30px;display:flex;flex-direction:column;align-items:center;gap:12px;}
-.spinner{width:32px;height:32px;border:3px solid rgba(76,125,255,.2);
-  border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
+    .drawer-profile {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #0f131c;
+    }
 
-/* Mobile */
-@media (max-width:600px){
-  body{font-size:13px;}
-  .wrap{margin:10px auto;padding:0 10px;}
-  .card{padding:12px;border-radius:14px;}
-  .top{padding:8px 10px;gap:6px;}
-  .title{font-size:.92rem;}
-  .sub{font-size:.66rem;padding:1px 5px;}
-  .pill{padding:4px 9px;font-size:.72rem;}
-  .mode-btn-sm{padding:10px 4px;min-height:66px;}
-  .mode-btn-sm .m-icon{font-size:1.35rem;}
-  .mode-btn-sm .m-text{font-size:.74rem;}
-  .virtual-remote-card{padding:14px 12px;border-radius:22px;max-width:100%;}
-  .dpad-ring{width:180px;height:180px;}
-  .ring-up,.ring-down{left:60px;width:60px;height:44px;}
-  .ring-left,.ring-right{top:60px;width:44px;height:60px;}
-  .joy-stick-knob{width:74px;height:74px;margin-top:-37px;margin-left:-37px;}
-  .remote-btn{min-height:52px;font-size:.98rem;padding:14px 10px;}
-  .mini-btn{min-height:46px;font-size:.78rem;}
-  .tool-btns{gap:6px;}
-  .tool-btn{flex:1 1 calc(50% - 3px);justify-content:center;font-size:.82rem;padding:10px 8px;}
-  .form.two{grid-template-columns:1fr;gap:12px;}
-  .tune-group{flex-direction:column;align-items:flex-start;gap:6px;}
-  .tune-group .hint{min-width:auto;}
-  .btn-group{width:100%;display:flex;}
-  .btn-group .btn{flex:1;text-align:center;min-height:40px;}
-}
-</style>
+    .drawer-profile .flbl {
+      font-size: .78rem;
+      color: var(--txt-muted);
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .drawer-profile .select {
+      width: 100%;
+    }
+
+    .drawer-profile-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .drawer-profile-actions .btn {
+      flex: 1;
+      justify-content: center;
+      font-size: .78rem;
+      padding: 7px 4px;
+    }
+
+    .drawer-nav {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .drawer-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 10px;
+      background: none;
+      border: none;
+      color: var(--txt-main);
+      font-size: .92rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: all .12s;
+    }
+
+    .drawer-item:active,
+    .drawer-item:hover {
+      background: var(--bg-sub);
+    }
+
+    .drawer-item.on {
+      background: rgba(76, 125, 255, .14);
+      color: #fff;
+      font-weight: 700;
+      border-left: 3px solid var(--primary);
+      padding-left: 11px;
+    }
+
+    .drawer-ico {
+      font-size: 1.15rem;
+      flex: 0 0 22px;
+      text-align: center;
+    }
+
+    .drawer-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 12px;
+    }
+
+    .drawer-lang {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .85rem;
+      color: var(--txt-muted);
+    }
+
+    .drawer-lang-label {
+      flex: 1;
+    }
+
+    .drawer-lang .btn {
+      padding: 6px 12px;
+      font-size: .82rem;
+    }
+
+    /* ============ Main ============ */
+    .wrap {
+      max-width: 1200px;
+      margin: 12px auto;
+      padding: 0 12px;
+    }
+
+    .tabpane {
+      display: none;
+    }
+
+    .tabpane.on {
+      display: block;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .sep {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      color: var(--txt-main);
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .88rem;
+      font-weight: 500;
+      transition: all .15s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: #242c40;
+      border-color: #384566;
+    }
+
+    .btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .btn.warn {
+      background: rgba(255, 170, 0, .15);
+      border-color: rgba(255, 170, 0, .4);
+      color: #ffbe33;
+    }
+
+    .btn.danger {
+      background: rgba(255, 77, 77, .15);
+      border-color: rgba(255, 77, 77, .4);
+      color: #ff6666;
+    }
+
+    .btn.mini {
+      padding: 6px 11px;
+      font-size: .8rem;
+    }
+
+    .btn.on {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .select,
+    .inp {
+      padding: 8px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--txt-main);
+      border-radius: 8px;
+      font-size: .88rem;
+      outline: none;
+    }
+
+    .select.mini,
+    .inp.mini {
+      padding: 5px 8px;
+      font-size: .8rem;
+    }
+
+    .hint {
+      color: var(--txt-muted);
+      font-size: .85rem;
+      font-weight: 500;
+    }
+
+    .hint2 {
+      color: var(--txt-muted);
+      font-size: .78rem;
+      margin: 4px 0;
+    }
+
+    .msg {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      font-size: .85rem;
+    }
+
+    /* Home flow */
+    .home-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .home-section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: .95rem;
+      color: var(--txt-strong);
+      margin-bottom: 10px;
+    }
+
+    .home-section-title .hint2 {
+      margin: 0;
+      font-weight: 400;
+    }
+
+    /* ============ [1] 작동 모드 (접힘 카드, compact) ============ */
+    .mode-selector-wrap {
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .mode-selector-summary {
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      min-height: 48px;
+      gap: 8px;
+    }
+
+    .mode-selector-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .ms-current {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .ms-ico {
+      font-size: 1.2rem;
+      flex: 0 0 auto;
+      line-height: 1;
+    }
+
+    .ms-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .ms-title {
+      font-weight: 700;
+      font-size: .9rem;
+      color: var(--txt-strong);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ms-sub {
+      font-size: .72rem;
+      color: var(--txt-muted);
+      white-space: nowrap;
+    }
+
+    .mode-selector-wrap[open] .fold-arrow {
+      transform: rotate(180deg);
+    }
+
+    .mode-selector-body {
+      border-top: 1px solid var(--border);
+      padding: 10px;
+    }
+
+    .mode-selector-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    /* Mode buttons (작게) */
+    .mode-btn-sm {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 4px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all .15s;
+      color: var(--txt-main);
+      min-height: 64px;
+    }
+
+    .mode-btn-sm:active {
+      transform: scale(.97);
+    }
+
+    .mode-btn-sm .m-icon {
+      font-size: 1.3rem;
+      line-height: 1;
+    }
+
+    .mode-btn-sm .m-text {
+      font-size: .74rem;
+      font-weight: 600;
+    }
+
+    .mode-btn-sm.on {
+      border-color: var(--primary);
+      background: rgba(76, 125, 255, .14);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 0 0 2px rgba(76, 125, 255, .18);
+    }
+
+    @keyframes modeBtnPop {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.05);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    .mode-btn-sm.on {
+      animation: modeBtnPop .28s ease-out;
+    }
+
+    /* ============ [2] Virtual Controller ============ */
+    .remote-center-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+
+    .virtual-remote-card {
+      background: #11151f;
+      border: 2px solid #232c42;
+      border-radius: 24px;
+      padding: 16px 16px 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      user-select: none;
+      width: 100%;
+      max-width: 440px;
+      transition: border-color .3s;
+    }
+
+    .virtual-remote-card.mode-pc {
+      border-color: rgba(76, 125, 255, .5);
+    }
+
+    .virtual-remote-card.mode-ppt {
+      border-color: rgba(34, 197, 94, .5);
+    }
+
+    .virtual-remote-card.mode-tv {
+      border-color: rgba(255, 170, 0, .5);
+    }
+
+    @keyframes remotePulse {
+      0% {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .5), 0 0 0 0 rgba(76, 125, 255, .5);
+      }
+
+      60% {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .5), 0 0 0 16px rgba(76, 125, 255, 0);
+      }
+
+      100% {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .5), 0 0 0 0 rgba(76, 125, 255, 0);
+      }
+    }
+
+    .virtual-remote-card.remote-flash {
+      animation: remotePulse .6s ease-out;
+    }
+
+    .remote-head {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .remote-head-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .remote-title {
+      font-size: .88rem;
+      font-weight: 700;
+      color: #8fa0bd;
+      white-space: nowrap;
+    }
+
+    .remote-mode-badge {
+      font-size: .7rem;
+      padding: 3px 9px;
+      border-radius: 7px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .virtual-remote-card.mode-pc .remote-mode-badge {
+      background: rgba(76, 125, 255, .15);
+      color: #4c7dff;
+      border-color: rgba(76, 125, 255, .3);
+    }
+
+    .virtual-remote-card.mode-ppt .remote-mode-badge {
+      background: rgba(34, 197, 94, .15);
+      color: #22c55e;
+      border-color: rgba(34, 197, 94, .3);
+    }
+
+    .virtual-remote-card.mode-tv .remote-mode-badge {
+      background: rgba(255, 170, 0, .15);
+      color: #ffaa00;
+      border-color: rgba(255, 170, 0, .3);
+    }
+
+    .remote-fold-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--txt-muted);
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: .78rem;
+      flex: 0 0 auto;
+    }
+
+    /* Preview tabs */
+    .preview-tabs {
+      width: 100%;
+      display: flex;
+      gap: 4px;
+      background: rgba(0, 0, 0, .28);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 10px;
+    }
+
+    .preview-tab {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--txt-muted);
+      font-size: .76rem;
+      font-weight: 700;
+      padding: 8px 4px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all .15s;
+      min-height: 34px;
+      white-space: nowrap;
+    }
+
+    .preview-tab:active {
+      transform: scale(.96);
+    }
+
+    .preview-tab.on {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(76, 125, 255, .4);
+    }
+
+    .virtual-remote-card.mode-ppt .preview-tab.on {
+      background: #22c55e;
+      box-shadow: 0 2px 8px rgba(34, 197, 94, .4);
+    }
+
+    .virtual-remote-card.mode-tv .preview-tab.on {
+      background: #ffaa00;
+      color: #111;
+      box-shadow: 0 2px 8px rgba(255, 170, 0, .4);
+    }
+
+    /* Preview warn */
+    .preview-warn {
+      width: 100%;
+      background: rgba(255, 170, 0, .12);
+      border: 1px solid rgba(255, 170, 0, .35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+      font-size: .76rem;
+      color: #ffbe33;
+    }
+
+    .preview-warn.hidden {
+      display: none;
+    }
+
+    .preview-warn-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .preview-warn .btn {
+      padding: 4px 10px;
+      font-size: .72rem;
+      flex: 0 0 auto;
+    }
+
+    .remote-collapsible-body {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transition: all .25s ease-in-out;
+    }
+
+    .remote-collapsible-body.folded {
+      display: none;
+    }
+
+    .remote-row {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      gap: 10px;
+    }
+
+    .btn-with-desc {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .btn-sub-lbl {
+      font-size: .7rem;
+      color: var(--txt-muted);
+      white-space: nowrap;
+    }
+
+    .remote-btn {
+      background: #1c2333;
+      border: 2px solid #2d3852;
+      color: #dce4f0;
+      border-radius: 14px;
+      padding: 14px 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: .95rem;
+      width: 100%;
+      text-align: center;
+      min-height: 48px;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .remote-btn:active {
+      transform: scale(.95);
+    }
+
+    .virtual-remote-card.mode-pc .remote-btn:active {
+      background: #4c7dff;
+      border-color: #4c7dff;
+      color: #fff;
+    }
+
+    .virtual-remote-card.mode-ppt .remote-btn:active {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+
+    .virtual-remote-card.mode-tv .remote-btn:active {
+      background: #ffaa00;
+      border-color: #ffaa00;
+      color: #fff;
+    }
+
+    .hybrid-dpad-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 4px 0;
+      touch-action: none;
+    }
+
+    .dpad-ring {
+      position: relative;
+      width: 190px;
+      height: 190px;
+      background: radial-gradient(circle, #1a2234 0%, #10141f 100%);
+      border-radius: 50%;
+      border: 2px solid #28334d;
+      box-shadow: inset 0 2px 12px rgba(0, 0, 0, .6), 0 6px 20px rgba(0, 0, 0, .35);
+      user-select: none;
+      flex: 0 0 auto;
+    }
+
+    .ring-btn {
+      position: absolute;
+      background: none;
+      border: none;
+      color: #7f91b0;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      transition: all .15s;
+      border-radius: 8px;
+    }
+
+    .ring-btn:active {
+      transform: scale(.9);
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .ring-up {
+      top: 6px;
+      left: 65px;
+      width: 60px;
+      height: 44px;
+    }
+
+    .ring-down {
+      bottom: 6px;
+      left: 65px;
+      width: 60px;
+      height: 44px;
+    }
+
+    .ring-left {
+      top: 65px;
+      left: 6px;
+      width: 44px;
+      height: 60px;
+    }
+
+    .ring-right {
+      top: 65px;
+      right: 6px;
+      width: 44px;
+      height: 60px;
+    }
+
+    .joy-stick-knob {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 76px;
+      height: 76px;
+      margin-top: -38px;
+      margin-left: -38px;
+      background: radial-gradient(circle at 35% 35%, #2a344d 0%, #151b27 100%);
+      border-radius: 50%;
+      border: 2px solid #3c4a6b;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .55), inset 0 2px 6px rgba(255, 255, 255, .14);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: grab;
+      z-index: 2;
+      touch-action: none;
+      transition: transform .05s ease-out;
+    }
+
+    .joy-knob-text {
+      font-size: .88rem;
+      font-weight: 800;
+      color: #94a3b8;
+      pointer-events: none;
+    }
+
+    .dpad-guide-hint {
+      font-size: .72rem;
+      color: var(--txt-muted);
+      text-align: center;
+      margin-top: -2px;
+      line-height: 1.45;
+      padding: 0 4px;
+    }
+
+    .remote-paddle-row {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .paddle-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .mini-btn {
+      font-size: .78rem;
+      padding: 10px 6px;
+      border-radius: 10px;
+      min-width: 0;
+      width: 100%;
+      min-height: 44px;
+    }
+
+    /* ============ Collapsible ============ */
+    .collapsible-card {
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .collapsible-summary {
+      padding: 14px 16px;
+      font-weight: 700;
+      font-size: .92rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      list-style: none;
+      user-select: none;
+      min-height: 52px;
+      gap: 8px;
+    }
+
+    .collapsible-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .collapsible-summary .summary-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .collapsible-summary .summary-badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(76, 125, 255, .15);
+      color: #7fa5ff;
+      border: 1px solid rgba(76, 125, 255, .3);
+      white-space: nowrap;
+    }
+
+    .fold-arrow {
+      font-size: .75rem;
+      color: var(--txt-muted);
+      transition: transform .2s;
+      flex: 0 0 auto;
+    }
+
+    .collapsible-card[open] .fold-arrow {
+      transform: rotate(180deg);
+    }
+
+    .collapsible-content {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Tool groups */
+    .tool-group {
+      margin-bottom: 14px;
+    }
+
+    .tool-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .tool-group-title {
+      font-size: .78rem;
+      font-weight: 700;
+      color: #8fa0bd;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+
+    .tool-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tool-btn {
+      background: #1c2333;
+      border: 1px solid #2d3852;
+      color: #dce4f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+      transition: all .12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn:active {
+      transform: scale(.95);
+      background: rgba(76, 125, 255, .2);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .tool-btn.danger:active {
+      background: rgba(255, 77, 77, .2);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    .tool-btn.warn:active {
+      background: rgba(255, 170, 0, .2);
+      border-color: var(--warn);
+      color: #fff;
+    }
+
+    .tool-ico {
+      font-size: 1rem;
+    }
+
+    /* Log */
+    .log {
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: .78rem;
+      color: #94a3b8;
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .logline {
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .02);
+    }
+
+    /* KV */
+    .kv {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-sub);
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      min-width: 140px;
+      flex: 1;
+    }
+
+    .kv .k {
+      font-size: .74rem;
+      color: var(--txt-muted);
+    }
+
+    .kv .v {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    /* Tune / form */
+    .tune-box {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tune-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tune-group .hint {
+      min-width: 110px;
+    }
+
+    .btn-group {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .form.two {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin: 12px 0;
+    }
+
+    .frow {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .flbl {
+      font-weight: 600;
+      font-size: .88rem;
+      color: #cbd5e1;
+    }
+
+    /* Footer / Loading */
+    .foot {
+      text-align: center;
+      color: var(--txt-muted);
+      font-size: .75rem;
+      padding: 24px 0;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 14, 20, .75);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .loading-overlay.on {
+      display: flex;
+    }
+
+    .loading-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(76, 125, 255, .2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Mobile */
+    @media (max-width:600px) {
+      body {
+        font-size: 13px;
+      }
+
+      .wrap {
+        margin: 10px auto;
+        padding: 0 10px;
+      }
+
+      .card {
+        padding: 12px;
+        border-radius: 14px;
+      }
+
+      .top {
+        padding: 8px 10px;
+        gap: 6px;
+      }
+
+      .title {
+        font-size: .92rem;
+      }
+
+      .sub {
+        font-size: .66rem;
+        padding: 1px 5px;
+      }
+
+      .pill {
+        padding: 4px 9px;
+        font-size: .72rem;
+      }
+
+      .mode-btn-sm {
+        padding: 10px 4px;
+        min-height: 66px;
+      }
+
+      .mode-btn-sm .m-icon {
+        font-size: 1.35rem;
+      }
+
+      .mode-btn-sm .m-text {
+        font-size: .74rem;
+      }
+
+      .virtual-remote-card {
+        padding: 14px 12px;
+        border-radius: 22px;
+        max-width: 100%;
+      }
+
+      .dpad-ring {
+        width: 180px;
+        height: 180px;
+      }
+
+      .ring-up,
+      .ring-down {
+        left: 60px;
+        width: 60px;
+        height: 44px;
+      }
+
+      .ring-left,
+      .ring-right {
+        top: 60px;
+        width: 44px;
+        height: 60px;
+      }
+
+      .joy-stick-knob {
+        width: 74px;
+        height: 74px;
+        margin-top: -37px;
+        margin-left: -37px;
+      }
+
+      .remote-btn {
+        min-height: 52px;
+        font-size: .98rem;
+        padding: 14px 10px;
+      }
+
+      .mini-btn {
+        min-height: 46px;
+        font-size: .78rem;
+      }
+
+      .tool-btns {
+        gap: 6px;
+      }
+
+      .tool-btn {
+        flex: 1 1 calc(50% - 3px);
+        justify-content: center;
+        font-size: .82rem;
+        padding: 10px 8px;
+      }
+
+      .form.two {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .tune-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .tune-group .hint {
+        min-width: auto;
+      }
+
+      .btn-group {
+        width: 100%;
+        display: flex;
+      }
+
+      .btn-group .btn {
+        flex: 1;
+        text-align: center;
+        min-height: 40px;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<header class="top">
-  <button class="hamburger" id="btnMenu" aria-label="메뉴">☰</button>
-  <div class="brand">
-    <div class="dot"></div>
-    <div class="title">Elite AirMouse</div>
-    <div class="sub">v0413</div>
-  </div>
-  <div class="right">
-    <div class="pill" id="pillStatus">
-      <span id="pStatProf">#0</span>
-      <span class="pm-sep">·</span>
-      <span id="pStatBat">92%</span>
-      <span class="pm-sep">·</span>
-      <span id="pStatBle">BLE</span>
-    </div>
-  </div>
-</header>
-
-<!-- Drawer -->
-<div class="drawer-backdrop" id="drawerBackdrop"></div>
-<aside class="drawer" id="drawer" role="navigation">
-  <div class="drawer-header">
-    <div class="dot"></div>
+  <header class="top">
+    <button class="hamburger" id="btnMenu" aria-label="메뉴">☰</button>
     <div class="brand">
+      <div class="dot"></div>
       <div class="title">Elite AirMouse</div>
       <div class="sub">v0413</div>
     </div>
-    <button class="drawer-close" id="btnDrawerClose" aria-label="닫기">✕</button>
-  </div>
-  <div class="drawer-profile">
-    <span class="flbl" data-i18n="prof.label">프로필</span>
-    <select class="select" id="profSelect"></select>
-    <div class="drawer-profile-actions">
-      <button class="btn mini" id="btnProfCreate" data-i18n="prof.new">+ 새로</button>
-      <button class="btn mini" id="btnProfRename" data-i18n="prof.rename">이름</button>
-      <button class="btn mini danger" id="btnProfDelete" data-i18n="prof.delete">삭제</button>
+    <div class="right">
+      <div class="pill" id="pillStatus">
+        <span id="pStatProf">#0</span>
+        <span class="pm-sep">·</span>
+        <span id="pStatBat">92%</span>
+        <span class="pm-sep">·</span>
+        <span id="pStatBle">BLE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Drawer -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer" role="navigation">
+    <div class="drawer-header">
+      <div class="dot"></div>
+      <div class="brand">
+        <div class="title">Elite AirMouse</div>
+        <div class="sub">v0413</div>
+      </div>
+      <button class="drawer-close" id="btnDrawerClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="drawer-profile">
+      <span class="flbl" data-i18n="prof.label">프로필</span>
+      <select class="select" id="profSelect"></select>
+      <div class="drawer-profile-actions">
+        <button class="btn mini" id="btnProfCreate" data-i18n="prof.new">+ 새로</button>
+        <button class="btn mini" id="btnProfRename" data-i18n="prof.rename">이름</button>
+        <button class="btn mini danger" id="btnProfDelete" data-i18n="prof.delete">삭제</button>
+      </div>
+    </div>
+    <nav class="drawer-nav">
+      <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span
+          data-i18n="tab.dash">홈</span></button>
+      <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작
+          할당</span></button>
+      <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로
+          관리</span></button>
+      <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및
+          센서 설정</span></button>
+      <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력
+          테스트</span></button>
+      <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선
+          업데이트</span></button>
+    </nav>
+    <div class="drawer-divider"></div>
+    <nav class="drawer-nav">
+      <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span
+          data-i18n="top.refresh">새로 고침</span></button>
+      <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시
+          시작</span></button>
+    </nav>
+    <div class="drawer-divider"></div>
+    <div class="drawer-lang">
+      <span class="drawer-ico">🌐</span>
+      <span class="drawer-lang-label" data-i18n="top.language">언어</span>
+      <button class="btn mini" data-lang="ko">KO</button>
+      <button class="btn mini" data-lang="en">EN</button>
+    </div>
+  </aside>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">처리 중…</div>
     </div>
   </div>
-  <nav class="drawer-nav">
-    <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span data-i18n="tab.dash">홈</span></button>
-    <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작 할당</span></button>
-    <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로 관리</span></button>
-    <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및 센서 설정</span></button>
-    <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력 테스트</span></button>
-    <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선 업데이트</span></button>
-  </nav>
-  <div class="drawer-divider"></div>
-  <nav class="drawer-nav">
-    <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span data-i18n="top.refresh">새로 고침</span></button>
-    <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시 시작</span></button>
-  </nav>
-  <div class="drawer-divider"></div>
-  <div class="drawer-lang">
-    <span class="drawer-ico">🌐</span>
-    <span class="drawer-lang-label" data-i18n="top.language">언어</span>
-    <button class="btn mini" data-lang="ko">KO</button>
-    <button class="btn mini" data-lang="en">EN</button>
-  </div>
-</aside>
 
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-box">
-    <div class="spinner"></div>
-    <div class="loading-text" id="loadingText">처리 중…</div>
-  </div>
-</div>
+  <main class="wrap">
+    <section class="card tabpane on" id="tab-dash">
+      <div class="home-flow">
 
-<main class="wrap">
-  <section class="card tabpane on" id="tab-dash">
-    <div class="home-flow">
-
-      <!-- [1] 작동 모드 (접힘 카드, compact) -->
-      <details class="mode-selector-wrap" id="modeSelectorCard" open>
-        <summary class="mode-selector-summary">
-          <div class="ms-current">
-            <span class="ms-ico" id="msIco">🖱️</span>
-            <div class="ms-text">
-              <div class="ms-title" id="msTitle">모드 1 (PC)</div>
-              <div class="ms-sub" data-i18n="dash.mode_tap_to_change">탭하여 모드 변경</div>
-            </div>
-          </div>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="mode-selector-body">
-          <div class="mode-selector-row">
-            <button class="mode-btn-sm on" id="btnMode1" data-mode="1">
-              <span class="m-icon">🖱️</span>
-              <span class="m-text" data-i18n="dash.mode_btn_1">모드 1 (PC)</span>
-            </button>
-            <button class="mode-btn-sm" id="btnMode2" data-mode="2">
-              <span class="m-icon">🎤</span>
-              <span class="m-text" data-i18n="dash.mode_btn_2">모드 2 (발표)</span>
-            </button>
-            <button class="mode-btn-sm" id="btnMode3" data-mode="3">
-              <span class="m-icon">📺</span>
-              <span class="m-text" data-i18n="dash.mode_btn_3">모드 3 (TV)</span>
-            </button>
-          </div>
-        </div>
-      </details>
-
-      <!-- [2] Virtual controller with preview tabs -->
-      <div class="remote-center-container">
-        <div class="virtual-remote-card mode-pc" id="remoteCard">
-
-          <div class="remote-head">
-            <div class="remote-head-left">
-              <span class="remote-title" data-i18n="remote.title">가상 컨트롤러</span>
-              <span class="remote-mode-badge" id="remoteActiveModeBadge">모드 1: PC</span>
-            </div>
-            <button class="remote-fold-btn" id="btnToggleRemoteFold">접기 ▲</button>
-          </div>
-
-          <!-- 미리보기 탭 -->
-          <div class="preview-tabs" role="tablist">
-            <button class="preview-tab on" data-preview="1">PC</button>
-            <button class="preview-tab"    data-preview="2">PPT</button>
-            <button class="preview-tab"    data-preview="3">TV</button>
-          </div>
-
-          <!-- 미리보기 경고 (실제 모드 ≠ 미리보기) -->
-          <div class="preview-warn hidden" id="previewWarn">
-            <span class="preview-warn-text" id="previewWarnText">-</span>
-            <button class="btn mini primary" id="btnApplyPreview" data-i18n="preview.apply">전환</button>
-          </div>
-
-          <div class="remote-collapsible-body" id="remoteCollapseBody">
-            <div class="remote-row">
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnTop1">Win</button>
-                <span class="btn-sub-lbl" id="lblTop1">시작메뉴</span>
-              </div>
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnTop2">🔇</button>
-                <span class="btn-sub-lbl" id="lblTop2">음소거</span>
+        <!-- [1] 작동 모드 (접힘 카드, compact) -->
+        <details class="mode-selector-wrap" id="modeSelectorCard" open>
+          <summary class="mode-selector-summary">
+            <div class="ms-current">
+              <span class="ms-ico" id="msIco">🖱️</span>
+              <div class="ms-text">
+                <div class="ms-title" id="msTitle">모드 1 (PC)</div>
+                <div class="ms-sub" data-i18n="dash.mode_tap_to_change">탭하여 모드 변경</div>
               </div>
             </div>
-            <div class="hybrid-dpad-wrapper">
-              <div class="dpad-ring" id="dpadRing">
-                <button class="ring-btn ring-up"    id="rbtnRingUp">▲</button>
-                <button class="ring-btn ring-down"  id="rbtnRingDown">▼</button>
-                <button class="ring-btn ring-left"  id="rbtnRingLeft">◀</button>
-                <button class="ring-btn ring-right" id="rbtnRingRight">▶</button>
-                <div class="joy-stick-knob" id="joyStickKnob">
-                  <span class="joy-knob-text" id="joyKnobText">Enter</span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="mode-selector-body">
+            <div class="mode-selector-row">
+              <button class="mode-btn-sm on" id="btnMode1" data-mode="1">
+                <span class="m-icon">🖱️</span>
+                <span class="m-text" data-i18n="dash.mode_btn_1">모드 1 (PC)</span>
+              </button>
+              <button class="mode-btn-sm" id="btnMode2" data-mode="2">
+                <span class="m-icon">🎤</span>
+                <span class="m-text" data-i18n="dash.mode_btn_2">모드 2 (발표)</span>
+              </button>
+              <button class="mode-btn-sm" id="btnMode3" data-mode="3">
+                <span class="m-icon">📺</span>
+                <span class="m-text" data-i18n="dash.mode_btn_3">모드 3 (TV)</span>
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <!-- [2] Virtual controller with preview tabs -->
+        <div class="remote-center-container">
+          <div class="virtual-remote-card mode-pc" id="remoteCard">
+
+            <div class="remote-head">
+              <div class="remote-head-left">
+                <span class="remote-title" data-i18n="remote.title">가상 컨트롤러</span>
+                <span class="remote-mode-badge" id="remoteActiveModeBadge">모드 1: PC</span>
+              </div>
+              <button class="remote-fold-btn" id="btnToggleRemoteFold">접기 ▲</button>
+            </div>
+
+            <!-- 미리보기 탭 -->
+            <div class="preview-tabs" role="tablist">
+              <button class="preview-tab on" data-preview="1">PC</button>
+              <button class="preview-tab" data-preview="2">PPT</button>
+              <button class="preview-tab" data-preview="3">TV</button>
+            </div>
+
+            <!-- 미리보기 경고 (실제 모드 ≠ 미리보기) -->
+            <div class="preview-warn hidden" id="previewWarn">
+              <span class="preview-warn-text" id="previewWarnText">-</span>
+              <button class="btn mini primary" id="btnApplyPreview" data-i18n="preview.apply">전환</button>
+            </div>
+
+            <div class="remote-collapsible-body" id="remoteCollapseBody">
+              <div class="remote-row">
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnTop1">Win</button>
+                  <span class="btn-sub-lbl" id="lblTop1">시작메뉴</span>
+                </div>
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnTop2">🔇</button>
+                  <span class="btn-sub-lbl" id="lblTop2">음소거</span>
+                </div>
+              </div>
+              <div class="hybrid-dpad-wrapper">
+                <div class="dpad-ring" id="dpadRing">
+                  <button class="ring-btn ring-up" id="rbtnRingUp">▲</button>
+                  <button class="ring-btn ring-down" id="rbtnRingDown">▼</button>
+                  <button class="ring-btn ring-left" id="rbtnRingLeft">◀</button>
+                  <button class="ring-btn ring-right" id="rbtnRingRight">▶</button>
+                  <div class="joy-stick-knob" id="joyStickKnob">
+                    <span class="joy-knob-text" id="joyKnobText">Enter</span>
+                  </div>
+                </div>
+              </div>
+              <div class="dpad-guide-hint" id="dpadGuideHint">-</div>
+              <div class="remote-row">
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnSub1">ESC</button>
+                  <span class="btn-sub-lbl" id="lblSub1">취소</span>
+                </div>
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnSub2">캡처</button>
+                  <span class="btn-sub-lbl" id="lblSub2">화면캡처</span>
+                </div>
+              </div>
+              <div class="remote-paddle-row">
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad1Up">VOL +</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad1Down">VOL -</button>
+                  <span class="btn-sub-lbl">볼륨 제어</span>
+                </div>
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad2Up">▶⏸</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad2Down">정지</button>
+                  <span class="btn-sub-lbl">재생 제어</span>
+                </div>
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad3Up">PgUp</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad3Down">PgDn</button>
+                  <span class="btn-sub-lbl" id="lblPad3">탐색 제어</span>
                 </div>
               </div>
             </div>
-            <div class="dpad-guide-hint" id="dpadGuideHint">-</div>
-            <div class="remote-row">
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnSub1">ESC</button>
-                <span class="btn-sub-lbl" id="lblSub1">취소</span>
-              </div>
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnSub2">캡처</button>
-                <span class="btn-sub-lbl" id="lblSub2">화면캡처</span>
+          </div>
+        </div>
+
+        <!-- [3] 모드별 추가 도구 (미리보기 모드 따라감) -->
+        <details class="collapsible-card" id="modeToolsCard">
+          <summary class="collapsible-summary">
+            <span class="summary-left">
+              <span class="drawer-ico" id="modeToolsIco">🧰</span>
+              <span data-i18n="tools.title">모드별 추가 도구</span>
+              <span class="summary-badge" id="modeToolsBadge">PC</span>
+            </span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="collapsible-content">
+            <div id="modeToolsBody"></div>
+          </div>
+        </details>
+
+        <!-- [4] 문제 해결 도구 -->
+        <details class="collapsible-card" id="troubleCard">
+          <summary class="collapsible-summary">
+            <span class="summary-left">
+              <span class="drawer-ico">🛠️</span>
+              <span data-i18n="trouble.title">문제 해결 도구</span>
+            </span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="collapsible-content">
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
+              <div class="tool-btns">
+                <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span
+                    data-i18n="trouble.calib">영점 맞추기</span></button>
+                <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span
+                    data-i18n="trouble.release">눌린 키 강제 해제</span></button>
               </div>
             </div>
-            <div class="remote-paddle-row">
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad1Up">VOL +</button>
-                <button class="remote-btn mini-btn" id="rbtnPad1Down">VOL -</button>
-                <span class="btn-sub-lbl">볼륨 제어</span>
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.conn">연결</div>
+              <div class="tool-btns">
+                <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span
+                    data-i18n="trouble.host">호스트 순환</span></button>
+                <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span
+                    data-i18n="trouble.pair">페어링 모드</span></button>
+                <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span
+                    data-i18n="trouble.i2c">센서 연결 초기화</span></button>
               </div>
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad2Up">▶⏸</button>
-                <button class="remote-btn mini-btn" id="rbtnPad2Down">정지</button>
-                <span class="btn-sub-lbl">재생 제어</span>
-              </div>
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad3Up">PgUp</button>
-                <button class="remote-btn mini-btn" id="rbtnPad3Down">PgDn</button>
-                <span class="btn-sub-lbl" id="lblPad3">탐색 제어</span>
+            </div>
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
+              <div class="tool-btns">
+                <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span
+                    data-i18n="trouble.sleep">지금 절전 모드</span></button>
+                <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span
+                    data-i18n="trouble.safemode">안전 모드 토글</span></button>
+                <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span
+                    data-i18n="trouble.factory">공장 초기화</span></button>
               </div>
             </div>
           </div>
+        </details>
+
+      </div>
+    </section>
+
+    <section class="card tabpane" id="tab-slots">
+      <h2 data-i18n="slots.title">버튼 및 동작 맞춤 할당</h2>
+      <div class="hint2" data-i18n="slots.hint">27가지 조작 동작에 원하는 키나 기능을 지정함.</div>
+      <div class="row" style="margin-top:12px;">
+        <div class="btn-group view-group">
+          <button class="view-tab btn mini on" data-view="global">기본 공통</button>
+          <button class="view-tab btn mini" data-view="mode1">모드 1: PC</button>
+          <button class="view-tab btn mini" data-view="mode2">모드 2: 발표</button>
+          <button class="view-tab btn mini" data-view="mode3">모드 3: TV</button>
         </div>
       </div>
+      <div class="sep"></div>
+      <div id="slotEditor">
+        <div class="hint2">Loading…</div>
+      </div>
+    </section>
 
-      <!-- [3] 모드별 추가 도구 (미리보기 모드 따라감) -->
-      <details class="collapsible-card" id="modeToolsCard">
-        <summary class="collapsible-summary">
-          <span class="summary-left">
-            <span class="drawer-ico" id="modeToolsIco">🧰</span>
-            <span data-i18n="tools.title">모드별 추가 도구</span>
-            <span class="summary-badge" id="modeToolsBadge">PC</span>
-          </span>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="collapsible-content">
-          <div id="modeToolsBody"></div>
-        </div>
-      </details>
+    <section class="card tabpane" id="tab-macros">
+      <h2 data-i18n="macros.title">연속 동작 매크로 관리</h2>
+      <div class="hint2" data-i18n="macros.hint">버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.</div>
+      <div class="sep"></div>
+      <div class="hint2">Standalone 데모: 매크로 기능은 v0413 풀버전에서 제공됩니다.</div>
+    </section>
 
-      <!-- [4] 문제 해결 도구 -->
-      <details class="collapsible-card" id="troubleCard">
-        <summary class="collapsible-summary">
-          <span class="summary-left">
-            <span class="drawer-ico">🛠️</span>
-            <span data-i18n="trouble.title">문제 해결 도구</span>
-          </span>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="collapsible-content">
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
-            <div class="tool-btns">
-              <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span data-i18n="trouble.calib">영점 맞추기</span></button>
-              <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span data-i18n="trouble.release">눌린 키 강제 해제</span></button>
-            </div>
-          </div>
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.conn">연결</div>
-            <div class="tool-btns">
-              <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span data-i18n="trouble.host">호스트 순환</span></button>
-              <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span data-i18n="trouble.pair">페어링 모드</span></button>
-              <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span data-i18n="trouble.i2c">센서 연결 초기화</span></button>
-            </div>
-          </div>
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
-            <div class="tool-btns">
-              <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span data-i18n="trouble.sleep">지금 절전 모드</span></button>
-              <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span data-i18n="trouble.safemode">안전 모드 토글</span></button>
-              <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span data-i18n="trouble.factory">공장 초기화</span></button>
-            </div>
+    <section class="card tabpane" id="tab-config">
+      <h2 data-i18n="cfg.title">포인터 및 센서 세부 설정</h2>
+      <div class="sep"></div>
+      <h3 data-i18n="dash.quick_tune">포인터 빠른 조정</h3>
+      <div class="hint2" data-i18n="dash.quick_tune_hint">즉시 적용 (기기 재시작 전까지 유지)</div>
+      <div class="sep" style="margin:10px 0;"></div>
+      <div class="tune-box">
+        <div class="tune-group">
+          <span class="hint" data-i18n="dash.dpi_label">포인터 속도:</span>
+          <div class="btn-group">
+            <button class="btn mini" id="btnDpi1">1단계</button>
+            <button class="btn mini" id="btnDpi2">2단계</button>
+            <button class="btn mini" id="btnDpi3">3단계</button>
           </div>
         </div>
-      </details>
-
-    </div>
-  </section>
-
-  <section class="card tabpane" id="tab-slots">
-    <h2 data-i18n="slots.title">버튼 및 동작 맞춤 할당</h2>
-    <div class="hint2" data-i18n="slots.hint">27가지 조작 동작에 원하는 키나 기능을 지정함.</div>
-    <div class="row" style="margin-top:12px;">
-      <div class="btn-group view-group">
-        <button class="view-tab btn mini on" data-view="global">기본 공통</button>
-        <button class="view-tab btn mini" data-view="mode1">모드 1: PC</button>
-        <button class="view-tab btn mini" data-view="mode2">모드 2: 발표</button>
-        <button class="view-tab btn mini" data-view="mode3">모드 3: TV</button>
-      </div>
-    </div>
-    <div class="sep"></div>
-    <div id="slotEditor"><div class="hint2">Loading…</div></div>
-  </section>
-
-  <section class="card tabpane" id="tab-macros">
-    <h2 data-i18n="macros.title">연속 동작 매크로 관리</h2>
-    <div class="hint2" data-i18n="macros.hint">버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.</div>
-    <div class="sep"></div>
-    <div class="hint2">Standalone 데모: 매크로 기능은 v0413 풀버전에서 제공됩니다.</div>
-  </section>
-
-  <section class="card tabpane" id="tab-config">
-    <h2 data-i18n="cfg.title">포인터 및 센서 세부 설정</h2>
-    <div class="sep"></div>
-    <h3 data-i18n="dash.quick_tune">포인터 빠른 조정</h3>
-    <div class="hint2" data-i18n="dash.quick_tune_hint">즉시 적용 (기기 재시작 전까지 유지)</div>
-    <div class="sep" style="margin:10px 0;"></div>
-    <div class="tune-box">
-      <div class="tune-group">
-        <span class="hint" data-i18n="dash.dpi_label">포인터 속도:</span>
-        <div class="btn-group">
-          <button class="btn mini" id="btnDpi1">1단계</button>
-          <button class="btn mini" id="btnDpi2">2단계</button>
-          <button class="btn mini" id="btnDpi3">3단계</button>
+        <div class="tune-group">
+          <span class="hint" data-i18n="dash.prec_label">포인터 정확도:</span>
+          <div class="btn-group">
+            <button class="btn mini" id="btnPrec0">끔</button>
+            <button class="btn mini" id="btnPrec1">낮음</button>
+            <button class="btn mini" id="btnPrec2">보통</button>
+            <button class="btn mini" id="btnPrec3">높음</button>
+            <button class="btn mini" id="btnPrec4">발표용</button>
+          </div>
         </div>
       </div>
-      <div class="tune-group">
-        <span class="hint" data-i18n="dash.prec_label">포인터 정확도:</span>
-        <div class="btn-group">
-          <button class="btn mini" id="btnPrec0">끔</button>
-          <button class="btn mini" id="btnPrec1">낮음</button>
-          <button class="btn mini" id="btnPrec2">보통</button>
-          <button class="btn mini" id="btnPrec3">높음</button>
-          <button class="btn mini" id="btnPrec4">발표용</button>
+      <div class="sep"></div>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_dpi">기본 포인터 속도</label>
+          <select id="e10Dpi" class="select">
+            <option value="1">1단계 (느림)</option>
+            <option value="2" selected>2단계 (보통 · 권장)</option>
+            <option value="3">3단계 (빠름)</option>
+          </select>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기 (0~255)</label>
+          <input id="ledBrightness" class="inp" type="number" min="0" max="255" value="128" />
         </div>
       </div>
-    </div>
-    <div class="sep"></div>
-    <div class="form two">
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_dpi">기본 포인터 속도</label>
-        <select id="e10Dpi" class="select">
-          <option value="1">1단계 (느림)</option>
-          <option value="2" selected>2단계 (보통 · 권장)</option>
-          <option value="3">3단계 (빠름)</option>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn mini primary" id="btnCfgSave">설정 저장 (시뮬)</button>
+        <div class="msg" id="cfgMsg">-</div>
+      </div>
+    </section>
+
+    <section class="card tabpane" id="tab-diag">
+      <h2 data-i18n="diag.title">진단 및 입력 테스트</h2>
+      <h3 style="margin-top:14px;">시스템 현황</h3>
+      <div class="row">
+        <div class="kv">
+          <div class="k" data-i18n="dash.uptime">동작 시간</div>
+          <div class="v" id="stUptime">-</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="dash.heap">여유 메모리</div>
+          <div class="v" id="stHeap">-</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="dash.wifi">와이파이</div>
+          <div class="v" id="stWiFi">-</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <h3>입력 신호 테스트 (Key Test)</h3>
+      <div class="row">
+        <select class="select mini" id="ktPage">
+          <option value="kb">키보드 (KB)</option>
+          <option value="consumer">미디어 키 (Consumer)</option>
         </select>
+        <select class="select mini" id="ktMod">
+          <option value="0">조합 없음</option>
+          <option value="1">Ctrl</option>
+          <option value="2">Shift</option>
+          <option value="4">Alt</option>
+          <option value="8">Win</option>
+        </select>
+        <input class="inp mini" type="number" id="ktCode" value="40" style="width:80px;" placeholder="키코드" />
+        <button class="btn primary mini" id="btnKeyTest">전송</button>
       </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기 (0~255)</label>
-        <input id="ledBrightness" class="inp" type="number" min="0" max="255" value="128" />
+      <div class="sep"></div>
+      <div class="hint2" style="display:flex;justify-content:space-between;align-items:center;">
+        <span data-i18n="dash.recent_cmds">최근 명령 로그</span>
+        <span id="recentLogCount" class="hint2">(0)</span>
       </div>
-    </div>
-    <div class="row" style="margin-top:12px;">
-      <button class="btn mini primary" id="btnCfgSave">설정 저장 (시뮬)</button>
-      <div class="msg" id="cfgMsg">-</div>
-    </div>
-  </section>
+      <div class="log" id="recentLogList" style="max-height:180px;">
+        <div class="hint2">아직 명령 없음</div>
+      </div>
+      <div class="sep"></div>
+      <div class="hint2">최근 이벤트</div>
+      <div class="log" id="diagEvents" style="max-height:160px;">
+        <div class="logline">[0ms] STANDALONE_MODE_READY</div>
+      </div>
+    </section>
 
-  <section class="card tabpane" id="tab-diag">
-    <h2 data-i18n="diag.title">진단 및 입력 테스트</h2>
-    <h3 style="margin-top:14px;">시스템 현황</h3>
-    <div class="row">
-      <div class="kv"><div class="k" data-i18n="dash.uptime">동작 시간</div><div class="v" id="stUptime">-</div></div>
-      <div class="kv"><div class="k" data-i18n="dash.heap">여유 메모리</div><div class="v" id="stHeap">-</div></div>
-      <div class="kv"><div class="k" data-i18n="dash.wifi">와이파이</div><div class="v" id="stWiFi">-</div></div>
-    </div>
-    <div class="sep"></div>
-    <h3>입력 신호 테스트 (Key Test)</h3>
-    <div class="row">
-      <select class="select mini" id="ktPage">
-        <option value="kb">키보드 (KB)</option>
-        <option value="consumer">미디어 키 (Consumer)</option>
-      </select>
-      <select class="select mini" id="ktMod">
-        <option value="0">조합 없음</option>
-        <option value="1">Ctrl</option>
-        <option value="2">Shift</option>
-        <option value="4">Alt</option>
-        <option value="8">Win</option>
-      </select>
-      <input class="inp mini" type="number" id="ktCode" value="40" style="width:80px;" placeholder="키코드" />
-      <button class="btn primary mini" id="btnKeyTest">전송</button>
-    </div>
-    <div class="sep"></div>
-    <div class="hint2" style="display:flex;justify-content:space-between;align-items:center;">
-      <span data-i18n="dash.recent_cmds">최근 명령 로그</span>
-      <span id="recentLogCount" class="hint2">(0)</span>
-    </div>
-    <div class="log" id="recentLogList" style="max-height:180px;">
-      <div class="hint2">아직 명령 없음</div>
-    </div>
-    <div class="sep"></div>
-    <div class="hint2">최근 이벤트</div>
-    <div class="log" id="diagEvents" style="max-height:160px;">
-      <div class="logline">[0ms] STANDALONE_MODE_READY</div>
-    </div>
-  </section>
+    <section class="card tabpane" id="tab-ota">
+      <h2 data-i18n="ota.title">무선 소프트웨어 업데이트 (OTA)</h2>
+      <div class="hint2">Standalone 데모: OTA는 시뮬레이션됩니다.</div>
+      <div class="sep"></div>
+      <div class="row">
+        <input type="file" id="otaFile" disabled />
+        <button class="btn primary mini" disabled>업로드 (미지원)</button>
+      </div>
+    </section>
+  </main>
 
-  <section class="card tabpane" id="tab-ota">
-    <h2 data-i18n="ota.title">무선 소프트웨어 업데이트 (OTA)</h2>
-    <div class="hint2">Standalone 데모: OTA는 시뮬레이션됩니다.</div>
-    <div class="sep"></div>
-    <div class="row">
-      <input type="file" id="otaFile" disabled />
-      <button class="btn primary mini" disabled>업로드 (미지원)</button>
-    </div>
-  </section>
-</main>
+  <footer class="foot">
+    <div data-i18n="cfg.foot">v0413 · Standalone · Collapsible Mode + Preview Tabs</div>
+  </footer>
 
-<footer class="foot">
-  <div data-i18n="cfg.foot">v0413 · Standalone · Collapsible Mode + Preview Tabs</div>
-</footer>
+  <script>
+    /* =======================================================
+       i18n
+    ======================================================= */
+    const I18N_STORAGE_KEY = "am_lang_0413";
+    let g_currLang = "ko";
 
-<script>
-/* =======================================================
-   i18n
-======================================================= */
-const I18N_STORAGE_KEY = "am_lang_0413";
-let g_currLang = "ko";
+    const I18N_DICT = {
+      ko: {
+        "top.refresh": "새로 고침", "top.reboot": "다시 시작", "top.language": "언어",
+        "prof.label": "프로필", "prof.new": "+ 새로", "prof.rename": "이름", "prof.delete": "삭제",
+        "tab.dash": "홈", "tab.slots": "버튼 및 동작 할당", "tab.macros": "매크로 관리",
+        "tab.config": "포인터 및 센서 설정", "tab.diag": "진단 및 입력 테스트", "tab.ota": "무선 업데이트",
 
-const I18N_DICT = {
-  ko: {
-    "top.refresh":"새로 고침","top.reboot":"다시 시작","top.language":"언어",
-    "prof.label":"프로필","prof.new":"+ 새로","prof.rename":"이름","prof.delete":"삭제",
-    "tab.dash":"홈","tab.slots":"버튼 및 동작 할당","tab.macros":"매크로 관리",
-    "tab.config":"포인터 및 센서 설정","tab.diag":"진단 및 입력 테스트","tab.ota":"무선 업데이트",
+        "dash.mode_tap_to_change": "탭하여 모드 변경",
+        "dash.mode_btn_1": "모드 1 (PC)", "dash.mode_btn_2": "모드 2 (발표)", "dash.mode_btn_3": "모드 3 (TV)",
+        "dash.quick_tune": "포인터 빠른 조정", "dash.quick_tune_hint": "즉시 적용 (기기 재시작 전까지 유지)",
+        "dash.dpi_label": "포인터 속도:", "dash.prec_label": "포인터 정확도:",
+        "dash.recent_cmds": "최근 명령 로그", "dash.uptime": "동작 시간", "dash.heap": "여유 메모리", "dash.wifi": "와이파이",
 
-    "dash.mode_tap_to_change":"탭하여 모드 변경",
-    "dash.mode_btn_1":"모드 1 (PC)","dash.mode_btn_2":"모드 2 (발표)","dash.mode_btn_3":"모드 3 (TV)",
-    "dash.quick_tune":"포인터 빠른 조정","dash.quick_tune_hint":"즉시 적용 (기기 재시작 전까지 유지)",
-    "dash.dpi_label":"포인터 속도:","dash.prec_label":"포인터 정확도:",
-    "dash.recent_cmds":"최근 명령 로그","dash.uptime":"동작 시간","dash.heap":"여유 메모리","dash.wifi":"와이파이",
+        "remote.title": "가상 컨트롤러",
+        "remote.badge_pc": "모드 1: PC", "remote.badge_ppt": "모드 2: 발표", "remote.badge_tv": "모드 3: TV",
+        "remote.guide_pc": "링: 단발 방향키 | 스틱 드래그: 방향 반복 | 스틱 탭: Enter",
+        "remote.guide_ppt": "링: 이전/다음 쪽 | 스틱 드래그: 도구 반복 | 스틱 탭: 선택",
+        "remote.guide_tv": "링: 4방향 이동 | 스틱 드래그: 틸트 홀드 | 스틱 탭: 확인",
+        "remote.sub_start": "시작메뉴", "remote.sub_mute": "음소거", "remote.sub_cancel": "취소", "remote.sub_screenshot": "화면캡처",
+        "remote.pad_doc": "문서 스크롤", "remote.pad_ppt_vol": "발표 볼륨", "remote.pad_ch": "채널 전환",
+        "remote.ppt_f5": "처음쇼", "remote.ppt_shf5": "현재쇼", "remote.ppt_end": "쇼종료",
+        "remote.ppt_laser": "레이저", "remote.ppt_prev": "이전쪽", "remote.ppt_next": "다음쪽",
+        "remote.ppt_sel": "선택", "remote.ppt_black": "블랙", "remote.ppt_white": "화이트",
+        "remote.ppt_pen": "펜도구", "remote.ppt_arrow": "화살표",
+        "remote.tv_power": "⏻ 전원", "remote.tv_back": "↩ 뒤로", "remote.tv_home": "🏠 홈",
+        "remote.tv_ok": "확인", "remote.tv_input": "외부 입력", "remote.tv_ch_up": "CH ▲", "remote.tv_ch_down": "CH ▼",
 
-    "remote.title":"가상 컨트롤러",
-    "remote.badge_pc":"모드 1: PC","remote.badge_ppt":"모드 2: 발표","remote.badge_tv":"모드 3: TV",
-    "remote.guide_pc":"링: 단발 방향키 | 스틱 드래그: 방향 반복 | 스틱 탭: Enter",
-    "remote.guide_ppt":"링: 이전/다음 쪽 | 스틱 드래그: 도구 반복 | 스틱 탭: 선택",
-    "remote.guide_tv":"링: 4방향 이동 | 스틱 드래그: 틸트 홀드 | 스틱 탭: 확인",
-    "remote.sub_start":"시작메뉴","remote.sub_mute":"음소거","remote.sub_cancel":"취소","remote.sub_screenshot":"화면캡처",
-    "remote.pad_doc":"문서 스크롤","remote.pad_ppt_vol":"발표 볼륨","remote.pad_ch":"채널 전환",
-    "remote.ppt_f5":"처음쇼","remote.ppt_shf5":"현재쇼","remote.ppt_end":"쇼종료",
-    "remote.ppt_laser":"레이저","remote.ppt_prev":"이전쪽","remote.ppt_next":"다음쪽",
-    "remote.ppt_sel":"선택","remote.ppt_black":"블랙","remote.ppt_white":"화이트",
-    "remote.ppt_pen":"펜도구","remote.ppt_arrow":"화살표",
-    "remote.tv_power":"⏻ 전원","remote.tv_back":"↩ 뒤로","remote.tv_home":"🏠 홈",
-    "remote.tv_ok":"확인","remote.tv_input":"외부 입력","remote.tv_ch_up":"CH ▲","remote.tv_ch_down":"CH ▼",
+        "preview.apply": "전환",
+        "preview.warn_label": "미리보기",
+        "preview.actual_label": "실제",
+        "preview.note": "미리보기 모드의 키가 그대로 전송됩니다.",
 
-    "preview.apply":"전환",
-    "preview.warn_label":"미리보기",
-    "preview.actual_label":"실제",
-    "preview.note":"미리보기 모드의 키가 그대로 전송됩니다.",
+        "tools.title": "모드별 추가 도구",
+        "tools.pc.window": "창 · 화면",
+        "tools.pc.win_max": "창 최대화", "tools.pc.win_left": "좌측 분할", "tools.pc.win_right": "우측 분할",
+        "tools.pc.win_desk": "바탕화면 보기", "tools.pc.taskview": "작업 보기",
+        "tools.pc.edit": "편집 단축키",
+        "tools.pc.copy": "복사", "tools.pc.paste": "붙여넣기", "tools.pc.undo": "실행 취소",
+        "tools.pc.select": "전체 선택", "tools.pc.find": "찾기",
+        "tools.pc.misc": "기타",
+        "tools.pc.newtab": "새 탭", "tools.pc.close": "탭 닫기", "tools.pc.lock": "화면 잠금",
+        "tools.ppt.show": "쇼 제어",
+        "tools.ppt.start": "처음부터 재생", "tools.ppt.start_cur": "현재부터 재생", "tools.ppt.end": "쇼 종료",
+        "tools.ppt.screen": "화면",
+        "tools.ppt.black": "검은 화면", "tools.ppt.white": "흰 화면",
+        "tools.ppt.pen": "펜 도구", "tools.ppt.laser": "레이저 포인터",
+        "tools.ppt.nav": "슬라이드 이동",
+        "tools.ppt.home": "첫 장", "tools.ppt.endpg": "마지막 장",
+        "tools.tv.channel": "채널",
+        "tools.tv.ch_up": "채널 ▲", "tools.tv.ch_down": "채널 ▼",
+        "tools.tv.media": "미디어 재생",
+        "tools.tv.play": "재생/일시정지", "tools.tv.stop": "정지",
+        "tools.tv.next": "다음", "tools.tv.prev": "이전",
+        "tools.tv.nav": "탐색",
+        "tools.tv.home": "홈", "tools.tv.back": "뒤로", "tools.tv.input": "외부 입력", "tools.tv.search": "검색",
+        "tools.tv.vol": "볼륨",
+        "tools.tv.vol_up": "볼륨 +", "tools.tv.vol_down": "볼륨 -", "tools.tv.mute": "음소거",
 
-    "tools.title":"모드별 추가 도구",
-    "tools.pc.window":"창 · 화면",
-    "tools.pc.win_max":"창 최대화","tools.pc.win_left":"좌측 분할","tools.pc.win_right":"우측 분할",
-    "tools.pc.win_desk":"바탕화면 보기","tools.pc.taskview":"작업 보기",
-    "tools.pc.edit":"편집 단축키",
-    "tools.pc.copy":"복사","tools.pc.paste":"붙여넣기","tools.pc.undo":"실행 취소",
-    "tools.pc.select":"전체 선택","tools.pc.find":"찾기",
-    "tools.pc.misc":"기타",
-    "tools.pc.newtab":"새 탭","tools.pc.close":"탭 닫기","tools.pc.lock":"화면 잠금",
-    "tools.ppt.show":"쇼 제어",
-    "tools.ppt.start":"처음부터 재생","tools.ppt.start_cur":"현재부터 재생","tools.ppt.end":"쇼 종료",
-    "tools.ppt.screen":"화면",
-    "tools.ppt.black":"검은 화면","tools.ppt.white":"흰 화면",
-    "tools.ppt.pen":"펜 도구","tools.ppt.laser":"레이저 포인터",
-    "tools.ppt.nav":"슬라이드 이동",
-    "tools.ppt.home":"첫 장","tools.ppt.endpg":"마지막 장",
-    "tools.tv.channel":"채널",
-    "tools.tv.ch_up":"채널 ▲","tools.tv.ch_down":"채널 ▼",
-    "tools.tv.media":"미디어 재생",
-    "tools.tv.play":"재생/일시정지","tools.tv.stop":"정지",
-    "tools.tv.next":"다음","tools.tv.prev":"이전",
-    "tools.tv.nav":"탐색",
-    "tools.tv.home":"홈","tools.tv.back":"뒤로","tools.tv.input":"외부 입력","tools.tv.search":"검색",
-    "tools.tv.vol":"볼륨",
-    "tools.tv.vol_up":"볼륨 +","tools.tv.vol_down":"볼륨 -","tools.tv.mute":"음소거",
+        "trouble.title": "문제 해결 도구",
+        "trouble.pointer": "포인터", "trouble.conn": "연결", "trouble.system": "시스템",
+        "trouble.calib": "영점 맞추기", "trouble.release": "눌린 키 강제 해제",
+        "trouble.host": "호스트 순환", "trouble.pair": "페어링 모드", "trouble.i2c": "센서 연결 초기화",
+        "trouble.sleep": "지금 절전 모드", "trouble.safemode": "안전 모드 토글", "trouble.factory": "공장 초기화",
 
-    "trouble.title":"문제 해결 도구",
-    "trouble.pointer":"포인터","trouble.conn":"연결","trouble.system":"시스템",
-    "trouble.calib":"영점 맞추기","trouble.release":"눌린 키 강제 해제",
-    "trouble.host":"호스트 순환","trouble.pair":"페어링 모드","trouble.i2c":"센서 연결 초기화",
-    "trouble.sleep":"지금 절전 모드","trouble.safemode":"안전 모드 토글","trouble.factory":"공장 초기화",
+        "slots.title": "버튼 및 동작 맞춤 할당", "slots.hint": "27가지 조작 동작에 원하는 키나 기능을 지정함.",
+        "macros.title": "연속 동작 매크로 관리", "macros.hint": "버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.",
+        "cfg.title": "포인터 및 센서 세부 설정", "cfg.lbl_dpi": "기본 포인터 속도", "cfg.lbl_led_bright": "LED 밝기 (0~255)",
+        "cfg.foot": "v0413 · Standalone · Collapsible Mode + Preview Tabs",
+        "diag.title": "진단 및 입력 테스트", "ota.title": "무선 소프트웨어 업데이트 (OTA)",
 
-    "slots.title":"버튼 및 동작 맞춤 할당","slots.hint":"27가지 조작 동작에 원하는 키나 기능을 지정함.",
-    "macros.title":"연속 동작 매크로 관리","macros.hint":"버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.",
-    "cfg.title":"포인터 및 센서 세부 설정","cfg.lbl_dpi":"기본 포인터 속도","cfg.lbl_led_bright":"LED 밝기 (0~255)",
-    "cfg.foot":"v0413 · Standalone · Collapsible Mode + Preview Tabs",
-    "diag.title":"진단 및 입력 테스트","ota.title":"무선 소프트웨어 업데이트 (OTA)",
+        "pop.mode_switch_confirm": "모드를 {cur} → {tgt}(으)로 전환하시겠습니까?",
+        "pop.mode_switch_ok": "모드 {tgt} 전환 완료",
+        "pop.calib_ok": "영점 보정 요청 완료", "pop.force_release_ok": "눌린 키 강제 해제 완료",
+        "pop.host_cycle_ok": "호스트 순환 요청 완료", "pop.pair_ok": "페어링 모드 진입",
+        "pop.i2c_ok": "I2C 복구 요청 완료",
+        "pop.sleep_ok": "절전 모드 예약됨", "pop.safemode_on": "안전 모드 ON", "pop.safemode_off": "안전 모드 OFF",
+        "pop.factory_confirm": "공장 초기화 (Standalone: localStorage 초기화)?", "pop.factory_ok": "초기화 완료",
+        "pop.reboot_confirm": "재부팅 시뮬레이션 (Standalone: 새로고침)",
+        "pop.dpi_applied": "DPI {v} 적용", "pop.prec_applied": "Precision {v} 적용",
+        "pop.key_test_ok": "Key Test OK · {page} mod={mod} code={code}",
+        "log.none": "아직 명령 없음", "cfg.save_ok": "설정 저장 (시뮬)"
+      },
+      en: {
+        "top.refresh": "Refresh", "top.reboot": "Restart", "top.language": "Language",
+        "prof.label": "Profile", "prof.new": "+ New", "prof.rename": "Rename", "prof.delete": "Delete",
+        "tab.dash": "Home", "tab.slots": "Button Assign", "tab.macros": "Macros",
+        "tab.config": "Pointer & Sensor", "tab.diag": "Diagnostics", "tab.ota": "OTA Update",
 
-    "pop.mode_switch_confirm":"모드를 {cur} → {tgt}(으)로 전환하시겠습니까?",
-    "pop.mode_switch_ok":"모드 {tgt} 전환 완료",
-    "pop.calib_ok":"영점 보정 요청 완료","pop.force_release_ok":"눌린 키 강제 해제 완료",
-    "pop.host_cycle_ok":"호스트 순환 요청 완료","pop.pair_ok":"페어링 모드 진입",
-    "pop.i2c_ok":"I2C 복구 요청 완료",
-    "pop.sleep_ok":"절전 모드 예약됨","pop.safemode_on":"안전 모드 ON","pop.safemode_off":"안전 모드 OFF",
-    "pop.factory_confirm":"공장 초기화 (Standalone: localStorage 초기화)?","pop.factory_ok":"초기화 완료",
-    "pop.reboot_confirm":"재부팅 시뮬레이션 (Standalone: 새로고침)",
-    "pop.dpi_applied":"DPI {v} 적용","pop.prec_applied":"Precision {v} 적용",
-    "pop.key_test_ok":"Key Test OK · {page} mod={mod} code={code}",
-    "log.none":"아직 명령 없음","cfg.save_ok":"설정 저장 (시뮬)"
-  },
-  en: {
-    "top.refresh":"Refresh","top.reboot":"Restart","top.language":"Language",
-    "prof.label":"Profile","prof.new":"+ New","prof.rename":"Rename","prof.delete":"Delete",
-    "tab.dash":"Home","tab.slots":"Button Assign","tab.macros":"Macros",
-    "tab.config":"Pointer & Sensor","tab.diag":"Diagnostics","tab.ota":"OTA Update",
+        "dash.mode_tap_to_change": "Tap to change mode",
+        "dash.mode_btn_1": "Mode 1 (PC)", "dash.mode_btn_2": "Mode 2 (Present)", "dash.mode_btn_3": "Mode 3 (TV)",
+        "dash.quick_tune": "Quick Pointer Tuning", "dash.quick_tune_hint": "Applied immediately (until restart)",
+        "dash.dpi_label": "Speed:", "dash.prec_label": "Precision:",
+        "dash.recent_cmds": "Recent Command Log", "dash.uptime": "Uptime", "dash.heap": "Free Mem", "dash.wifi": "Wi-Fi",
 
-    "dash.mode_tap_to_change":"Tap to change mode",
-    "dash.mode_btn_1":"Mode 1 (PC)","dash.mode_btn_2":"Mode 2 (Present)","dash.mode_btn_3":"Mode 3 (TV)",
-    "dash.quick_tune":"Quick Pointer Tuning","dash.quick_tune_hint":"Applied immediately (until restart)",
-    "dash.dpi_label":"Speed:","dash.prec_label":"Precision:",
-    "dash.recent_cmds":"Recent Command Log","dash.uptime":"Uptime","dash.heap":"Free Mem","dash.wifi":"Wi-Fi",
+        "remote.title": "Virtual Controller",
+        "remote.badge_pc": "Mode 1: PC", "remote.badge_ppt": "Mode 2: Present", "remote.badge_tv": "Mode 3: TV",
+        "remote.guide_pc": "Ring: tap arrows | Stick drag: repeat | Stick tap: Enter",
+        "remote.guide_ppt": "Ring: Prev/Next | Stick drag: tool repeat | Stick tap: Select",
+        "remote.guide_tv": "Ring: 4-way nav | Stick drag: tilt hold | Stick tap: OK",
+        "remote.sub_start": "Start", "remote.sub_mute": "Mute", "remote.sub_cancel": "Cancel", "remote.sub_screenshot": "Screenshot",
+        "remote.pad_doc": "Doc Scroll", "remote.pad_ppt_vol": "Pres. Volume", "remote.pad_ch": "Channel",
+        "remote.ppt_f5": "Start", "remote.ppt_shf5": "From Current", "remote.ppt_end": "End",
+        "remote.ppt_laser": "Laser", "remote.ppt_prev": "Prev", "remote.ppt_next": "Next",
+        "remote.ppt_sel": "Select", "remote.ppt_black": "Black", "remote.ppt_white": "White",
+        "remote.ppt_pen": "Pen", "remote.ppt_arrow": "Arrow",
+        "remote.tv_power": "⏻ Power", "remote.tv_back": "↩ Back", "remote.tv_home": "🏠 Home",
+        "remote.tv_ok": "OK", "remote.tv_input": "Input", "remote.tv_ch_up": "CH ▲", "remote.tv_ch_down": "CH ▼",
 
-    "remote.title":"Virtual Controller",
-    "remote.badge_pc":"Mode 1: PC","remote.badge_ppt":"Mode 2: Present","remote.badge_tv":"Mode 3: TV",
-    "remote.guide_pc":"Ring: tap arrows | Stick drag: repeat | Stick tap: Enter",
-    "remote.guide_ppt":"Ring: Prev/Next | Stick drag: tool repeat | Stick tap: Select",
-    "remote.guide_tv":"Ring: 4-way nav | Stick drag: tilt hold | Stick tap: OK",
-    "remote.sub_start":"Start","remote.sub_mute":"Mute","remote.sub_cancel":"Cancel","remote.sub_screenshot":"Screenshot",
-    "remote.pad_doc":"Doc Scroll","remote.pad_ppt_vol":"Pres. Volume","remote.pad_ch":"Channel",
-    "remote.ppt_f5":"Start","remote.ppt_shf5":"From Current","remote.ppt_end":"End",
-    "remote.ppt_laser":"Laser","remote.ppt_prev":"Prev","remote.ppt_next":"Next",
-    "remote.ppt_sel":"Select","remote.ppt_black":"Black","remote.ppt_white":"White",
-    "remote.ppt_pen":"Pen","remote.ppt_arrow":"Arrow",
-    "remote.tv_power":"⏻ Power","remote.tv_back":"↩ Back","remote.tv_home":"🏠 Home",
-    "remote.tv_ok":"OK","remote.tv_input":"Input","remote.tv_ch_up":"CH ▲","remote.tv_ch_down":"CH ▼",
+        "preview.apply": "Apply",
+        "preview.warn_label": "Preview",
+        "preview.actual_label": "Actual",
+        "preview.note": "Keys of the previewed mode are transmitted as-is.",
 
-    "preview.apply":"Apply",
-    "preview.warn_label":"Preview",
-    "preview.actual_label":"Actual",
-    "preview.note":"Keys of the previewed mode are transmitted as-is.",
+        "tools.title": "Mode-specific Tools",
+        "tools.pc.window": "Window & Screen",
+        "tools.pc.win_max": "Maximize", "tools.pc.win_left": "Snap Left", "tools.pc.win_right": "Snap Right",
+        "tools.pc.win_desk": "Show Desktop", "tools.pc.taskview": "Task View",
+        "tools.pc.edit": "Edit Shortcuts",
+        "tools.pc.copy": "Copy", "tools.pc.paste": "Paste", "tools.pc.undo": "Undo",
+        "tools.pc.select": "Select All", "tools.pc.find": "Find",
+        "tools.pc.misc": "Misc",
+        "tools.pc.newtab": "New Tab", "tools.pc.close": "Close Tab", "tools.pc.lock": "Lock Screen",
+        "tools.ppt.show": "Show Control",
+        "tools.ppt.start": "Start Show", "tools.ppt.start_cur": "From Current", "tools.ppt.end": "End Show",
+        "tools.ppt.screen": "Screen",
+        "tools.ppt.black": "Black", "tools.ppt.white": "White",
+        "tools.ppt.pen": "Pen Tool", "tools.ppt.laser": "Laser Pointer",
+        "tools.ppt.nav": "Slide Navigation",
+        "tools.ppt.home": "First Slide", "tools.ppt.endpg": "Last Slide",
+        "tools.tv.channel": "Channel",
+        "tools.tv.ch_up": "CH ▲", "tools.tv.ch_down": "CH ▼",
+        "tools.tv.media": "Media",
+        "tools.tv.play": "Play/Pause", "tools.tv.stop": "Stop", "tools.tv.next": "Next", "tools.tv.prev": "Previous",
+        "tools.tv.nav": "Navigation",
+        "tools.tv.home": "Home", "tools.tv.back": "Back", "tools.tv.input": "Input", "tools.tv.search": "Search",
+        "tools.tv.vol": "Volume",
+        "tools.tv.vol_up": "Vol +", "tools.tv.vol_down": "Vol -", "tools.tv.mute": "Mute",
 
-    "tools.title":"Mode-specific Tools",
-    "tools.pc.window":"Window & Screen",
-    "tools.pc.win_max":"Maximize","tools.pc.win_left":"Snap Left","tools.pc.win_right":"Snap Right",
-    "tools.pc.win_desk":"Show Desktop","tools.pc.taskview":"Task View",
-    "tools.pc.edit":"Edit Shortcuts",
-    "tools.pc.copy":"Copy","tools.pc.paste":"Paste","tools.pc.undo":"Undo",
-    "tools.pc.select":"Select All","tools.pc.find":"Find",
-    "tools.pc.misc":"Misc",
-    "tools.pc.newtab":"New Tab","tools.pc.close":"Close Tab","tools.pc.lock":"Lock Screen",
-    "tools.ppt.show":"Show Control",
-    "tools.ppt.start":"Start Show","tools.ppt.start_cur":"From Current","tools.ppt.end":"End Show",
-    "tools.ppt.screen":"Screen",
-    "tools.ppt.black":"Black","tools.ppt.white":"White",
-    "tools.ppt.pen":"Pen Tool","tools.ppt.laser":"Laser Pointer",
-    "tools.ppt.nav":"Slide Navigation",
-    "tools.ppt.home":"First Slide","tools.ppt.endpg":"Last Slide",
-    "tools.tv.channel":"Channel",
-    "tools.tv.ch_up":"CH ▲","tools.tv.ch_down":"CH ▼",
-    "tools.tv.media":"Media",
-    "tools.tv.play":"Play/Pause","tools.tv.stop":"Stop","tools.tv.next":"Next","tools.tv.prev":"Previous",
-    "tools.tv.nav":"Navigation",
-    "tools.tv.home":"Home","tools.tv.back":"Back","tools.tv.input":"Input","tools.tv.search":"Search",
-    "tools.tv.vol":"Volume",
-    "tools.tv.vol_up":"Vol +","tools.tv.vol_down":"Vol -","tools.tv.mute":"Mute",
+        "trouble.title": "Troubleshoot",
+        "trouble.pointer": "Pointer", "trouble.conn": "Connection", "trouble.system": "System",
+        "trouble.calib": "Calibrate", "trouble.release": "Release Held Keys",
+        "trouble.host": "Host Cycle", "trouble.pair": "Pairing Mode", "trouble.i2c": "I2C Recovery",
+        "trouble.sleep": "Sleep Now", "trouble.safemode": "Safe Mode Toggle", "trouble.factory": "Factory Reset",
 
-    "trouble.title":"Troubleshoot",
-    "trouble.pointer":"Pointer","trouble.conn":"Connection","trouble.system":"System",
-    "trouble.calib":"Calibrate","trouble.release":"Release Held Keys",
-    "trouble.host":"Host Cycle","trouble.pair":"Pairing Mode","trouble.i2c":"I2C Recovery",
-    "trouble.sleep":"Sleep Now","trouble.safemode":"Safe Mode Toggle","trouble.factory":"Factory Reset",
+        "slots.title": "Button Assignments", "slots.hint": "Assign keys to 27 trigger actions.",
+        "macros.title": "Macro Manager", "macros.hint": "Automate sequential keystrokes.",
+        "cfg.title": "Pointer & Sensor Settings", "cfg.lbl_dpi": "Base Pointer Speed", "cfg.lbl_led_bright": "LED Brightness",
+        "cfg.foot": "v0413 · Standalone · Collapsible Mode + Preview Tabs",
+        "diag.title": "Diagnostics & Input Test", "ota.title": "OTA Update",
 
-    "slots.title":"Button Assignments","slots.hint":"Assign keys to 27 trigger actions.",
-    "macros.title":"Macro Manager","macros.hint":"Automate sequential keystrokes.",
-    "cfg.title":"Pointer & Sensor Settings","cfg.lbl_dpi":"Base Pointer Speed","cfg.lbl_led_bright":"LED Brightness",
-    "cfg.foot":"v0413 · Standalone · Collapsible Mode + Preview Tabs",
-    "diag.title":"Diagnostics & Input Test","ota.title":"OTA Update",
-
-    "pop.mode_switch_confirm":"Switch mode {cur} → {tgt}?","pop.mode_switch_ok":"Mode {tgt} switched",
-    "pop.calib_ok":"Calibration requested","pop.force_release_ok":"All keys released",
-    "pop.host_cycle_ok":"Host cycle requested","pop.pair_ok":"Pairing mode entered",
-    "pop.i2c_ok":"I2C recovery requested",
-    "pop.sleep_ok":"Sleep scheduled","pop.safemode_on":"Safe Mode ON","pop.safemode_off":"Safe Mode OFF",
-    "pop.factory_confirm":"Factory reset (Standalone: clear localStorage)?","pop.factory_ok":"Reset complete",
-    "pop.reboot_confirm":"Reboot simulation (reload page)",
-    "pop.dpi_applied":"DPI {v} applied","pop.prec_applied":"Precision {v} applied",
-    "pop.key_test_ok":"Key Test OK · {page} mod={mod} code={code}",
-    "log.none":"No commands yet","cfg.save_ok":"Saved (simulated)"
-  }
-};
-
-function t(key, params){
-  const dict = I18N_DICT[g_currLang] || I18N_DICT.ko;
-  let s = dict[key] || (I18N_DICT.ko[key]) || key;
-  if (params && typeof params === "object"){
-    for (const k of Object.keys(params)) s = s.split(`{${k}}`).join(String(params[k]));
-  }
-  return s;
-}
-function applyI18nToDom(){
-  document.querySelectorAll("[data-i18n]").forEach(el=>{
-    const s = t(el.getAttribute("data-i18n")); if (s) el.textContent = s;
-  });
-}
-function setLanguage(lang){
-  if (!I18N_DICT[lang]) lang = "ko";
-  g_currLang = lang;
-  try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch(e){}
-  document.documentElement.lang = lang;
-  applyI18nToDom();
-  _renderController(g_previewMode);
-  _updateModeSelectorSummary();
-  _updatePreviewWarn();
-  renderModeTools();
-  renderRecentLog();
-}
-function initI18n(){
-  let saved = null;
-  try { saved = localStorage.getItem(I18N_STORAGE_KEY); } catch(e){}
-  if (!saved){
-    const nav = (navigator.language || "").toLowerCase();
-    saved = nav.startsWith("ko") ? "ko" : "en";
-  }
-  setLanguage(saved);
-}
-
-/* =======================================================
-   Utils
-======================================================= */
-function qs(id){ return document.getElementById(id); }
-function qsa(sel){ return document.querySelectorAll(sel); }
-function pretty(o){ try { return JSON.stringify(o, null, 2); } catch(e){ return String(o); } }
-function parseIntFlex(v, def=0){
-  if (v==null) return def;
-  const s = String(v).trim(); if (!s) return def;
-  const n = Number(s); return Number.isFinite(n) ? Math.trunc(n) : def;
-}
-function setMsg(text, good){
-  const el = qs("cfgMsg"); if (!el) return;
-  el.textContent = text;
-  el.style.borderColor = good ? "rgba(76,125,255,.55)" : "rgba(255,77,77,.55)";
-  el.style.background  = good ? "rgba(76,125,255,.10)" : "rgba(255,77,77,.10)";
-}
-function showLoading(text){
-  const ov = qs("loadingOverlay"), tx = qs("loadingText");
-  if (tx && text) tx.textContent = text;
-  if (ov) ov.classList.add("on");
-}
-function hideLoading(){ qs("loadingOverlay")?.classList.remove("on"); }
-function nowMs(){ return Date.now(); }
-
-/* =======================================================
-   State
-======================================================= */
-let g_currentActiveMode = 1;   // 실제 기기 모드
-let g_previewMode       = 1;   // 컨트롤러 표시 모드 (미리보기)
-let g_isRemoteFolded    = false;
-let g_lastStatus        = null;
-let g_dpiLevel          = 2;
-let g_precMode          = 0;
-let g_view              = "global";
-
-const REMOTE_FOLD_KEY      = "am_remote_folded_0413";
-const MODE_TOOLS_FOLD_KEY  = "am_tools_folded_0413";
-const TROUBLE_FOLD_KEY     = "am_trouble_folded_0413";
-const MODE_SEL_FOLD_KEY    = "am_mode_sel_folded_0413";
-const OFFLINE_STORAGE_KEY  = "am_v0413_standalone";
-const OFFLINE_STORE_SCHEMA = 2;
-let g_offlineStore = null;
-
-const MODE_LABELS = {
-  1: { ico:"🖱️", short:"PC",  fullKey:"dash.mode_btn_1" },
-  2: { ico:"🎤", short:"PPT", fullKey:"dash.mode_btn_2" },
-  3: { ico:"📺", short:"TV",  fullKey:"dash.mode_btn_3" }
-};
-
-function makeDefaultProfile(name="Default"){
-  return {
-    ver: 410, name,
-    e10: {
-      dpi_level:2, led_brightness:128, active_mode:1,
-      battery_pct:92, ble_connected:false, safe_mode:false
-    },
-    slots:{ global: Array.from({length:27}, ()=>({k:0,h:0,p16:0,p32:0})), modes: [] }
-  };
-}
-function loadOfflineStore(){
-  try {
-    const raw = localStorage.getItem(OFFLINE_STORAGE_KEY);
-    if (raw){
-      const p = JSON.parse(raw);
-      if (p && p._v === OFFLINE_STORE_SCHEMA && p.profiles){ g_offlineStore = p; return; }
-    }
-  } catch(e){}
-  g_offlineStore = {
-    _v: OFFLINE_STORE_SCHEMA, active:0,
-    profiles:[{idx:0, name:"Default"}],
-    profileData:{0: makeDefaultProfile("Default")}
-  };
-  saveOfflineStore();
-}
-function saveOfflineStore(){
-  try { localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(g_offlineStore)); } catch(e){}
-}
-function getActiveProfile(){
-  const idx = g_offlineStore.active;
-  if (!g_offlineStore.profileData[idx]) g_offlineStore.profileData[idx] = makeDefaultProfile();
-  return g_offlineStore.profileData[idx];
-}
-
-/* =======================================================
-   Mode Tools
-======================================================= */
-const MODE_TOOLS = {
-  1: { badge:"PC", ico:"🖱️", groups: [
-      { labelKey:"tools.pc.window", items: [
-        { labelKey:"tools.pc.win_max",   page:"kb", mod:8, code:82, ico:"⬆️" },
-        { labelKey:"tools.pc.win_left",  page:"kb", mod:8, code:80, ico:"⬅️" },
-        { labelKey:"tools.pc.win_right", page:"kb", mod:8, code:79, ico:"➡️" },
-        { labelKey:"tools.pc.win_desk",  page:"kb", mod:8, code:7,  ico:"🖥️" },
-        { labelKey:"tools.pc.taskview",  page:"kb", mod:8, code:43, ico:"🗂️" },
-      ]},
-      { labelKey:"tools.pc.edit", items: [
-        { labelKey:"tools.pc.copy",   page:"kb", mod:1, code:6,  ico:"📋" },
-        { labelKey:"tools.pc.paste",  page:"kb", mod:1, code:25, ico:"📥" },
-        { labelKey:"tools.pc.undo",   page:"kb", mod:1, code:29, ico:"↩️" },
-        { labelKey:"tools.pc.select", page:"kb", mod:1, code:4,  ico:"🔲" },
-        { labelKey:"tools.pc.find",   page:"kb", mod:1, code:9,  ico:"🔍" },
-      ]},
-      { labelKey:"tools.pc.misc", items: [
-        { labelKey:"tools.pc.newtab", page:"kb", mod:1, code:23, ico:"➕" },
-        { labelKey:"tools.pc.close",  page:"kb", mod:1, code:26, ico:"✖️" },
-        { labelKey:"tools.pc.lock",   page:"kb", mod:8, code:15, ico:"🔒" },
-      ]},
-    ]},
-  2: { badge:"PPT", ico:"🎤", groups: [
-      { labelKey:"tools.ppt.show", items: [
-        { labelKey:"tools.ppt.start",     page:"kb", mod:0, code:62, ico:"▶️" },
-        { labelKey:"tools.ppt.start_cur", page:"kb", mod:2, code:62, ico:"⏯️" },
-        { labelKey:"tools.ppt.end",       page:"kb", mod:0, code:41, ico:"⏹️" },
-      ]},
-      { labelKey:"tools.ppt.screen", items: [
-        { labelKey:"tools.ppt.black", page:"kb", mod:0, code:5,  ico:"⬛" },
-        { labelKey:"tools.ppt.white", page:"kb", mod:0, code:26, ico:"⬜" },
-        { labelKey:"tools.ppt.pen",   page:"kb", mod:1, code:19, ico:"🖊️" },
-        { labelKey:"tools.ppt.laser", page:"kb", mod:1, code:15, ico:"🔴" },
-      ]},
-      { labelKey:"tools.ppt.nav", items: [
-        { labelKey:"tools.ppt.home",  page:"kb", mod:0, code:74, ico:"⏮️" },
-        { labelKey:"tools.ppt.endpg", page:"kb", mod:0, code:77, ico:"⏭️" },
-      ]},
-    ]},
-  3: { badge:"TV", ico:"📺", groups: [
-      { labelKey:"tools.tv.channel", items: [
-        { labelKey:"tools.tv.ch_up",   page:"consumer", mod:0, code:0x4000, ico:"📶" },
-        { labelKey:"tools.tv.ch_down", page:"consumer", mod:0, code:0x8000, ico:"📶" },
-      ]},
-      { labelKey:"tools.tv.media", items: [
-        { labelKey:"tools.tv.play", page:"consumer", mod:0, code:0x0008, ico:"▶️" },
-        { labelKey:"tools.tv.stop", page:"consumer", mod:0, code:0x0010, ico:"⏹️" },
-        { labelKey:"tools.tv.next", page:"consumer", mod:0, code:0x0020, ico:"⏭️" },
-        { labelKey:"tools.tv.prev", page:"consumer", mod:0, code:0x0040, ico:"⏮️" },
-      ]},
-      { labelKey:"tools.tv.nav", items: [
-        { labelKey:"tools.tv.home",   page:"consumer", mod:0, code:0x0400, ico:"🏠" },
-        { labelKey:"tools.tv.back",   page:"consumer", mod:0, code:0x0200, ico:"↩️" },
-        { labelKey:"tools.tv.input",  page:"consumer", mod:0, code:0x2000, ico:"🔀" },
-        { labelKey:"tools.tv.search", page:"consumer", mod:0, code:0x0800, ico:"🔍" },
-      ]},
-      { labelKey:"tools.tv.vol", items: [
-        { labelKey:"tools.tv.vol_up",   page:"consumer", mod:0, code:0x0001, ico:"🔊" },
-        { labelKey:"tools.tv.vol_down", page:"consumer", mod:0, code:0x0002, ico:"🔉" },
-        { labelKey:"tools.tv.mute",     page:"consumer", mod:0, code:0x0004, ico:"🔇" },
-      ]},
-    ]},
-};
-
-/* =======================================================
-   Remote Config
-======================================================= */
-const REMOTE_CONFIG_BY_MODE = {
-  1: {
-    themeClass:"mode-pc", badgeKey:"remote.badge_pc", guideKey:"remote.guide_pc",
-    top1:{label:"Win",subKey:"remote.sub_start",action:()=>keyTest("kb",8,0)},
-    top2:{label:"🔇",subKey:"remote.sub_mute",action:()=>keyTest("consumer",0,0x0004)},
-    ringUp:{label:"▲",action:()=>keyTest("kb",0,82)},
-    ringDown:{label:"▼",action:()=>keyTest("kb",0,81)},
-    ringLeft:{label:"◀",action:()=>keyTest("kb",0,80)},
-    ringRight:{label:"▶",action:()=>keyTest("kb",0,79)},
-    knobText:"Enter", knobTap:()=>keyTest("kb",0,40),
-    sub1:{label:"ESC",subKey:"remote.sub_cancel",action:()=>keyTest("kb",0,41)},
-    sub2:{label:"캡처",subKey:"remote.sub_screenshot",action:()=>keyTest("kb",10,22)},
-    pad1U:{label:"Vol +",action:()=>keyTest("consumer",0,0x0001)},
-    pad1D:{label:"Vol -",action:()=>keyTest("consumer",0,0x0002)},
-    pad2U:{label:"▶⏸",action:()=>keyTest("consumer",0,0x0008)},
-    pad2D:{label:"정지",action:()=>keyTest("consumer",0,0x0010)},
-    pad3U:{label:"PgUp",action:()=>keyTest("kb",0,75)},
-    pad3D:{label:"PgDn",action:()=>keyTest("kb",0,78)},
-    pad3LblKey:"remote.pad_doc"
-  },
-  2: {
-    themeClass:"mode-ppt", badgeKey:"remote.badge_ppt", guideKey:"remote.guide_ppt",
-    top1:{labelKey:"remote.ppt_f5",action:()=>keyTest("kb",0,58)},
-    top2:{labelKey:"remote.ppt_shf5",action:()=>keyTest("kb",2,62)},
-    ringUp:{labelKey:"remote.ppt_end",action:()=>keyTest("kb",0,41)},
-    ringDown:{labelKey:"remote.ppt_laser",action:()=>keyTest("kb",1,15)},
-    ringLeft:{labelKey:"remote.ppt_prev",action:()=>keyTest("kb",0,75)},
-    ringRight:{labelKey:"remote.ppt_next",action:()=>keyTest("kb",0,78)},
-    knobTextKey:"remote.ppt_sel", knobTap:()=>keyTest("kb",0,40),
-    sub1:{labelKey:"remote.ppt_black",action:()=>keyTest("kb",0,5)},
-    sub2:{labelKey:"remote.ppt_white",action:()=>keyTest("kb",0,26)},
-    pad1U:{labelKey:"remote.ppt_prev",action:()=>keyTest("kb",0,75)},
-    pad1D:{labelKey:"remote.ppt_next",action:()=>keyTest("kb",0,78)},
-    pad2U:{labelKey:"remote.ppt_pen",action:()=>keyTest("kb",1,19)},
-    pad2D:{labelKey:"remote.ppt_arrow",action:()=>keyTest("kb",1,4)},
-    pad3U:{label:"Vol +",action:()=>keyTest("consumer",0,0x0001)},
-    pad3D:{label:"Vol -",action:()=>keyTest("consumer",0,0x0002)},
-    pad3LblKey:"remote.pad_ppt_vol"
-  },
-  3: {
-    themeClass:"mode-tv", badgeKey:"remote.badge_tv", guideKey:"remote.guide_tv",
-    top1:{labelKey:"remote.tv_power",action:()=>keyTest("consumer",0,0x1000)},
-    top2:{label:"🔇",action:()=>keyTest("consumer",0,0x0004)},
-    ringUp:{label:"▲",action:()=>keyTest("kb",0,82)},
-    ringDown:{label:"▼",action:()=>keyTest("kb",0,81)},
-    ringLeft:{label:"◀",action:()=>keyTest("kb",0,80)},
-    ringRight:{label:"▶",action:()=>keyTest("kb",0,79)},
-    knobTextKey:"remote.tv_ok", knobTap:()=>keyTest("kb",0,40),
-    sub1:{labelKey:"remote.tv_back",action:()=>keyTest("consumer",0,0x0200)},
-    sub2:{labelKey:"remote.tv_home",action:()=>keyTest("consumer",0,0x0400)},
-    pad1U:{label:"VOL +",action:()=>keyTest("consumer",0,0x0001)},
-    pad1D:{label:"VOL -",action:()=>keyTest("consumer",0,0x0002)},
-    pad2U:{label:"▶⏸",action:()=>keyTest("consumer",0,0x0008)},
-    pad2D:{labelKey:"remote.tv_input",action:()=>keyTest("consumer",0,0x2000)},
-    pad3U:{labelKey:"remote.tv_ch_up",action:()=>keyTest("consumer",0,0x4000)},
-    pad3D:{labelKey:"remote.tv_ch_down",action:()=>keyTest("consumer",0,0x8000)},
-    pad3LblKey:"remote.pad_ch"
-  }
-};
-
-/* =======================================================
-   Recent Log
-======================================================= */
-const RECENT_LOG_CAP = 12;
-const g_recentLog = [];
-function pushRecentLog(label, ok=true){
-  g_recentLog.push({ ts: nowMs(), label, ok:!!ok });
-  while (g_recentLog.length > RECENT_LOG_CAP) g_recentLog.shift();
-  renderRecentLog();
-}
-function renderRecentLog(){
-  const listEl = qs("recentLogList"), cntEl = qs("recentLogCount");
-  if (cntEl) cntEl.textContent = `(${g_recentLog.length})`;
-  if (!listEl) return;
-  if (!g_recentLog.length){ listEl.innerHTML = `<div class="hint2">${t("log.none")}</div>`; return; }
-  listEl.innerHTML = "";
-  for (let i = g_recentLog.length - 1; i >= 0; i--){
-    const e = g_recentLog[i], d = document.createElement("div");
-    d.className = "logline";
-    const tSec = Math.floor((nowMs() - e.ts) / 1000);
-    const age = (tSec < 60) ? `${tSec}s` : `${Math.floor(tSec/60)}m`;
-    d.textContent = `[${age}] ${e.ok ? "✓" : "✗"} ${e.label}`;
-    if (!e.ok) d.style.color = "#ff8a8a";
-    listEl.appendChild(d);
-  }
-}
-
-/* =======================================================
-   Key Test
-======================================================= */
-function keyTest(page, mod, code, labelOverride){
-  const label = labelOverride || ((page === "kb")
-    ? `KB u=${code} mod=${mod}`
-    : `Consumer 0x${(code>>>0).toString(16).toUpperCase()}`);
-  pushRecentLog(label, true);
-  setMsg(t("pop.key_test_ok", { page, mod, code }), true);
-  const evEl = qs("diagEvents");
-  if (evEl){
-    const line = document.createElement("div");
-    line.className = "logline";
-    line.textContent = `[${nowMs()%1000000}ms] KEYTEST ${label}`;
-    evEl.insertBefore(line, evEl.firstChild);
-    while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
-  }
-}
-
-/* =======================================================
-   Mode Tools Renderer (preview 모드 기준)
-======================================================= */
-function renderModeTools(){
-  const bodyEl = qs("modeToolsBody"); if (!bodyEl) return;
-  const badgeEl = qs("modeToolsBadge");
-  const icoEl = qs("modeToolsIco");
-  const cfg = MODE_TOOLS[g_previewMode] || MODE_TOOLS[1];
-
-  if (badgeEl) badgeEl.textContent = cfg.badge;
-  if (icoEl) icoEl.textContent = cfg.ico;
-
-  bodyEl.innerHTML = "";
-  for (const group of cfg.groups){
-    const gDiv = document.createElement("div");
-    gDiv.className = "tool-group";
-
-    const gT = document.createElement("div");
-    gT.className = "tool-group-title";
-    gT.textContent = t(group.labelKey);
-    gDiv.appendChild(gT);
-
-    const bWrap = document.createElement("div");
-    bWrap.className = "tool-btns";
-
-    for (const item of group.items){
-      const btn = document.createElement("button");
-      btn.className = "tool-btn";
-      btn.innerHTML = `<span class="tool-ico">${item.ico || "•"}</span><span>${t(item.labelKey)}</span>`;
-      btn.addEventListener("click", ()=>{
-        keyTest(item.page, item.mod || 0, item.code, t(item.labelKey));
-      });
-      bWrap.appendChild(btn);
-    }
-    gDiv.appendChild(bWrap);
-    bodyEl.appendChild(gDiv);
-  }
-}
-
-/* =======================================================
-   Controller Renderer (preview 탭 선택 시에도 호출)
-======================================================= */
-function _renderController(mode){
-  const cfg = REMOTE_CONFIG_BY_MODE[mode] || REMOTE_CONFIG_BY_MODE[1];
-  const card = qs("remoteCard");
-  if (card){
-    card.classList.remove("mode-pc","mode-ppt","mode-tv","remote-flash");
-    void card.offsetWidth;
-    card.classList.add(cfg.themeClass, "remote-flash");
-    setTimeout(()=>card.classList.remove("remote-flash"), 700);
-  }
-  const badge = qs("remoteActiveModeBadge");
-  if (badge) badge.textContent = t(cfg.badgeKey);
-  const hintEl = qs("dpadGuideHint");
-  if (hintEl) hintEl.textContent = t(cfg.guideKey);
-
-  const setBtn = (id, def, subId)=>{
-    const el = qs(id); if (!el || !def) return;
-    const v_lbl = def.labelKey ? t(def.labelKey) : def.label;
-    if (v_lbl !== undefined) el.textContent = v_lbl;
-    const cloned = el.cloneNode(true);
-    el.parentNode.replaceChild(cloned, el);
-    if (typeof def.action === "function") cloned.addEventListener("click", def.action);
-    if (subId){
-      const sEl = qs(subId);
-      if (sEl) sEl.textContent = def.subKey ? t(def.subKey) : "";
-    }
-  };
-  setBtn("rbtnTop1", cfg.top1, "lblTop1");
-  setBtn("rbtnTop2", cfg.top2, "lblTop2");
-  setBtn("rbtnRingUp", cfg.ringUp);
-  setBtn("rbtnRingDown", cfg.ringDown);
-  setBtn("rbtnRingLeft", cfg.ringLeft);
-  setBtn("rbtnRingRight", cfg.ringRight);
-  setBtn("rbtnSub1", cfg.sub1, "lblSub1");
-  setBtn("rbtnSub2", cfg.sub2, "lblSub2");
-  setBtn("rbtnPad1Up", cfg.pad1U);
-  setBtn("rbtnPad1Down", cfg.pad1D);
-  setBtn("rbtnPad2Up", cfg.pad2U);
-  setBtn("rbtnPad2Down", cfg.pad2D);
-  setBtn("rbtnPad3Up", cfg.pad3U);
-  setBtn("rbtnPad3Down", cfg.pad3D);
-  const pad3Lbl = qs("lblPad3");
-  if (pad3Lbl && cfg.pad3LblKey) pad3Lbl.textContent = t(cfg.pad3LblKey);
-  const knobText = qs("joyKnobText");
-  if (knobText) knobText.textContent = cfg.knobTextKey ? t(cfg.knobTextKey) : (cfg.knobText || "");
-}
-
-function _updateModeSelectorSummary(){
-  const info = MODE_LABELS[g_currentActiveMode] || MODE_LABELS[1];
-  const icoEl = qs("msIco"); if (icoEl) icoEl.textContent = info.ico;
-  const titleEl = qs("msTitle");
-  if (titleEl) titleEl.textContent = t(info.fullKey);
-}
-
-function _updateModeSelectorHighlight(){
-  [1,2,3].forEach(m=>{
-    const btn = qs("btnMode"+m);
-    if (btn) btn.classList.toggle("on", m === g_currentActiveMode);
-  });
-}
-
-function _updatePreviewTabs(){
-  qsa(".preview-tab").forEach(b=>{
-    b.classList.toggle("on", parseIntFlex(b.dataset.preview, 0) === g_previewMode);
-  });
-}
-
-function _updatePreviewWarn(){
-  const warn = qs("previewWarn");
-  const txt = qs("previewWarnText");
-  if (!warn) return;
-  if (g_previewMode === g_currentActiveMode){
-    warn.classList.add("hidden");
-    return;
-  }
-  warn.classList.remove("hidden");
-  if (txt){
-    const pLbl = MODE_LABELS[g_previewMode]?.short || "?";
-    const aLbl = MODE_LABELS[g_currentActiveMode]?.short || "?";
-    txt.textContent = `${t("preview.warn_label")}: ${pLbl} · ${t("preview.actual_label")}: ${aLbl}`;
-    txt.title = t("preview.note");
-  }
-}
-
-/* =======================================================
-   Mode 전환 (실제 기기)
-======================================================= */
-async function ctlSetMode(target){
-  target = Math.max(1, Math.min(3, target|0));
-  const cur = g_currentActiveMode;
-  if (target === cur){
-    // 이미 실제 모드 → 미리보기도 동기화
-    applyRemoteMode(target);
-    return true;
-  }
-  if (!confirm(t("pop.mode_switch_confirm", { cur, tgt: target }))) return false;
-  const steps = ((target - cur) + 3) % 3;
-  showLoading(`모드 ${target} 전환 중…`);
-  try {
-    for (let i = 0; i < steps; i++){
-      await new Promise(r => setTimeout(r, 320));
-      const nextMode = ((g_currentActiveMode) % 3) + 1;
-      g_currentActiveMode = nextMode;
-      pushRecentLog(`MODE_CYCLE → ${nextMode}`, true);
-    }
-    g_currentActiveMode = target;
-    await new Promise(r => setTimeout(r, 260));
-    applyRemoteMode(target);
-    setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
-    await refreshStatus();
-    return true;
-  } finally { hideLoading(); }
-}
-
-/** 실제 기기 모드 반영 (미리보기도 함께 동기화) */
-function applyRemoteMode(mode){
-  g_currentActiveMode = mode;
-  g_previewMode = mode;
-  _renderController(mode);
-  _updateModeSelectorSummary();
-  _updateModeSelectorHighlight();
-  _updatePreviewTabs();
-  _updatePreviewWarn();
-  renderModeTools();
-}
-
-/** 컨트롤러만 미리보기 (실제 기기는 그대로) */
-function applyPreviewMode(mode){
-  if (mode < 1 || mode > 3) return;
-  g_previewMode = mode;
-  _renderController(mode);
-  _updatePreviewTabs();
-  _updatePreviewWarn();
-  renderModeTools();
-}
-
-/* =======================================================
-   Fold persistence
-======================================================= */
-function bindFoldPersist(detailsId, storageKey, defaultOpen){
-  const el = qs(detailsId); if (!el) return;
-  let v_open = !!defaultOpen;
-  try {
-    const saved = localStorage.getItem(storageKey);
-    if (saved === "1") v_open = true;
-    else if (saved === "0") v_open = false;
-  } catch(e){}
-  el.open = v_open;
-  el.addEventListener("toggle", ()=>{
-    try { localStorage.setItem(storageKey, el.open ? "1" : "0"); } catch(e){}
-  });
-}
-function _restoreRemoteFold(){
-  try { g_isRemoteFolded = (localStorage.getItem(REMOTE_FOLD_KEY) === "1"); }
-  catch(e) { g_isRemoteFolded = false; }
-  const body = qs("remoteCollapseBody"), btn = qs("btnToggleRemoteFold");
-  if (body) body.classList.toggle("folded", g_isRemoteFolded);
-  if (btn)  btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
-}
-function bindRemoteFoldToggle(){
-  const btn = qs("btnToggleRemoteFold"), body = qs("remoteCollapseBody");
-  if (!btn || !body) return;
-  _restoreRemoteFold();
-  btn.addEventListener("click", ()=>{
-    g_isRemoteFolded = !g_isRemoteFolded;
-    body.classList.toggle("folded", g_isRemoteFolded);
-    btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
-    try { localStorage.setItem(REMOTE_FOLD_KEY, g_isRemoteFolded ? "1" : "0"); } catch(e){}
-  });
-}
-
-/* =======================================================
-   Joystick
-======================================================= */
-function initHybridJoystick(){
-  const ring = qs("dpadRing"), knob = qs("joyStickKnob");
-  if (!ring || !knob) return;
-  const MAX_RADIUS = 38, DEADZONE = 12;
-  let isDragging = false, startX = 0, startY = 0, repeatTimer = null, activeDir = null;
-
-  function getDir(dx, dy){
-    const a = Math.atan2(dy, dx) * 180 / Math.PI;
-    if (a >= -45 && a <= 45) return "RIGHT";
-    if (a > 45 && a < 135) return "DOWN";
-    if (a >= 135 || a <= -135) return "LEFT";
-    if (a < -45 && a > -135) return "UP";
-    return null;
-  }
-  function triggerTilt(dir){
-    if (!dir) return;
-    // 미리보기 모드 기준으로 동작 (사용자가 보고 있는 모드의 키 전송)
-    if (g_previewMode === 2){
-      keyTest("kb", 0, (dir === "RIGHT" || dir === "DOWN") ? 78 : 75);
-    } else {
-      const map = { UP:82, DOWN:81, LEFT:80, RIGHT:79 };
-      keyTest("kb", 0, map[dir] || 0);
-    }
-  }
-  function handleStart(e){
-    if (e.target.classList.contains("ring-btn")) return;
-    isDragging = true;
-    const rect = ring.getBoundingClientRect();
-    startX = rect.left + rect.width / 2;
-    startY = rect.top + rect.height / 2;
-    handleMove(e);
-  }
-  function handleMove(e){
-    if (!isDragging) return;
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    let dx = cx - startX, dy = cy - startY;
-    const dist = Math.hypot(dx, dy);
-    if (dist > MAX_RADIUS){ dx = (dx/dist)*MAX_RADIUS; dy = (dy/dist)*MAX_RADIUS; }
-    knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    if (dist > DEADZONE){
-      const dir = getDir(dx, dy);
-      if (dir !== activeDir){
-        activeDir = dir;
-        triggerTilt(dir);
-        clearInterval(repeatTimer);
-        repeatTimer = setInterval(()=>{ if (activeDir) triggerTilt(activeDir); }, 300);
+        "pop.mode_switch_confirm": "Switch mode {cur} → {tgt}?", "pop.mode_switch_ok": "Mode {tgt} switched",
+        "pop.calib_ok": "Calibration requested", "pop.force_release_ok": "All keys released",
+        "pop.host_cycle_ok": "Host cycle requested", "pop.pair_ok": "Pairing mode entered",
+        "pop.i2c_ok": "I2C recovery requested",
+        "pop.sleep_ok": "Sleep scheduled", "pop.safemode_on": "Safe Mode ON", "pop.safemode_off": "Safe Mode OFF",
+        "pop.factory_confirm": "Factory reset (Standalone: clear localStorage)?", "pop.factory_ok": "Reset complete",
+        "pop.reboot_confirm": "Reboot simulation (reload page)",
+        "pop.dpi_applied": "DPI {v} applied", "pop.prec_applied": "Precision {v} applied",
+        "pop.key_test_ok": "Key Test OK · {page} mod={mod} code={code}",
+        "log.none": "No commands yet", "cfg.save_ok": "Saved (simulated)"
       }
-    } else { activeDir = null; clearInterval(repeatTimer); }
-  }
-  function handleEnd(){
-    if (!isDragging) return;
-    isDragging = false; clearInterval(repeatTimer);
-    if (!activeDir){
-      const cfg = REMOTE_CONFIG_BY_MODE[g_previewMode];
-      if (cfg && cfg.knobTap) cfg.knobTap();
+    };
+
+    function t(key, params) {
+      const dict = I18N_DICT[g_currLang] || I18N_DICT.ko;
+      let s = dict[key] || (I18N_DICT.ko[key]) || key;
+      if (params && typeof params === "object") {
+        for (const k of Object.keys(params)) s = s.split(`{${k}}`).join(String(params[k]));
+      }
+      return s;
     }
-    activeDir = null;
-    knob.style.transition = "transform .15s cubic-bezier(0.175,0.885,0.32,1.275)";
-    knob.style.transform = "translate(0px,0px)";
-    setTimeout(()=>{ knob.style.transition = ""; }, 150);
-  }
-  knob.addEventListener("mousedown", handleStart);
-  window.addEventListener("mousemove", handleMove);
-  window.addEventListener("mouseup", handleEnd);
-  knob.addEventListener("touchstart", handleStart, { passive:false });
-  window.addEventListener("touchmove", handleMove, { passive:false });
-  window.addEventListener("touchend", handleEnd);
-  window.addEventListener("touchcancel", handleEnd);
-}
-
-/* =======================================================
-   Troubleshoot
-======================================================= */
-async function handleTrouble(kind){
-  switch(kind){
-    case "calib":   pushRecentLog("GYRO_CALIB", true); setMsg(t("pop.calib_ok"), true); break;
-    case "release": pushRecentLog("FORCE_RELEASE", true); setMsg(t("pop.force_release_ok"), true); break;
-    case "host":    pushRecentLog("HOST_CYCLE", true); setMsg(t("pop.host_cycle_ok"), true); break;
-    case "pair":    pushRecentLog("PAIRING_MODE", true); setMsg(t("pop.pair_ok"), true); break;
-    case "i2c":     pushRecentLog("I2C_RECOVER", true); setMsg(t("pop.i2c_ok"), true); break;
-    case "sleep":   pushRecentLog("SLEEP_NOW", true); setMsg(t("pop.sleep_ok"), true); break;
-    case "safemode": {
-      const e = getActiveProfile().e10;
-      e.safe_mode = !e.safe_mode; saveOfflineStore();
-      pushRecentLog(`SAFE_MODE_${e.safe_mode?"ON":"OFF"}`, true);
-      setMsg(e.safe_mode ? t("pop.safemode_on") : t("pop.safemode_off"), true);
-      refreshStatus(); break;
+    function applyI18nToDom() {
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const s = t(el.getAttribute("data-i18n")); if (s) el.textContent = s;
+      });
     }
-    case "factory":
-      if (!confirm(t("pop.factory_confirm"))) return;
-      try { localStorage.clear(); } catch(e){}
-      alert(t("pop.factory_ok"));
-      location.reload();
-      break;
-  }
-}
+    function setLanguage(lang) {
+      if (!I18N_DICT[lang]) lang = "ko";
+      g_currLang = lang;
+      try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch (e) { }
+      document.documentElement.lang = lang;
+      applyI18nToDom();
+      _renderController(g_previewMode);
+      _updateModeSelectorSummary();
+      _updatePreviewWarn();
+      renderModeTools();
+      renderRecentLog();
+    }
+    function initI18n() {
+      let saved = null;
+      try { saved = localStorage.getItem(I18N_STORAGE_KEY); } catch (e) { }
+      if (!saved) {
+        const nav = (navigator.language || "").toLowerCase();
+        saved = nav.startsWith("ko") ? "ko" : "en";
+      }
+      setLanguage(saved);
+    }
 
-/* =======================================================
-   Profile
-======================================================= */
-function renderProfileSelect(){
-  const sel = qs("profSelect"); if (!sel) return;
-  sel.innerHTML = "";
-  for (const p of g_offlineStore.profiles){
-    const o = document.createElement("option");
-    o.value = String(p.idx);
-    o.textContent = `${p.idx}: ${p.name}`;
-    sel.appendChild(o);
-  }
-  sel.value = String(g_offlineStore.active);
-  const bc = qs("btnProfCreate"); if (bc) bc.disabled = (g_offlineStore.profiles.length >= 5);
-  const bd = qs("btnProfDelete"); if (bd) bd.disabled = (g_offlineStore.profiles.length <= 1);
-}
-function profileCreate(){
-  if (g_offlineStore.profiles.length >= 5){ alert("최대 5개"); return; }
-  const name = prompt("새 프로필 이름:", "New"); if (!name) return;
-  const used = new Set(g_offlineStore.profiles.map(p=>p.idx));
-  let newIdx = 0; while (used.has(newIdx) && newIdx < 5) newIdx++;
-  const nn = name.trim().substring(0, 15);
-  g_offlineStore.profiles.push({ idx:newIdx, name:nn });
-  g_offlineStore.profileData[newIdx] = makeDefaultProfile(nn);
-  g_offlineStore.active = newIdx;
-  saveOfflineStore(); renderProfileSelect(); renderSlotsPlaceholder(); refreshStatus();
-  closeDrawer();
-}
-function profileDelete(){
-  if (g_offlineStore.profiles.length <= 1){ alert("최소 1개 필요"); return; }
-  const cur = g_offlineStore.active;
-  if (!confirm(`프로필 #${cur} 삭제?`)) return;
-  g_offlineStore.profiles = g_offlineStore.profiles.filter(p=>p.idx !== cur);
-  delete g_offlineStore.profileData[cur];
-  g_offlineStore.active = g_offlineStore.profiles[0].idx;
-  saveOfflineStore(); renderProfileSelect(); renderSlotsPlaceholder(); refreshStatus();
-  closeDrawer();
-}
-function profileRename(){
-  const cur = g_offlineStore.active;
-  const p = g_offlineStore.profiles.find(x=>x.idx === cur); if (!p) return;
-  const name = prompt("프로필 이름 변경:", p.name); if (!name) return;
-  p.name = name.trim().substring(0, 15);
-  if (g_offlineStore.profileData[cur]) g_offlineStore.profileData[cur].name = p.name;
-  saveOfflineStore(); renderProfileSelect(); refreshStatus();
-  closeDrawer();
-}
+    /* =======================================================
+       Utils
+    ======================================================= */
+    function qs(id) { return document.getElementById(id); }
+    function qsa(sel) { return document.querySelectorAll(sel); }
+    function pretty(o) { try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); } }
+    function parseIntFlex(v, def = 0) {
+      if (v == null) return def;
+      const s = String(v).trim(); if (!s) return def;
+      const n = Number(s); return Number.isFinite(n) ? Math.trunc(n) : def;
+    }
+    function setMsg(text, good) {
+      const el = qs("cfgMsg"); if (!el) return;
+      el.textContent = text;
+      el.style.borderColor = good ? "rgba(76,125,255,.55)" : "rgba(255,77,77,.55)";
+      el.style.background = good ? "rgba(76,125,255,.10)" : "rgba(255,77,77,.10)";
+    }
+    function showLoading(text) {
+      const ov = qs("loadingOverlay"), tx = qs("loadingText");
+      if (tx && text) tx.textContent = text;
+      if (ov) ov.classList.add("on");
+    }
+    function hideLoading() { qs("loadingOverlay")?.classList.remove("on"); }
+    function nowMs() { return Date.now(); }
 
-/* =======================================================
-   Slots placeholder
-======================================================= */
-function renderSlotsPlaceholder(){
-  const el = qs("slotEditor"); if (!el) return;
-  const cur = getActiveProfile();
-  const modeIdx = (g_view === "global") ? -1 :
-                  (g_view === "mode1") ? 0 :
-                  (g_view === "mode2") ? 1 : 2;
-  const viewLabel = (g_view === "global") ? "Global" : `Mode ${modeIdx+1}`;
-  el.innerHTML = `
+    /* =======================================================
+       State
+    ======================================================= */
+    let g_currentActiveMode = 1;   // 실제 기기 모드
+    let g_previewMode = 1;   // 컨트롤러 표시 모드 (미리보기)
+    let g_isRemoteFolded = false;
+    let g_lastStatus = null;
+    let g_dpiLevel = 2;
+    let g_precMode = 0;
+    let g_view = "global";
+
+    const REMOTE_FOLD_KEY = "am_remote_folded_0413";
+    const MODE_TOOLS_FOLD_KEY = "am_tools_folded_0413";
+    const TROUBLE_FOLD_KEY = "am_trouble_folded_0413";
+    const MODE_SEL_FOLD_KEY = "am_mode_sel_folded_0413";
+    const OFFLINE_STORAGE_KEY = "am_v0413_standalone";
+    const OFFLINE_STORE_SCHEMA = 2;
+    let g_offlineStore = null;
+
+    const MODE_LABELS = {
+      1: { ico: "🖱️", short: "PC", fullKey: "dash.mode_btn_1" },
+      2: { ico: "🎤", short: "PPT", fullKey: "dash.mode_btn_2" },
+      3: { ico: "📺", short: "TV", fullKey: "dash.mode_btn_3" }
+    };
+
+    function makeDefaultProfile(name = "Default") {
+      return {
+        ver: 410, name,
+        e10: {
+          dpi_level: 2, led_brightness: 128, active_mode: 1,
+          battery_pct: 92, ble_connected: false, safe_mode: false
+        },
+        slots: { global: Array.from({ length: 27 }, () => ({ k: 0, h: 0, p16: 0, p32: 0 })), modes: [] }
+      };
+    }
+    function loadOfflineStore() {
+      try {
+        const raw = localStorage.getItem(OFFLINE_STORAGE_KEY);
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (p && p._v === OFFLINE_STORE_SCHEMA && p.profiles) { g_offlineStore = p; return; }
+        }
+      } catch (e) { }
+      g_offlineStore = {
+        _v: OFFLINE_STORE_SCHEMA, active: 0,
+        profiles: [{ idx: 0, name: "Default" }],
+        profileData: { 0: makeDefaultProfile("Default") }
+      };
+      saveOfflineStore();
+    }
+    function saveOfflineStore() {
+      try { localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(g_offlineStore)); } catch (e) { }
+    }
+    function getActiveProfile() {
+      const idx = g_offlineStore.active;
+      if (!g_offlineStore.profileData[idx]) g_offlineStore.profileData[idx] = makeDefaultProfile();
+      return g_offlineStore.profileData[idx];
+    }
+
+    /* =======================================================
+       Mode Tools
+    ======================================================= */
+    const MODE_TOOLS = {
+      1: {
+        badge: "PC", ico: "🖱️", groups: [
+          {
+            labelKey: "tools.pc.window", items: [
+              { labelKey: "tools.pc.win_max", page: "kb", mod: 8, code: 82, ico: "⬆️" },
+              { labelKey: "tools.pc.win_left", page: "kb", mod: 8, code: 80, ico: "⬅️" },
+              { labelKey: "tools.pc.win_right", page: "kb", mod: 8, code: 79, ico: "➡️" },
+              { labelKey: "tools.pc.win_desk", page: "kb", mod: 8, code: 7, ico: "🖥️" },
+              { labelKey: "tools.pc.taskview", page: "kb", mod: 8, code: 43, ico: "🗂️" },
+            ]
+          },
+          {
+            labelKey: "tools.pc.edit", items: [
+              { labelKey: "tools.pc.copy", page: "kb", mod: 1, code: 6, ico: "📋" },
+              { labelKey: "tools.pc.paste", page: "kb", mod: 1, code: 25, ico: "📥" },
+              { labelKey: "tools.pc.undo", page: "kb", mod: 1, code: 29, ico: "↩️" },
+              { labelKey: "tools.pc.select", page: "kb", mod: 1, code: 4, ico: "🔲" },
+              { labelKey: "tools.pc.find", page: "kb", mod: 1, code: 9, ico: "🔍" },
+            ]
+          },
+          {
+            labelKey: "tools.pc.misc", items: [
+              { labelKey: "tools.pc.newtab", page: "kb", mod: 1, code: 23, ico: "➕" },
+              { labelKey: "tools.pc.close", page: "kb", mod: 1, code: 26, ico: "✖️" },
+              { labelKey: "tools.pc.lock", page: "kb", mod: 8, code: 15, ico: "🔒" },
+            ]
+          },
+        ]
+      },
+      2: {
+        badge: "PPT", ico: "🎤", groups: [
+          {
+            labelKey: "tools.ppt.show", items: [
+              { labelKey: "tools.ppt.start", page: "kb", mod: 0, code: 62, ico: "▶️" },
+              { labelKey: "tools.ppt.start_cur", page: "kb", mod: 2, code: 62, ico: "⏯️" },
+              { labelKey: "tools.ppt.end", page: "kb", mod: 0, code: 41, ico: "⏹️" },
+            ]
+          },
+          {
+            labelKey: "tools.ppt.screen", items: [
+              { labelKey: "tools.ppt.black", page: "kb", mod: 0, code: 5, ico: "⬛" },
+              { labelKey: "tools.ppt.white", page: "kb", mod: 0, code: 26, ico: "⬜" },
+              { labelKey: "tools.ppt.pen", page: "kb", mod: 1, code: 19, ico: "🖊️" },
+              { labelKey: "tools.ppt.laser", page: "kb", mod: 1, code: 15, ico: "🔴" },
+            ]
+          },
+          {
+            labelKey: "tools.ppt.nav", items: [
+              { labelKey: "tools.ppt.home", page: "kb", mod: 0, code: 74, ico: "⏮️" },
+              { labelKey: "tools.ppt.endpg", page: "kb", mod: 0, code: 77, ico: "⏭️" },
+            ]
+          },
+        ]
+      },
+      3: {
+        badge: "TV", ico: "📺", groups: [
+          {
+            labelKey: "tools.tv.channel", items: [
+              { labelKey: "tools.tv.ch_up", page: "consumer", mod: 0, code: 0x4000, ico: "📶" },
+              { labelKey: "tools.tv.ch_down", page: "consumer", mod: 0, code: 0x8000, ico: "📶" },
+            ]
+          },
+          {
+            labelKey: "tools.tv.media", items: [
+              { labelKey: "tools.tv.play", page: "consumer", mod: 0, code: 0x0008, ico: "▶️" },
+              { labelKey: "tools.tv.stop", page: "consumer", mod: 0, code: 0x0010, ico: "⏹️" },
+              { labelKey: "tools.tv.next", page: "consumer", mod: 0, code: 0x0020, ico: "⏭️" },
+              { labelKey: "tools.tv.prev", page: "consumer", mod: 0, code: 0x0040, ico: "⏮️" },
+            ]
+          },
+          {
+            labelKey: "tools.tv.nav", items: [
+              { labelKey: "tools.tv.home", page: "consumer", mod: 0, code: 0x0400, ico: "🏠" },
+              { labelKey: "tools.tv.back", page: "consumer", mod: 0, code: 0x0200, ico: "↩️" },
+              { labelKey: "tools.tv.input", page: "consumer", mod: 0, code: 0x2000, ico: "🔀" },
+              { labelKey: "tools.tv.search", page: "consumer", mod: 0, code: 0x0800, ico: "🔍" },
+            ]
+          },
+          {
+            labelKey: "tools.tv.vol", items: [
+              { labelKey: "tools.tv.vol_up", page: "consumer", mod: 0, code: 0x0001, ico: "🔊" },
+              { labelKey: "tools.tv.vol_down", page: "consumer", mod: 0, code: 0x0002, ico: "🔉" },
+              { labelKey: "tools.tv.mute", page: "consumer", mod: 0, code: 0x0004, ico: "🔇" },
+            ]
+          },
+        ]
+      },
+    };
+
+    /* =======================================================
+       Remote Config
+    ======================================================= */
+    const REMOTE_CONFIG_BY_MODE = {
+      1: {
+        themeClass: "mode-pc", badgeKey: "remote.badge_pc", guideKey: "remote.guide_pc",
+        top1: { label: "Win", subKey: "remote.sub_start", action: () => keyTest("kb", 8, 0) },
+        top2: { label: "🔇", subKey: "remote.sub_mute", action: () => keyTest("consumer", 0, 0x0004) },
+        ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
+        ringDown: { label: "▼", action: () => keyTest("kb", 0, 81) },
+        ringLeft: { label: "◀", action: () => keyTest("kb", 0, 80) },
+        ringRight: { label: "▶", action: () => keyTest("kb", 0, 79) },
+        knobText: "Enter", knobTap: () => keyTest("kb", 0, 40),
+        sub1: { label: "ESC", subKey: "remote.sub_cancel", action: () => keyTest("kb", 0, 41) },
+        sub2: { label: "캡처", subKey: "remote.sub_screenshot", action: () => keyTest("kb", 10, 22) },
+        pad1U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x0001) },
+        pad1D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x0002) },
+        pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x0008) },
+        pad2D: { label: "정지", action: () => keyTest("consumer", 0, 0x0010) },
+        pad3U: { label: "PgUp", action: () => keyTest("kb", 0, 75) },
+        pad3D: { label: "PgDn", action: () => keyTest("kb", 0, 78) },
+        pad3LblKey: "remote.pad_doc"
+      },
+      2: {
+        themeClass: "mode-ppt", badgeKey: "remote.badge_ppt", guideKey: "remote.guide_ppt",
+        top1: { labelKey: "remote.ppt_f5", action: () => keyTest("kb", 0, 58) },
+        top2: { labelKey: "remote.ppt_shf5", action: () => keyTest("kb", 2, 62) },
+        ringUp: { labelKey: "remote.ppt_end", action: () => keyTest("kb", 0, 41) },
+        ringDown: { labelKey: "remote.ppt_laser", action: () => keyTest("kb", 1, 15) },
+        ringLeft: { labelKey: "remote.ppt_prev", action: () => keyTest("kb", 0, 75) },
+        ringRight: { labelKey: "remote.ppt_next", action: () => keyTest("kb", 0, 78) },
+        knobTextKey: "remote.ppt_sel", knobTap: () => keyTest("kb", 0, 40),
+        sub1: { labelKey: "remote.ppt_black", action: () => keyTest("kb", 0, 5) },
+        sub2: { labelKey: "remote.ppt_white", action: () => keyTest("kb", 0, 26) },
+        pad1U: { labelKey: "remote.ppt_prev", action: () => keyTest("kb", 0, 75) },
+        pad1D: { labelKey: "remote.ppt_next", action: () => keyTest("kb", 0, 78) },
+        pad2U: { labelKey: "remote.ppt_pen", action: () => keyTest("kb", 1, 19) },
+        pad2D: { labelKey: "remote.ppt_arrow", action: () => keyTest("kb", 1, 4) },
+        pad3U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x0001) },
+        pad3D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x0002) },
+        pad3LblKey: "remote.pad_ppt_vol"
+      },
+      3: {
+        themeClass: "mode-tv", badgeKey: "remote.badge_tv", guideKey: "remote.guide_tv",
+        top1: { labelKey: "remote.tv_power", action: () => keyTest("consumer", 0, 0x1000) },
+        top2: { label: "🔇", action: () => keyTest("consumer", 0, 0x0004) },
+        ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
+        ringDown: { label: "▼", action: () => keyTest("kb", 0, 81) },
+        ringLeft: { label: "◀", action: () => keyTest("kb", 0, 80) },
+        ringRight: { label: "▶", action: () => keyTest("kb", 0, 79) },
+        knobTextKey: "remote.tv_ok", knobTap: () => keyTest("kb", 0, 40),
+        sub1: { labelKey: "remote.tv_back", action: () => keyTest("consumer", 0, 0x0200) },
+        sub2: { labelKey: "remote.tv_home", action: () => keyTest("consumer", 0, 0x0400) },
+        pad1U: { label: "VOL +", action: () => keyTest("consumer", 0, 0x0001) },
+        pad1D: { label: "VOL -", action: () => keyTest("consumer", 0, 0x0002) },
+        pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x0008) },
+        pad2D: { labelKey: "remote.tv_input", action: () => keyTest("consumer", 0, 0x2000) },
+        pad3U: { labelKey: "remote.tv_ch_up", action: () => keyTest("consumer", 0, 0x4000) },
+        pad3D: { labelKey: "remote.tv_ch_down", action: () => keyTest("consumer", 0, 0x8000) },
+        pad3LblKey: "remote.pad_ch"
+      }
+    };
+
+    /* =======================================================
+       Recent Log
+    ======================================================= */
+    const RECENT_LOG_CAP = 12;
+    const g_recentLog = [];
+    function pushRecentLog(label, ok = true) {
+      g_recentLog.push({ ts: nowMs(), label, ok: !!ok });
+      while (g_recentLog.length > RECENT_LOG_CAP) g_recentLog.shift();
+      renderRecentLog();
+    }
+    function renderRecentLog() {
+      const listEl = qs("recentLogList"), cntEl = qs("recentLogCount");
+      if (cntEl) cntEl.textContent = `(${g_recentLog.length})`;
+      if (!listEl) return;
+      if (!g_recentLog.length) { listEl.innerHTML = `<div class="hint2">${t("log.none")}</div>`; return; }
+      listEl.innerHTML = "";
+      for (let i = g_recentLog.length - 1; i >= 0; i--) {
+        const e = g_recentLog[i], d = document.createElement("div");
+        d.className = "logline";
+        const tSec = Math.floor((nowMs() - e.ts) / 1000);
+        const age = (tSec < 60) ? `${tSec}s` : `${Math.floor(tSec / 60)}m`;
+        d.textContent = `[${age}] ${e.ok ? "✓" : "✗"} ${e.label}`;
+        if (!e.ok) d.style.color = "#ff8a8a";
+        listEl.appendChild(d);
+      }
+    }
+
+    /* =======================================================
+       Key Test
+    ======================================================= */
+    function keyTest(page, mod, code, labelOverride) {
+      const label = labelOverride || ((page === "kb")
+        ? `KB u=${code} mod=${mod}`
+        : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
+      pushRecentLog(label, true);
+      setMsg(t("pop.key_test_ok", { page, mod, code }), true);
+      const evEl = qs("diagEvents");
+      if (evEl) {
+        const line = document.createElement("div");
+        line.className = "logline";
+        line.textContent = `[${nowMs() % 1000000}ms] KEYTEST ${label}`;
+        evEl.insertBefore(line, evEl.firstChild);
+        while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
+      }
+    }
+
+    /* =======================================================
+       Mode Tools Renderer (preview 모드 기준)
+    ======================================================= */
+    function renderModeTools() {
+      const bodyEl = qs("modeToolsBody"); if (!bodyEl) return;
+      const badgeEl = qs("modeToolsBadge");
+      const icoEl = qs("modeToolsIco");
+      const cfg = MODE_TOOLS[g_previewMode] || MODE_TOOLS[1];
+
+      if (badgeEl) badgeEl.textContent = cfg.badge;
+      if (icoEl) icoEl.textContent = cfg.ico;
+
+      bodyEl.innerHTML = "";
+      for (const group of cfg.groups) {
+        const gDiv = document.createElement("div");
+        gDiv.className = "tool-group";
+
+        const gT = document.createElement("div");
+        gT.className = "tool-group-title";
+        gT.textContent = t(group.labelKey);
+        gDiv.appendChild(gT);
+
+        const bWrap = document.createElement("div");
+        bWrap.className = "tool-btns";
+
+        for (const item of group.items) {
+          const btn = document.createElement("button");
+          btn.className = "tool-btn";
+          btn.innerHTML = `<span class="tool-ico">${item.ico || "•"}</span><span>${t(item.labelKey)}</span>`;
+          btn.addEventListener("click", () => {
+            keyTest(item.page, item.mod || 0, item.code, t(item.labelKey));
+          });
+          bWrap.appendChild(btn);
+        }
+        gDiv.appendChild(bWrap);
+        bodyEl.appendChild(gDiv);
+      }
+    }
+
+    /* =======================================================
+       Controller Renderer (preview 탭 선택 시에도 호출)
+    ======================================================= */
+    function _renderController(mode) {
+      const cfg = REMOTE_CONFIG_BY_MODE[mode] || REMOTE_CONFIG_BY_MODE[1];
+      const card = qs("remoteCard");
+      if (card) {
+        card.classList.remove("mode-pc", "mode-ppt", "mode-tv", "remote-flash");
+        void card.offsetWidth;
+        card.classList.add(cfg.themeClass, "remote-flash");
+        setTimeout(() => card.classList.remove("remote-flash"), 700);
+      }
+      const badge = qs("remoteActiveModeBadge");
+      if (badge) badge.textContent = t(cfg.badgeKey);
+      const hintEl = qs("dpadGuideHint");
+      if (hintEl) hintEl.textContent = t(cfg.guideKey);
+
+      const setBtn = (id, def, subId) => {
+        const el = qs(id); if (!el || !def) return;
+        const v_lbl = def.labelKey ? t(def.labelKey) : def.label;
+        if (v_lbl !== undefined) el.textContent = v_lbl;
+        const cloned = el.cloneNode(true);
+        el.parentNode.replaceChild(cloned, el);
+        if (typeof def.action === "function") cloned.addEventListener("click", def.action);
+        if (subId) {
+          const sEl = qs(subId);
+          if (sEl) sEl.textContent = def.subKey ? t(def.subKey) : "";
+        }
+      };
+      setBtn("rbtnTop1", cfg.top1, "lblTop1");
+      setBtn("rbtnTop2", cfg.top2, "lblTop2");
+      setBtn("rbtnRingUp", cfg.ringUp);
+      setBtn("rbtnRingDown", cfg.ringDown);
+      setBtn("rbtnRingLeft", cfg.ringLeft);
+      setBtn("rbtnRingRight", cfg.ringRight);
+      setBtn("rbtnSub1", cfg.sub1, "lblSub1");
+      setBtn("rbtnSub2", cfg.sub2, "lblSub2");
+      setBtn("rbtnPad1Up", cfg.pad1U);
+      setBtn("rbtnPad1Down", cfg.pad1D);
+      setBtn("rbtnPad2Up", cfg.pad2U);
+      setBtn("rbtnPad2Down", cfg.pad2D);
+      setBtn("rbtnPad3Up", cfg.pad3U);
+      setBtn("rbtnPad3Down", cfg.pad3D);
+      const pad3Lbl = qs("lblPad3");
+      if (pad3Lbl && cfg.pad3LblKey) pad3Lbl.textContent = t(cfg.pad3LblKey);
+      const knobText = qs("joyKnobText");
+      if (knobText) knobText.textContent = cfg.knobTextKey ? t(cfg.knobTextKey) : (cfg.knobText || "");
+    }
+
+    function _updateModeSelectorSummary() {
+      const info = MODE_LABELS[g_currentActiveMode] || MODE_LABELS[1];
+      const icoEl = qs("msIco"); if (icoEl) icoEl.textContent = info.ico;
+      const titleEl = qs("msTitle");
+      if (titleEl) titleEl.textContent = t(info.fullKey);
+    }
+
+    function _updateModeSelectorHighlight() {
+      [1, 2, 3].forEach(m => {
+        const btn = qs("btnMode" + m);
+        if (btn) btn.classList.toggle("on", m === g_currentActiveMode);
+      });
+    }
+
+    function _updatePreviewTabs() {
+      qsa(".preview-tab").forEach(b => {
+        b.classList.toggle("on", parseIntFlex(b.dataset.preview, 0) === g_previewMode);
+      });
+    }
+
+    function _updatePreviewWarn() {
+      const warn = qs("previewWarn");
+      const txt = qs("previewWarnText");
+      if (!warn) return;
+      if (g_previewMode === g_currentActiveMode) {
+        warn.classList.add("hidden");
+        return;
+      }
+      warn.classList.remove("hidden");
+      if (txt) {
+        const pLbl = MODE_LABELS[g_previewMode]?.short || "?";
+        const aLbl = MODE_LABELS[g_currentActiveMode]?.short || "?";
+        txt.textContent = `${t("preview.warn_label")}: ${pLbl} · ${t("preview.actual_label")}: ${aLbl}`;
+        txt.title = t("preview.note");
+      }
+    }
+
+    /* =======================================================
+       Mode 전환 (실제 기기)
+    ======================================================= */
+    async function ctlSetMode(target) {
+      target = Math.max(1, Math.min(3, target | 0));
+      const cur = g_currentActiveMode;
+      if (target === cur) {
+        // 이미 실제 모드 → 미리보기도 동기화
+        applyRemoteMode(target);
+        return true;
+      }
+      if (!confirm(t("pop.mode_switch_confirm", { cur, tgt: target }))) return false;
+      const steps = ((target - cur) + 3) % 3;
+      showLoading(`모드 ${target} 전환 중…`);
+      try {
+        for (let i = 0; i < steps; i++) {
+          await new Promise(r => setTimeout(r, 320));
+          const nextMode = ((g_currentActiveMode) % 3) + 1;
+          g_currentActiveMode = nextMode;
+          pushRecentLog(`MODE_CYCLE → ${nextMode}`, true);
+        }
+        g_currentActiveMode = target;
+        await new Promise(r => setTimeout(r, 260));
+        applyRemoteMode(target);
+        setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
+        await refreshStatus();
+        return true;
+      } finally { hideLoading(); }
+    }
+
+    /** 실제 기기 모드 반영 (미리보기도 함께 동기화) */
+    function applyRemoteMode(mode) {
+      g_currentActiveMode = mode;
+      g_previewMode = mode;
+      _renderController(mode);
+      _updateModeSelectorSummary();
+      _updateModeSelectorHighlight();
+      _updatePreviewTabs();
+      _updatePreviewWarn();
+      renderModeTools();
+    }
+
+    /** 컨트롤러만 미리보기 (실제 기기는 그대로) */
+    function applyPreviewMode(mode) {
+      if (mode < 1 || mode > 3) return;
+      g_previewMode = mode;
+      _renderController(mode);
+      _updatePreviewTabs();
+      _updatePreviewWarn();
+      renderModeTools();
+    }
+
+    /* =======================================================
+       Fold persistence
+    ======================================================= */
+    function bindFoldPersist(detailsId, storageKey, defaultOpen) {
+      const el = qs(detailsId); if (!el) return;
+      let v_open = !!defaultOpen;
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved === "1") v_open = true;
+        else if (saved === "0") v_open = false;
+      } catch (e) { }
+      el.open = v_open;
+      el.addEventListener("toggle", () => {
+        try { localStorage.setItem(storageKey, el.open ? "1" : "0"); } catch (e) { }
+      });
+    }
+    function _restoreRemoteFold() {
+      try { g_isRemoteFolded = (localStorage.getItem(REMOTE_FOLD_KEY) === "1"); }
+      catch (e) { g_isRemoteFolded = false; }
+      const body = qs("remoteCollapseBody"), btn = qs("btnToggleRemoteFold");
+      if (body) body.classList.toggle("folded", g_isRemoteFolded);
+      if (btn) btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
+    }
+    function bindRemoteFoldToggle() {
+      const btn = qs("btnToggleRemoteFold"), body = qs("remoteCollapseBody");
+      if (!btn || !body) return;
+      _restoreRemoteFold();
+      btn.addEventListener("click", () => {
+        g_isRemoteFolded = !g_isRemoteFolded;
+        body.classList.toggle("folded", g_isRemoteFolded);
+        btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
+        try { localStorage.setItem(REMOTE_FOLD_KEY, g_isRemoteFolded ? "1" : "0"); } catch (e) { }
+      });
+    }
+
+    /* =======================================================
+       Joystick
+    ======================================================= */
+    function initHybridJoystick() {
+      const ring = qs("dpadRing"), knob = qs("joyStickKnob");
+      if (!ring || !knob) return;
+      const MAX_RADIUS = 38, DEADZONE = 12;
+      let isDragging = false, startX = 0, startY = 0, repeatTimer = null, activeDir = null;
+
+      function getDir(dx, dy) {
+        const a = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (a >= -45 && a <= 45) return "RIGHT";
+        if (a > 45 && a < 135) return "DOWN";
+        if (a >= 135 || a <= -135) return "LEFT";
+        if (a < -45 && a > -135) return "UP";
+        return null;
+      }
+      function triggerTilt(dir) {
+        if (!dir) return;
+        // 미리보기 모드 기준으로 동작 (사용자가 보고 있는 모드의 키 전송)
+        if (g_previewMode === 2) {
+          keyTest("kb", 0, (dir === "RIGHT" || dir === "DOWN") ? 78 : 75);
+        } else {
+          const map = { UP: 82, DOWN: 81, LEFT: 80, RIGHT: 79 };
+          keyTest("kb", 0, map[dir] || 0);
+        }
+      }
+      function handleStart(e) {
+        if (e.target.classList.contains("ring-btn")) return;
+        isDragging = true;
+        const rect = ring.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+        handleMove(e);
+      }
+      function handleMove(e) {
+        if (!isDragging) return;
+        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        let dx = cx - startX, dy = cy - startY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > MAX_RADIUS) { dx = (dx / dist) * MAX_RADIUS; dy = (dy / dist) * MAX_RADIUS; }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        if (dist > DEADZONE) {
+          const dir = getDir(dx, dy);
+          if (dir !== activeDir) {
+            activeDir = dir;
+            triggerTilt(dir);
+            clearInterval(repeatTimer);
+            repeatTimer = setInterval(() => { if (activeDir) triggerTilt(activeDir); }, 300);
+          }
+        } else { activeDir = null; clearInterval(repeatTimer); }
+      }
+      function handleEnd() {
+        if (!isDragging) return;
+        isDragging = false; clearInterval(repeatTimer);
+        if (!activeDir) {
+          const cfg = REMOTE_CONFIG_BY_MODE[g_previewMode];
+          if (cfg && cfg.knobTap) cfg.knobTap();
+        }
+        activeDir = null;
+        knob.style.transition = "transform .15s cubic-bezier(0.175,0.885,0.32,1.275)";
+        knob.style.transform = "translate(0px,0px)";
+        setTimeout(() => { knob.style.transition = ""; }, 150);
+      }
+      knob.addEventListener("mousedown", handleStart);
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleEnd);
+      knob.addEventListener("touchstart", handleStart, { passive: false });
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
+      window.addEventListener("touchcancel", handleEnd);
+    }
+
+    /* =======================================================
+       Troubleshoot
+    ======================================================= */
+    async function handleTrouble(kind) {
+      switch (kind) {
+        case "calib": pushRecentLog("GYRO_CALIB", true); setMsg(t("pop.calib_ok"), true); break;
+        case "release": pushRecentLog("FORCE_RELEASE", true); setMsg(t("pop.force_release_ok"), true); break;
+        case "host": pushRecentLog("HOST_CYCLE", true); setMsg(t("pop.host_cycle_ok"), true); break;
+        case "pair": pushRecentLog("PAIRING_MODE", true); setMsg(t("pop.pair_ok"), true); break;
+        case "i2c": pushRecentLog("I2C_RECOVER", true); setMsg(t("pop.i2c_ok"), true); break;
+        case "sleep": pushRecentLog("SLEEP_NOW", true); setMsg(t("pop.sleep_ok"), true); break;
+        case "safemode": {
+          const e = getActiveProfile().e10;
+          e.safe_mode = !e.safe_mode; saveOfflineStore();
+          pushRecentLog(`SAFE_MODE_${e.safe_mode ? "ON" : "OFF"}`, true);
+          setMsg(e.safe_mode ? t("pop.safemode_on") : t("pop.safemode_off"), true);
+          refreshStatus(); break;
+        }
+        case "factory":
+          if (!confirm(t("pop.factory_confirm"))) return;
+          try { localStorage.clear(); } catch (e) { }
+          alert(t("pop.factory_ok"));
+          location.reload();
+          break;
+      }
+    }
+
+    /* =======================================================
+       Profile
+    ======================================================= */
+    function renderProfileSelect() {
+      const sel = qs("profSelect"); if (!sel) return;
+      sel.innerHTML = "";
+      for (const p of g_offlineStore.profiles) {
+        const o = document.createElement("option");
+        o.value = String(p.idx);
+        o.textContent = `${p.idx}: ${p.name}`;
+        sel.appendChild(o);
+      }
+      sel.value = String(g_offlineStore.active);
+      const bc = qs("btnProfCreate"); if (bc) bc.disabled = (g_offlineStore.profiles.length >= 5);
+      const bd = qs("btnProfDelete"); if (bd) bd.disabled = (g_offlineStore.profiles.length <= 1);
+    }
+    function profileCreate() {
+      if (g_offlineStore.profiles.length >= 5) { alert("최대 5개"); return; }
+      const name = prompt("새 프로필 이름:", "New"); if (!name) return;
+      const used = new Set(g_offlineStore.profiles.map(p => p.idx));
+      let newIdx = 0; while (used.has(newIdx) && newIdx < 5) newIdx++;
+      const nn = name.trim().substring(0, 15);
+      g_offlineStore.profiles.push({ idx: newIdx, name: nn });
+      g_offlineStore.profileData[newIdx] = makeDefaultProfile(nn);
+      g_offlineStore.active = newIdx;
+      saveOfflineStore(); renderProfileSelect(); renderSlotsPlaceholder(); refreshStatus();
+      closeDrawer();
+    }
+    function profileDelete() {
+      if (g_offlineStore.profiles.length <= 1) { alert("최소 1개 필요"); return; }
+      const cur = g_offlineStore.active;
+      if (!confirm(`프로필 #${cur} 삭제?`)) return;
+      g_offlineStore.profiles = g_offlineStore.profiles.filter(p => p.idx !== cur);
+      delete g_offlineStore.profileData[cur];
+      g_offlineStore.active = g_offlineStore.profiles[0].idx;
+      saveOfflineStore(); renderProfileSelect(); renderSlotsPlaceholder(); refreshStatus();
+      closeDrawer();
+    }
+    function profileRename() {
+      const cur = g_offlineStore.active;
+      const p = g_offlineStore.profiles.find(x => x.idx === cur); if (!p) return;
+      const name = prompt("프로필 이름 변경:", p.name); if (!name) return;
+      p.name = name.trim().substring(0, 15);
+      if (g_offlineStore.profileData[cur]) g_offlineStore.profileData[cur].name = p.name;
+      saveOfflineStore(); renderProfileSelect(); refreshStatus();
+      closeDrawer();
+    }
+
+    /* =======================================================
+       Slots placeholder
+    ======================================================= */
+    function renderSlotsPlaceholder() {
+      const el = qs("slotEditor"); if (!el) return;
+      const cur = getActiveProfile();
+      const modeIdx = (g_view === "global") ? -1 :
+        (g_view === "mode1") ? 0 :
+          (g_view === "mode2") ? 1 : 2;
+      const viewLabel = (g_view === "global") ? "Global" : `Mode ${modeIdx + 1}`;
+      el.innerHTML = `
     <div class="hint2">표시 뷰: <b>${viewLabel}</b></div>
     <div class="hint2">Standalone 데모: 슬롯 에디터는 v0413 풀버전에서 제공됩니다.</div>
-    <pre class="log" style="max-height:200px;">${pretty(cur.slots.global.slice(0,8))}</pre>
+    <pre class="log" style="max-height:200px;">${pretty(cur.slots.global.slice(0, 8))}</pre>
   `;
-}
+    }
 
-/* =======================================================
-   Status
-======================================================= */
-async function refreshStatus(){
-  const cur = getActiveProfile();
-  const e10 = cur.e10 || {};
-  const idx = g_offlineStore.active;
-  const bat = (typeof e10.battery_pct === "number") ? e10.battery_pct : 92;
+    /* =======================================================
+       Status
+    ======================================================= */
+    async function refreshStatus() {
+      const cur = getActiveProfile();
+      const e10 = cur.e10 || {};
+      const idx = g_offlineStore.active;
+      const bat = (typeof e10.battery_pct === "number") ? e10.battery_pct : 92;
 
-  const pStatProf = qs("pStatProf"); if (pStatProf) pStatProf.textContent = `#${idx}`;
-  const pStatBat = qs("pStatBat");
-  if (pStatBat){
-    pStatBat.textContent = `${bat}%`;
-    pStatBat.style.color = bat < 20 ? "#ff6666" : "";
-  }
-  const pStatBle = qs("pStatBle");
-  if (pStatBle){
-    pStatBle.textContent = e10.ble_connected ? "BLE✓" : "BLE";
-    pStatBle.style.color = e10.ble_connected ? "#4c7dff" : "var(--txt-muted)";
-  }
+      const pStatProf = qs("pStatProf"); if (pStatProf) pStatProf.textContent = `#${idx}`;
+      const pStatBat = qs("pStatBat");
+      if (pStatBat) {
+        pStatBat.textContent = `${bat}%`;
+        pStatBat.style.color = bat < 20 ? "#ff6666" : "";
+      }
+      const pStatBle = qs("pStatBle");
+      if (pStatBle) {
+        pStatBle.textContent = e10.ble_connected ? "BLE✓" : "BLE";
+        pStatBle.style.color = e10.ble_connected ? "#4c7dff" : "var(--txt-muted)";
+      }
 
-  if (qs("stUptime")) qs("stUptime").textContent = `${Math.floor(performance.now())} ms`;
-  if (qs("stHeap"))   qs("stHeap").textContent   = "245760 B";
-  if (qs("stWiFi"))   qs("stWiFi").textContent   = "OFFLINE / Local";
+      if (qs("stUptime")) qs("stUptime").textContent = `${Math.floor(performance.now())} ms`;
+      if (qs("stHeap")) qs("stHeap").textContent = "245760 B";
+      if (qs("stWiFi")) qs("stWiFi").textContent = "OFFLINE / Local";
 
-  // 실제 기기 모드가 변경되면 (물리 버튼 등) 미리보기도 함께 동기화
-  if (typeof e10.active_mode === "number"
-      && e10.active_mode >= 1 && e10.active_mode <= 3
-      && e10.active_mode !== g_currentActiveMode){
-    applyRemoteMode(e10.active_mode);
-  }
+      // 실제 기기 모드가 변경되면 (물리 버튼 등) 미리보기도 함께 동기화
+      if (typeof e10.active_mode === "number"
+        && e10.active_mode >= 1 && e10.active_mode <= 3
+        && e10.active_mode !== g_currentActiveMode) {
+        applyRemoteMode(e10.active_mode);
+      }
 
-  [1,2,3].forEach(v=>qs("btnDpi"+v)?.classList.toggle("on", v === g_dpiLevel));
-  [0,1,2,3,4].forEach(v=>qs("btnPrec"+v)?.classList.toggle("on", v === g_precMode));
+      [1, 2, 3].forEach(v => qs("btnDpi" + v)?.classList.toggle("on", v === g_dpiLevel));
+      [0, 1, 2, 3, 4].forEach(v => qs("btnPrec" + v)?.classList.toggle("on", v === g_precMode));
 
-  g_lastStatus = { groups:{ e10 } };
-}
+      g_lastStatus = { groups: { e10 } };
+    }
 
-/* =======================================================
-   Drawer
-======================================================= */
-function openDrawer(){
-  qs("drawer")?.classList.add("on");
-  qs("drawerBackdrop")?.classList.add("on");
-}
-function closeDrawer(){
-  qs("drawer")?.classList.remove("on");
-  qs("drawerBackdrop")?.classList.remove("on");
-}
-function bindDrawer(){
-  qs("btnMenu")?.addEventListener("click", openDrawer);
-  qs("btnDrawerClose")?.addEventListener("click", closeDrawer);
-  qs("drawerBackdrop")?.addEventListener("click", closeDrawer);
-  qsa(".drawer-item[data-tab]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const tabId = btn.getAttribute("data-tab");
-      qsa(".drawer-item[data-tab]").forEach(x=>x.classList.remove("on"));
-      btn.classList.add("on");
-      qsa(".tabpane").forEach(x=>x.classList.remove("on"));
-      qs("tab-" + tabId)?.classList.add("on");
-      window.scrollTo({ top:0, behavior:"smooth" });
-      closeDrawer();
-    });
-  });
-  qs("btnDrawerRefresh")?.addEventListener("click", ()=>{ refreshStatus(); closeDrawer(); });
-  qs("btnDrawerReboot")?.addEventListener("click", ()=>{
-    if (confirm(t("pop.reboot_confirm"))) location.reload();
-  });
-  qs("drawer")?.querySelectorAll("[data-lang]").forEach(b=>{
-    b.addEventListener("click", ()=>{ setLanguage(b.dataset.lang); closeDrawer(); });
-  });
-}
+    /* =======================================================
+       Drawer
+    ======================================================= */
+    function openDrawer() {
+      qs("drawer")?.classList.add("on");
+      qs("drawerBackdrop")?.classList.add("on");
+    }
+    function closeDrawer() {
+      qs("drawer")?.classList.remove("on");
+      qs("drawerBackdrop")?.classList.remove("on");
+    }
+    function bindDrawer() {
+      qs("btnMenu")?.addEventListener("click", openDrawer);
+      qs("btnDrawerClose")?.addEventListener("click", closeDrawer);
+      qs("drawerBackdrop")?.addEventListener("click", closeDrawer);
+      qsa(".drawer-item[data-tab]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const tabId = btn.getAttribute("data-tab");
+          qsa(".drawer-item[data-tab]").forEach(x => x.classList.remove("on"));
+          btn.classList.add("on");
+          qsa(".tabpane").forEach(x => x.classList.remove("on"));
+          qs("tab-" + tabId)?.classList.add("on");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          closeDrawer();
+        });
+      });
+      qs("btnDrawerRefresh")?.addEventListener("click", () => { refreshStatus(); closeDrawer(); });
+      qs("btnDrawerReboot")?.addEventListener("click", () => {
+        if (confirm(t("pop.reboot_confirm"))) location.reload();
+      });
+      qs("drawer")?.querySelectorAll("[data-lang]").forEach(b => {
+        b.addEventListener("click", () => { setLanguage(b.dataset.lang); closeDrawer(); });
+      });
+    }
 
-/* =======================================================
-   Bindings
-======================================================= */
-function bindViewToggle(){
-  qsa(".view-tab").forEach(b=>b.addEventListener("click", ()=>{
-    qsa(".view-tab").forEach(x=>x.classList.remove("on"));
-    b.classList.add("on");
-    g_view = b.dataset.view || "global";
-    renderSlotsPlaceholder();
-  }));
-}
-function bindModeSelector(){
-  [1,2,3].forEach(m=>qs("btnMode"+m)?.addEventListener("click", ()=>ctlSetMode(m)));
-}
-function bindPreviewTabs(){
-  qsa(".preview-tab").forEach(b=>{
-    b.addEventListener("click", ()=>{
-      const m = parseIntFlex(b.dataset.preview, 0);
-      applyPreviewMode(m);
-    });
-  });
-  qs("btnApplyPreview")?.addEventListener("click", ()=>{
-    if (g_previewMode !== g_currentActiveMode) ctlSetMode(g_previewMode);
-  });
-}
-function bindQuickTuning(){
-  [1,2,3].forEach(v=>qs("btnDpi"+v)?.addEventListener("click", ()=>{
-    g_dpiLevel = v; getActiveProfile().e10.dpi_level = v; saveOfflineStore();
-    pushRecentLog(`DPI → ${v}`, true); setMsg(t("pop.dpi_applied", { v }), true); refreshStatus();
-  }));
-  [0,1,2,3,4].forEach(v=>qs("btnPrec"+v)?.addEventListener("click", ()=>{
-    g_precMode = v; pushRecentLog(`PRECISION → ${v}`, true);
-    setMsg(t("pop.prec_applied", { v }), true); refreshStatus();
-  }));
-}
-function bindProfileBar(){
-  qs("profSelect")?.addEventListener("change", ()=>{
-    g_offlineStore.active = parseIntFlex(qs("profSelect").value, 0);
-    saveOfflineStore(); renderSlotsPlaceholder(); refreshStatus();
-  });
-  qs("btnProfCreate")?.addEventListener("click", profileCreate);
-  qs("btnProfDelete")?.addEventListener("click", profileDelete);
-  qs("btnProfRename")?.addEventListener("click", profileRename);
-}
-function bindTroubleshoot(){
-  qsa("[data-trouble]").forEach(btn=>{
-    btn.addEventListener("click", ()=> handleTrouble(btn.getAttribute("data-trouble")));
-  });
-}
-function bindConfigSave(){
-  qs("btnCfgSave")?.addEventListener("click", ()=>{
-    const e = getActiveProfile().e10;
-    e.dpi_level = parseIntFlex(qs("e10Dpi")?.value, 2);
-    e.led_brightness = parseIntFlex(qs("ledBrightness")?.value, 128);
-    saveOfflineStore(); pushRecentLog("CONFIG_SAVE", true); setMsg(t("cfg.save_ok"), true);
-  });
-}
-function bindKeyTest(){
-  qs("btnKeyTest")?.addEventListener("click", ()=>{
-    const page = qs("ktPage")?.value || "kb";
-    const mod  = parseIntFlex(qs("ktMod")?.value || "0", 0);
-    const code = parseIntFlex(qs("ktCode")?.value || "0", 0);
-    keyTest(page, mod, code);
-  });
-}
+    /* =======================================================
+       Bindings
+    ======================================================= */
+    function bindViewToggle() {
+      qsa(".view-tab").forEach(b => b.addEventListener("click", () => {
+        qsa(".view-tab").forEach(x => x.classList.remove("on"));
+        b.classList.add("on");
+        g_view = b.dataset.view || "global";
+        renderSlotsPlaceholder();
+      }));
+    }
+    function bindModeSelector() {
+      [1, 2, 3].forEach(m => qs("btnMode" + m)?.addEventListener("click", () => ctlSetMode(m)));
+    }
+    function bindPreviewTabs() {
+      qsa(".preview-tab").forEach(b => {
+        b.addEventListener("click", () => {
+          const m = parseIntFlex(b.dataset.preview, 0);
+          applyPreviewMode(m);
+        });
+      });
+      qs("btnApplyPreview")?.addEventListener("click", () => {
+        if (g_previewMode !== g_currentActiveMode) ctlSetMode(g_previewMode);
+      });
+    }
+    function bindQuickTuning() {
+      [1, 2, 3].forEach(v => qs("btnDpi" + v)?.addEventListener("click", () => {
+        g_dpiLevel = v; getActiveProfile().e10.dpi_level = v; saveOfflineStore();
+        pushRecentLog(`DPI → ${v}`, true); setMsg(t("pop.dpi_applied", { v }), true); refreshStatus();
+      }));
+      [0, 1, 2, 3, 4].forEach(v => qs("btnPrec" + v)?.addEventListener("click", () => {
+        g_precMode = v; pushRecentLog(`PRECISION → ${v}`, true);
+        setMsg(t("pop.prec_applied", { v }), true); refreshStatus();
+      }));
+    }
+    function bindProfileBar() {
+      qs("profSelect")?.addEventListener("change", () => {
+        g_offlineStore.active = parseIntFlex(qs("profSelect").value, 0);
+        saveOfflineStore(); renderSlotsPlaceholder(); refreshStatus();
+      });
+      qs("btnProfCreate")?.addEventListener("click", profileCreate);
+      qs("btnProfDelete")?.addEventListener("click", profileDelete);
+      qs("btnProfRename")?.addEventListener("click", profileRename);
+    }
+    function bindTroubleshoot() {
+      qsa("[data-trouble]").forEach(btn => {
+        btn.addEventListener("click", () => handleTrouble(btn.getAttribute("data-trouble")));
+      });
+    }
+    function bindConfigSave() {
+      qs("btnCfgSave")?.addEventListener("click", () => {
+        const e = getActiveProfile().e10;
+        e.dpi_level = parseIntFlex(qs("e10Dpi")?.value, 2);
+        e.led_brightness = parseIntFlex(qs("ledBrightness")?.value, 128);
+        saveOfflineStore(); pushRecentLog("CONFIG_SAVE", true); setMsg(t("cfg.save_ok"), true);
+      });
+    }
+    function bindKeyTest() {
+      qs("btnKeyTest")?.addEventListener("click", () => {
+        const page = qs("ktPage")?.value || "kb";
+        const mod = parseIntFlex(qs("ktMod")?.value || "0", 0);
+        const code = parseIntFlex(qs("ktCode")?.value || "0", 0);
+        keyTest(page, mod, code);
+      });
+    }
 
-/* =======================================================
-   Main
-======================================================= */
-function main(){
-  loadOfflineStore();
-  initI18n();
-  renderProfileSelect();
-  bindDrawer();
-  bindViewToggle();
-  bindModeSelector();
-  bindPreviewTabs();
-  bindRemoteFoldToggle();
+    /* =======================================================
+       Main
+    ======================================================= */
+    function main() {
+      loadOfflineStore();
+      initI18n();
+      renderProfileSelect();
+      bindDrawer();
+      bindViewToggle();
+      bindModeSelector();
+      bindPreviewTabs();
+      bindRemoteFoldToggle();
 
-  // 접힘 상태 저장
-  bindFoldPersist("modeSelectorCard", MODE_SEL_FOLD_KEY, true);   // 모드: 기본 열림
-  bindFoldPersist("modeToolsCard",    MODE_TOOLS_FOLD_KEY, false); // 도구: 기본 접힘
-  bindFoldPersist("troubleCard",      TROUBLE_FOLD_KEY, false);    // 문제: 기본 접힘
+      // 접힘 상태 저장
+      bindFoldPersist("modeSelectorCard", MODE_SEL_FOLD_KEY, true);   // 모드: 기본 열림
+      bindFoldPersist("modeToolsCard", MODE_TOOLS_FOLD_KEY, false); // 도구: 기본 접힘
+      bindFoldPersist("troubleCard", TROUBLE_FOLD_KEY, false);    // 문제: 기본 접힘
 
-  initHybridJoystick();
-  bindQuickTuning();
-  bindProfileBar();
-  bindTroubleshoot();
-  bindConfigSave();
-  bindKeyTest();
+      initHybridJoystick();
+      bindQuickTuning();
+      bindProfileBar();
+      bindTroubleshoot();
+      bindConfigSave();
+      bindKeyTest();
 
-  const p = getActiveProfile();
-  g_dpiLevel = p.e10?.dpi_level ?? 2;
-  g_precMode = 0;
-  if (qs("e10Dpi"))        qs("e10Dpi").value        = String(p.e10?.dpi_level ?? 2);
-  if (qs("ledBrightness")) qs("ledBrightness").value = String(p.e10?.led_brightness ?? 128);
+      const p = getActiveProfile();
+      g_dpiLevel = p.e10?.dpi_level ?? 2;
+      g_precMode = 0;
+      if (qs("e10Dpi")) qs("e10Dpi").value = String(p.e10?.dpi_level ?? 2);
+      if (qs("ledBrightness")) qs("ledBrightness").value = String(p.e10?.led_brightness ?? 128);
 
-  renderSlotsPlaceholder();
-  renderRecentLog();
+      renderSlotsPlaceholder();
+      renderRecentLog();
 
-  const initMode = p.e10?.active_mode ?? 1;
-  applyRemoteMode(initMode);
+      const initMode = p.e10?.active_mode ?? 1;
+      applyRemoteMode(initMode);
 
-  refreshStatus();
-  setInterval(()=>refreshStatus(), 2500);
-}
-document.addEventListener("DOMContentLoaded", main);
-</script>
+      refreshStatus();
+      setInterval(() => refreshStatus(), 2500);
+    }
+    document.addEventListener("DOMContentLoaded", main);
+  </script>
 </body>
+
 </html>

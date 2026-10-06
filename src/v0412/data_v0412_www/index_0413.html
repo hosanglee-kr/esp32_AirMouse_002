@@ -1,581 +1,670 @@
 <!doctype html>
 <html lang="ko">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Elite AirMouse WebConfig v0413</title>
-<link rel="icon" href="./images/favicon.ico" />
-<link rel="stylesheet" href="./style_0413.css" />
-<link rel="manifest" href="/json/public/manifest_0413.json">
-<meta name="theme-color" content="#0b0e14">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Elite AirMouse WebConfig v0413</title>
+  <link rel="icon" href="./images/favicon.ico" />
+  <link rel="stylesheet" href="./style_0413.css" />
+  <link rel="manifest" href="/json/public/manifest_0413.json">
+  <meta name="theme-color" content="#0b0e14">
 </head>
+
 <body>
 
-<header class="top">
-  <button class="hamburger" id="btnMenu" aria-label="메뉴">☰</button>
-  <div class="brand">
-    <div class="dot"></div>
-    <div class="title">Elite AirMouse</div>
-    <div class="sub">v0413</div>
-  </div>
-  <div class="right">
-    <div class="pill" id="pillStatus" title="프로필 · 배터리 · BLE">
-      <span id="pStatProf">#0</span>
-      <span class="pm-sep">·</span>
-      <span id="pStatBat">--%</span>
-      <span class="pm-sep">·</span>
-      <span id="pStatBle">BLE</span>
-    </div>
-  </div>
-</header>
-
-<div class="top-banner" id="bannerReboot" style="display:none;">
-  <span class="banner-ico">⚠</span>
-  <span class="banner-text"><span data-i18n="top.reboot_needed">다시 시작 필요:</span> <b id="bannerRebootReason">-</b></span>
-  <button class="btn mini warn" id="btnBannerReboot" data-i18n="top.reboot_now">지금 다시 시작</button>
-  <button class="btn mini" id="btnBannerClose">×</button>
-</div>
-
-<div class="drawer-backdrop" id="drawerBackdrop"></div>
-<aside class="drawer" id="drawer" role="navigation">
-  <div class="drawer-header">
-    <div class="dot"></div>
+  <header class="top">
+    <button class="hamburger" id="btnMenu" aria-label="메뉴">☰</button>
     <div class="brand">
+      <div class="dot"></div>
       <div class="title">Elite AirMouse</div>
       <div class="sub">v0413</div>
     </div>
-    <button class="drawer-close" id="btnDrawerClose" aria-label="닫기">✕</button>
+    <div class="right">
+      <div class="pill" id="pillStatus" title="프로필 · 배터리 · BLE">
+        <span id="pStatProf">#0</span>
+        <span class="pm-sep">·</span>
+        <span id="pStatBat">--%</span>
+        <span class="pm-sep">·</span>
+        <span id="pStatBle">BLE</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="top-banner" id="bannerReboot" style="display:none;">
+    <span class="banner-ico">⚠</span>
+    <span class="banner-text"><span data-i18n="top.reboot_needed">다시 시작 필요:</span> <b
+        id="bannerRebootReason">-</b></span>
+    <button class="btn mini warn" id="btnBannerReboot" data-i18n="top.reboot_now">지금 다시 시작</button>
+    <button class="btn mini" id="btnBannerClose">×</button>
   </div>
 
-  <div class="drawer-profile">
-    <span class="flbl" data-i18n="prof.label">프로필</span>
-    <select class="select" id="profSelect"></select>
-    <div class="drawer-profile-actions">
-      <button class="btn mini" id="btnProfCreate" data-i18n="prof.new">+ 새로</button>
-      <button class="btn mini" id="btnProfRename" data-i18n="prof.rename">이름</button>
-      <button class="btn mini danger" id="btnProfDelete" data-i18n="prof.delete">삭제</button>
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer" role="navigation">
+    <div class="drawer-header">
+      <div class="dot"></div>
+      <div class="brand">
+        <div class="title">Elite AirMouse</div>
+        <div class="sub">v0413</div>
+      </div>
+      <button class="drawer-close" id="btnDrawerClose" aria-label="닫기">✕</button>
+    </div>
+
+    <div class="drawer-profile">
+      <span class="flbl" data-i18n="prof.label">프로필</span>
+      <select class="select" id="profSelect"></select>
+      <div class="drawer-profile-actions">
+        <button class="btn mini" id="btnProfCreate" data-i18n="prof.new">+ 새로</button>
+        <button class="btn mini" id="btnProfRename" data-i18n="prof.rename">이름</button>
+        <button class="btn mini danger" id="btnProfDelete" data-i18n="prof.delete">삭제</button>
+      </div>
+    </div>
+
+    <nav class="drawer-nav">
+      <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span
+          data-i18n="tab.dash">홈</span></button>
+      <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작
+          할당</span></button>
+      <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로
+          관리</span></button>
+      <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및
+          센서 설정</span></button>
+      <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력
+          테스트</span></button>
+      <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선
+          업데이트</span></button>
+    </nav>
+
+    <div class="drawer-divider"></div>
+
+    <nav class="drawer-nav">
+      <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span
+          data-i18n="top.refresh">새로 고침</span></button>
+      <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시
+          시작</span></button>
+      <button class="drawer-item" id="btnDrawerNetToggle"><span class="drawer-ico">🌐</span><span
+          id="drawerNetLabel">NET: ONLINE</span></button>
+    </nav>
+
+    <div class="drawer-divider"></div>
+
+    <div class="drawer-lang">
+      <span class="drawer-ico">🌐</span>
+      <span class="drawer-lang-label" data-i18n="top.language">언어</span>
+      <button class="btn mini" data-lang="ko">KO</button>
+      <button class="btn mini" data-lang="en">EN</button>
+    </div>
+  </aside>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText" data-i18n="loading.processing">처리 중…</div>
     </div>
   </div>
 
-  <nav class="drawer-nav">
-    <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span data-i18n="tab.dash">홈</span></button>
-    <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작 할당</span></button>
-    <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로 관리</span></button>
-    <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및 센서 설정</span></button>
-    <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력 테스트</span></button>
-    <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선 업데이트</span></button>
-  </nav>
+  <main class="wrap">
 
-  <div class="drawer-divider"></div>
+    <!-- ================= HOME ================= -->
+    <section class="card tabpane on" id="tab-dash">
+      <div class="home-flow">
 
-  <nav class="drawer-nav">
-    <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span data-i18n="top.refresh">새로 고침</span></button>
-    <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시 시작</span></button>
-    <button class="drawer-item" id="btnDrawerNetToggle"><span class="drawer-ico">🌐</span><span id="drawerNetLabel">NET: ONLINE</span></button>
-  </nav>
-
-  <div class="drawer-divider"></div>
-
-  <div class="drawer-lang">
-    <span class="drawer-ico">🌐</span>
-    <span class="drawer-lang-label" data-i18n="top.language">언어</span>
-    <button class="btn mini" data-lang="ko">KO</button>
-    <button class="btn mini" data-lang="en">EN</button>
-  </div>
-</aside>
-
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-box">
-    <div class="spinner"></div>
-    <div class="loading-text" id="loadingText" data-i18n="loading.processing">처리 중…</div>
-  </div>
-</div>
-
-<main class="wrap">
-
-  <!-- ================= HOME ================= -->
-  <section class="card tabpane on" id="tab-dash">
-    <div class="home-flow">
-
-      <details class="mode-selector-wrap" id="modeSelectorCard" open>
-        <summary class="mode-selector-summary">
-          <div class="ms-current">
-            <span class="ms-ico" id="msIco">🖱️</span>
-            <div class="ms-text">
-              <div class="ms-title" id="msTitle">모드 1 (PC)</div>
-              <div class="ms-sub" data-i18n="dash.mode_tap_to_change">탭하여 모드 변경</div>
-            </div>
-          </div>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="mode-selector-body">
-          <div class="mode-selector-row">
-            <button class="mode-btn-sm on" id="btnMode1" data-mode="1">
-              <span class="m-icon">🖱️</span>
-              <span class="m-text" data-i18n="dash.mode_btn_1">모드 1 (PC)</span>
-            </button>
-            <button class="mode-btn-sm" id="btnMode2" data-mode="2">
-              <span class="m-icon">🎤</span>
-              <span class="m-text" data-i18n="dash.mode_btn_2">모드 2 (발표)</span>
-            </button>
-            <button class="mode-btn-sm" id="btnMode3" data-mode="3">
-              <span class="m-icon">📺</span>
-              <span class="m-text" data-i18n="dash.mode_btn_3">모드 3 (TV)</span>
-            </button>
-          </div>
-        </div>
-      </details>
-
-      <div class="remote-center-container">
-        <div class="virtual-remote-card mode-pc" id="remoteCard">
-          <div class="remote-head">
-            <div class="remote-head-left">
-              <span class="remote-title" data-i18n="remote.title">가상 컨트롤러</span>
-              <span class="remote-mode-badge" id="remoteActiveModeBadge">모드 1: PC</span>
-            </div>
-            <button class="remote-fold-btn" id="btnToggleRemoteFold">접기 ▲</button>
-          </div>
-
-          <div class="preview-tabs" role="tablist">
-            <button class="preview-tab on" data-preview="1">PC</button>
-            <button class="preview-tab"    data-preview="2">PPT</button>
-            <button class="preview-tab"    data-preview="3">TV</button>
-          </div>
-
-          <div class="preview-warn hidden" id="previewWarn">
-            <span class="preview-warn-text" id="previewWarnText">-</span>
-            <button class="btn mini primary" id="btnApplyPreview" data-i18n="preview.apply">전환</button>
-          </div>
-
-          <div class="remote-collapsible-body" id="remoteCollapseBody">
-            <div class="remote-row">
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnTop1">Win</button>
-                <span class="btn-sub-lbl" id="lblTop1">시작메뉴</span>
-              </div>
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnTop2">🔇</button>
-                <span class="btn-sub-lbl" id="lblTop2">음소거</span>
+        <details class="mode-selector-wrap" id="modeSelectorCard" open>
+          <summary class="mode-selector-summary">
+            <div class="ms-current">
+              <span class="ms-ico" id="msIco">🖱️</span>
+              <div class="ms-text">
+                <div class="ms-title" id="msTitle">모드 1 (PC)</div>
+                <div class="ms-sub" data-i18n="dash.mode_tap_to_change">탭하여 모드 변경</div>
               </div>
             </div>
-            <div class="hybrid-dpad-wrapper">
-              <div class="dpad-ring" id="dpadRing">
-                <button class="ring-btn ring-up"    id="rbtnRingUp">▲</button>
-                <button class="ring-btn ring-down"  id="rbtnRingDown">▼</button>
-                <button class="ring-btn ring-left"  id="rbtnRingLeft">◀</button>
-                <button class="ring-btn ring-right" id="rbtnRingRight">▶</button>
-                <div class="joy-stick-knob" id="joyStickKnob">
-                  <span class="joy-knob-text" id="joyKnobText">Enter</span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="mode-selector-body">
+            <div class="mode-selector-row">
+              <button class="mode-btn-sm on" id="btnMode1" data-mode="1">
+                <span class="m-icon">🖱️</span>
+                <span class="m-text" data-i18n="dash.mode_btn_1">모드 1 (PC)</span>
+              </button>
+              <button class="mode-btn-sm" id="btnMode2" data-mode="2">
+                <span class="m-icon">🎤</span>
+                <span class="m-text" data-i18n="dash.mode_btn_2">모드 2 (발표)</span>
+              </button>
+              <button class="mode-btn-sm" id="btnMode3" data-mode="3">
+                <span class="m-icon">📺</span>
+                <span class="m-text" data-i18n="dash.mode_btn_3">모드 3 (TV)</span>
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <div class="remote-center-container">
+          <div class="virtual-remote-card mode-pc" id="remoteCard">
+            <div class="remote-head">
+              <div class="remote-head-left">
+                <span class="remote-title" data-i18n="remote.title">가상 컨트롤러</span>
+                <span class="remote-mode-badge" id="remoteActiveModeBadge">모드 1: PC</span>
+              </div>
+              <button class="remote-fold-btn" id="btnToggleRemoteFold">접기 ▲</button>
+            </div>
+
+            <div class="preview-tabs" role="tablist">
+              <button class="preview-tab on" data-preview="1">PC</button>
+              <button class="preview-tab" data-preview="2">PPT</button>
+              <button class="preview-tab" data-preview="3">TV</button>
+            </div>
+
+            <div class="preview-warn hidden" id="previewWarn">
+              <span class="preview-warn-text" id="previewWarnText">-</span>
+              <button class="btn mini primary" id="btnApplyPreview" data-i18n="preview.apply">전환</button>
+            </div>
+
+            <div class="remote-collapsible-body" id="remoteCollapseBody">
+              <div class="remote-row">
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnTop1">Win</button>
+                  <span class="btn-sub-lbl" id="lblTop1">시작메뉴</span>
+                </div>
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnTop2">🔇</button>
+                  <span class="btn-sub-lbl" id="lblTop2">음소거</span>
+                </div>
+              </div>
+              <div class="hybrid-dpad-wrapper">
+                <div class="dpad-ring" id="dpadRing">
+                  <button class="ring-btn ring-up" id="rbtnRingUp">▲</button>
+                  <button class="ring-btn ring-down" id="rbtnRingDown">▼</button>
+                  <button class="ring-btn ring-left" id="rbtnRingLeft">◀</button>
+                  <button class="ring-btn ring-right" id="rbtnRingRight">▶</button>
+                  <div class="joy-stick-knob" id="joyStickKnob">
+                    <span class="joy-knob-text" id="joyKnobText">Enter</span>
+                  </div>
+                </div>
+              </div>
+              <div class="dpad-guide-hint" id="dpadGuideHint">-</div>
+              <div class="remote-row">
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnSub1">ESC</button>
+                  <span class="btn-sub-lbl" id="lblSub1">취소</span>
+                </div>
+                <div class="btn-with-desc">
+                  <button class="remote-btn" id="rbtnSub2">캡처</button>
+                  <span class="btn-sub-lbl" id="lblSub2">화면캡처</span>
+                </div>
+              </div>
+              <div class="remote-paddle-row">
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad1Up">VOL +</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad1Down">VOL -</button>
+                  <span class="btn-sub-lbl">볼륨 제어</span>
+                </div>
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad2Up">▶⏸</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad2Down">정지</button>
+                  <span class="btn-sub-lbl">재생 제어</span>
+                </div>
+                <div class="paddle-col">
+                  <button class="remote-btn mini-btn" id="rbtnPad3Up">PgUp</button>
+                  <button class="remote-btn mini-btn" id="rbtnPad3Down">PgDn</button>
+                  <span class="btn-sub-lbl" id="lblPad3">탐색 제어</span>
                 </div>
               </div>
             </div>
-            <div class="dpad-guide-hint" id="dpadGuideHint">-</div>
-            <div class="remote-row">
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnSub1">ESC</button>
-                <span class="btn-sub-lbl" id="lblSub1">취소</span>
-              </div>
-              <div class="btn-with-desc">
-                <button class="remote-btn" id="rbtnSub2">캡처</button>
-                <span class="btn-sub-lbl" id="lblSub2">화면캡처</span>
+          </div>
+        </div>
+
+        <details class="collapsible-card" id="modeToolsCard">
+          <summary class="collapsible-summary">
+            <span class="summary-left">
+              <span class="drawer-ico" id="modeToolsIco">🧰</span>
+              <span data-i18n="tools.title">모드별 추가 도구</span>
+              <span class="summary-badge" id="modeToolsBadge">PC</span>
+            </span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="collapsible-content">
+            <div id="modeToolsBody"></div>
+          </div>
+        </details>
+
+        <details class="collapsible-card" id="troubleCard">
+          <summary class="collapsible-summary">
+            <span class="summary-left">
+              <span class="drawer-ico">🛠️</span>
+              <span data-i18n="trouble.title">문제 해결 도구</span>
+            </span>
+            <span class="fold-arrow">▼</span>
+          </summary>
+          <div class="collapsible-content">
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
+              <div class="tool-btns">
+                <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span
+                    data-i18n="trouble.calib">영점 맞추기</span></button>
+                <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span
+                    data-i18n="trouble.release">눌린 키 강제 해제</span></button>
               </div>
             </div>
-            <div class="remote-paddle-row">
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad1Up">VOL +</button>
-                <button class="remote-btn mini-btn" id="rbtnPad1Down">VOL -</button>
-                <span class="btn-sub-lbl">볼륨 제어</span>
-              </div>
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad2Up">▶⏸</button>
-                <button class="remote-btn mini-btn" id="rbtnPad2Down">정지</button>
-                <span class="btn-sub-lbl">재생 제어</span>
-              </div>
-              <div class="paddle-col">
-                <button class="remote-btn mini-btn" id="rbtnPad3Up">PgUp</button>
-                <button class="remote-btn mini-btn" id="rbtnPad3Down">PgDn</button>
-                <span class="btn-sub-lbl" id="lblPad3">탐색 제어</span>
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.conn">연결</div>
+              <div class="tool-btns">
+                <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span
+                    data-i18n="trouble.host">호스트 순환</span></button>
+                <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span
+                    data-i18n="trouble.pair">페어링 모드</span></button>
+                <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span
+                    data-i18n="trouble.i2c">센서 연결 초기화</span></button>
               </div>
             </div>
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
+              <div class="tool-btns">
+                <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span
+                    data-i18n="trouble.sleep">지금 절전 모드</span></button>
+                <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span
+                    data-i18n="trouble.safemode">안전 모드 토글</span></button>
+                <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span
+                    data-i18n="trouble.factory">공장 초기화</span></button>
+              </div>
+            </div>
+            <div class="tool-group">
+              <div class="tool-group-title" data-i18n="trouble.safeboot">세이프부트</div>
+              <div class="tool-btns">
+                <button class="tool-btn" data-trouble="safeinfo"><span class="tool-ico">ℹ️</span><span
+                    data-i18n="trouble.safeinfo">안전 부팅 상태</span></button>
+                <button class="tool-btn warn" data-trouble="safeexit"><span class="tool-ico">🔓</span><span
+                    data-i18n="trouble.safeexit">안전 부팅 해제</span></button>
+              </div>
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </section>
+
+    <!-- ================= SLOTS ================= -->
+    <section class="card tabpane" id="tab-slots">
+      <h2 data-i18n="slots.title">버튼 및 동작 맞춤 할당</h2>
+      <div class="hint2" data-i18n="slots.hint">27가지 조작 동작에 원하는 키나 기능을 지정함.</div>
+
+      <div class="row view-row">
+        <div class="btn-group view-group">
+          <button class="view-tab on" data-view="global" data-i18n="slots.view_global">기본 공통</button>
+          <button class="view-tab" data-view="mode1" data-i18n="slots.view_mode1">모드 1: PC</button>
+          <button class="view-tab" data-view="mode2" data-i18n="slots.view_mode2">모드 2: 발표</button>
+          <button class="view-tab" data-view="mode3" data-i18n="slots.view_mode3">모드 3: TV</button>
+        </div>
+        <div class="slots-actions">
+          <button class="btn mini" id="btnSlotReload" data-i18n="slots.reload">다시 불러오기</button>
+          <button class="btn mini primary" id="btnSlotSave" data-i18n="slots.save">저장</button>
+        </div>
+      </div>
+
+      <div class="slot-editor-scroll">
+        <div class="slot-editor" id="slotEditor">
+          <div class="hint2">Loading…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MACROS ================= -->
+    <section class="card tabpane" id="tab-macros">
+      <h2 data-i18n="macros.title">연속 동작 매크로 관리</h2>
+      <div class="hint2" data-i18n="macros.hint">버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.</div>
+
+      <div class="row">
+        <button class="btn primary mini" id="btnMacroAdd" data-i18n="macros.add">+ 새 매크로</button>
+        <button class="btn mini" id="btnMacroSave" data-i18n="macros.save">매크로 저장</button>
+        <button class="btn mini" id="btnMacroReload" data-i18n="macros.reload">다시 불러오기</button>
+        <span style="margin-left:auto"></span>
+        <div class="hint2" id="macroCountLabel">0 / 8</div>
+      </div>
+
+      <div class="macro-layout">
+        <div class="macro-list" id="macroList">
+          <div class="hint2">Loading…</div>
+        </div>
+        <div class="macro-editor" id="macroEditor">
+          <div class="hint2" data-i18n="macros.select_hint">왼쪽 목록에서 매크로를 선택하십시오.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CONFIG ================= -->
+    <section class="card tabpane" id="tab-config">
+      <h2 data-i18n="cfg.title">포인터 및 센서 세부 설정</h2>
+      <div class="hint2" data-i18n="cfg.hint">현재 선택된 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정함.</div>
+
+      <div class="row config-top-btns">
+        <button class="btn mini" id="btnCfgLoad" data-i18n="cfg.reload">다시 불러오기</button>
+        <button class="btn mini primary" id="btnCfgSave" data-i18n="cfg.save">설정 저장</button>
+        <button class="btn mini" id="btnCfgExport" data-i18n="cfg.export">백업 내보내기</button>
+        <label class="btn mini filebtn">
+          <span data-i18n="cfg.import">백업 가져오기</span>
+          <input type="file" id="cfgImportFile" accept=".json,application/json" style="display:none" />
+        </label>
+      </div>
+
+      <div class="sep"></div>
+      <h3 data-i18n="dash.quick_tune">포인터 빠른 조정</h3>
+      <div class="hint2" data-i18n="dash.quick_tune_hint">즉시 적용 (기기 재시작 전까지 유지)</div>
+      <div class="tune-box" style="margin-top:10px;">
+        <div class="tune-group">
+          <span class="hint" data-i18n="dash.dpi_label">포인터 속도:</span>
+          <div class="btn-group">
+            <button class="btn mini" id="btnDpi1" data-i18n="dash.dpi_1">1단계</button>
+            <button class="btn mini" id="btnDpi2" data-i18n="dash.dpi_2">2단계</button>
+            <button class="btn mini" id="btnDpi3" data-i18n="dash.dpi_3">3단계</button>
+          </div>
+        </div>
+        <div class="tune-group">
+          <span class="hint" data-i18n="dash.prec_label">포인터 정확도:</span>
+          <div class="btn-group">
+            <button class="btn mini" id="btnPrec0" data-i18n="dash.prec_off">끔</button>
+            <button class="btn mini" id="btnPrec1" data-i18n="dash.prec_low">낮음</button>
+            <button class="btn mini" id="btnPrec2" data-i18n="dash.prec_med">보통</button>
+            <button class="btn mini" id="btnPrec3" data-i18n="dash.prec_high">높음</button>
+            <button class="btn mini" id="btnPrec4" data-i18n="dash.prec_ppt">발표용</button>
           </div>
         </div>
       </div>
 
-      <details class="collapsible-card" id="modeToolsCard">
-        <summary class="collapsible-summary">
-          <span class="summary-left">
-            <span class="drawer-ico" id="modeToolsIco">🧰</span>
-            <span data-i18n="tools.title">모드별 추가 도구</span>
-            <span class="summary-badge" id="modeToolsBadge">PC</span>
-          </span>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="collapsible-content"><div id="modeToolsBody"></div></div>
+      <div class="sep"></div>
+      <h3 data-i18n="cfg.sec_motion_core">1. 기본 포인터 속도 및 감도</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_dpi">기본 포인터 속도</label>
+          <select id="e10Dpi" class="select">
+            <option value="1" data-i18n="cfg.dpi_opt_1">1단계: 정밀 작업용 (느림)</option>
+            <option value="2" data-i18n="cfg.dpi_opt_2">2단계: 일반 사무 / 웹 탐색 (권장 · 보통)</option>
+            <option value="3" data-i18n="cfg.dpi_opt_3">3단계: 대형 화면 / 빠른 이동 (빠름)</option>
+          </select>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_hard_click">클릭 중 포인터 잠금</label>
+          <select id="e10HardClick" class="select">
+            <option value="true" data-i18n="cfg.hard_click_on">사용</option>
+            <option value="false" data-i18n="cfg.hard_click_off">사용 안 함</option>
+          </select>
+        </div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness"
+            class="inp" type="number" min="0" max="255" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold"
+            class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp"
+            class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_motion_modes">2. 모드별 포인터 이동 특성</h3>
+      <div class="form three">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_sb">모드별 기본 속도 비율</label>
+          <div class="arr"><input id="sb0" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input
+              id="sb1" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb2" class="inp mini"
+              type="number" min="0.2" max="2.0" step="0.05" /></div>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_ag">모드별 가속 증가량</label>
+          <div class="arr"><input id="ag0" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input
+              id="ag1" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag2" class="inp mini"
+              type="number" min="0.1" max="2.0" step="0.05" /></div>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_wheel">휠 스크롤 민감도</label>
+          <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input
+              id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_flick">휘두르기 제스처 감도</label>
+          <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input
+              id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
+        </div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_click_freeze">3. 클릭 프리즈 (Motion Advanced)</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_cf_enable">클릭 순간 동결</label>
+          <select id="cfEnable" class="select">
+            <option value="true" data-i18n="cfg.cf_on">사용</option>
+            <option value="false" data-i18n="cfg.cf_off">사용 안 함</option>
+          </select>
+        </div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_gyro">정지 판단 회전 속도</label><input id="cfGyroTh"
+            class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_max">최대 동결 시간</label><input id="cfMaxMs" class="inp"
+            type="number" step="10" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_hold">뗀 후 동결 유지</label><input id="cfHoldMs"
+            class="inp" type="number" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_fadeout">복귀 시간</label><input id="cfFadeoutMs"
+            class="inp" type="number" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_move">강제 해제 이동 (px)</label><input id="cfMoveTh"
+            class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_freeze_move">의도적 이동 판단</label><input
+            id="cfFreezeMoveTh" class="inp" type="number" step="1" /></div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_ema">4. 적응형 손떨림 (Adaptive EMA)</h3>
+      <div class="form two">
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_min">Alpha Min</label><input id="emaAlphaMin"
+            class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_max">Alpha Max</label><input id="emaAlphaMax"
+            class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_deadzone">손떨림 흡수 기준</label><input
+            id="emaDeadzoneTh" class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_fast">고속 추종 전환</label><input id="emaFastTh"
+            class="inp" type="number" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_reversal">방향 전환 감지</label><input id="emaReversalTh"
+            class="inp" type="number" step="0.5" /></div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_ema_rev_reset">방향 전환 리셋</label>
+          <select id="emaReversalReset" class="select">
+            <option value="true" data-i18n="cfg.ema_rev_on">사용</option>
+            <option value="false" data-i18n="cfg.ema_rev_off">사용 안 함</option>
+          </select>
+        </div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_snap">5. 직선 보정 (Snap-to-Axis)</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_snap_enable">직선 스냅</label>
+          <select id="snapEnable" class="select">
+            <option value="true" data-i18n="cfg.snap_on">사용</option>
+            <option value="false" data-i18n="cfg.snap_off">사용 안 함</option>
+          </select>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_snap_modes">적용 모드</label>
+          <div class="arr" style="gap:14px;">
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
+                id="snapMode1" /><span>1</span></label>
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
+                id="snapMode2" /><span>2</span></label>
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
+                id="snapMode3" /><span>3</span></label>
+          </div>
+        </div>
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_snap_axis">스냅 방향</label>
+          <select id="snapAxisMode" class="select">
+            <option value="0" data-i18n="cfg.snap_axis_both">가로/세로</option>
+            <option value="1" data-i18n="cfg.snap_axis_h">가로만</option>
+            <option value="2" data-i18n="cfg.snap_axis_v">세로만</option>
+          </select>
+        </div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_ratio">기울기 비율</label><input id="snapRatio"
+            class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_strength">고정 강도</label><input id="snapStrength"
+            class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input
+            id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_power">6. 절전 및 전원 관리</h3>
+      <div class="form two">
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle">1단계 절전 (초)</label><input id="pwrIdleSleepSec"
+            class="inp" type="number" min="0" max="3600" step="10" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">2단계 절전 (초)</label><input id="pwrDeepSleepSec"
+            class="inp" type="number" min="0" max="86400" step="60" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label><input
+            id="pwrWomThreshold" class="inp" type="number" min="5" max="150" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label><input
+            id="pwrWomDuration" class="inp" type="number" min="1" max="50" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fade">LED 감쇠 시간</label><input id="pwrLedFadeMs"
+            class="inp" type="number" min="100" max="3000" step="100" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wake_deb">깨어난 후 안정화</label><input
+            id="pwrWakeDebounceMs" class="inp" type="number" min="50" max="1000" step="50" /></div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_buttons">7. 버튼 타이밍</h3>
+      <div class="form two">
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스</label><input
+            id="btnDebouncePressMs" class="inp" type="number" min="5" max="100" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_rel">뗌 디바운스</label><input
+            id="btnDebounceReleaseMs" class="inp" type="number" min="5" max="100" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_click">단일 클릭 최대</label><input id="btnClickMs"
+            class="inp" type="number" min="50" max="1000" step="25" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_dblclick">더블클릭 간격</label><input
+            id="btnDblclickGapMs" class="inp" type="number" min="100" max="1000" step="50" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_long">롱프레스</label><input id="btnLongPressMs"
+            class="inp" type="number" min="200" max="3000" step="50" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_click">글리치 필터</label><input id="btnMinClickMs"
+            class="inp" type="number" min="0" max="100" step="5" /></div>
+      </div>
+
+      <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
+      <div class="row preset-row">
+        <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>
+        <button class="btn mini primary" id="btnPresetPPT" data-i18n="cfg.preset_ppt">발표 (PPT)</button>
+        <button class="btn mini" id="btnPresetTV" data-i18n="cfg.preset_tv">스마트 TV</button>
+        <button class="btn mini" id="btnPresetGaming" data-i18n="cfg.preset_gaming">게임</button>
+        <button class="btn mini" id="btnPresetPrecision" data-i18n="cfg.preset_precision">정밀 작업</button>
+      </div>
+      <div class="hint2" id="presetHint" data-i18n="cfg.preset_hint">프리셋 선택 시 프로필에 권장 설정 즉시 반영됨.</div>
+
+      <div class="sep"></div>
+      <h3 style="color:var(--danger)" data-i18n="cfg.factory_title">기기 초기화</h3>
+      <div class="row">
+        <button class="btn danger mini" id="btnFactory" data-i18n="dash.factory_reset">공장 초기화</button>
+        <span class="hint2" id="factoryHint" data-i18n="cfg.factory_hint">모든 프로필과 설정이 지워집니다.</span>
+      </div>
+
+      <div class="sep"></div>
+      <h3>Config JSON (raw)</h3>
+      <textarea class="ta" id="cfgJsonArea" spellcheck="false" readonly></textarea>
+      <div class="row">
+        <div class="msg" id="cfgMsg">-</div>
+      </div>
+    </section>
+
+    <!-- ================= DIAG ================= -->
+    <section class="card tabpane" id="tab-diag">
+      <h2 data-i18n="diag.title">진단 및 입력 테스트</h2>
+
+      <h3 style="margin-top:14px;">시스템 현황</h3>
+      <div class="row">
+        <div class="kv">
+          <div class="k" data-i18n="dash.uptime">동작 시간</div>
+          <div class="v" id="stUptime">-</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="dash.heap">여유 메모리</div>
+          <div class="v" id="stHeap">-</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="dash.wifi">와이파이</div>
+          <div class="v" id="stWiFi">-</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="dash.cur_prof">현재 프로필</div>
+          <div class="v" id="stProfile">-</div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <button class="btn mini" id="btnDiagRefresh" data-i18n="top.refresh">새로 고침</button>
+        <button class="btn mini warn" id="btnDiagClear" data-i18n="diag.clear">카운터 초기화</button>
+        <label class="switch"><input type="checkbox" id="diagAuto" checked><span class="slider"></span></label>
+        <div class="hint" data-i18n="diag.auto">자동 새로 고침</div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <input class="inp" id="diagFilter" placeholder="필터 (예: bad_json, i2c)" style="width:100%;max-width:320px;" />
+      </div>
+
+      <div class="row" id="diagCounters" style="flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+
+      <div class="sep"></div>
+      <div class="hint2" data-i18n="diag.recent_events">최근 발생 이벤트</div>
+      <div class="log" id="diagEvents" style="max-height:200px;"></div>
+
+      <div class="sep"></div>
+      <h3 data-i18n="diag.key_test_title">입력 신호 테스트 (Key Test)</h3>
+      <div class="row key-test-row">
+        <select class="select mini" id="ktPage">
+          <option value="kb" data-i18n="diag.kt_kb">키보드 (KB)</option>
+          <option value="consumer" data-i18n="diag.kt_consumer">미디어 (Consumer)</option>
+        </select>
+        <select class="select mini" id="ktMod">
+          <option value="0">없음</option>
+          <option value="1">Ctrl</option>
+          <option value="2">Shift</option>
+          <option value="4">Alt</option>
+          <option value="8">Win</option>
+          <option value="16">RCtrl</option>
+          <option value="32">RShift</option>
+          <option value="64">RAlt</option>
+          <option value="128">RWin</option>
+        </select>
+        <input class="inp mini" type="number" id="ktCode" value="0" style="width:80px;" />
+        <button class="btn primary mini" id="btnKeyTest" data-i18n="diag.btn_send">전송</button>
+      </div>
+
+      <div class="sep"></div>
+      <details>
+        <summary class="hint2" data-i18n="diag.raw_json">Raw JSON 보기</summary>
+        <pre class="log" id="diagJson" style="margin-top:6px;">loading...</pre>
+        <pre class="log" id="statusJson" style="margin-top:6px;">loading...</pre>
       </details>
+    </section>
 
-      <details class="collapsible-card" id="troubleCard">
-        <summary class="collapsible-summary">
-          <span class="summary-left">
-            <span class="drawer-ico">🛠️</span>
-            <span data-i18n="trouble.title">문제 해결 도구</span>
-          </span>
-          <span class="fold-arrow">▼</span>
-        </summary>
-        <div class="collapsible-content">
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
-            <div class="tool-btns">
-              <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span data-i18n="trouble.calib">영점 맞추기</span></button>
-              <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span data-i18n="trouble.release">눌린 키 강제 해제</span></button>
-            </div>
-          </div>
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.conn">연결</div>
-            <div class="tool-btns">
-              <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span data-i18n="trouble.host">호스트 순환</span></button>
-              <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span data-i18n="trouble.pair">페어링 모드</span></button>
-              <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span data-i18n="trouble.i2c">센서 연결 초기화</span></button>
-            </div>
-          </div>
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
-            <div class="tool-btns">
-              <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span data-i18n="trouble.sleep">지금 절전 모드</span></button>
-              <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span data-i18n="trouble.safemode">안전 모드 토글</span></button>
-              <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span data-i18n="trouble.factory">공장 초기화</span></button>
-            </div>
-          </div>
-          <div class="tool-group">
-            <div class="tool-group-title" data-i18n="trouble.safeboot">세이프부트</div>
-            <div class="tool-btns">
-              <button class="tool-btn" data-trouble="safeinfo"><span class="tool-ico">ℹ️</span><span data-i18n="trouble.safeinfo">안전 부팅 상태</span></button>
-              <button class="tool-btn warn" data-trouble="safeexit"><span class="tool-ico">🔓</span><span data-i18n="trouble.safeexit">안전 부팅 해제</span></button>
-            </div>
-          </div>
-        </div>
-      </details>
+    <!-- ================= OTA ================= -->
+    <section class="card tabpane" id="tab-ota">
+      <h2 data-i18n="ota.title">무선 소프트웨어 업데이트 (OTA)</h2>
 
-    </div>
-  </section>
-
-  <!-- ================= SLOTS ================= -->
-  <section class="card tabpane" id="tab-slots">
-    <h2 data-i18n="slots.title">버튼 및 동작 맞춤 할당</h2>
-    <div class="hint2" data-i18n="slots.hint">27가지 조작 동작에 원하는 키나 기능을 지정함.</div>
-
-    <div class="row view-row">
-      <div class="btn-group view-group">
-        <button class="view-tab on" data-view="global" data-i18n="slots.view_global">기본 공통</button>
-        <button class="view-tab"    data-view="mode1"  data-i18n="slots.view_mode1">모드 1: PC</button>
-        <button class="view-tab"    data-view="mode2"  data-i18n="slots.view_mode2">모드 2: 발표</button>
-        <button class="view-tab"    data-view="mode3"  data-i18n="slots.view_mode3">모드 3: TV</button>
+      <div class="row">
+        <label class="switch"><input type="checkbox" id="otaGuardManual"><span class="slider"></span></label>
+        <span class="hint" data-i18n="ota.guard_label">업데이트 보안 잠금 (OTA Guard)</span>
+        <button class="btn mini" id="btnOtaGuardApply" data-i18n="btn.apply">적용</button>
       </div>
-      <div class="slots-actions">
-        <button class="btn mini" id="btnSlotReload" data-i18n="slots.reload">다시 불러오기</button>
-        <button class="btn mini primary" id="btnSlotSave" data-i18n="slots.save">저장</button>
+      <div class="hint2" data-i18n="ota.guard_desc">잠금 시 마우스/키보드 입력 일시 중단, 비인가 펌웨어 차단.</div>
+
+      <div class="sep"></div>
+      <div class="row ota-row">
+        <input type="file" id="otaFile" class="file" accept=".bin" />
+        <button class="btn primary mini" id="btnOta" data-i18n="ota.btn_upload">업로드</button>
+        <button class="btn mini" id="btnOtaStatus" data-i18n="ota.btn_status">상태 확인</button>
       </div>
-    </div>
+      <div class="hint2" id="otaHint">-</div>
+      <pre class="log" id="otaJson" style="margin-top:8px;">-</pre>
+    </section>
 
-    <div class="slot-editor-scroll">
-      <div class="slot-editor" id="slotEditor"><div class="hint2">Loading…</div></div>
-    </div>
-  </section>
+  </main>
 
-  <!-- ================= MACROS ================= -->
-  <section class="card tabpane" id="tab-macros">
-    <h2 data-i18n="macros.title">연속 동작 매크로 관리</h2>
-    <div class="hint2" data-i18n="macros.hint">버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.</div>
+  <footer class="foot">
+    <div data-i18n="cfg.foot">v0413 · Drawer Nav + Preview Tabs + Full Features</div>
+  </footer>
 
-    <div class="row">
-      <button class="btn primary mini" id="btnMacroAdd" data-i18n="macros.add">+ 새 매크로</button>
-      <button class="btn mini" id="btnMacroSave" data-i18n="macros.save">매크로 저장</button>
-      <button class="btn mini" id="btnMacroReload" data-i18n="macros.reload">다시 불러오기</button>
-      <span style="margin-left:auto"></span>
-      <div class="hint2" id="macroCountLabel">0 / 8</div>
-    </div>
-
-    <div class="macro-layout">
-      <div class="macro-list" id="macroList"><div class="hint2">Loading…</div></div>
-      <div class="macro-editor" id="macroEditor"><div class="hint2" data-i18n="macros.select_hint">왼쪽 목록에서 매크로를 선택하십시오.</div></div>
-    </div>
-  </section>
-
-  <!-- ================= CONFIG ================= -->
-  <section class="card tabpane" id="tab-config">
-    <h2 data-i18n="cfg.title">포인터 및 센서 세부 설정</h2>
-    <div class="hint2" data-i18n="cfg.hint">현재 선택된 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정함.</div>
-
-    <div class="row config-top-btns">
-      <button class="btn mini" id="btnCfgLoad" data-i18n="cfg.reload">다시 불러오기</button>
-      <button class="btn mini primary" id="btnCfgSave" data-i18n="cfg.save">설정 저장</button>
-      <button class="btn mini" id="btnCfgExport" data-i18n="cfg.export">백업 내보내기</button>
-      <label class="btn mini filebtn">
-        <span data-i18n="cfg.import">백업 가져오기</span>
-        <input type="file" id="cfgImportFile" accept=".json,application/json" style="display:none" />
-      </label>
-    </div>
-
-    <div class="sep"></div>
-    <h3 data-i18n="dash.quick_tune">포인터 빠른 조정</h3>
-    <div class="hint2" data-i18n="dash.quick_tune_hint">즉시 적용 (기기 재시작 전까지 유지)</div>
-    <div class="tune-box" style="margin-top:10px;">
-      <div class="tune-group">
-        <span class="hint" data-i18n="dash.dpi_label">포인터 속도:</span>
-        <div class="btn-group">
-          <button class="btn mini" id="btnDpi1" data-i18n="dash.dpi_1">1단계</button>
-          <button class="btn mini" id="btnDpi2" data-i18n="dash.dpi_2">2단계</button>
-          <button class="btn mini" id="btnDpi3" data-i18n="dash.dpi_3">3단계</button>
-        </div>
-      </div>
-      <div class="tune-group">
-        <span class="hint" data-i18n="dash.prec_label">포인터 정확도:</span>
-        <div class="btn-group">
-          <button class="btn mini" id="btnPrec0" data-i18n="dash.prec_off">끔</button>
-          <button class="btn mini" id="btnPrec1" data-i18n="dash.prec_low">낮음</button>
-          <button class="btn mini" id="btnPrec2" data-i18n="dash.prec_med">보통</button>
-          <button class="btn mini" id="btnPrec3" data-i18n="dash.prec_high">높음</button>
-          <button class="btn mini" id="btnPrec4" data-i18n="dash.prec_ppt">발표용</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sep"></div>
-    <h3 data-i18n="cfg.sec_motion_core">1. 기본 포인터 속도 및 감도</h3>
-    <div class="form two">
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_dpi">기본 포인터 속도</label>
-        <select id="e10Dpi" class="select">
-          <option value="1" data-i18n="cfg.dpi_opt_1">1단계: 정밀 작업용 (느림)</option>
-          <option value="2" data-i18n="cfg.dpi_opt_2">2단계: 일반 사무 / 웹 탐색 (권장 · 보통)</option>
-          <option value="3" data-i18n="cfg.dpi_opt_3">3단계: 대형 화면 / 빠른 이동 (빠름)</option>
-        </select>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_hard_click">클릭 중 포인터 잠금</label>
-        <select id="e10HardClick" class="select">
-          <option value="true" data-i18n="cfg.hard_click_on">사용</option>
-          <option value="false" data-i18n="cfg.hard_click_off">사용 안 함</option>
-        </select>
-      </div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness" class="inp" type="number" min="0" max="255" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold" class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp" class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_motion_modes">2. 모드별 포인터 이동 특성</h3>
-    <div class="form three">
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_sb">모드별 기본 속도 비율</label>
-        <div class="arr"><input id="sb0" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb1" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb2" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /></div>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_ag">모드별 가속 증가량</label>
-        <div class="arr"><input id="ag0" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag1" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag2" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /></div>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_wheel">휠 스크롤 민감도</label>
-        <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_flick">휘두르기 제스처 감도</label>
-        <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
-      </div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_click_freeze">3. 클릭 프리즈 (Motion Advanced)</h3>
-    <div class="form two">
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_cf_enable">클릭 순간 동결</label>
-        <select id="cfEnable" class="select">
-          <option value="true" data-i18n="cfg.cf_on">사용</option>
-          <option value="false" data-i18n="cfg.cf_off">사용 안 함</option>
-        </select>
-      </div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_gyro">정지 판단 회전 속도</label><input id="cfGyroTh" class="inp" type="number" step="0.5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_max">최대 동결 시간</label><input id="cfMaxMs" class="inp" type="number" step="10" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_hold">뗀 후 동결 유지</label><input id="cfHoldMs" class="inp" type="number" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_fadeout">복귀 시간</label><input id="cfFadeoutMs" class="inp" type="number" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_move">강제 해제 이동 (px)</label><input id="cfMoveTh" class="inp" type="number" step="0.5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_freeze_move">의도적 이동 판단</label><input id="cfFreezeMoveTh" class="inp" type="number" step="1" /></div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_ema">4. 적응형 손떨림 (Adaptive EMA)</h3>
-    <div class="form two">
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_min">Alpha Min</label><input id="emaAlphaMin" class="inp" type="number" step="0.01" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_max">Alpha Max</label><input id="emaAlphaMax" class="inp" type="number" step="0.01" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_deadzone">손떨림 흡수 기준</label><input id="emaDeadzoneTh" class="inp" type="number" step="0.5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_fast">고속 추종 전환</label><input id="emaFastTh" class="inp" type="number" step="1" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_reversal">방향 전환 감지</label><input id="emaReversalTh" class="inp" type="number" step="0.5" /></div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_ema_rev_reset">방향 전환 리셋</label>
-        <select id="emaReversalReset" class="select">
-          <option value="true" data-i18n="cfg.ema_rev_on">사용</option>
-          <option value="false" data-i18n="cfg.ema_rev_off">사용 안 함</option>
-        </select>
-      </div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_snap">5. 직선 보정 (Snap-to-Axis)</h3>
-    <div class="form two">
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_snap_enable">직선 스냅</label>
-        <select id="snapEnable" class="select">
-          <option value="true" data-i18n="cfg.snap_on">사용</option>
-          <option value="false" data-i18n="cfg.snap_off">사용 안 함</option>
-        </select>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_snap_modes">적용 모드</label>
-        <div class="arr" style="gap:14px;">
-          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode1" /><span>1</span></label>
-          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode2" /><span>2</span></label>
-          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode3" /><span>3</span></label>
-        </div>
-      </div>
-      <div class="frow">
-        <label class="flbl" data-i18n="cfg.lbl_snap_axis">스냅 방향</label>
-        <select id="snapAxisMode" class="select">
-          <option value="0" data-i18n="cfg.snap_axis_both">가로/세로</option>
-          <option value="1" data-i18n="cfg.snap_axis_h">가로만</option>
-          <option value="2" data-i18n="cfg.snap_axis_v">세로만</option>
-        </select>
-      </div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_ratio">기울기 비율</label><input id="snapRatio" class="inp" type="number" step="0.5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_strength">고정 강도</label><input id="snapStrength" class="inp" type="number" step="0.01" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_power">6. 절전 및 전원 관리</h3>
-    <div class="form two">
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle">1단계 절전 (초)</label><input id="pwrIdleSleepSec" class="inp" type="number" min="0" max="3600" step="10" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">2단계 절전 (초)</label><input id="pwrDeepSleepSec" class="inp" type="number" min="0" max="86400" step="60" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label><input id="pwrWomThreshold" class="inp" type="number" min="5" max="150" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label><input id="pwrWomDuration" class="inp" type="number" min="1" max="50" step="1" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fade">LED 감쇠 시간</label><input id="pwrLedFadeMs" class="inp" type="number" min="100" max="3000" step="100" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wake_deb">깨어난 후 안정화</label><input id="pwrWakeDebounceMs" class="inp" type="number" min="50" max="1000" step="50" /></div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_buttons">7. 버튼 타이밍</h3>
-    <div class="form two">
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스</label><input id="btnDebouncePressMs" class="inp" type="number" min="5" max="100" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_rel">뗌 디바운스</label><input id="btnDebounceReleaseMs" class="inp" type="number" min="5" max="100" step="5" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_click">단일 클릭 최대</label><input id="btnClickMs" class="inp" type="number" min="50" max="1000" step="25" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_dblclick">더블클릭 간격</label><input id="btnDblclickGapMs" class="inp" type="number" min="100" max="1000" step="50" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_long">롱프레스</label><input id="btnLongPressMs" class="inp" type="number" min="200" max="3000" step="50" /></div>
-      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_click">글리치 필터</label><input id="btnMinClickMs" class="inp" type="number" min="0" max="100" step="5" /></div>
-    </div>
-
-    <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
-    <div class="row preset-row">
-      <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>
-      <button class="btn mini primary" id="btnPresetPPT" data-i18n="cfg.preset_ppt">발표 (PPT)</button>
-      <button class="btn mini" id="btnPresetTV" data-i18n="cfg.preset_tv">스마트 TV</button>
-      <button class="btn mini" id="btnPresetGaming" data-i18n="cfg.preset_gaming">게임</button>
-      <button class="btn mini" id="btnPresetPrecision" data-i18n="cfg.preset_precision">정밀 작업</button>
-    </div>
-    <div class="hint2" id="presetHint" data-i18n="cfg.preset_hint">프리셋 선택 시 프로필에 권장 설정 즉시 반영됨.</div>
-
-    <div class="sep"></div>
-    <h3 style="color:var(--danger)" data-i18n="cfg.factory_title">기기 초기화</h3>
-    <div class="row">
-      <button class="btn danger mini" id="btnFactory" data-i18n="dash.factory_reset">공장 초기화</button>
-      <span class="hint2" id="factoryHint" data-i18n="cfg.factory_hint">모든 프로필과 설정이 지워집니다.</span>
-    </div>
-
-    <div class="sep"></div>
-    <h3>Config JSON (raw)</h3>
-    <textarea class="ta" id="cfgJsonArea" spellcheck="false" readonly></textarea>
-    <div class="row"><div class="msg" id="cfgMsg">-</div></div>
-  </section>
-
-  <!-- ================= DIAG ================= -->
-  <section class="card tabpane" id="tab-diag">
-    <h2 data-i18n="diag.title">진단 및 입력 테스트</h2>
-
-    <h3 style="margin-top:14px;">시스템 현황</h3>
-    <div class="row">
-      <div class="kv"><div class="k" data-i18n="dash.uptime">동작 시간</div><div class="v" id="stUptime">-</div></div>
-      <div class="kv"><div class="k" data-i18n="dash.heap">여유 메모리</div><div class="v" id="stHeap">-</div></div>
-      <div class="kv"><div class="k" data-i18n="dash.wifi">와이파이</div><div class="v" id="stWiFi">-</div></div>
-      <div class="kv"><div class="k" data-i18n="dash.cur_prof">현재 프로필</div><div class="v" id="stProfile">-</div></div>
-    </div>
-
-    <div class="sep"></div>
-
-    <div class="row">
-      <button class="btn mini" id="btnDiagRefresh" data-i18n="top.refresh">새로 고침</button>
-      <button class="btn mini warn" id="btnDiagClear" data-i18n="diag.clear">카운터 초기화</button>
-      <label class="switch"><input type="checkbox" id="diagAuto" checked><span class="slider"></span></label>
-      <div class="hint" data-i18n="diag.auto">자동 새로 고침</div>
-    </div>
-    <div class="row" style="margin-top:8px;">
-      <input class="inp" id="diagFilter" placeholder="필터 (예: bad_json, i2c)" style="width:100%;max-width:320px;" />
-    </div>
-
-    <div class="row" id="diagCounters" style="flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
-
-    <div class="sep"></div>
-    <div class="hint2" data-i18n="diag.recent_events">최근 발생 이벤트</div>
-    <div class="log" id="diagEvents" style="max-height:200px;"></div>
-
-    <div class="sep"></div>
-    <h3 data-i18n="diag.key_test_title">입력 신호 테스트 (Key Test)</h3>
-    <div class="row key-test-row">
-      <select class="select mini" id="ktPage">
-        <option value="kb" data-i18n="diag.kt_kb">키보드 (KB)</option>
-        <option value="consumer" data-i18n="diag.kt_consumer">미디어 (Consumer)</option>
-      </select>
-      <select class="select mini" id="ktMod">
-        <option value="0">없음</option><option value="1">Ctrl</option><option value="2">Shift</option>
-        <option value="4">Alt</option><option value="8">Win</option><option value="16">RCtrl</option>
-        <option value="32">RShift</option><option value="64">RAlt</option><option value="128">RWin</option>
-      </select>
-      <input class="inp mini" type="number" id="ktCode" value="0" style="width:80px;" />
-      <button class="btn primary mini" id="btnKeyTest" data-i18n="diag.btn_send">전송</button>
-    </div>
-
-    <div class="sep"></div>
-    <details>
-      <summary class="hint2" data-i18n="diag.raw_json">Raw JSON 보기</summary>
-      <pre class="log" id="diagJson" style="margin-top:6px;">loading...</pre>
-      <pre class="log" id="statusJson" style="margin-top:6px;">loading...</pre>
-    </details>
-  </section>
-
-  <!-- ================= OTA ================= -->
-  <section class="card tabpane" id="tab-ota">
-    <h2 data-i18n="ota.title">무선 소프트웨어 업데이트 (OTA)</h2>
-
-    <div class="row">
-      <label class="switch"><input type="checkbox" id="otaGuardManual"><span class="slider"></span></label>
-      <span class="hint" data-i18n="ota.guard_label">업데이트 보안 잠금 (OTA Guard)</span>
-      <button class="btn mini" id="btnOtaGuardApply" data-i18n="btn.apply">적용</button>
-    </div>
-    <div class="hint2" data-i18n="ota.guard_desc">잠금 시 마우스/키보드 입력 일시 중단, 비인가 펌웨어 차단.</div>
-
-    <div class="sep"></div>
-    <div class="row ota-row">
-      <input type="file" id="otaFile" class="file" accept=".bin" />
-      <button class="btn primary mini" id="btnOta" data-i18n="ota.btn_upload">업로드</button>
-      <button class="btn mini" id="btnOtaStatus" data-i18n="ota.btn_status">상태 확인</button>
-    </div>
-    <div class="hint2" id="otaHint">-</div>
-    <pre class="log" id="otaJson" style="margin-top:8px;">-</pre>
-  </section>
-
-</main>
-
-<footer class="foot">
-  <div data-i18n="cfg.foot">v0413 · Drawer Nav + Preview Tabs + Full Features</div>
-</footer>
-
-<script src="./lib/am_base_0413.js"></script>
-<script src="./lib/am_i18n_0413.js"></script>
-<script src="./lib/am_offline_0412.js"></script>
-<script src="./lib/am_profile_0412.js"></script>
-<script src="./lib/am_macro_0412.js"></script>
-<script src="./lib/am_config_0412.js"></script>
-<script src="./lib/am_status_0412.js"></script>
-<script src="./app_0413_0001.js"></script>
+  <script src="./lib/am_base_0413.js"></script>
+  <script src="./lib/am_i18n_0413.js"></script>
+  <script src="./lib/am_offline_0412.js"></script>
+  <script src="./lib/am_profile_0412.js"></script>
+  <script src="./lib/am_macro_0412.js"></script>
+  <script src="./lib/am_config_0412.js"></script>
+  <script src="./lib/am_status_0412.js"></script>
+  <script src="./app_0413_0001.js"></script>
 </body>
+
 </html>

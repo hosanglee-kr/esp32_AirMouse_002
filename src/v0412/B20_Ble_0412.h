@@ -40,7 +40,7 @@ class CL_B20_Ble {
 
     // ---- Bond 정보 ----
     uint8_t getBondCount() const;
-    
+
     // ---- Active Peer Index (config 연동) ----
     uint8_t getActivePeerIndex() const { return _activePeerIndex; }
     void    setActivePeerIndex(uint8_t p_idx) { _activePeerIndex = (p_idx < MAX_PEERS) ? p_idx : 0; }
@@ -74,17 +74,17 @@ class CL_B20_Ble {
 
     // ---- Tick (sensorTask에서 호출) ----
     void tick(bool p_connected);
-  
+
   private:
     uint8_t _activePeerIndex = 0;
-    
+
     // [M-1, R2-L-1] sensorTask(web/sensor 혼용 접근) — volatile로 재정렬/캐시 방지
     volatile bool     _pairing          = false;
     volatile uint32_t _pairingStartMs   = 0;
     volatile uint32_t _pairingTimeoutMs = 0;
 
     volatile bool _dirty = false;
-  
+
     volatile bool     _whitelistActive  = false;
     volatile uint32_t _whitelistUntilMs = 0;
 

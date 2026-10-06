@@ -28,7 +28,6 @@ uint8_t CL_B20_Ble::getBondCount() const {
     return (uint8_t)NimBLEDevice::getNumBonds();
 }
 
-
 // =======================================================
 // Pairing Mode
 // =======================================================

@@ -14,15 +14,15 @@ void CL_C20_BtnDispatcher::begin() {
     const uint32_t v_now = (uint32_t)millis();
     for (uint8_t i = 0; i < EN_C20_BTN_MAX; i++) {
         pinMode(G_PINS[i], INPUT_PULLUP);
-        _btn[i].stableState      = false;   // released (HIGH)
-        _btn[i].lastRaw          = false;
-        _btn[i].lastRawChangeMs  = v_now;
-        _btn[i].phase            = PHASE_IDLE;
-        _btn[i].longFired        = false;
-        _btn[i].hold2sFired      = false;
-        _btn[i].hold3sFired      = false;
-        _btn[i].stableCount      = 0;       // [C-3]
-        _btn[i].rawDownMs        = 0;       // [I-1, I-3]
+        _btn[i].stableState     = false; // released (HIGH)
+        _btn[i].lastRaw         = false;
+        _btn[i].lastRawChangeMs = v_now;
+        _btn[i].phase           = PHASE_IDLE;
+        _btn[i].longFired       = false;
+        _btn[i].hold2sFired     = false;
+        _btn[i].hold3sFired     = false;
+        _btn[i].stableCount     = 0; // [C-3]
+        _btn[i].rawDownMs       = 0; // [I-1, I-3]
     }
 }
 
@@ -42,13 +42,13 @@ void CL_C20_BtnDispatcher::_updateOne(uint8_t p_btnId, uint32_t p_now) {
     if (v_raw != b.lastRaw) {
         b.lastRaw         = v_raw;
         b.lastRawChangeMs = p_now;
-        b.stableCount     = 1;   // [C-3] 새 상태 카운트 시작
+        b.stableCount     = 1; // [C-3] 새 상태 카운트 시작
 
         // [I-1, I-3] 실제 DOWN 최초 접촉 시점 기록 (바운스 반복 오버라이트 방지)
         if (v_raw && b.rawDownMs == 0) {
             b.rawDownMs = p_now;
         } else if (!v_raw && !b.stableState) {
-            b.rawDownMs = 0;   // 글리치 노이즈 미확정 복귀 시 리셋
+            b.rawDownMs = 0; // 글리치 노이즈 미확정 복귀 시 리셋
         }
     } else {
         // [C-3] 연속 동일 raw 유지 카운트
@@ -58,9 +58,8 @@ void CL_C20_BtnDispatcher::_updateOne(uint8_t p_btnId, uint32_t p_now) {
     // [C-4] Press/Release 별도 임계
     //   - 현재 stableState가 false (UP 상태) → 다음 전이는 DOWN → Press 임계
     //   - 현재 stableState가 true (DOWN 상태) → 다음 전이는 UP → Release 임계
-    const uint16_t v_debounceMs = b.stableState
-        ? _debounceReleaseMs   // UP 이벤트 대기 중
-        : _debouncePressMs;    // DOWN 이벤트 대기 중
+    const uint16_t v_debounceMs = b.stableState ? _debounceReleaseMs // UP 이벤트 대기 중
+                                                : _debouncePressMs;  // DOWN 이벤트 대기 중
 
     // [C-3] 하이브리드 판정: 시간 + 카운터 모두 만족
     const bool v_timeOk  = (p_now - b.lastRawChangeMs) >= v_debounceMs;
@@ -68,7 +67,7 @@ void CL_C20_BtnDispatcher::_updateOne(uint8_t p_btnId, uint32_t p_now) {
 
     if (v_timeOk && v_countOk && (v_raw != b.stableState)) {
         b.stableState = v_raw;
-        b.stableCount = 0;   // 리셋 (다음 전이 대비)
+        b.stableCount = 0; // 리셋 (다음 전이 대비)
         _onStableChange(p_btnId, v_raw, p_now);
     }
 
@@ -101,8 +100,7 @@ void CL_C20_BtnDispatcher::_onStableChange(uint8_t p_btnId, bool p_stable, uint3
         _emit(p_btnId, EN_C20_EVT_UP);
 
         // [I-3] 최소 누름 유지 시간 검사
-        const uint32_t v_heldMs = (b.rawDownMs > 0)
-            ? (b.lastRawChangeMs - b.rawDownMs) : (p_now - b.downMs);
+        const uint32_t v_heldMs = (b.rawDownMs > 0) ? (b.lastRawChangeMs - b.rawDownMs) : (p_now - b.downMs);
 
         if (b.phase == PHASE_PRESSED) {
             if (b.longFired || b.hold2sFired || b.hold3sFired) {
@@ -113,7 +111,7 @@ void CL_C20_BtnDispatcher::_onStableChange(uint8_t p_btnId, bool p_stable, uint3
                 b.phase = PHASE_IDLE;
             } else {
                 // 클릭 후보 → double 대기
-                b.phase = PHASE_WAIT_CLICK;
+                b.phase            = PHASE_WAIT_CLICK;
                 b.waitClickStartMs = p_now;
             }
         } else if (b.phase == PHASE_DOUBLE) {
@@ -148,8 +146,7 @@ void CL_C20_BtnDispatcher::_checkTimers(uint8_t p_btnId, uint32_t p_now) {
     }
 
     // Click 타임아웃 (double 대기 종료)
-    if (b.phase == PHASE_WAIT_CLICK &&
-        (p_now - b.waitClickStartMs) >= _doubleDelayMs) {
+    if (b.phase == PHASE_WAIT_CLICK && (p_now - b.waitClickStartMs) >= _doubleDelayMs) {
         _emit(p_btnId, EN_C20_EVT_CLICK);
         b.phase = PHASE_IDLE;
     }

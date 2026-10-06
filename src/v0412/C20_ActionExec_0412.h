@@ -35,18 +35,18 @@ class CL_C20_ActionExec {
     // Hold/Repeat 런타임 상태 (슬롯별)
     //  slotId: 고유 식별 (mode*50 + group*20 + idx 정도)
     struct ST_Runtime_t {
-        bool     active;
-        uint32_t lastRepeatMs;
-        uint16_t repeatMs;
-        ST_C20_ActionSlot_t slot;   // 활성 슬롯 스냅샷
+        bool                active;
+        uint32_t            lastRepeatMs;
+        uint16_t            repeatMs;
+        ST_C20_ActionSlot_t slot; // 활성 슬롯 스냅샷
     };
     static constexpr uint8_t MAX_RUNTIME = 8;
-    ST_Runtime_t _rt[MAX_RUNTIME];
+    ST_Runtime_t             _rt[MAX_RUNTIME];
 
-    uint32_t _kbTapMs        = 22;
-    uint32_t _consumerTapMs  = 28;
-    uint32_t _mouseTapMs     = 20;
-    uint16_t _repeatDefaultMs = 100;  // 10Hz
+    uint32_t _kbTapMs         = 22;
+    uint32_t _consumerTapMs   = 28;
+    uint32_t _mouseTapMs      = 20;
+    uint16_t _repeatDefaultMs = 100; // 10Hz
 
   public:
     CL_C20_ActionExec();
@@ -73,19 +73,17 @@ class CL_C20_ActionExec {
     void _freeRuntime(int p_idx);
 
     // Kind별 실행
-    void _execMouseClick  (const ST_C20_ActionSlot_t& s);
-    void _execMouseHold   (const ST_C20_ActionSlot_t& s, bool isDown);
-    void _execMouseWheel  (const ST_C20_ActionSlot_t& s);
-    void _execKbTap       (const ST_C20_ActionSlot_t& s);
-    void _execKbCombo     (const ST_C20_ActionSlot_t& s);
-    void _execKbRepeat    (const ST_C20_ActionSlot_t& s, bool isDown);
-    void _execConsumerTap (const ST_C20_ActionSlot_t& s);
-    void _execConsumerRep (const ST_C20_ActionSlot_t& s, bool isDown);
-    
+    void _execMouseClick(const ST_C20_ActionSlot_t& s);
+    void _execMouseHold(const ST_C20_ActionSlot_t& s, bool isDown);
+    void _execMouseWheel(const ST_C20_ActionSlot_t& s);
+    void _execKbTap(const ST_C20_ActionSlot_t& s);
+    void _execKbCombo(const ST_C20_ActionSlot_t& s);
+    void _execKbRepeat(const ST_C20_ActionSlot_t& s, bool isDown);
+    void _execConsumerTap(const ST_C20_ActionSlot_t& s);
+    void _execConsumerRep(const ST_C20_ActionSlot_t& s, bool isDown);
+
     // 슬롯 비교 (kind/hold/p16/p32)
-    static bool _slotEq(const ST_C20_ActionSlot_t& a,
-                        const ST_C20_ActionSlot_t& b) {
-        return a.kind == b.kind && a.holdMode == b.holdMode &&
-               a.param16 == b.param16 && a.param32 == b.param32;
+    static bool _slotEq(const ST_C20_ActionSlot_t& a, const ST_C20_ActionSlot_t& b) {
+        return a.kind == b.kind && a.holdMode == b.holdMode && a.param16 == b.param16 && a.param32 == b.param32;
     }
 };
