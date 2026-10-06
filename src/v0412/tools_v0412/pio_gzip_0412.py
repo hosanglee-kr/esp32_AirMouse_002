@@ -2,6 +2,7 @@
 # File: src/v0412/tools_v0412/pio_gzip_0412.py
 # ---------------------------------------------------------------------
 # AirMouse Elite S3 v0.400.x — LittleFS www staging + gzip 생성
+#                          + [Phase 5.3] 빌드 전 정합성 검증
 #
 # [방식 A] 소스/파생물 최소 분리
 #   - data_v0412/json/**  : 소스(VCS)     — 본 스크립트가 손대지 않음
@@ -16,6 +17,13 @@
 #      - 하위 폴더 구조 동일 유지, 동일 파일 존재 시 overwrite
 #   4) buildfs 직전 DST/www 전체 삭제 → 구파일 잔존으로 인한 잘못된 서빙 방지
 #
+# [Phase 5.3 검증]
+#   - buildfs/uploadfs 직전 다음 스크립트를 순차 실행:
+#       1) check_i18n_0412.py    : KO/EN 키 1:1 정합성
+#       2) check_schema_0412.py  : 백엔드 H ↔ 프론트 JS ↔ 오프라인 기본값 필드명 3자 비교
+#   - 하나라도 실패(exit != 0) 시 SystemExit(1) → 빌드 중단
+#   - 긴급 우회: 환경변수 G_SKIP_VERIFY=1
+#
 # [정책 메모]
 #   - platformio.ini: data_dir = ./src/v0412/data_v0412
 #   - extra_scripts : pre:src/v0412/tools_v0412/pio_gzip_0412.py
@@ -24,8 +32,10 @@
 # =======================================================
 Import("env")
 import os
+import sys
 import gzip
 import shutil
+import subprocess
 from SCons.Script import COMMAND_LINE_TARGETS
 
 # -------------------------------------------------------
@@ -38,6 +48,9 @@ SRC_WWW_DIR = os.path.join(
 
 # DST: buildfs 스테이징 (data_dir 기준 www/)
 DST_WWW_DIR = os.path.join(env["PROJECT_DATA_DIR"], "www")
+
+# 검증 스크립트 위치 (본 파일과 동일 디렉토리)
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # -------------------------------------------------------
 # [확장자 및 제외 정책]
@@ -58,6 +71,87 @@ EXCLUDE_NAMES = {
     "index_0413_standalone.html", "index_0413_standalone2.html", "index_0413_standalone3.html",
     "style_0412.css", "style_0413_1.css", "style_0413_2.css"
 }
+
+
+# =======================================================
+# [Phase 5.3] 정합성 검증
+# -------------------------------------------------------
+# check_i18n_0412.py / check_schema_0412.py 실행.
+# 실패 시 예외를 던져 buildfs 진행을 중단한다.
+# =======================================================
+def _run_verify_script(script_name, description, timeout_sec=30):
+    """
+    단일 검증 스크립트 실행. 성공(exit 0) 시 True, 실패 시 False.
+    """
+    script_path = os.path.join(THIS_DIR, script_name)
+
+    if not os.path.isfile(script_path):
+        # 파일 자체가 없으면 skip (개발 편의용)
+        print(f"[verify] SKIP: {script_name} not found (dev-only check)")
+        return True
+
+    print(f"[verify] running {script_name}  ({description})")
+    try:
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            cwd=env["PROJECT_DIR"],  # 상대 경로 호환
+        )
+    except subprocess.TimeoutExpired:
+        print(f"[verify] FAIL: {script_name} timed out ({timeout_sec}s)")
+        return False
+    except Exception as exc:
+        print(f"[verify] FAIL: {script_name} exec error: {exc}")
+        return False
+
+    # stdout/stderr 출력 (들여쓰기)
+    if result.stdout:
+        for line in result.stdout.rstrip().splitlines():
+            print(f"  {line}")
+    if result.stderr:
+        for line in result.stderr.rstrip().splitlines():
+            print(f"  {line}", file=sys.stderr)
+
+    if result.returncode != 0:
+        print(f"[verify] ❌ {script_name} FAILED (exit={result.returncode})")
+        return False
+
+    print(f"[verify] ✅ {script_name} passed")
+    return True
+
+
+def run_verification():
+    """
+    전체 검증 시퀀스. 실패 시 SystemExit.
+    G_SKIP_VERIFY=1 환경변수로 우회 가능.
+    """
+    if os.environ.get("G_SKIP_VERIFY") == "1":
+        print("[verify] SKIPPED by G_SKIP_VERIFY=1")
+        return
+
+    print("[verify] ---- Start verification ----")
+
+    checks = [
+        ("check_i18n_0412.py",   "KO/EN key parity"),
+        ("check_schema_0412.py", "backend↔frontend field names"),
+    ]
+
+    all_ok = True
+    for name, desc in checks:
+        if not _run_verify_script(name, desc):
+            all_ok = False
+            # 첫 실패에서 즉시 중단하지 않고 모두 보고
+            # (개발자가 한 번에 여러 이슈를 볼 수 있도록)
+
+    print("[verify] ---- End verification ----")
+
+    if not all_ok:
+        print("")
+        print("[verify] ❌ Verification FAILED. Build aborted.")
+        print("[verify]    Fix the reported issues, or set G_SKIP_VERIFY=1 to bypass (hotfix only).")
+        raise SystemExit(1)
 
 
 # =======================================================
@@ -148,6 +242,11 @@ def sync_www():
 
 # =======================================================
 # [PRE-ACTION] buildfs / uploadfs 직전 실행 보장
+# -------------------------------------------------------
+# 시퀀스:
+#   1) 검증 (check_i18n / check_schema) — 실패 시 즉시 중단
+#   2) DST 클린
+#   3) SRC → DST 동기화 + gzip
 # =======================================================
 _has_run_sync = False
 
@@ -157,10 +256,15 @@ def run_www_sync(source=None, target=None, env=None):
         return
     _has_run_sync = True
 
+    # ---- [Phase 5.3] 1단계: 검증 ----
+    run_verification()
+
+    # ---- 2단계: DST 클린 ----
     print("[WWW] Clean start")
     clean_dst_www()
     print("[WWW] Clean done")
 
+    # ---- 3단계: Sync + Gzip ----
     print("[WWW] Sync+Gzip start")
     sync_www()
     print("[WWW] Sync+Gzip done")
