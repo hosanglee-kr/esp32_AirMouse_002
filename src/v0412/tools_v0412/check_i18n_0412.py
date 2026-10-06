@@ -16,6 +16,7 @@ from pathlib import Path
 # -------------------------------------------------------
 # 기본 경로 (프로젝트 루트 기준)
 # -------------------------------------------------------
+# tools_v0412/ → 상위가 v0412/ 이므로 parent.parent
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data_v0414_www" / "lib" / "am_i18n_0414.js"
 
 # 키 패턴: "quoted.key.name": "값"

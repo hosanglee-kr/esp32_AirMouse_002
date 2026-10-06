@@ -15,10 +15,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
-# -------------------------------------------------------
-# 파일 경로
-# -------------------------------------------------------
 H_DEF         = ROOT / "C10_Def_0412.h"
 JS_CONFIG     = ROOT / "data_v0414_www" / "lib" / "am_config_0414.js"
 JS_OFFLINE    = ROOT / "data_v0414_www" / "lib" / "am_offline_0414.js"
