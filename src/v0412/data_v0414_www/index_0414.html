@@ -33,7 +33,11 @@
         <span class="pm-sep">·</span>
         <span id="pStatBle">BLE</span>
       </div>
+      <!-- [C-4] 신규: NET / SAFE 배지 -->
+      <div class="pill pill-net" id="pillNet" title="Network Mode">NET: --</div>
+      <div class="pill pill-safe" id="pillSafe" title="Safe Boot">SAFE: OFF</div>
     </div>
+
   </header>
 
   <div class="top-banner" id="bannerReboot">
@@ -481,39 +485,71 @@
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input
             id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
       </div>
-
+      
+      
+      
+      
+      
       <h3 data-i18n="cfg.sec_power">6. 절전 및 전원 관리</h3>
       <div class="form two">
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle">1단계 절전 (초)</label><input id="pwrIdleSleepSec"
-            class="inp" type="number" min="0" max="3600" step="10" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">2단계 절전 (초)</label><input id="pwrDeepSleepSec"
-            class="inp" type="number" min="0" max="86400" step="60" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label><input
-            id="pwrWomThreshold" class="inp" type="number" min="5" max="150" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label><input
-            id="pwrWomDuration" class="inp" type="number" min="1" max="50" step="1" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fade">LED 감쇠 시간</label><input id="pwrLedFadeMs"
-            class="inp" type="number" min="100" max="3000" step="100" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wake_deb">깨어난 후 안정화</label><input
-            id="pwrWakeDebounceMs" class="inp" type="number" min="50" max="1000" step="50" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle_pc">모드 1 (PC) 대기 (초)</label>
+          <input id="pwrIdleSleepM1" class="inp" type="number" min="5" max="3600" step="10" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">딥슬립 대기 (초)</label>
+          <input id="pwrDeepSleepSec" class="inp" type="number" min="0" max="7200" step="30" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label>
+          <input id="pwrWomThreshold" class="inp" type="number" min="5" max="100" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label>
+          <input id="pwrWomDuration" class="inp" type="number" min="1" max="50" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fadeout">슬립 LED 페이드 (ms)</label>
+          <input id="pwrLedFadeoutMs" class="inp" type="number" min="0" max="1000" step="50" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wake_min">깨어난 후 최소 활성 (ms)</label>
+          <input id="pwrWakeMinActiveMs" class="inp" type="number" min="100" max="2000" step="50" /></div>
       </div>
-
+      <details class="adv-opts">
+        <summary data-i18n="cfg.adv_power">⚙ 절전 고급 설정</summary>
+        <div class="form two" style="margin-top:12px;">
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle_ppt">모드 2 (프레젠테이션) 대기 (초)</label>
+            <input id="pwrIdleSleepM2" class="inp" type="number" min="5" max="3600" step="10" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle_tv">모드 3 (스마트 TV) 대기 (초)</label>
+            <input id="pwrIdleSleepM3" class="inp" type="number" min="5" max="3600" step="10" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle_ble">BLE 연결 중 대기 (초)</label>
+            <input id="pwrIdleSleepBle" class="inp" type="number" min="60" max="3600" step="10" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_pairing">페어링 방치 대기 (초)</label>
+            <input id="pwrPairingIdleSec" class="inp" type="number" min="10" max="60" step="5" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_fastrecalib">슬립 복귀 자이로 보정 (ms)</label>
+            <input id="pwrFastRecalibMs" class="inp" type="number" min="100" max="1000" step="50" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fadein">복귀 LED 페이드인 (ms)</label>
+            <input id="pwrLedFadeinMs" class="inp" type="number" min="0" max="1000" step="50" /></div>
+        </div>
+      </details>
+      
       <h3 data-i18n="cfg.sec_buttons">7. 버튼 타이밍</h3>
       <div class="form two">
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스</label><input
-            id="btnDebouncePressMs" class="inp" type="number" min="5" max="100" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_rel">뗌 디바운스</label><input
-            id="btnDebounceReleaseMs" class="inp" type="number" min="5" max="100" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_click">단일 클릭 최대</label><input id="btnClickMs"
-            class="inp" type="number" min="50" max="1000" step="25" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_dblclick">더블클릭 간격</label><input
-            id="btnDblclickGapMs" class="inp" type="number" min="100" max="1000" step="50" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_long">롱프레스</label><input id="btnLongPressMs"
-            class="inp" type="number" min="200" max="3000" step="50" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_click">글리치 필터</label><input id="btnMinClickMs"
-            class="inp" type="number" min="0" max="100" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스 (ms)</label>
+          <input id="btnDebouncePressMs" class="inp" type="number" min="8" max="100" step="8" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_rel">뗌 디바운스 (ms)</label>
+          <input id="btnDebounceReleaseMs" class="inp" type="number" min="8" max="100" step="8" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_long">길게 누르기 (ms)</label>
+          <input id="btnLongDelayMs" class="inp" type="number" min="300" max="2000" step="50" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_dblclick">더블클릭 최대 간격 (ms)</label>
+          <input id="btnDoubleDelayMs" class="inp" type="number" min="150" max="800" step="10" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_click">글리치 필터 (ms)</label>
+          <input id="btnMinClickMs" class="inp" type="number" min="0" max="100" step="8" /></div>
       </div>
+      <details class="adv-opts">
+        <summary data-i18n="cfg.adv_button">⚙ 버튼 고급 설정</summary>
+        <div class="form two" style="margin-top:12px;">
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_hold2s">Pairing 임계 (ms)</label>
+            <input id="btnHold2sMs" class="inp" type="number" min="1000" max="5000" step="100" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_hold3s">Host Cycle 임계 (ms)</label>
+            <input id="btnHold3sMs" class="inp" type="number" min="2000" max="8000" step="100" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_ticks">디바운스 최소 틱</label>
+            <input id="btnDebounceMinTicks" class="inp" type="number" min="1" max="10" step="1" /></div>
+        </div>
+      </details>
 
+      
+      
       <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
       <div class="row preset-row">
         <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>
@@ -572,8 +608,18 @@
       <div class="row" id="diagCounters" style="flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
 
       <div class="sep"></div>
-      <div class="hint2" data-i18n="diag.recent_events">최근 이벤트 기록</div>
+      <div class="hint2" style="display:flex;align-items:center;gap:10px;">
+        <span data-i18n="diag.recent_events">최근 이벤트 기록</span>
+        <input class="inp mini" type="text" id="diagFilter"
+               placeholder="Filter (code)" style="flex:1;max-width:200px;"
+               data-i18n-placeholder="diag.filter_ph" />
+      </div>
       <div class="log" id="diagEvents" style="max-height:200px;"></div>
+      
+      <details class="adv-opts" style="margin-top:10px;">
+        <summary data-i18n="diag.raw_json">Raw JSON</summary>
+        <pre class="log" id="diagJson" style="margin-top:6px;max-height:200px;">-</pre>
+      </details>
 
       <div class="sep"></div>
       <h3 data-i18n="diag.key_test_title">입력 신호 테스트 (Key Test)</h3>

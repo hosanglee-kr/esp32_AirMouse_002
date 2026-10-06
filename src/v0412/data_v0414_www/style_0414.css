@@ -124,6 +124,17 @@
       align-items: center;
       gap: 4px;
     }
+    
+    .pill-net {
+      font-size: .7rem;
+      padding: 3px 8px;
+      transition: all .2s;
+    }
+    .pill-safe {
+      font-size: .7rem;
+      padding: 3px 8px;
+      transition: all .2s;
+    }
 
     .pm-sep {
       opacity: .5;
@@ -1417,6 +1428,47 @@
         transform: rotate(360deg);
       }
     }
+    
+    /* =======================================================
+       Advanced Options (계층 노출)
+       ======================================================= */
+    .adv-opts {
+      margin-top: 14px;
+      border-top: 1px dashed var(--border);
+      padding-top: 10px;
+    }
+    
+    .adv-opts > summary {
+      cursor: pointer;
+      font-size: .86rem;
+      font-weight: 600;
+      color: var(--primary);
+      padding: 6px 2px;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .adv-opts > summary::-webkit-details-marker { display: none; }
+    
+    .adv-opts > summary::before {
+      content: "▶";
+      font-size: .68em;
+      display: inline-block;
+      transition: transform .18s ease;
+      color: var(--primary);
+    }
+    
+    .adv-opts[open] > summary::before {
+      transform: rotate(90deg);
+    }
+    
+    .adv-opts > summary:hover {
+      color: var(--primary-hover);
+    }
+
 
     /* Mobile */
     @media (max-width:600px) {

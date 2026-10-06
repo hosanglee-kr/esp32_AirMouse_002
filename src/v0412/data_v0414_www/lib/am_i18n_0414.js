@@ -257,18 +257,33 @@ const I18N_DICT = {
     "cfg.lbl_snap_ratio": "축 우세 판정 비율",
     "cfg.lbl_snap_strength": "축 고정 강도",
     "cfg.lbl_snap_frames": "판정 유지 프레임",
-    "cfg.lbl_pwr_idle": "1단계 절전 대기 시간 (초)",
+
     "cfg.lbl_pwr_deep": "2단계 깊은 절전 (초)",
     "cfg.lbl_pwr_wom_th": "움직임 깨우기 감도 (WOM)",
     "cfg.lbl_pwr_wom_dur": "움직임 지속 시간 (ms)",
-    "cfg.lbl_pwr_led_fade": "LED 감쇠 시간 (ms)",
-    "cfg.lbl_pwr_wake_deb": "깨어난 후 안정화 (ms)",
+
     "cfg.lbl_btn_deb_press": "누름 디바운스 (ms)",
     "cfg.lbl_btn_deb_rel": "뗌 디바운스 (ms)",
     "cfg.lbl_btn_click": "단일 클릭 최대 시간 (ms)",
     "cfg.lbl_btn_dblclick": "두 번 클릭 최대 간격 (ms)",
     "cfg.lbl_btn_long": "길게 누르기 판정 시간 (ms)",
     "cfg.lbl_btn_min_click": "최소 유효 클릭 시간 (ms)",
+    
+    "cfg.adv_power": "⚙ 절전 고급 설정",
+    "cfg.adv_button": "⚙ 버튼 고급 설정",
+    "cfg.lbl_pwr_idle_pc": "모드 1 (PC) 대기 (초)",
+    "cfg.lbl_pwr_idle_ppt": "모드 2 (프레젠테이션) 대기 (초)",
+    "cfg.lbl_pwr_idle_tv": "모드 3 (스마트 TV) 대기 (초)",
+    "cfg.lbl_pwr_idle_ble": "BLE 연결 중 대기 (초)",
+    "cfg.lbl_pwr_pairing": "페어링 방치 대기 (초)",
+    "cfg.lbl_pwr_fastrecalib": "슬립 복귀 자이로 보정 (ms)",
+    "cfg.lbl_pwr_led_fadeout": "슬립 LED 페이드 (ms)",
+    "cfg.lbl_pwr_led_fadein": "복귀 LED 페이드인 (ms)",
+    "cfg.lbl_pwr_wake_min": "깨어난 후 최소 활성 (ms)",
+    "cfg.lbl_btn_hold2s": "Pairing 임계 (ms)",
+    "cfg.lbl_btn_hold3s": "Host Cycle 임계 (ms)",
+    "cfg.lbl_btn_min_ticks": "디바운스 최소 틱",
+
 
     "cfg.dpi_opt_1": "1단계: 정밀 작업용 (느림)",
     "cfg.dpi_opt_2": "2단계: 일반 사무 (권장)",
@@ -294,6 +309,8 @@ const I18N_DICT = {
     "diag.raw_json": "원시 JSON 보기",
     "diag.kt_kb": "키보드 키 (KB)",
     "diag.kt_consumer": "미디어 / 소비자 키 (Consumer)",
+    
+    "diag.filter_ph": "이벤트 코드 필터",
 
     "ota.title": "무선 펌웨어 업데이트 (OTA)",
     "ota.guard_label": "업데이트 보안 잠금 (OTA Guard)",
@@ -636,18 +653,33 @@ const I18N_DICT = {
     "cfg.lbl_snap_ratio": "Axis Dominance Ratio",
     "cfg.lbl_snap_strength": "Snap Correction Strength",
     "cfg.lbl_snap_frames": "Confirmation Frames",
-    "cfg.lbl_pwr_idle": "Stage 1 Sleep Timeout (s)",
+
     "cfg.lbl_pwr_deep": "Stage 2 Deep Sleep (s)",
     "cfg.lbl_pwr_wom_th": "Wake-On-Motion Sensitivity",
     "cfg.lbl_pwr_wom_dur": "Motion Duration (ms)",
-    "cfg.lbl_pwr_led_fade": "LED Fade Time (ms)",
-    "cfg.lbl_pwr_wake_deb": "Wake Stabilization (ms)",
+
     "cfg.lbl_btn_deb_press": "Press Debounce (ms)",
     "cfg.lbl_btn_deb_rel": "Release Debounce (ms)",
     "cfg.lbl_btn_click": "Single-Click Max Time (ms)",
     "cfg.lbl_btn_dblclick": "Double-Click Interval (ms)",
     "cfg.lbl_btn_long": "Long-Press Threshold (ms)",
     "cfg.lbl_btn_min_click": "Min Click Glitch Filter (ms)",
+    
+    "cfg.adv_power": "⚙ Advanced Power Settings",
+    "cfg.adv_button": "⚙ Advanced Button Settings",
+    "cfg.lbl_pwr_idle_pc": "Mode 1 (PC) Timeout (s)",
+    "cfg.lbl_pwr_idle_ppt": "Mode 2 (Presentation) Timeout (s)",
+    "cfg.lbl_pwr_idle_tv": "Mode 3 (Smart TV) Timeout (s)",
+    "cfg.lbl_pwr_idle_ble": "BLE-Connected Timeout (s)",
+    "cfg.lbl_pwr_pairing": "Pairing Idle Timeout (s)",
+    "cfg.lbl_pwr_fastrecalib": "Wake Gyro Fast Recalib (ms)",
+    "cfg.lbl_pwr_led_fadeout": "Sleep LED Fadeout (ms)",
+    "cfg.lbl_pwr_led_fadein": "Wake LED Fadein (ms)",
+    "cfg.lbl_pwr_wake_min": "Post-Wake Min Active (ms)",
+    "cfg.lbl_btn_hold2s": "Pairing Threshold (ms)",
+    "cfg.lbl_btn_hold3s": "Host Cycle Threshold (ms)",
+    "cfg.lbl_btn_min_ticks": "Debounce Min Ticks",
+
 
     "cfg.dpi_opt_1": "Level 1: Precision (Slow)",
     "cfg.dpi_opt_2": "Level 2: Standard (Recommended)",
@@ -673,6 +705,8 @@ const I18N_DICT = {
     "diag.raw_json": "View Raw JSON",
     "diag.kt_kb": "Keyboard (KB)",
     "diag.kt_consumer": "Media / Consumer",
+    
+    "diag.filter_ph": "Filter event code",
 
     "ota.title": "Firmware Update (OTA)",
     "ota.guard_label": "OTA Security Guard",

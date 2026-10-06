@@ -231,20 +231,27 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
     // [Phase 11.6 & 11.7] Power & Button
     // ====================================================
     power: {
-      idle_sleep_sec: 60,
-      deep_sleep_sec: 600,
+      idle_timeout_ms: [60000, 120000, 300000],
+      idle_timeout_ble_ms: 300000,
+      pairing_idle_timeout_ms: 30000,
+      deep_idle_timeout_ms: 600000,
+      wake_min_active_ms: 500,
       wom_threshold: 25,
-      wom_duration: 2,
-      led_fade_ms: 800,
-      wake_debounce_ms: 150
+      wom_duration: 4,
+      fast_recalib_ms: 300,
+      led_fadeout_ms: 500,
+      led_fadein_ms: 300
     },
+
     button: {
-      debounce_press_ms: 20,
-      debounce_release_ms: 30,
-      click_ms: 250,
-      dblclick_gap_ms: 300,
-      long_press_ms: 600,
-      min_click_ms: 30
+      debounce_press_ms: 32,
+      debounce_release_ms: 16,
+      long_delay_ms: 800,
+      double_delay_ms: 320,
+      hold_2s_ms: 2000,
+      hold_3s_ms: 3000,
+      min_click_ms: 16,
+      debounce_min_ticks: 3
     }
   },
 
@@ -353,7 +360,7 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
    오프라인 로컬 저장소 (스키마 버전 관리)
    ======================================================= */
 const OFFLINE_STORAGE_KEY = "airmouse_v0412_offline_store";
-const OFFLINE_STORE_SCHEMA = 5;   // 스키마 bump 시 +1 → 옛 데이터 자동 폐기
+const OFFLINE_STORE_SCHEMA = 6;   // [1.1] power/button 필드명 SPEC rev6 동기화로 bump
 let g_offlineStore = null;
 
 function loadOfflineStore() {
@@ -516,7 +523,12 @@ function handleOfflineApi(url, method, body) {
           ble_connected: false, ppt_active: false, active_mode: 1, battery_pct: 100,
           gate: { ota_guard: false }
         },
-        boot: { boot_count: 1, safe_mode: false, reboot_reason: "Offline Simulator" },
+        boot: {
+          safe_mode: false,
+          fail_count: 0,
+          pending: false,
+          last_reset_reason: 0
+        },
         config: {
           profile_idx: act, profile_name: actP.name,
           profile_count: g_offlineStore.profiles.length
@@ -576,12 +588,25 @@ function handleOfflineApi(url, method, body) {
     }
   }
   else if (path === "/api/safeboot") {
-    return {
-      ok: true, status: 200,
-      text: "오프라인 모드: SafeBoot 정보 시뮬레이션",
-      json: { ok: true, code: "safeboot", msg: "", data: { safe_mode: false, offline: true } }
-    };
+    if (method === "POST" && body && body.exit === true) {
+      // 오프라인에서는 재부팅 시뮬레이션 없이 캐시만 초기화
+      resObj.data = { exit: true, offline: true, note: "Offline: no actual reboot." };
+    } else {
+      resObj.data = { safe_mode: false, fail_count: 0, pending: false, offline: true };
+    }
   }
+  
+  else if (path === "/api/factory_reset") {
+    if (method === "POST") {
+      // [H-7] 언어/UI 상태는 유지, 오프라인 스토어만 리셋
+      try { localStorage.removeItem(OFFLINE_STORAGE_KEY); } catch (e) {}
+      // 재초기화
+      g_offlineStore = null;
+      loadOfflineStore();
+      resObj.data = { reset: true, offline: true };
+    }
+  }
+
   else if (path === "/api/reboot/check") {
     resObj.data = { required: false, mask: 0, reasons: "", allowed: false, deny_code: "no_reboot_needed" };
   }

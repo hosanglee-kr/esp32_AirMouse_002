@@ -61,8 +61,6 @@ async function refreshStatus() {
   // [N-6, N-16] reboot/check 백그라운드
   _updateRebootCheckAsync();
 
-  const el = qs("statusJson");
-  if (el) el.textContent = pretty(u);
 }
 
 /* =======================================================
@@ -464,40 +462,91 @@ async function handleTrouble(kind) {
         setMsg(t("pop.sleep_ok"), true);
         pushRecentLog("SLEEP_NOW", true);
         break;
-      case "safemode": {
-        const cfg = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile ? g_profile.config : null);
-        if (cfg && cfg.e10) {
-          cfg.e10.safe_mode = !cfg.e10.safe_mode;
-          if (typeof saveOfflineStore === "function") saveOfflineStore();
-          await apiPostJson("/api/control", { cmd: "set_safe_mode", enable: cfg.e10.safe_mode, snapshot: true });
-          setMsg(cfg.e10.safe_mode ? t("pop.safemode_on") : t("pop.safemode_off"), true);
-          pushRecentLog(`SAFE_MODE_${cfg.e10.safe_mode ? "ON" : "OFF"}`, true);
-          await refreshStatus();
-        }
-        break;
-      }
+        
       case "factory":
-        if (!confirm(t("pop.factory_confirm"))) return;
-        try { localStorage.clear(); } catch (e) { }
-        alert(t("pop.factory_ok"));
-        location.reload();
+        // [C-5, L-8] config 탭과 동일한 factoryReset()으로 위임
+        //   - 오프라인: /api/factory_reset mock → OFFLINE_STORAGE_KEY만 삭제
+        //   - 온라인: 실제 서버 초기화 + 재부팅 폴링
+        await factoryReset();
         break;
-      case "safeinfo": {
-        const cfg = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile ? g_profile.config : null);
-        alert(pretty({ safe_mode: !!(cfg && cfg.e10 && cfg.e10.safe_mode), offline: g_appMode === APP_MODE_OFFLINE }));
-        break;
-      }
-      case "safeexit": {
-        if (!confirm(t("pop.safeboot_exit_confirm"))) return;
-        const cfg = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile ? g_profile.config : null);
-        if (cfg && cfg.e10) {
-          cfg.e10.safe_mode = false;
-          if (typeof saveOfflineStore === "function") saveOfflineStore();
+
+      case "safemode": {
+        // [H-6, D-2=(B)] 서버 상태를 진실 공급원으로 사용
+        const v_current = !!(g_lastStatus
+          && g_lastStatus.groups
+          && g_lastStatus.groups.boot
+          && g_lastStatus.groups.boot.safe_mode);
+        const v_target = !v_current;
+      
+        const msg = v_target ? t("pop.safemode_enter_confirm") : t("pop.safemode_exit_confirm");
+        if (!confirm(msg)) return;
+      
+        const u = unwrapApi(await apiPostJson("/api/control", {
+          cmd: "set_safe_mode", enable: v_target, snapshot: true
+        }));
+        if (!u.ok) {
+          alert(`${t("pop.safemode_change_fail")} ${u.msg || u.code}`);
+          return;
         }
+        setMsg(v_target ? t("pop.safemode_on") : t("pop.safemode_off"), true);
+        pushRecentLog(`SAFE_MODE_${v_target ? "ON" : "OFF"}`, true);
+      
+        // 캐시 갱신은 다음 폴링(2.5s)에서 자동 반영. 즉시 반영 원하면 refreshStatus 호출.
         await refreshStatus();
-        pushRecentLog("SAFEBOOT_EXIT", true);
         break;
       }
+      
+      case "safeinfo": {
+        // [H-6] boot.safe_mode를 진실 공급원으로 사용
+        const v_safe = !!(g_lastStatus
+          && g_lastStatus.groups
+          && g_lastStatus.groups.boot
+          && g_lastStatus.groups.boot.safe_mode);
+        const v_fail = (g_lastStatus?.groups?.boot?.fail_count) ?? 0;
+        const v_pending = !!(g_lastStatus?.groups?.boot?.pending);
+      
+        alert(pretty({
+          safe_mode: v_safe,
+          fail_count: v_fail,
+          pending: v_pending,
+          net_mode: g_appMode,
+          note: "SafeMode is server-authoritative (boot_state)."
+        }));
+        break;
+      }
+      
+      case "safeexit": {
+        // [H-6, D-2=(B)] /api/safeboot exit 사용 (로컬 조작 금지)
+        if (!confirm(t("pop.safeboot_exit_confirm"))) return;
+      
+        const u = unwrapApi(await apiPostJson("/api/safeboot", { exit: true }));
+        if (!u.ok) {
+          alert(`${t("pop.safeboot_exit_fail")} ${u.msg || u.code}`);
+          return;
+        }
+        pushRecentLog("SAFEBOOT_EXIT", true);
+        // 서버가 재부팅함 → 폴링 대기
+        showLoading(t("pop.reboot_waiting"));
+        let v_tries = 0;
+        const v_timer = setInterval(async () => {
+          v_tries++;
+          try {
+            const r = await fetch("/api/status?compact=1", { cache: "no-store" });
+            if (r.ok) {
+              clearInterval(v_timer);
+              hideLoading();
+              location.reload();
+            }
+          } catch (e) { }
+          if (v_tries >= 15) {
+            clearInterval(v_timer);
+            hideLoading();
+            alert(t("pop.reboot_delay_warn"));
+          }
+        }, 1000);
+        break;
+      }
+
     }
   } catch (e) {
     setMsg(`${t("pop.trouble_fail")} ${e.message || e}`, false);

@@ -73,26 +73,47 @@ function configToUi(cfg) {
   if (qs("snapRatio")) qs("snapRatio").value = String(snap.ratio_enter ?? 4.0);
   if (qs("snapStrength")) qs("snapStrength").value = String(snap.strength ?? 0.85);
   if (qs("snapConfirmFrames")) qs("snapConfirmFrames").value = String(snap.confirm_frames ?? 3);
-
+  
+  
+  
   // ====================================================
-  // [Phase 11.6 & 11.7] Power & Button
+  // [Phase 11.6] Power (D-1: 계층 노출)
+  //   - 백엔드: idle_timeout_ms[3] 배열 + 나머지 개별 필드
+  //   - 프론트: 초 단위 노출, ms↔초 변환
   // ====================================================
   const pw = e.power || {};
-  if (qs("pwrIdleSleepSec")) qs("pwrIdleSleepSec").value = String(pw.idle_sleep_sec ?? 60);
-  if (qs("pwrDeepSleepSec")) qs("pwrDeepSleepSec").value = String(pw.deep_sleep_sec ?? 600);
+  const pIdleMs = Array.isArray(pw.idle_timeout_ms) ?
+    pw.idle_timeout_ms :
+    [60000, 120000, 300000];
+  
+  if (qs("pwrIdleSleepM1")) qs("pwrIdleSleepM1").value = String(Math.round((pIdleMs[0] ?? 60000) / 1000));
+  if (qs("pwrIdleSleepM2")) qs("pwrIdleSleepM2").value = String(Math.round((pIdleMs[1] ?? 120000) / 1000));
+  if (qs("pwrIdleSleepM3")) qs("pwrIdleSleepM3").value = String(Math.round((pIdleMs[2] ?? 300000) / 1000));
+  if (qs("pwrIdleSleepBle")) qs("pwrIdleSleepBle").value = String(Math.round((pw.idle_timeout_ble_ms ?? 300000) / 1000));
+  if (qs("pwrPairingIdleSec")) qs("pwrPairingIdleSec").value = String(Math.round((pw.pairing_idle_timeout_ms ?? 30000) / 1000));
+  
+  if (qs("pwrDeepSleepSec")) qs("pwrDeepSleepSec").value = String(Math.round((pw.deep_idle_timeout_ms ?? 600000) / 1000));
+  
+  if (qs("pwrWakeMinActiveMs")) qs("pwrWakeMinActiveMs").value = String(pw.wake_min_active_ms ?? 500);
   if (qs("pwrWomThreshold")) qs("pwrWomThreshold").value = String(pw.wom_threshold ?? 25);
-  if (qs("pwrWomDuration")) qs("pwrWomDuration").value = String(pw.wom_duration ?? 2);
-  if (qs("pwrLedFadeMs")) qs("pwrLedFadeMs").value = String(pw.led_fade_ms ?? 800);
-  if (qs("pwrWakeDebounceMs")) qs("pwrWakeDebounceMs").value = String(pw.wake_debounce_ms ?? 150);
-
+  if (qs("pwrWomDuration")) qs("pwrWomDuration").value = String(pw.wom_duration ?? 4);
+  if (qs("pwrFastRecalibMs")) qs("pwrFastRecalibMs").value = String(pw.fast_recalib_ms ?? 300);
+  if (qs("pwrLedFadeoutMs")) qs("pwrLedFadeoutMs").value = String(pw.led_fadeout_ms ?? 500);
+  if (qs("pwrLedFadeinMs")) qs("pwrLedFadeinMs").value = String(pw.led_fadein_ms ?? 300);
+  
+  // ====================================================
+  // [Phase 11.7] Button Timing (D-1: 계층 노출)
+  // ====================================================
   const bt = e.button || {};
-  if (qs("btnDebouncePressMs")) qs("btnDebouncePressMs").value = String(bt.debounce_press_ms ?? 20);
-  if (qs("btnDebounceReleaseMs")) qs("btnDebounceReleaseMs").value = String(bt.debounce_release_ms ?? 30);
-  if (qs("btnClickMs")) qs("btnClickMs").value = String(bt.click_ms ?? 250);
-  if (qs("btnDblclickGapMs")) qs("btnDblclickGapMs").value = String(bt.dblclick_gap_ms ?? 300);
-  if (qs("btnLongPressMs")) qs("btnLongPressMs").value = String(bt.long_press_ms ?? 600);
-  if (qs("btnMinClickMs")) qs("btnMinClickMs").value = String(bt.min_click_ms ?? 30);
-
+  if (qs("btnDebouncePressMs")) qs("btnDebouncePressMs").value = String(bt.debounce_press_ms ?? 32);
+  if (qs("btnDebounceReleaseMs")) qs("btnDebounceReleaseMs").value = String(bt.debounce_release_ms ?? 16);
+  if (qs("btnLongDelayMs")) qs("btnLongDelayMs").value = String(bt.long_delay_ms ?? 800);
+  if (qs("btnDoubleDelayMs")) qs("btnDoubleDelayMs").value = String(bt.double_delay_ms ?? 320);
+  if (qs("btnMinClickMs")) qs("btnMinClickMs").value = String(bt.min_click_ms ?? 16);
+  if (qs("btnHold2sMs")) qs("btnHold2sMs").value = String(bt.hold_2s_ms ?? 2000);
+  if (qs("btnHold3sMs")) qs("btnHold3sMs").value = String(bt.hold_3s_ms ?? 3000);
+  if (qs("btnDebounceMinTicks")) qs("btnDebounceMinTicks").value = String(bt.debounce_min_ticks ?? 3);
+  
   if (qs("cfgJsonArea")) qs("cfgJsonArea").value = pretty(cfg);
 }
 
@@ -169,23 +190,73 @@ function uiToConfig() {
   snap.confirm_frames = parseNum(qs("snapConfirmFrames")?.value, 3);
 
   // ====================================================
-  // [Phase 11.6 & 11.7] Power & Button
+  // [Phase 11.6] Power (D-1 = (C) 계층)
+  //   - 초 → ms 변환 후 저장
   // ====================================================
   e.power = e.power || {};
-  e.power.idle_sleep_sec = parseNum(qs("pwrIdleSleepSec")?.value, 60);
-  e.power.deep_sleep_sec = parseNum(qs("pwrDeepSleepSec")?.value, 600);
-  e.power.wom_threshold = parseNum(qs("pwrWomThreshold")?.value, 25);
-  e.power.wom_duration = parseNum(qs("pwrWomDuration")?.value, 2);
-  e.power.led_fade_ms = parseNum(qs("pwrLedFadeMs")?.value, 800);
-  e.power.wake_debounce_ms = parseNum(qs("pwrWakeDebounceMs")?.value, 150);
+  const pSec2Ms = (v, defSec) => Math.max(0, Math.round(parseNum(v, defSec) * 1000));
+  
+  e.power.idle_timeout_ms = [
+    pSec2Ms(qs("pwrIdleSleepM1")?.value, 60),
+    pSec2Ms(qs("pwrIdleSleepM2")?.value, 120),
+    pSec2Ms(qs("pwrIdleSleepM3")?.value, 300)
+  ];
+  e.power.idle_timeout_ble_ms = pSec2Ms(qs("pwrIdleSleepBle")?.value, 300);
+  e.power.pairing_idle_timeout_ms = pSec2Ms(qs("pwrPairingIdleSec")?.value, 30);
+  
+  const v_deepSec = parseNum(qs("pwrDeepSleepSec")?.value, 600);
+  // 0(비활성) 이거나 300~7200만 허용, 그 외는 가장 가까운 유효값으로 스냅
+  if (v_deepSec !== 0 && v_deepSec < 300) {
+    e.power.deep_idle_timeout_ms = 300 * 1000; // 자동 상향
+  } else if (v_deepSec > 7200) {
+    e.power.deep_idle_timeout_ms = 7200 * 1000; // 자동 하향
+  } else {
+    e.power.deep_idle_timeout_ms = v_deepSec * 1000;
+  }
 
+  e.power.wake_min_active_ms = parseNum(qs("pwrWakeMinActiveMs")?.value, 500);
+  e.power.wom_threshold = parseNum(qs("pwrWomThreshold")?.value, 25);
+  e.power.wom_duration = parseNum(qs("pwrWomDuration")?.value, 4);
+  e.power.fast_recalib_ms = parseNum(qs("pwrFastRecalibMs")?.value, 300);
+  e.power.led_fadeout_ms = parseNum(qs("pwrLedFadeoutMs")?.value, 500);
+  e.power.led_fadein_ms = parseNum(qs("pwrLedFadeinMs")?.value, 300);
+  
+  // 클라이언트 측 범위 클램프 (서버 validateE10과 정합)
+  const _pwClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  e.power.wake_min_active_ms = _pwClamp(e.power.wake_min_active_ms, 100, 2000);
+  e.power.wom_threshold = _pwClamp(e.power.wom_threshold, 5, 100);
+  e.power.wom_duration = _pwClamp(e.power.wom_duration, 1, 50);
+  e.power.fast_recalib_ms = _pwClamp(e.power.fast_recalib_ms, 100, 1000);
+  e.power.led_fadeout_ms = _pwClamp(e.power.led_fadeout_ms, 0, 1000);
+  e.power.led_fadein_ms = _pwClamp(e.power.led_fadein_ms, 0, 1000);
+  
+  // ====================================================
+  // [Phase 11.7] Button Timing (D-1 = (C) 계층)
+  // ====================================================
   e.button = e.button || {};
-  e.button.debounce_press_ms = parseNum(qs("btnDebouncePressMs")?.value, 20);
-  e.button.debounce_release_ms = parseNum(qs("btnDebounceReleaseMs")?.value, 30);
-  e.button.click_ms = parseNum(qs("btnClickMs")?.value, 250);
-  e.button.dblclick_gap_ms = parseNum(qs("btnDblclickGapMs")?.value, 300);
-  e.button.long_press_ms = parseNum(qs("btnLongPressMs")?.value, 600);
-  e.button.min_click_ms = parseNum(qs("btnMinClickMs")?.value, 30);
+  e.button.debounce_press_ms = parseNum(qs("btnDebouncePressMs")?.value, 32);
+  e.button.debounce_release_ms = parseNum(qs("btnDebounceReleaseMs")?.value, 16);
+  e.button.long_delay_ms = parseNum(qs("btnLongDelayMs")?.value, 800);
+  e.button.double_delay_ms = parseNum(qs("btnDoubleDelayMs")?.value, 320);
+  e.button.min_click_ms = parseNum(qs("btnMinClickMs")?.value, 16);
+  e.button.hold_2s_ms = parseNum(qs("btnHold2sMs")?.value, 2000);
+  e.button.hold_3s_ms = parseNum(qs("btnHold3sMs")?.value, 3000);
+  e.button.debounce_min_ticks = parseNum(qs("btnDebounceMinTicks")?.value, 3);
+  
+  // 서버 validateE10 강제 조건 클라이언트 선반영
+  // (1) debounce_press >= debounce_release
+  if (e.button.debounce_press_ms < e.button.debounce_release_ms) {
+    e.button.debounce_press_ms = e.button.debounce_release_ms;
+  }
+  // (2) hold_2s < hold_3s
+  if (e.button.hold_2s_ms >= e.button.hold_3s_ms) {
+    e.button.hold_3s_ms = e.button.hold_2s_ms + 1000;
+  }
+  // (3) 8ms 배수 정렬 (C20: 8ms tick)
+  const _align8 = (v) => Math.round(v / 8) * 8;
+  e.button.debounce_press_ms = Math.max(8, _align8(e.button.debounce_press_ms));
+  e.button.debounce_release_ms = Math.max(8, _align8(e.button.debounce_release_ms));
+  e.button.min_click_ms = _align8(e.button.min_click_ms);
 
   return cfg;
 }
@@ -387,11 +458,22 @@ async function factoryReset() {
 
   const hint = qs("factoryHint");
   if (hint) hint.textContent = t("pop.request_sending");
-
+  
   try {
-    const r = await fetch("/api/factory_reset", { method: "POST" });
-    const t_res = await r.text();
-
+    const raw = await fetch("/api/factory_reset", { method: "POST" });
+    const text = await raw.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) {}
+    
+    // [L-8] envelope 파싱: 실패 시 서버 코드/메시지 노출
+    const u = unwrapApi({ ok: raw.ok, status: raw.status, text, json });
+    if (!u.ok) {
+      if (hint) hint.textContent = `${t("pop.factory_reset_fail")} ${u.code || ""}`;
+      hideLoading();
+      alert(`${t("pop.factory_reset_fail")} ${u.msg || u.code || raw.status}`);
+      return;
+    }
+    
     if (hint) hint.textContent = t("pop.reboot_waiting");
     showLoading(t("pop.reboot_waiting"));
 

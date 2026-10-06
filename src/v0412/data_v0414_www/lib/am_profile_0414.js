@@ -142,27 +142,33 @@ async function profileRename() {
    트리거 라이브러리 & 키코드 로드
    ======================================================= */
 async function loadTriggers() {
-  /* 1) keycodes에 포함된 triggers 사용 */
+  /* 1) keycodes.triggers 최우선 (온라인/오프라인 모두 응답에 포함) */
   if (g_keycodes && Array.isArray(g_keycodes.triggers) && g_keycodes.triggers.length) {
     g_triggers = g_keycodes.triggers;
     return;
   }
-
-  /* 2) /api/triggers 별도 조회 */
+  
+  /* 2) 오프라인 모드: 상수 즉시 사용 (불필요한 mock 호출 회피) */
+  if (g_appMode === APP_MODE_OFFLINE && typeof G_OFFLINE_TRIGGERS !== "undefined") {
+    g_triggers = G_OFFLINE_TRIGGERS;
+    return;
+  }
+  
+  /* 3) 온라인 별도 조회 */
   const r = await apiGet("/api/triggers");
   const u = unwrapApi(r);
   if (u.ok && u.data && Array.isArray(u.data.triggers) && u.data.triggers.length) {
     g_triggers = u.data.triggers;
     return;
   }
-
-  /* 3) 최후 fallback */
-  if (typeof G_OFFLINE_TRIGGERS !== "undefined" && G_OFFLINE_TRIGGERS.length) {
-    console.warn("[loadTriggers] using offline fallback constant");
+  
+  /* 4) 최후 fallback */
+  if (typeof G_OFFLINE_TRIGGERS !== "undefined") {
+    console.warn("[loadTriggers] fallback constant");
     g_triggers = G_OFFLINE_TRIGGERS;
     return;
   }
-
+  
   g_triggers = [];
   console.error("[loadTriggers] no triggers available");
 }
@@ -261,7 +267,13 @@ function renderSlotEditor() {
     return;
   }
 
-  const triggers = g_triggers || [];
+  const triggers = (Array.isArray(g_triggers) && g_triggers.length) ?
+    g_triggers :
+    (g_keycodes && Array.isArray(g_keycodes.triggers) && g_keycodes.triggers.length) ?
+    g_keycodes.triggers :
+    (typeof G_OFFLINE_TRIGGERS !== "undefined" ? G_OFFLINE_TRIGGERS : []);
+    
+  
   const slotsArr = getSlotsArray() || [];
   const mask = getOverrideMask();
   const mi = viewToModeIdx(g_view);

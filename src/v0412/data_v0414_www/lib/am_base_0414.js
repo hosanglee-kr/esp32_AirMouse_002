@@ -87,11 +87,15 @@ function updateAppModeUi() {
   const pill = qs("pillNet");
   if (!pill) return;
   if (g_appMode === APP_MODE_OFFLINE) {
-    setPill(pill, "NET: OFFLINE", false);
-    pill.style.borderColor = "rgba(255, 170, 0, 0.6)";
-    pill.style.background = "rgba(255, 170, 0, 0.12)";
+    pill.textContent = "NET: OFFLINE";
+    pill.style.borderColor = "rgba(255,170,0,.6)";
+    pill.style.background = "rgba(255,170,0,.12)";
+    pill.style.color = "var(--warn)";
   } else {
-    setPill(pill, "NET: ONLINE", true);
+    pill.textContent = "NET: ONLINE";
+    pill.style.borderColor = "rgba(76,125,255,.5)";
+    pill.style.background = "rgba(76,125,255,.12)";
+    pill.style.color = "var(--primary)";
   }
 }
 

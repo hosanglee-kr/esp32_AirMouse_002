@@ -156,10 +156,7 @@ function bindSlotsAndConfig() {
     e.target.value = "";
     cfgImport(f);
   });
-  qs("btnCfgRollback")?.addEventListener("click", () => {
-    if (confirm(t("pop.cfg_rollback_confirm"))) cfgLoad();
-  });
-
+  
   /* Presets */
   qsa("[data-preset]").forEach(b => {
     b.addEventListener("click", () => applyMotionPreset(b.dataset.preset));
@@ -235,37 +232,51 @@ function bindUi() {
    6. Main Entry Point
    ======================================================= */
 async function main() {
-  /* 1. 오프라인 스토어 및 다국어 초기화 */
-  if (typeof loadOfflineStore === "function") loadOfflineStore();
-  if (typeof initI18n === "function") initI18n();
+    /* 1. 오프라인 스토어 및 다국어 초기화 */
+    if (typeof loadOfflineStore === "function") loadOfflineStore();
+    if (typeof initI18n === "function") initI18n();
+    
+    /* 2. 키코드 로드 (온라인: /api/keycodes, 오프라인: fallback) */
+    //   [C-1] loadKeycodes가 g_keycodes를 갱신 → 이후 loadTriggers가 여기서 파생
+    if (typeof loadKeycodes === "function") {
+      await loadKeycodes();
+    }
+    if (typeof G_OFFLINE_KEYCODES !== "undefined" && !g_keycodes) {
+      g_keycodes = G_OFFLINE_KEYCODES;
+    }
+    
+    /* 3. 트리거 라이브러리 로드 ([C-1] 누락 수정) */
+    if (typeof loadTriggers === "function") {
+      await loadTriggers();
+    } else if (typeof G_OFFLINE_TRIGGERS !== "undefined") {
+      g_triggers = G_OFFLINE_TRIGGERS;
+    }
+    
+    /* 4. 프로필 로드 */
+    await profileReloadAll();
+    
 
-  /* 2. 키코드 및 프로필 로드 */
-  if (typeof G_OFFLINE_KEYCODES !== "undefined" && !g_keycodes) {
-    g_keycodes = G_OFFLINE_KEYCODES;
-  }
-  await profileReloadAll();
-
-  /* 3. UI 및 인터랙션 바인딩 */
+  /* 5. UI 및 인터랙션 바인딩 */
   bindUi();
   initHybridJoystick();
 
-  /* 4. 에디터 및 설정 렌더 */
+  /* 6. 에디터 및 설정 렌더 */
   renderSlotEditor();
   macroRenderList();
   macroRenderEditor();
   await cfgLoad();
   if (typeof renderRecentLogs === "function") renderRecentLogs();
 
-  /* 5. 활성 모드에 맞게 가상 리모컨 초기 렌더 */
+  /* 7. 활성 모드에 맞게 가상 리모컨 초기 렌더 */
   const prof = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile?.config);
   const initMode = prof?.e10?.active_mode || 1;
   applyRemoteMode(initMode);
 
-  /* 6. 상태 폴링 및 넷 모드 표시 */
+  /* 8. 상태 폴링 및 넷 모드 표시 */
   _updateNetLabel();
   await refreshStatus();
 
-  /* 7. 백그라운드 주기적 폴링 (2.5초) */
+  /* 9. 백그라운드 주기적 폴링 (2.5초) */
   setInterval(async () => {
     try {
       await refreshStatus();
