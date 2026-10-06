@@ -1,0 +1,3179 @@
+모드 선택 카드를 제거하고, 가상 컨트롤러 내부 탭을 실제 모드 선택기로 통합했습니다. 탭에는 아이콘 + 모드명이 함께 표시되며, 클릭 시 실제 기기 모드가 전환됩니다(미리보기 개념 제거).
+
+```html
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Elite AirMouse WebConfig v0413 — Full Standalone</title>
+<style>
+:root{--bg-main:#0b0e14;--bg-card:#131722;--bg-sub:#1c2233;--bg-input:#10141e;
+--border:#232a3d;--border-focus:#4c7dff;--txt-main:#e2e8f0;--txt-muted:#828fa3;
+--txt-strong:#fff;--primary:#4c7dff;--primary-hover:#3b6ae8;--warn:#ffaa00;
+--danger:#ff4d4d;--success:#22c55e;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg-main);color:var(--txt-main);
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;
+font-size:14px;line-height:1.5;overflow-x:hidden;}
+
+/* Header */
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);
+border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.hamburger{width:40px;height:40px;border-radius:10px;background:var(--bg-sub);
+border:1px solid var(--border);color:var(--txt-strong);font-size:1.25rem;font-weight:700;
+cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+.hamburger:active{transform:scale(.94);background:#242c40;}
+.brand{display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--primary);flex:0 0 auto;}
+.title{font-weight:700;font-size:1rem;color:var(--txt-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sub{font-size:.72rem;color:var(--primary);background:rgba(76,125,255,.15);padding:2px 6px;border-radius:4px;flex:0 0 auto;}
+.right{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+.pill{padding:4px 10px;border-radius:20px;font-size:.74rem;font-weight:600;
+border:1px solid var(--border);background:rgba(255,255,255,.03);white-space:nowrap;
+display:inline-flex;align-items:center;gap:4px;}
+.pm-sep{opacity:.5;}
+
+/* Banner */
+.top-banner{display:none;align-items:center;gap:10px;background:rgba(255,170,0,.15);
+border-bottom:1px solid rgba(255,170,0,.4);padding:8px 16px;color:#ffc04d;font-size:.85rem;}
+.top-banner.on{display:flex;}
+.banner-ico{font-size:1.1rem;}
+.banner-text{flex:1;}
+
+/* Drawer */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);
+z-index:998;opacity:0;pointer-events:none;transition:opacity .22s;}
+.drawer-backdrop.on{opacity:1;pointer-events:auto;}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:min(320px,86vw);background:var(--bg-card);
+border-right:1px solid var(--border);z-index:999;transform:translateX(-100%);
+transition:transform .26s cubic-bezier(.22,.61,.36,1);display:flex;flex-direction:column;
+box-shadow:4px 0 32px rgba(0,0,0,.5);overflow-y:auto;}
+.drawer.on{transform:translateX(0);}
+.drawer-header{padding:14px 16px 10px;border-bottom:1px solid var(--border);
+display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--bg-card);z-index:2;}
+.drawer-header .brand{flex:1;}
+.drawer-close{width:34px;height:34px;border-radius:8px;background:var(--bg-sub);
+border:1px solid var(--border);color:var(--txt-muted);font-size:1.1rem;cursor:pointer;
+display:flex;align-items:center;justify-content:center;}
+.drawer-profile{padding:12px 16px;border-bottom:1px solid var(--border);background:#0f131c;}
+.drawer-profile .flbl{font-size:.78rem;color:var(--txt-muted);font-weight:600;margin-bottom:6px;display:block;}
+.drawer-profile .select{width:100%;}
+.drawer-profile-actions{display:flex;gap:6px;margin-top:8px;}
+.drawer-profile-actions .btn{flex:1;justify-content:center;font-size:.78rem;padding:7px 4px;}
+.drawer-nav{padding:8px;display:flex;flex-direction:column;gap:2px;}
+.drawer-item{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:10px;
+background:none;border:none;color:var(--txt-main);font-size:.92rem;font-weight:500;
+cursor:pointer;text-align:left;width:100%;transition:all .12s;}
+.drawer-item:active,.drawer-item:hover{background:var(--bg-sub);}
+.drawer-item.on{background:rgba(76,125,255,.14);color:#fff;font-weight:700;
+border-left:3px solid var(--primary);padding-left:11px;}
+.drawer-ico{font-size:1.15rem;flex:0 0 22px;text-align:center;}
+.drawer-divider{height:1px;background:var(--border);margin:8px 12px;}
+.drawer-lang{padding:10px 14px;display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--txt-muted);}
+.drawer-lang-label{flex:1;}
+.drawer-lang .btn{padding:6px 12px;font-size:.82rem;}
+
+/* Main */
+.wrap{max-width:1200px;margin:12px auto;padding:0 12px;}
+.tabpane{display:none;}
+.tabpane.on{display:block;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;}
+.sep{height:1px;background:var(--border);margin:16px 0;}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+h3{font-size:.95rem;font-weight:700;color:var(--txt-strong);margin-top:8px;}
+
+/* Buttons */
+.btn{background:var(--bg-sub);border:1px solid var(--border);color:var(--txt-main);
+padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:500;
+transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+.btn:hover{background:#242c40;border-color:#384566;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+.btn.primary:hover{background:var(--primary-hover);}
+.btn.warn{background:rgba(255,170,0,.15);border-color:rgba(255,170,0,.4);color:#ffbe33;}
+.btn.danger{background:rgba(255,77,77,.15);border-color:rgba(255,77,77,.4);color:#ff6666;}
+.btn.mini{padding:6px 11px;font-size:.8rem;}
+.btn.on{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+.select,.inp,.ta{padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);
+color:var(--txt-main);border-radius:8px;font-size:.88rem;outline:none;font-family:inherit;}
+.select.mini,.inp.mini{padding:5px 8px;font-size:.8rem;}
+.select:focus,.inp:focus,.ta:focus{border-color:var(--border-focus);}
+.ta{width:100%;height:140px;font-family:monospace;resize:vertical;}
+
+.hint{color:var(--txt-muted);font-size:.85rem;font-weight:500;}
+.hint2{color:var(--txt-muted);font-size:.78rem;margin:4px 0;}
+.msg{padding:6px 12px;border-radius:6px;border:1px solid transparent;font-size:.85rem;}
+
+/* Home */
+.home-flow{display:flex;flex-direction:column;gap:12px;}
+
+/* Virtual controller */
+.remote-center-container{display:flex;justify-content:center;align-items:center;width:100%;}
+.virtual-remote-card{background:#11151f;border:2px solid #232c42;border-radius:24px;
+padding:16px 16px 14px;box-shadow:0 12px 32px rgba(0,0,0,.5);
+display:flex;flex-direction:column;align-items:center;user-select:none;
+width:100%;max-width:440px;transition:border-color .3s;}
+.virtual-remote-card.mode-pc{border-color:rgba(76,125,255,.5);}
+.virtual-remote-card.mode-ppt{border-color:rgba(34,197,94,.5);}
+.virtual-remote-card.mode-tv{border-color:rgba(255,170,0,.5);}
+@keyframes remotePulse{
+0%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 0 rgba(76,125,255,.5);}
+60%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 16px rgba(76,125,255,0);}
+100%{box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 0 0 rgba(76,125,255,0);}
+}
+.virtual-remote-card.remote-flash{animation:remotePulse .6s ease-out;}
+.remote-head{width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.remote-head-left{display:flex;align-items:center;gap:8px;min-width:0;}
+.remote-title{font-size:.88rem;font-weight:700;color:#8fa0bd;white-space:nowrap;}
+.remote-mode-badge{font-size:.7rem;padding:3px 9px;border-radius:7px;font-weight:700;border:1px solid transparent;white-space:nowrap;}
+.virtual-remote-card.mode-pc .remote-mode-badge{background:rgba(76,125,255,.15);color:#4c7dff;border-color:rgba(76,125,255,.3);}
+.virtual-remote-card.mode-ppt .remote-mode-badge{background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3);}
+.virtual-remote-card.mode-tv .remote-mode-badge{background:rgba(255,170,0,.15);color:#ffaa00;border-color:rgba(255,170,0,.3);}
+.remote-fold-btn{background:none;border:1px solid var(--border);color:var(--txt-muted);
+cursor:pointer;padding:5px 10px;border-radius:6px;font-size:.78rem;flex:0 0 auto;}
+
+/* ===== Mode Selector Tabs (통합) ===== */
+.preview-tabs{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  padding:0;
+  margin-bottom:12px;
+}
+.preview-tab{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  padding:10px 4px;
+  min-height:70px;
+  border-radius:12px;
+  border:2px solid #2d3852;
+  background:#1c2333;
+  color:var(--txt-main);
+  font-size:.72rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .15s;
+  min-width:0;
+}
+.preview-tab:active{transform:scale(.96);}
+.pt-ico{font-size:1.35rem;line-height:1;}
+.pt-text{
+  font-size:.74rem;
+  font-weight:600;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+}
+.preview-tab.on{
+  border-color:var(--primary);
+  background:rgba(76,125,255,.18);
+  color:#fff;
+  box-shadow:0 0 0 2px rgba(76,125,255,.22);
+}
+.virtual-remote-card.mode-ppt .preview-tab.on{
+  border-color:#22c55e;
+  background:rgba(34,197,94,.18);
+  box-shadow:0 0 0 2px rgba(34,197,94,.22);
+}
+.virtual-remote-card.mode-tv .preview-tab.on{
+  border-color:#ffaa00;
+  background:rgba(255,170,0,.18);
+  box-shadow:0 0 0 2px rgba(255,170,0,.22);
+}
+
+.remote-collapsible-body{width:100%;display:flex;flex-direction:column;align-items:center;
+gap:12px;transition:all .25s ease-in-out;}
+.remote-collapsible-body.folded{display:none;}
+.remote-row{width:100%;display:flex;justify-content:space-around;gap:10px;}
+.btn-with-desc{display:flex;flex-direction:column;align-items:center;flex:1;gap:5px;min-width:0;}
+.btn-sub-lbl{font-size:.7rem;color:var(--txt-muted);white-space:nowrap;}
+.remote-btn{background:#1c2333;border:2px solid #2d3852;color:#dce4f0;border-radius:14px;
+padding:14px 12px;cursor:pointer;font-weight:700;font-size:.95rem;width:100%;
+text-align:center;min-height:48px;transition:all .15s;
+display:flex;align-items:center;justify-content:center;}
+.remote-btn:active{transform:scale(.95);}
+.virtual-remote-card.mode-pc .remote-btn:active{background:#4c7dff;border-color:#4c7dff;color:#fff;}
+.virtual-remote-card.mode-ppt .remote-btn:active{background:#22c55e;border-color:#22c55e;color:#fff;}
+.virtual-remote-card.mode-tv .remote-btn:active{background:#ffaa00;border-color:#ffaa00;color:#fff;}
+.hybrid-dpad-wrapper{display:flex;justify-content:center;align-items:center;padding:4px 0;touch-action:none;}
+.dpad-ring{position:relative;width:190px;height:190px;
+background:radial-gradient(circle,#1a2234 0%,#10141f 100%);border-radius:50%;
+border:2px solid #28334d;box-shadow:inset 0 2px 12px rgba(0,0,0,.6),0 6px 20px rgba(0,0,0,.35);
+user-select:none;flex:0 0 auto;}
+.ring-btn{position:absolute;background:none;border:none;color:#7f91b0;font-weight:800;
+font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+z-index:1;transition:all .15s;border-radius:8px;}
+.ring-btn:active{transform:scale(.9);background:rgba(255,255,255,.06);}
+.ring-up{top:6px;left:65px;width:60px;height:44px;}
+.ring-down{bottom:6px;left:65px;width:60px;height:44px;}
+.ring-left{top:65px;left:6px;width:44px;height:60px;}
+.ring-right{top:65px;right:6px;width:44px;height:60px;}
+.joy-stick-knob{position:absolute;top:50%;left:50%;width:76px;height:76px;
+margin-top:-38px;margin-left:-38px;
+background:radial-gradient(circle at 35% 35%,#2a344d 0%,#151b27 100%);
+border-radius:50%;border:2px solid #3c4a6b;
+box-shadow:0 6px 16px rgba(0,0,0,.55),inset 0 2px 6px rgba(255,255,255,.14);
+display:flex;justify-content:center;align-items:center;cursor:grab;z-index:2;
+touch-action:none;transition:transform .05s ease-out;}
+.joy-knob-text{font-size:.88rem;font-weight:800;color:#94a3b8;pointer-events:none;}
+.dpad-guide-hint{font-size:.72rem;color:var(--txt-muted);text-align:center;margin-top:-2px;line-height:1.45;padding:0 4px;}
+.remote-paddle-row{width:100%;display:flex;justify-content:space-between;gap:8px;}
+.paddle-col{display:flex;flex-direction:column;gap:6px;flex:1;align-items:center;min-width:0;}
+.mini-btn{font-size:.78rem;padding:10px 6px;border-radius:10px;min-width:0;width:100%;min-height:44px;}
+
+/* Collapsible */
+.collapsible-card{background:var(--bg-sub);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.collapsible-summary{padding:14px 16px;font-weight:700;font-size:.92rem;cursor:pointer;
+display:flex;justify-content:space-between;align-items:center;list-style:none;
+user-select:none;min-height:52px;gap:8px;}
+.collapsible-summary::-webkit-details-marker{display:none;}
+.collapsible-summary .summary-left{display:flex;align-items:center;gap:10px;min-width:0;}
+.collapsible-summary .summary-badge{font-size:.7rem;font-weight:700;padding:2px 8px;
+border-radius:6px;background:rgba(76,125,255,.15);color:#7fa5ff;
+border:1px solid rgba(76,125,255,.3);white-space:nowrap;}
+.fold-arrow{font-size:.75rem;color:var(--txt-muted);transition:transform .2s;flex:0 0 auto;}
+.collapsible-card[open] .fold-arrow{transform:rotate(180deg);}
+.collapsible-content{padding:14px 16px;border-top:1px solid var(--border);}
+
+/* Tool groups */
+.tool-group{margin-bottom:14px;}
+.tool-group:last-child{margin-bottom:0;}
+.tool-group-title{font-size:.78rem;font-weight:700;color:#8fa0bd;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+.tool-btns{display:flex;flex-wrap:wrap;gap:8px;}
+.tool-btn{background:#1c2333;border:1px solid #2d3852;color:#dce4f0;
+border-radius:10px;padding:10px 14px;font-size:.85rem;font-weight:600;
+cursor:pointer;min-height:44px;transition:all .12s;
+display:inline-flex;align-items:center;gap:6px;}
+.tool-btn:active{transform:scale(.95);background:rgba(76,125,255,.2);border-color:var(--primary);color:#fff;}
+.tool-btn.danger:active{background:rgba(255,77,77,.2);border-color:var(--danger);color:#fff;}
+.tool-btn.warn:active{background:rgba(255,170,0,.2);border-color:var(--warn);color:#fff;}
+.tool-ico{font-size:1rem;}
+
+/* KV / Log */
+.kv{display:flex;flex-direction:column;background:var(--bg-sub);padding:10px 14px;
+border-radius:8px;border:1px solid var(--border);min-width:130px;flex:1;}
+.kv .k{font-size:.74rem;color:var(--txt-muted);}
+.kv .v{font-weight:700;font-size:1rem;}
+.log{background:#0a0c12;border:1px solid var(--border);border-radius:8px;
+padding:10px;font-family:monospace;font-size:.78rem;color:#94a3b8;
+max-height:220px;overflow:auto;}
+.logline{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.02);}
+
+/* Tune / form */
+.tune-box{display:flex;flex-direction:column;gap:12px;}
+.tune-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.tune-group .hint{min-width:110px;}
+.btn-group{display:inline-flex;gap:6px;flex-wrap:wrap;}
+.form.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0;}
+.form.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:12px 0;}
+.frow{display:flex;flex-direction:column;gap:6px;}
+.flbl{font-weight:600;font-size:.88rem;color:#cbd5e1;}
+.fhelp{font-size:.75rem;color:var(--txt-muted);line-height:1.4;}
+.arr{display:flex;gap:8px;align-items:center;}
+
+/* Switch */
+.switch{position:relative;display:inline-block;width:36px;height:20px;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+background-color:var(--bg-sub);transition:.2s;border-radius:20px;border:1px solid var(--border);}
+.slider:before{position:absolute;content:"";height:14px;width:14px;left:2px;bottom:2px;
+background-color:#fff;transition:.2s;border-radius:50%;}
+input:checked + .slider{background-color:var(--primary);}
+input:checked + .slider:before{transform:translateX(16px);}
+
+/* Slots */
+.view-row{margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.view-tab{background:var(--bg-sub);border:1px solid var(--border);color:var(--txt-muted);
+padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;}
+.view-tab.on{background:rgba(76,125,255,.15);border-color:var(--primary);color:#fff;}
+.slot-editor-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.slot-editor{min-width:600px;}
+.trig-group-head{font-size:.9rem;font-weight:700;color:#93c5fd;padding:10px 0 4px;margin-top:10px;border-bottom:1px solid var(--border);}
+.trig-row{display:grid;grid-template-columns:200px 40px 1fr 60px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.trig-row.override{background:rgba(255,170,0,.04);}
+.trig-row.locked{opacity:.55;}
+.trig-row.disabled-by-mode{opacity:.4;}
+.trig-name{font-size:.82rem;font-weight:600;color:#cbd5e1;}
+.meta-sub{font-size:.7rem;color:var(--txt-muted);font-weight:400;margin-left:4px;}
+.trig-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:.7rem;font-weight:700;text-align:center;}
+.trig-badge.g{background:rgba(76,125,255,.15);color:var(--primary);}
+.trig-badge.m{background:rgba(255,170,0,.15);color:#ffbe33;}
+.action-editor{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
+.tilt-banner{padding:8px 12px;border-radius:6px;font-size:.78rem;margin:6px 0;}
+.tilt-banner.info{background:rgba(76,125,255,.12);color:#93c5fd;border:1px solid rgba(76,125,255,.3);}
+.tilt-banner.warn{background:rgba(255,170,0,.12);color:#ffbe33;border:1px solid rgba(255,170,0,.3);}
+
+/* Macros */
+.macro-layout{display:grid;grid-template-columns:200px 1fr;gap:12px;margin-top:10px;min-height:300px;}
+.macro-list{background:var(--bg-sub);border:1px solid var(--border);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:4px;}
+.macro-item{display:flex;align-items:center;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:.82rem;gap:8px;}
+.macro-item:hover{background:#263045;}
+.macro-item.on{background:rgba(76,125,255,.15);border:1px solid var(--primary);color:#fff;}
+.macro-item-idx{width:18px;font-weight:700;color:var(--txt-muted);}
+.macro-item-name{flex:1;font-weight:600;}
+.macro-item-steps{font-size:.7rem;color:var(--txt-muted);}
+.macro-editor{background:var(--bg-sub);border:1px solid var(--border);border-radius:8px;padding:12px;}
+.macro-editor-head{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.macro-steps{display:flex;flex-direction:column;gap:6px;}
+.macro-step{display:flex;align-items:center;gap:6px;background:var(--bg-card);padding:6px 10px;border-radius:6px;border:1px solid var(--border);flex-wrap:wrap;}
+.macro-step-idx{width:18px;font-weight:700;color:var(--primary);}
+.macro-step-params{display:flex;gap:5px;flex:1;align-items:center;flex-wrap:wrap;}
+.macro-step-delay{width:75px;}
+.macro-step-actions{display:flex;gap:4px;}
+
+/* Footer / Loading */
+.foot{text-align:center;color:var(--txt-muted);font-size:.75rem;padding:24px 0;}
+.loading-overlay{position:fixed;inset:0;background:rgba(11,14,20,.75);display:none;justify-content:center;align-items:center;z-index:9999;}
+.loading-overlay.on{display:flex;}
+.loading-box{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:22px 30px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+.spinner{width:32px;height:32px;border:3px solid rgba(76,125,255,.2);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Mobile */
+@media (max-width:600px){
+body{font-size:13px;}
+.wrap{margin:10px auto;padding:0 10px;}
+.card{padding:12px;border-radius:14px;}
+.top{padding:8px 10px;gap:6px;}
+.title{font-size:.92rem;}
+.sub{font-size:.66rem;padding:1px 5px;}
+.pill{padding:4px 9px;font-size:.72rem;}
+.virtual-remote-card{padding:14px 12px;border-radius:22px;max-width:100%;}
+.dpad-ring{width:180px;height:180px;}
+.ring-up,.ring-down{left:60px;width:60px;height:44px;}
+.ring-left,.ring-right{top:60px;width:44px;height:60px;}
+.joy-stick-knob{width:74px;height:74px;margin-top:-37px;margin-left:-37px;}
+.remote-btn{min-height:52px;font-size:.98rem;padding:14px 10px;}
+.mini-btn{min-height:46px;font-size:.78rem;}
+.tool-btns{gap:6px;}
+.tool-btn{flex:1 1 calc(50% - 3px);justify-content:center;font-size:.82rem;padding:10px 8px;}
+.form.two,.form.three{grid-template-columns:1fr;gap:12px;}
+.tune-group{flex-direction:column;align-items:flex-start;gap:6px;}
+.tune-group .hint{min-width:auto;}
+.btn-group{width:100%;display:flex;}
+.btn-group .btn{flex:1;text-align:center;min-height:40px;}
+.macro-layout{grid-template-columns:1fr;gap:10px;}
+.macro-list{max-height:140px;overflow-y:auto;}
+.preview-tab{min-height:66px;padding:8px 4px;}
+.pt-ico{font-size:1.3rem;}
+.pt-text{font-size:.72rem;}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <button class="hamburger" id="btnMenu" aria-label="메뉴">☰</button>
+  <div class="brand">
+    <div class="dot"></div>
+    <div class="title">Elite AirMouse</div>
+    <div class="sub">v0413</div>
+  </div>
+  <div class="right">
+    <div class="pill" id="pillStatus" title="프로필 · 배터리 · BLE">
+      <span id="pStatProf">#0</span>
+      <span class="pm-sep">·</span>
+      <span id="pStatBat">--%</span>
+      <span class="pm-sep">·</span>
+      <span id="pStatBle">BLE</span>
+    </div>
+  </div>
+</header>
+
+<div class="top-banner" id="bannerReboot">
+  <span class="banner-ico">⚠</span>
+  <span class="banner-text"><span data-i18n="top.reboot_needed">다시 시작 필요:</span> <b id="bannerRebootReason">-</b></span>
+  <button class="btn mini warn" id="btnBannerReboot" data-i18n="top.reboot_now">지금 다시 시작</button>
+  <button class="btn mini" id="btnBannerClose">×</button>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer" role="navigation">
+  <div class="drawer-header">
+    <div class="dot"></div>
+    <div class="brand">
+      <div class="title">Elite AirMouse</div>
+      <div class="sub">v0413</div>
+    </div>
+    <button class="drawer-close" id="btnDrawerClose" aria-label="닫기">✕</button>
+  </div>
+
+  <div class="drawer-profile">
+    <span class="flbl" data-i18n="prof.label">프로필</span>
+    <select class="select" id="profSelect"></select>
+    <div class="drawer-profile-actions">
+      <button class="btn mini" id="btnProfCreate" data-i18n="prof.new">+ 새로</button>
+      <button class="btn mini" id="btnProfRename" data-i18n="prof.rename">이름</button>
+      <button class="btn mini danger" id="btnProfDelete" data-i18n="prof.delete">삭제</button>
+    </div>
+  </div>
+
+  <nav class="drawer-nav">
+    <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span data-i18n="tab.dash">홈</span></button>
+    <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작 할당</span></button>
+    <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로 관리</span></button>
+    <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및 센서 설정</span></button>
+    <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력 테스트</span></button>
+    <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선 업데이트</span></button>
+  </nav>
+
+  <div class="drawer-divider"></div>
+
+  <nav class="drawer-nav">
+    <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span data-i18n="top.refresh">새로 고침</span></button>
+    <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시 시작</span></button>
+    <button class="drawer-item" id="btnDrawerNetToggle"><span class="drawer-ico">🌐</span><span id="drawerNetLabel">NET: ONLINE</span></button>
+  </nav>
+
+  <div class="drawer-divider"></div>
+
+  <div class="drawer-lang">
+    <span class="drawer-ico">🌐</span>
+    <span class="drawer-lang-label" data-i18n="top.language">언어</span>
+    <button class="btn mini" data-lang="ko">KO</button>
+    <button class="btn mini" data-lang="en">EN</button>
+  </div>
+</aside>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText" data-i18n="loading.processing">처리 중…</div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ HOME ============ -->
+  <section class="card tabpane on" id="tab-dash">
+    <div class="home-flow">
+
+      <div class="remote-center-container">
+        <div class="virtual-remote-card mode-pc" id="remoteCard">
+          <div class="remote-head">
+            <div class="remote-head-left">
+              <span class="remote-title" data-i18n="remote.title">가상 컨트롤러</span>
+              <span class="remote-mode-badge" id="remoteActiveModeBadge">모드 1: PC</span>
+            </div>
+            <button class="remote-fold-btn" id="btnToggleRemoteFold">접기 ▲</button>
+          </div>
+
+          <!-- ===== 통합 모드 선택 탭 ===== -->
+          <div class="preview-tabs" role="tablist">
+            <button class="preview-tab on" data-mode="1" title="모드 1 (PC)">
+              <span class="pt-ico">🖱️</span>
+              <span class="pt-text" data-i18n="dash.mode_tab_1">모드 1</span>
+            </button>
+            <button class="preview-tab" data-mode="2" title="모드 2 (발표)">
+              <span class="pt-ico">🎤</span>
+              <span class="pt-text" data-i18n="dash.mode_tab_2">모드 2</span>
+            </button>
+            <button class="preview-tab" data-mode="3" title="모드 3 (TV)">
+              <span class="pt-ico">📺</span>
+              <span class="pt-text" data-i18n="dash.mode_tab_3">모드 3</span>
+            </button>
+          </div>
+
+          <div class="remote-collapsible-body" id="remoteCollapseBody">
+            <div class="remote-row">
+              <div class="btn-with-desc">
+                <button class="remote-btn" id="rbtnTop1">Win</button>
+                <span class="btn-sub-lbl" id="lblTop1">시작메뉴</span>
+              </div>
+              <div class="btn-with-desc">
+                <button class="remote-btn" id="rbtnTop2">🔇</button>
+                <span class="btn-sub-lbl" id="lblTop2">음소거</span>
+              </div>
+            </div>
+            <div class="hybrid-dpad-wrapper">
+              <div class="dpad-ring" id="dpadRing">
+                <button class="ring-btn ring-up"    id="rbtnRingUp">▲</button>
+                <button class="ring-btn ring-down"  id="rbtnRingDown">▼</button>
+                <button class="ring-btn ring-left"  id="rbtnRingLeft">◀</button>
+                <button class="ring-btn ring-right" id="rbtnRingRight">▶</button>
+                <div class="joy-stick-knob" id="joyStickKnob">
+                  <span class="joy-knob-text" id="joyKnobText">Enter</span>
+                </div>
+              </div>
+            </div>
+            <div class="dpad-guide-hint" id="dpadGuideHint">-</div>
+            <div class="remote-row">
+              <div class="btn-with-desc">
+                <button class="remote-btn" id="rbtnSub1">ESC</button>
+                <span class="btn-sub-lbl" id="lblSub1">취소</span>
+              </div>
+              <div class="btn-with-desc">
+                <button class="remote-btn" id="rbtnSub2">캡처</button>
+                <span class="btn-sub-lbl" id="lblSub2">화면캡처</span>
+              </div>
+            </div>
+            <div class="remote-paddle-row">
+              <div class="paddle-col">
+                <button class="remote-btn mini-btn" id="rbtnPad1Up">VOL +</button>
+                <button class="remote-btn mini-btn" id="rbtnPad1Down">VOL -</button>
+                <span class="btn-sub-lbl">볼륨 제어</span>
+              </div>
+              <div class="paddle-col">
+                <button class="remote-btn mini-btn" id="rbtnPad2Up">▶⏸</button>
+                <button class="remote-btn mini-btn" id="rbtnPad2Down">정지</button>
+                <span class="btn-sub-lbl">재생 제어</span>
+              </div>
+              <div class="paddle-col">
+                <button class="remote-btn mini-btn" id="rbtnPad3Up">PgUp</button>
+                <button class="remote-btn mini-btn" id="rbtnPad3Down">PgDn</button>
+                <span class="btn-sub-lbl" id="lblPad3">탐색 제어</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <details class="collapsible-card" id="modeToolsCard">
+        <summary class="collapsible-summary">
+          <span class="summary-left">
+            <span class="drawer-ico" id="modeToolsIco">🧰</span>
+            <span data-i18n="tools.title">모드별 추가 도구</span>
+            <span class="summary-badge" id="modeToolsBadge">PC</span>
+          </span>
+          <span class="fold-arrow">▼</span>
+        </summary>
+        <div class="collapsible-content"><div id="modeToolsBody"></div></div>
+      </details>
+
+      <details class="collapsible-card" id="troubleCard">
+        <summary class="collapsible-summary">
+          <span class="summary-left">
+            <span class="drawer-ico">🛠️</span>
+            <span data-i18n="trouble.title">문제 해결 도구</span>
+          </span>
+          <span class="fold-arrow">▼</span>
+        </summary>
+        <div class="collapsible-content">
+          <div class="tool-group">
+            <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
+            <div class="tool-btns">
+              <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span data-i18n="trouble.calib">영점 맞추기</span></button>
+              <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span data-i18n="trouble.release">눌린 키 강제 해제</span></button>
+            </div>
+          </div>
+          <div class="tool-group">
+            <div class="tool-group-title" data-i18n="trouble.conn">연결</div>
+            <div class="tool-btns">
+              <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span data-i18n="trouble.host">호스트 순환</span></button>
+              <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span data-i18n="trouble.pair">페어링 모드</span></button>
+              <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span data-i18n="trouble.i2c">센서 연결 초기화</span></button>
+            </div>
+          </div>
+          <div class="tool-group">
+            <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
+            <div class="tool-btns">
+              <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span data-i18n="trouble.sleep">지금 절전 모드</span></button>
+              <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span data-i18n="trouble.safemode">안전 모드 토글</span></button>
+              <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span data-i18n="trouble.factory">공장 초기화</span></button>
+            </div>
+          </div>
+          <div class="tool-group">
+            <div class="tool-group-title" data-i18n="trouble.safeboot">세이프부트</div>
+            <div class="tool-btns">
+              <button class="tool-btn" data-trouble="safeinfo"><span class="tool-ico">ℹ️</span><span data-i18n="trouble.safeinfo">안전 부팅 상태</span></button>
+              <button class="tool-btn warn" data-trouble="safeexit"><span class="tool-ico">🔓</span><span data-i18n="trouble.safeexit">안전 부팅 해제</span></button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+    </div>
+  </section>
+
+  <!-- ============ SLOTS ============ -->
+  <section class="card tabpane" id="tab-slots">
+    <h2 data-i18n="slots.title">버튼 및 동작 맞춤 할당</h2>
+    <div class="hint2" data-i18n="slots.hint">27가지 조작 동작에 원하는 키나 기능을 지정함. [기본 공통]은 모든 모드 기본값, 모드별 오버라이드 가능.</div>
+
+    <div class="row view-row">
+      <div class="btn-group view-group">
+        <button class="view-tab on" data-view="global" data-i18n="slots.view_global">기본 공통</button>
+        <button class="view-tab"    data-view="mode1"  data-i18n="slots.view_mode1">모드 1: PC</button>
+        <button class="view-tab"    data-view="mode2"  data-i18n="slots.view_mode2">모드 2: 발표</button>
+        <button class="view-tab"    data-view="mode3"  data-i18n="slots.view_mode3">모드 3: TV</button>
+      </div>
+      <div class="slots-actions">
+        <button class="btn mini" id="btnSlotReload" data-i18n="slots.reload">다시 불러오기</button>
+        <button class="btn mini primary" id="btnSlotSave" data-i18n="slots.save">저장</button>
+      </div>
+    </div>
+
+    <div class="slot-editor-scroll">
+      <div class="slot-editor" id="slotEditor"><div class="hint2">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- ============ MACROS ============ -->
+  <section class="card tabpane" id="tab-macros">
+    <h2 data-i18n="macros.title">연속 동작 매크로 관리</h2>
+    <div class="hint2" data-i18n="macros.hint">버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.</div>
+
+    <div class="row">
+      <button class="btn primary mini" id="btnMacroAdd" data-i18n="macros.add">+ 새 매크로</button>
+      <button class="btn mini" id="btnMacroSave" data-i18n="macros.save">매크로 저장</button>
+      <button class="btn mini" id="btnMacroReload" data-i18n="macros.reload">다시 불러오기</button>
+      <span style="margin-left:auto"></span>
+      <div class="hint2" id="macroCountLabel">0 / 8</div>
+    </div>
+
+    <div class="macro-layout">
+      <div class="macro-list" id="macroList"><div class="hint2">Loading…</div></div>
+      <div class="macro-editor" id="macroEditor"><div class="hint2" data-i18n="macros.select_hint">왼쪽 목록에서 매크로를 선택하십시오.</div></div>
+    </div>
+  </section>
+
+  <!-- ============ CONFIG ============ -->
+  <section class="card tabpane" id="tab-config">
+    <h2 data-i18n="cfg.title">포인터 및 센서 세부 설정</h2>
+    <div class="hint2" data-i18n="cfg.hint">현재 선택된 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정함.</div>
+
+    <div class="row config-top-btns">
+      <button class="btn mini" id="btnCfgLoad" data-i18n="cfg.reload">다시 불러오기</button>
+      <button class="btn mini primary" id="btnCfgSave" data-i18n="cfg.save">설정 저장</button>
+      <button class="btn mini" id="btnCfgExport" data-i18n="cfg.export">백업 내보내기</button>
+      <label class="btn mini filebtn">
+        <span data-i18n="cfg.import">백업 가져오기</span>
+        <input type="file" id="cfgImportFile" accept=".json,application/json" style="display:none" />
+      </label>
+    </div>
+
+    <div class="sep"></div>
+    <h3 data-i18n="dash.quick_tune">포인터 빠른 조정</h3>
+    <div class="hint2" data-i18n="dash.quick_tune_hint">즉시 적용 (기기 재시작 전까지 유지)</div>
+    <div class="tune-box" style="margin-top:10px;">
+      <div class="tune-group">
+        <span class="hint" data-i18n="dash.dpi_label">포인터 속도:</span>
+        <div class="btn-group">
+          <button class="btn mini" id="btnDpi1" data-i18n="dash.dpi_1">1단계</button>
+          <button class="btn mini" id="btnDpi2" data-i18n="dash.dpi_2">2단계</button>
+          <button class="btn mini" id="btnDpi3" data-i18n="dash.dpi_3">3단계</button>
+        </div>
+      </div>
+      <div class="tune-group">
+        <span class="hint" data-i18n="dash.prec_label">포인터 정확도:</span>
+        <div class="btn-group">
+          <button class="btn mini" id="btnPrec0" data-i18n="dash.prec_off">끔</button>
+          <button class="btn mini" id="btnPrec1" data-i18n="dash.prec_low">낮음</button>
+          <button class="btn mini" id="btnPrec2" data-i18n="dash.prec_med">보통</button>
+          <button class="btn mini" id="btnPrec3" data-i18n="dash.prec_high">높음</button>
+          <button class="btn mini" id="btnPrec4" data-i18n="dash.prec_ppt">발표용</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <h3 data-i18n="cfg.sec_motion_core">1. 기본 포인터 속도 및 감도</h3>
+    <div class="form two">
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_dpi">기본 포인터 속도</label>
+        <select id="e10Dpi" class="select">
+          <option value="1">1단계 (느림)</option>
+          <option value="2" selected>2단계 (보통 · 권장)</option>
+          <option value="3">3단계 (빠름)</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_hard_click">클릭 중 포인터 잠금</label>
+        <select id="e10HardClick" class="select">
+          <option value="true">사용</option>
+          <option value="false">사용 안 함</option>
+        </select>
+      </div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness" class="inp" type="number" min="0" max="255" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold" class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp" class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_motion_modes">2. 모드별 포인터 이동 특성</h3>
+    <div class="form three">
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_sb">모드별 기본 속도 비율</label>
+        <div class="arr"><input id="sb0" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb1" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb2" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /></div>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_ag">모드별 가속 증가량</label>
+        <div class="arr"><input id="ag0" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag1" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag2" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /></div>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_wheel">휠 스크롤 민감도</label>
+        <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_flick">휘두르기 제스처 감도</label>
+        <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
+      </div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_click_freeze">3. 클릭 프리즈 (Motion Advanced)</h3>
+    <div class="form two">
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_cf_enable">클릭 순간 동결</label>
+        <select id="cfEnable" class="select">
+          <option value="true">사용</option>
+          <option value="false">사용 안 함</option>
+        </select>
+      </div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_gyro">정지 판단 회전 속도</label><input id="cfGyroTh" class="inp" type="number" step="0.5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_max">최대 동결 시간</label><input id="cfMaxMs" class="inp" type="number" step="10" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_hold">뗀 후 동결 유지</label><input id="cfHoldMs" class="inp" type="number" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_fadeout">복귀 시간</label><input id="cfFadeoutMs" class="inp" type="number" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_move">강제 해제 이동 (px)</label><input id="cfMoveTh" class="inp" type="number" step="0.5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_freeze_move">의도적 이동 판단</label><input id="cfFreezeMoveTh" class="inp" type="number" step="1" /></div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_ema">4. 적응형 손떨림 (Adaptive EMA)</h3>
+    <div class="form two">
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_min">Alpha Min</label><input id="emaAlphaMin" class="inp" type="number" step="0.01" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_max">Alpha Max</label><input id="emaAlphaMax" class="inp" type="number" step="0.01" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_deadzone">손떨림 흡수 기준</label><input id="emaDeadzoneTh" class="inp" type="number" step="0.5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_fast">고속 추종 전환</label><input id="emaFastTh" class="inp" type="number" step="1" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_reversal">방향 전환 감지</label><input id="emaReversalTh" class="inp" type="number" step="0.5" /></div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_ema_rev_reset">방향 전환 리셋</label>
+        <select id="emaReversalReset" class="select">
+          <option value="true">사용</option>
+          <option value="false">사용 안 함</option>
+        </select>
+      </div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_snap">5. 직선 보정 (Snap-to-Axis)</h3>
+    <div class="form two">
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_snap_enable">직선 스냅</label>
+        <select id="snapEnable" class="select">
+          <option value="true">사용</option>
+          <option value="false">사용 안 함</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_snap_modes">적용 모드</label>
+        <div class="arr" style="gap:14px;">
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode1" /><span>1</span></label>
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode2" /><span>2</span></label>
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode3" /><span>3</span></label>
+        </div>
+      </div>
+      <div class="frow">
+        <label class="flbl" data-i18n="cfg.lbl_snap_axis">스냅 방향</label>
+        <select id="snapAxisMode" class="select">
+          <option value="0">가로/세로</option>
+          <option value="1">가로만</option>
+          <option value="2">세로만</option>
+        </select>
+      </div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_ratio">기울기 비율</label><input id="snapRatio" class="inp" type="number" step="0.5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_strength">고정 강도</label><input id="snapStrength" class="inp" type="number" step="0.01" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_power">6. 절전 및 전원 관리</h3>
+    <div class="form two">
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle">1단계 절전 (초)</label><input id="pwrIdleSleepSec" class="inp" type="number" min="0" max="3600" step="10" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">2단계 절전 (초)</label><input id="pwrDeepSleepSec" class="inp" type="number" min="0" max="86400" step="60" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label><input id="pwrWomThreshold" class="inp" type="number" min="5" max="150" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label><input id="pwrWomDuration" class="inp" type="number" min="1" max="50" step="1" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_led_fade">LED 감쇠 시간</label><input id="pwrLedFadeMs" class="inp" type="number" min="100" max="3000" step="100" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wake_deb">깨어난 후 안정화</label><input id="pwrWakeDebounceMs" class="inp" type="number" min="50" max="1000" step="50" /></div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_buttons">7. 버튼 타이밍</h3>
+    <div class="form two">
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스</label><input id="btnDebouncePressMs" class="inp" type="number" min="5" max="100" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_rel">뗌 디바운스</label><input id="btnDebounceReleaseMs" class="inp" type="number" min="5" max="100" step="5" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_click">단일 클릭 최대</label><input id="btnClickMs" class="inp" type="number" min="50" max="1000" step="25" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_dblclick">더블클릭 간격</label><input id="btnDblclickGapMs" class="inp" type="number" min="100" max="1000" step="50" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_long">롱프레스</label><input id="btnLongPressMs" class="inp" type="number" min="200" max="3000" step="50" /></div>
+      <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_min_click">글리치 필터</label><input id="btnMinClickMs" class="inp" type="number" min="0" max="100" step="5" /></div>
+    </div>
+
+    <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
+    <div class="row preset-row">
+      <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>
+      <button class="btn mini primary" id="btnPresetPPT" data-i18n="cfg.preset_ppt">발표 (PPT)</button>
+      <button class="btn mini" id="btnPresetTV" data-i18n="cfg.preset_tv">스마트 TV</button>
+      <button class="btn mini" id="btnPresetGaming" data-i18n="cfg.preset_gaming">게임</button>
+      <button class="btn mini" id="btnPresetPrecision" data-i18n="cfg.preset_precision">정밀 작업</button>
+    </div>
+    <div class="hint2" id="presetHint" data-i18n="cfg.preset_hint">프리셋 선택 시 프로필에 권장 설정 즉시 반영됨.</div>
+
+    <div class="sep"></div>
+    <h3 style="color:var(--danger)" data-i18n="cfg.factory_title">기기 초기화</h3>
+    <div class="row">
+      <button class="btn danger mini" id="btnFactory" data-i18n="dash.factory_reset">공장 초기화</button>
+      <span class="hint2" id="factoryHint" data-i18n="cfg.factory_hint">모든 프로필과 설정이 지워집니다.</span>
+    </div>
+
+    <div class="sep"></div>
+    <h3>Config JSON (raw)</h3>
+    <textarea class="ta" id="cfgJsonArea" spellcheck="false" readonly></textarea>
+    <div class="row"><div class="msg" id="cfgMsg">-</div></div>
+  </section>
+
+  <!-- ============ DIAG ============ -->
+  <section class="card tabpane" id="tab-diag">
+    <h2 data-i18n="diag.title">진단 및 입력 테스트</h2>
+
+    <h3 style="margin-top:14px;">시스템 현황</h3>
+    <div class="row">
+      <div class="kv"><div class="k" data-i18n="dash.uptime">동작 시간</div><div class="v" id="stUptime">-</div></div>
+      <div class="kv"><div class="k" data-i18n="dash.heap">여유 메모리</div><div class="v" id="stHeap">-</div></div>
+      <div class="kv"><div class="k" data-i18n="dash.wifi">와이파이</div><div class="v" id="stWiFi">-</div></div>
+      <div class="kv"><div class="k" data-i18n="dash.cur_prof">현재 프로필</div><div class="v" id="stProfile">-</div></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="row">
+      <button class="btn mini" id="btnDiagRefresh" data-i18n="top.refresh">새로 고침</button>
+      <button class="btn mini warn" id="btnDiagClear" data-i18n="diag.clear">카운터 초기화</button>
+    </div>
+
+    <div class="row" id="diagCounters" style="flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+
+    <div class="sep"></div>
+    <div class="hint2" data-i18n="diag.recent_events">최근 발생 이벤트</div>
+    <div class="log" id="diagEvents" style="max-height:200px;"></div>
+
+    <div class="sep"></div>
+    <h3 data-i18n="diag.key_test_title">입력 신호 테스트 (Key Test)</h3>
+    <div class="row key-test-row">
+      <select class="select mini" id="ktPage">
+        <option value="kb">키보드 (KB)</option>
+        <option value="consumer">미디어 (Consumer)</option>
+      </select>
+      <select class="select mini" id="ktMod">
+        <option value="0">없음</option><option value="1">Ctrl</option><option value="2">Shift</option>
+        <option value="4">Alt</option><option value="8">Win</option>
+      </select>
+      <input class="inp mini" type="number" id="ktCode" value="40" style="width:80px;" />
+      <button class="btn primary mini" id="btnKeyTest" data-i18n="diag.btn_send">전송</button>
+    </div>
+
+    <div class="sep"></div>
+    <div class="hint2" style="display:flex;justify-content:space-between;align-items:center;">
+      <span data-i18n="dash.recent_cmds">최근 명령 로그</span>
+      <span id="recentLogCount" class="hint2">(0)</span>
+    </div>
+    <div class="log" id="recentLogList" style="max-height:180px;">
+      <div class="hint2">아직 명령 없음</div>
+    </div>
+  </section>
+
+  <!-- ============ OTA ============ -->
+  <section class="card tabpane" id="tab-ota">
+    <h2 data-i18n="ota.title">무선 소프트웨어 업데이트 (OTA)</h2>
+
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="otaGuardManual"><span class="slider"></span></label>
+      <span class="hint" data-i18n="ota.guard_label">업데이트 보안 잠금 (OTA Guard)</span>
+      <button class="btn mini" id="btnOtaGuardApply" data-i18n="btn.apply">적용</button>
+    </div>
+    <div class="hint2" data-i18n="ota.guard_desc">잠금 시 마우스/키보드 입력 일시 중단, 비인가 펌웨어 차단.</div>
+
+    <div class="sep"></div>
+    <div class="row ota-row">
+      <input type="file" id="otaFile" class="file" accept=".bin" />
+      <button class="btn primary mini" id="btnOta" data-i18n="ota.btn_upload">업로드</button>
+      <button class="btn mini" id="btnOtaStatus" data-i18n="ota.btn_status">상태 확인</button>
+    </div>
+    <div class="hint2" id="otaHint">-</div>
+    <pre class="log" id="otaJson" style="margin-top:8px;">-</pre>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div data-i18n="cfg.foot">v0413 · Full Standalone · 통합 모드 선택기</div>
+</footer>
+
+<script>
+/* ============================================================================
+   Elite AirMouse WebConfig v0413 — Full Standalone (통합 모드 선택)
+   ============================================================================ */
+
+/* ========== 1. Utils ========== */
+function qs(id){ return document.getElementById(id); }
+function qsa(sel){ return document.querySelectorAll(sel); }
+function pretty(o){ try { return JSON.stringify(o, null, 2); } catch(e){ return String(o); } }
+function parseIntFlex(v, def=0){
+  if (v==null) return def;
+  const s = String(v).trim(); if (!s) return def;
+  const n = Number(s); return Number.isFinite(n) ? Math.trunc(n) : def;
+}
+function parseNum(v, def=0){ const n = Number(v); return Number.isFinite(n) ? n : def; }
+function parseBool(v){
+  if (v === true || v === false) return v;
+  const s = String(v).toLowerCase();
+  return s === "true" || s === "1" || s === "on";
+}
+function setMsg(text, good){
+  const el = qs("cfgMsg"); if (!el) return;
+  el.textContent = text;
+  el.style.borderColor = good ? "rgba(76,125,255,.55)" : "rgba(255,77,77,.55)";
+  el.style.background  = good ? "rgba(76,125,255,.10)" : "rgba(255,77,77,.10)";
+}
+function showLoading(text){
+  const ov = qs("loadingOverlay"), tx = qs("loadingText");
+  if (tx && text) tx.textContent = text;
+  if (ov) ov.classList.add("on");
+}
+function hideLoading(){ qs("loadingOverlay")?.classList.remove("on"); }
+function nowMs(){ return Date.now(); }
+
+/* ========== 2. i18n ========== */
+const I18N_STORAGE_KEY = "am_lang_0413";
+let g_currLang = "ko";
+
+const I18N_DICT = {
+  ko: {
+    "top.refresh":"새로 고침","top.reboot":"다시 시작","top.reboot_now":"지금 다시 시작",
+    "top.reboot_needed":"다시 시작 필요:","top.language":"언어","loading.processing":"처리 중…",
+    "prof.label":"프로필","prof.new":"+ 새로","prof.rename":"이름","prof.delete":"삭제",
+    "tab.dash":"홈","tab.slots":"버튼 및 동작 할당","tab.macros":"매크로 관리",
+    "tab.config":"포인터 및 센서 설정","tab.diag":"진단 및 입력 테스트","tab.ota":"무선 업데이트",
+    "dash.mode_tab_1":"모드 1","dash.mode_tab_2":"모드 2","dash.mode_tab_3":"모드 3",
+    "dash.mode_btn_1":"모드 1 (PC)","dash.mode_btn_2":"모드 2 (발표)","dash.mode_btn_3":"모드 3 (TV)",
+    "dash.quick_tune":"포인터 빠른 조정","dash.quick_tune_hint":"즉시 적용 (기기 재시작 전까지 유지)",
+    "dash.dpi_label":"포인터 속도:","dash.dpi_1":"1단계","dash.dpi_2":"2단계","dash.dpi_3":"3단계",
+    "dash.prec_label":"포인터 정확도:",
+    "dash.prec_off":"끔","dash.prec_low":"낮음","dash.prec_med":"보통","dash.prec_high":"높음","dash.prec_ppt":"발표용",
+    "dash.recent_cmds":"최근 명령 로그","dash.uptime":"동작 시간","dash.heap":"여유 메모리",
+    "dash.wifi":"와이파이","dash.cur_prof":"현재 프로필","dash.factory_reset":"공장 초기화",
+    "remote.title":"가상 컨트롤러",
+    "remote.badge_pc":"모드 1: PC","remote.badge_ppt":"모드 2: 발표","remote.badge_tv":"모드 3: TV",
+    "remote.guide_pc":"링: 단발 방향키 | 스틱 드래그: 방향 반복 | 스틱 탭: Enter",
+    "remote.guide_ppt":"링: 이전/다음 쪽 | 스틱 드래그: 도구 반복 | 스틱 탭: 선택",
+    "remote.guide_tv":"링: 4방향 이동 | 스틱 드래그: 틸트 홀드 | 스틱 탭: 확인",
+    "remote.sub_start":"시작메뉴","remote.sub_mute":"음소거","remote.sub_cancel":"취소","remote.sub_screenshot":"화면캡처",
+    "remote.pad_doc":"문서 스크롤","remote.pad_ppt_vol":"발표 볼륨","remote.pad_ch":"채널 전환",
+    "remote.ppt_f5":"처음쇼","remote.ppt_shf5":"현재쇼","remote.ppt_end":"쇼종료",
+    "remote.ppt_laser":"레이저","remote.ppt_prev":"이전쪽","remote.ppt_next":"다음쪽",
+    "remote.ppt_sel":"선택","remote.ppt_black":"블랙","remote.ppt_white":"화이트",
+    "remote.ppt_pen":"펜도구","remote.ppt_arrow":"화살표",
+    "remote.tv_power":"⏻ 전원","remote.tv_back":"↩ 뒤로","remote.tv_home":"🏠 홈",
+    "remote.tv_ok":"확인","remote.tv_input":"외부 입력","remote.tv_ch_up":"CH ▲","remote.tv_ch_down":"CH ▼",
+    "tools.title":"모드별 추가 도구",
+    "tools.pc.window":"창 · 화면","tools.pc.win_max":"창 최대화","tools.pc.win_left":"좌측 분할",
+    "tools.pc.win_right":"우측 분할","tools.pc.win_desk":"바탕화면 보기","tools.pc.taskview":"작업 보기",
+    "tools.pc.edit":"편집 단축키","tools.pc.copy":"복사","tools.pc.paste":"붙여넣기",
+    "tools.pc.undo":"실행 취소","tools.pc.select":"전체 선택","tools.pc.find":"찾기",
+    "tools.pc.misc":"기타","tools.pc.newtab":"새 탭","tools.pc.close":"탭 닫기","tools.pc.lock":"화면 잠금",
+    "tools.ppt.show":"쇼 제어","tools.ppt.start":"처음부터 재생","tools.ppt.start_cur":"현재부터 재생",
+    "tools.ppt.end":"쇼 종료","tools.ppt.screen":"화면","tools.ppt.black":"검은 화면",
+    "tools.ppt.white":"흰 화면","tools.ppt.pen":"펜 도구","tools.ppt.laser":"레이저 포인터",
+    "tools.ppt.nav":"슬라이드 이동","tools.ppt.home":"첫 장","tools.ppt.endpg":"마지막 장",
+    "tools.tv.channel":"채널","tools.tv.ch_up":"채널 ▲","tools.tv.ch_down":"채널 ▼",
+    "tools.tv.media":"미디어 재생","tools.tv.play":"재생/일시정지","tools.tv.stop":"정지",
+    "tools.tv.next":"다음","tools.tv.prev":"이전","tools.tv.nav":"탐색",
+    "tools.tv.home":"홈","tools.tv.back":"뒤로","tools.tv.input":"외부 입력","tools.tv.search":"검색",
+    "tools.tv.vol":"볼륨","tools.tv.vol_up":"볼륨 +","tools.tv.vol_down":"볼륨 -","tools.tv.mute":"음소거",
+    "trouble.title":"문제 해결 도구","trouble.pointer":"포인터","trouble.conn":"연결",
+    "trouble.system":"시스템","trouble.safeboot":"세이프부트",
+    "trouble.calib":"영점 맞추기","trouble.release":"눌린 키 강제 해제",
+    "trouble.host":"호스트 순환","trouble.pair":"페어링 모드","trouble.i2c":"센서 연결 초기화",
+    "trouble.sleep":"지금 절전 모드","trouble.safemode":"안전 모드 토글","trouble.factory":"공장 초기화",
+    "trouble.safeinfo":"안전 부팅 상태","trouble.safeexit":"안전 부팅 해제",
+    "slots.title":"버튼 및 동작 맞춤 할당",
+    "slots.hint":"27가지 조작 동작에 원하는 키나 기능을 지정함. [기본 공통]은 모든 모드 기본값, 모드별 오버라이드 가능.",
+    "slots.view_global":"기본 공통","slots.view_mode1":"모드 1: PC","slots.view_mode2":"모드 2: 발표","slots.view_mode3":"모드 3: TV",
+    "slots.save":"저장","slots.reload":"다시 불러오기",
+    "slots.grp_btn":"버튼 조작","slots.grp_gesture":"공중 제스처","slots.grp_tilt":"기울여 유지 (TV 전용)",
+    "slots.tilt_disabled_warn":"⚠ 기울여 유지 동작은 모드 3 (TV)에서만 작동함.",
+    "slots.no_action":"동작 없음",
+    "macros.title":"연속 동작 매크로 관리","macros.hint":"버튼 한 번으로 복잡한 단축키나 연속 입력을 자동 실행함.",
+    "macros.add":"+ 새 매크로","macros.save":"매크로 저장","macros.reload":"다시 불러오기",
+    "macros.select_hint":"왼쪽 목록에서 매크로를 선택하십시오.","macros.add_step":"+ 단계 추가",
+    "macros.delay_label":"지연 ms","macros.empty_hint":"등록된 매크로가 없음.",
+    "cfg.title":"포인터 및 센서 세부 설정","cfg.hint":"현재 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정함.",
+    "cfg.save":"설정 저장","cfg.reload":"다시 불러오기","cfg.export":"백업 내보내기","cfg.import":"백업 가져오기",
+    "cfg.sec_motion_core":"1. 기본 포인터 속도 및 감도","cfg.sec_motion_modes":"2. 모드별 포인터 이동 특성",
+    "cfg.sec_click_freeze":"3. 클릭 프리즈 (Motion Advanced)","cfg.sec_ema":"4. 적응형 손떨림 (Adaptive EMA)",
+    "cfg.sec_snap":"5. 직선 보정 (Snap-to-Axis)","cfg.sec_power":"6. 절전 및 전원 관리",
+    "cfg.sec_buttons":"7. 버튼 타이밍","cfg.sec_preset":"추천 동작 프리셋",
+    "cfg.preset_hint":"프리셋 선택 시 프로필에 권장 설정 즉시 반영됨.",
+    "cfg.preset_pc":"일반 PC","cfg.preset_ppt":"발표 (PPT)","cfg.preset_tv":"스마트 TV",
+    "cfg.preset_gaming":"게임","cfg.preset_precision":"정밀 작업",
+    "cfg.factory_title":"기기 초기화","cfg.factory_hint":"모든 프로필과 설정이 지워집니다.",
+    "cfg.foot":"v0413 · Full Standalone · 통합 모드 선택기",
+    "cfg.lbl_dpi":"기본 포인터 속도","cfg.lbl_hard_click":"클릭 중 포인터 잠금",
+    "cfg.lbl_led_bright":"LED 밝기","cfg.lbl_accel_th":"가속 시작 속도","cfg.lbl_scroll_damp":"스크롤 중 감속 비율",
+    "cfg.lbl_sb":"모드별 기본 속도 비율","cfg.lbl_ag":"모드별 가속 증가량",
+    "cfg.lbl_wheel":"휠 스크롤 민감도","cfg.lbl_flick":"휘두르기 제스처 감도",
+    "cfg.lbl_cf_enable":"클릭 순간 동결","cfg.lbl_cf_gyro":"정지 판단 회전 속도",
+    "cfg.lbl_cf_max":"최대 동결 시간","cfg.lbl_cf_hold":"뗀 후 동결 유지",
+    "cfg.lbl_cf_fadeout":"복귀 시간","cfg.lbl_cf_move":"강제 해제 이동 (px)",
+    "cfg.lbl_cf_freeze_move":"의도적 이동 판단",
+    "cfg.lbl_ema_min":"Alpha Min","cfg.lbl_ema_max":"Alpha Max",
+    "cfg.lbl_ema_deadzone":"손떨림 흡수 기준","cfg.lbl_ema_fast":"고속 추종 전환",
+    "cfg.lbl_ema_reversal":"방향 전환 감지","cfg.lbl_ema_rev_reset":"방향 전환 리셋",
+    "cfg.lbl_snap_enable":"직선 스냅","cfg.lbl_snap_modes":"적용 모드","cfg.lbl_snap_axis":"스냅 방향",
+    "cfg.lbl_snap_ratio":"기울기 비율","cfg.lbl_snap_strength":"고정 강도","cfg.lbl_snap_frames":"판정 프레임",
+    "cfg.lbl_pwr_idle":"1단계 절전 (초)","cfg.lbl_pwr_deep":"2단계 절전 (초)",
+    "cfg.lbl_pwr_wom_th":"흔들어 깨우기 감도","cfg.lbl_pwr_wom_dur":"흔들림 유지 (ms)",
+    "cfg.lbl_pwr_led_fade":"LED 감쇠 시간","cfg.lbl_pwr_wake_deb":"깨어난 후 안정화",
+    "cfg.lbl_btn_deb_press":"누름 디바운스","cfg.lbl_btn_deb_rel":"뗌 디바운스",
+    "cfg.lbl_btn_click":"단일 클릭 최대","cfg.lbl_btn_dblclick":"더블클릭 간격",
+    "cfg.lbl_btn_long":"롱프레스","cfg.lbl_btn_min_click":"글리치 필터",
+    "diag.title":"진단 및 입력 테스트","diag.clear":"카운터 초기화","diag.recent_events":"최근 발생 이벤트",
+    "diag.key_test_title":"입력 신호 테스트 (Key Test)","diag.btn_send":"전송",
+    "ota.title":"무선 소프트웨어 업데이트 (OTA)","ota.guard_label":"업데이트 보안 잠금 (OTA Guard)",
+    "ota.guard_desc":"잠금 시 마우스/키보드 입력 일시 중단, 비인가 펌웨어 차단.",
+    "ota.btn_upload":"업로드","ota.btn_status":"상태 확인",
+    "btn.apply":"적용","btn.save":"저장","btn.cancel":"취소","btn.test":"테스트",
+    "pop.mode_switch_confirm":"모드를 {cur} → {tgt}(으)로 전환하시겠습니까?",
+    "pop.mode_switch_ok":"모드 {tgt} 전환 완료",
+    "pop.calib_ok":"영점 보정 요청 완료","pop.force_release_ok":"눌린 키 강제 해제 완료",
+    "pop.host_cycle_ok":"호스트 순환 요청 완료","pop.pair_ok":"페어링 모드 진입 요청 완료",
+    "pop.i2c_ok":"I2C 복구 요청 완료","pop.sleep_ok":"절전 모드 예약됨",
+    "pop.safemode_on":"안전 모드 ON","pop.safemode_off":"안전 모드 OFF",
+    "pop.factory_confirm":"공장 초기화하시겠습니까? 모든 프로필과 설정이 지워집니다.",
+    "pop.factory_ok":"초기화 완료, 새로고침합니다",
+    "pop.reboot_confirm":"기기를 다시 시작하시겠습니까?",
+    "pop.dpi_applied":"DPI {v} 적용","pop.prec_applied":"Precision {v} 적용",
+    "pop.key_test_ok":"Key Test OK · {page} mod={mod} code={code}",
+    "pop.switch_fail":"프로필 전환 실패:","pop.prof_name_prompt":"새 프로필 이름 입력 (최대 15자):",
+    "pop.prof_create_fail":"프로필 생성 실패:",
+    "pop.prof_delete_active_confirm":"⚠ 현재 사용 중인 프로필(#{idx})을 삭제함.\n\n삭제 후 다른 프로필로 자동 전환됨.\n계속하시겠습니까?",
+    "pop.prof_delete_confirm":"프로필 #{idx} \"{name}\"을(를) 삭제하시겠습니까?",
+    "pop.prof_delete_fail":"프로필 삭제 실패:","pop.prof_rename_prompt":"프로필 이름 변경 (최대 15자):",
+    "pop.prof_rename_fail":"프로필 이름 변경 실패:","pop.no_action_assigned":"할당된 동작이 없음.",
+    "pop.live_test_confirm":"동작 테스트를 실행하시겠습니까? (유형: {kind})",
+    "pop.test_fail":"동작 테스트 실패:","pop.slot_save_fail":"동작 할당 저장 실패:",
+    "pop.macro_empty":"실행 단계가 비어 있는 매크로임.",
+    "pop.macro_test_confirm":"매크로 \"{name}\"을(를) 테스트 실행하시겠습니까?",
+    "pop.macro_save_fail":"매크로 저장 실패:","pop.macro_exec_fail":"매크로 실행 실패:",
+    "pop.macro_del_confirm":"매크로 \"{name}\"을(를) 삭제하시겠습니까?",
+    "pop.macro_new_prompt":"새 매크로 이름 입력 (최대 15자):",
+    "pop.safeboot_exit_confirm":"안전 부팅 모드를 종료하고 기기를 다시 시작하시겠습니까?",
+    "pop.safeboot_exit_fail":"안전 부팅 종료 실패:",
+    "pop.safemode_enter_confirm":"안전 모드로 진입함. 마우스/키보드 입력이 차단됨. 계속?",
+    "pop.safemode_exit_confirm":"안전 모드를 종료함. 입력이 재개됨. 계속?",
+    "pop.safemode_change_fail":"안전 모드 변경 실패:","pop.factory_reset_fail":"공장 초기화 실패:",
+    "pop.preset_apply_confirm":"동작 프리셋 \"{preset}\" 설정을 현재 프로필에 적용하시겠습니까?",
+    "pop.preset_applied":"프리셋 \"{preset}\" 적용 및 저장 완료",
+    "pop.diag_reset_confirm":"진단 카운터와 이벤트 기록을 초기화하시겠습니까?",
+    "pop.diag_reset_fail":"진단 카운터 초기화 실패:",
+    "pop.host_cycle_confirm":"등록된 다른 블루투스 기기로 전환하시겠습니까?",
+    "pop.host_cycle_fail":"기기 전환 실패:",
+    "pop.i2c_recover_confirm":"센서(MPU6050) I2C 통신 버스 복구를 시작하시겠습니까?",
+    "pop.i2c_recover_fail":"센서 I2C 복구 요청 실패:",
+    "pop.i2c_recover_hardware_warn":"센서 통신 복구 실패. 하드웨어 연결을 점검하세요.",
+    "pop.gyro_calib_confirm":"기기를 평평한 바닥에 두고 움직이지 마십시오.\n수평·영점 보정을 시작하시겠습니까?",
+    "pop.gyro_calib_fail":"보정 요청 실패:",
+    "pop.net_mode_switch_confirm":"현재: {current}\n{target} 모드로 전환하시겠습니까?",
+    "pop.file_select_req":"업로드할 펌웨어 파일(.bin)을 선택하십시오.",
+    "pop.trouble_fail":"요청 실패:",
+    "log.none":"아직 명령 없음","cfg.save_ok":"설정 저장 완료",
+    "slot.save_ok":"슬롯 저장 완료","macro.save_ok":"매크로 저장 완료"
+  },
+  en: {
+    "top.refresh":"Refresh","top.reboot":"Restart","top.reboot_now":"Restart Now",
+    "top.reboot_needed":"Restart Required:","top.language":"Language","loading.processing":"Processing…",
+    "prof.label":"Profile","prof.new":"+ New","prof.rename":"Rename","prof.delete":"Delete",
+    "tab.dash":"Home","tab.slots":"Button Assign","tab.macros":"Macros",
+    "tab.config":"Pointer & Sensor","tab.diag":"Diagnostics","tab.ota":"OTA Update",
+    "dash.mode_tab_1":"Mode 1","dash.mode_tab_2":"Mode 2","dash.mode_tab_3":"Mode 3",
+    "dash.mode_btn_1":"Mode 1 (PC)","dash.mode_btn_2":"Mode 2 (Present)","dash.mode_btn_3":"Mode 3 (TV)",
+    "dash.quick_tune":"Quick Pointer Tuning","dash.quick_tune_hint":"Applied immediately (until restart)",
+    "dash.dpi_label":"Speed:","dash.dpi_1":"L1","dash.dpi_2":"L2","dash.dpi_3":"L3",
+    "dash.prec_label":"Precision:","dash.prec_off":"Off","dash.prec_low":"Low","dash.prec_med":"Med",
+    "dash.prec_high":"High","dash.prec_ppt":"Present",
+    "dash.recent_cmds":"Recent Command Log","dash.uptime":"Uptime","dash.heap":"Free Mem",
+    "dash.wifi":"Wi-Fi","dash.cur_prof":"Active Profile","dash.factory_reset":"Factory Reset",
+    "remote.title":"Virtual Controller",
+    "remote.badge_pc":"Mode 1: PC","remote.badge_ppt":"Mode 2: Present","remote.badge_tv":"Mode 3: TV",
+    "remote.guide_pc":"Ring: tap arrows | Stick drag: repeat | Stick tap: Enter",
+    "remote.guide_ppt":"Ring: Prev/Next | Stick drag: tool repeat | Stick tap: Select",
+    "remote.guide_tv":"Ring: 4-way nav | Stick drag: tilt hold | Stick tap: OK",
+    "remote.sub_start":"Start","remote.sub_mute":"Mute","remote.sub_cancel":"Cancel","remote.sub_screenshot":"Screenshot",
+    "remote.pad_doc":"Doc Scroll","remote.pad_ppt_vol":"Pres. Volume","remote.pad_ch":"Channel",
+    "remote.ppt_f5":"Start","remote.ppt_shf5":"From Current","remote.ppt_end":"End",
+    "remote.ppt_laser":"Laser","remote.ppt_prev":"Prev","remote.ppt_next":"Next",
+    "remote.ppt_sel":"Select","remote.ppt_black":"Black","remote.ppt_white":"White",
+    "remote.ppt_pen":"Pen","remote.ppt_arrow":"Arrow",
+    "remote.tv_power":"⏻ Power","remote.tv_back":"↩ Back","remote.tv_home":"🏠 Home",
+    "remote.tv_ok":"OK","remote.tv_input":"Input","remote.tv_ch_up":"CH ▲","remote.tv_ch_down":"CH ▼",
+    "tools.title":"Mode-specific Tools",
+    "tools.pc.window":"Window & Screen","tools.pc.win_max":"Maximize","tools.pc.win_left":"Snap Left",
+    "tools.pc.win_right":"Snap Right","tools.pc.win_desk":"Show Desktop","tools.pc.taskview":"Task View",
+    "tools.pc.edit":"Edit Shortcuts","tools.pc.copy":"Copy","tools.pc.paste":"Paste",
+    "tools.pc.undo":"Undo","tools.pc.select":"Select All","tools.pc.find":"Find",
+    "tools.pc.misc":"Misc","tools.pc.newtab":"New Tab","tools.pc.close":"Close Tab","tools.pc.lock":"Lock Screen",
+    "tools.ppt.show":"Show Control","tools.ppt.start":"Start Show","tools.ppt.start_cur":"From Current",
+    "tools.ppt.end":"End Show","tools.ppt.screen":"Screen","tools.ppt.black":"Black",
+    "tools.ppt.white":"White","tools.ppt.pen":"Pen Tool","tools.ppt.laser":"Laser Pointer",
+    "tools.ppt.nav":"Slide Navigation","tools.ppt.home":"First Slide","tools.ppt.endpg":"Last Slide",
+    "tools.tv.channel":"Channel","tools.tv.ch_up":"CH ▲","tools.tv.ch_down":"CH ▼",
+    "tools.tv.media":"Media","tools.tv.play":"Play/Pause","tools.tv.stop":"Stop",
+    "tools.tv.next":"Next","tools.tv.prev":"Previous","tools.tv.nav":"Navigation",
+    "tools.tv.home":"Home","tools.tv.back":"Back","tools.tv.input":"Input","tools.tv.search":"Search",
+    "tools.tv.vol":"Volume","tools.tv.vol_up":"Vol +","tools.tv.vol_down":"Vol -","tools.tv.mute":"Mute",
+    "trouble.title":"Troubleshoot","trouble.pointer":"Pointer","trouble.conn":"Connection",
+    "trouble.system":"System","trouble.safeboot":"SafeBoot",
+    "trouble.calib":"Calibrate","trouble.release":"Release Held Keys",
+    "trouble.host":"Host Cycle","trouble.pair":"Pairing Mode","trouble.i2c":"I2C Recovery",
+    "trouble.sleep":"Sleep Now","trouble.safemode":"Safe Mode Toggle","trouble.factory":"Factory Reset",
+    "trouble.safeinfo":"SafeBoot Status","trouble.safeexit":"Exit SafeBoot",
+    "slots.title":"Button Assignments",
+    "slots.hint":"Assign keys or functions to 27 trigger actions. [Default] applies across all modes and can be overridden per mode.",
+    "slots.view_global":"Default","slots.view_mode1":"Mode 1: PC","slots.view_mode2":"Mode 2: Present","slots.view_mode3":"Mode 3: TV",
+    "slots.save":"Save","slots.reload":"Reload",
+    "slots.grp_btn":"Button Actions","slots.grp_gesture":"Air Gestures","slots.grp_tilt":"Tilt Hold (TV Only)",
+    "slots.tilt_disabled_warn":"⚠ Tilt Hold works only in Mode 3 (TV).",
+    "slots.no_action":"No Action",
+    "macros.title":"Macro Manager","macros.hint":"Automate sequential keystrokes with a single click.",
+    "macros.add":"+ New Macro","macros.save":"Save Macros","macros.reload":"Reload",
+    "macros.select_hint":"Select a macro from the list on the left.","macros.add_step":"+ Add Step",
+    "macros.delay_label":"Delay ms","macros.empty_hint":"No macros registered.",
+    "cfg.title":"Pointer & Sensor Settings","cfg.hint":"Configure pointer speed, acceleration, gestures, and precision.",
+    "cfg.save":"Save Settings","cfg.reload":"Reload","cfg.export":"Export Backup","cfg.import":"Import Backup",
+    "cfg.sec_motion_core":"1. Core Pointer Speed & Sensitivity","cfg.sec_motion_modes":"2. Mode-specific Pointer Dynamics",
+    "cfg.sec_click_freeze":"3. Click-Freeze (Motion Advanced)","cfg.sec_ema":"4. Adaptive EMA",
+    "cfg.sec_snap":"5. Snap-to-Axis","cfg.sec_power":"6. Power Management","cfg.sec_buttons":"7. Button Timings",
+    "cfg.sec_preset":"Motion Presets","cfg.preset_hint":"Selecting a preset loads recommended settings.",
+    "cfg.preset_pc":"Desktop PC","cfg.preset_ppt":"Presentation","cfg.preset_tv":"Smart TV",
+    "cfg.preset_gaming":"Gaming","cfg.preset_precision":"Precision",
+    "cfg.factory_title":"Device Reset","cfg.factory_hint":"All profiles and settings will be erased.",
+    "cfg.foot":"v0413 · Full Standalone · Unified Mode Selector",
+    "cfg.lbl_dpi":"Base Pointer Speed","cfg.lbl_hard_click":"Lock Pointer During Clicks",
+    "cfg.lbl_led_bright":"LED Brightness","cfg.lbl_accel_th":"Acceleration Start Speed",
+    "cfg.lbl_scroll_damp":"Damping During Scroll","cfg.lbl_sb":"Mode Base Speed Multiplier",
+    "cfg.lbl_ag":"Mode Acceleration Gain","cfg.lbl_wheel":"Wheel Sensitivity",
+    "cfg.lbl_flick":"Flick Gesture Sensitivity","cfg.lbl_cf_enable":"Click-Freeze",
+    "cfg.lbl_cf_gyro":"Stationary Gyro Threshold","cfg.lbl_cf_max":"Max Freeze Duration",
+    "cfg.lbl_cf_hold":"Post-Release Hold","cfg.lbl_cf_fadeout":"Return Duration",
+    "cfg.lbl_cf_move":"Force-Escape Distance","cfg.lbl_cf_freeze_move":"Intentional Movement",
+    "cfg.lbl_ema_min":"Alpha Min","cfg.lbl_ema_max":"Alpha Max","cfg.lbl_ema_deadzone":"Tremor Absorption",
+    "cfg.lbl_ema_fast":"Fast Tracking Transition","cfg.lbl_ema_reversal":"Reversal Detection",
+    "cfg.lbl_ema_rev_reset":"Reversal Reset","cfg.lbl_snap_enable":"Axis Snap",
+    "cfg.lbl_snap_modes":"Applied Modes","cfg.lbl_snap_axis":"Snap Axis","cfg.lbl_snap_ratio":"Ratio Threshold",
+    "cfg.lbl_snap_strength":"Strength","cfg.lbl_snap_frames":"Confirm Frames",
+    "cfg.lbl_pwr_idle":"Stage 1 Sleep (s)","cfg.lbl_pwr_deep":"Stage 2 Deep Sleep (s)",
+    "cfg.lbl_pwr_wom_th":"Wake Sensitivity","cfg.lbl_pwr_wom_dur":"Shake Duration (ms)",
+    "cfg.lbl_pwr_led_fade":"LED Fade Time","cfg.lbl_pwr_wake_deb":"Wake Debounce",
+    "cfg.lbl_btn_deb_press":"Debounce Press","cfg.lbl_btn_deb_rel":"Debounce Release",
+    "cfg.lbl_btn_click":"Click Max","cfg.lbl_btn_dblclick":"Double-Click Gap",
+    "cfg.lbl_btn_long":"Long-Press","cfg.lbl_btn_min_click":"Glitch Filter",
+    "diag.title":"Diagnostics & Input Test","diag.clear":"Clear Counters","diag.recent_events":"Recent Events",
+    "diag.key_test_title":"Single Key Test","diag.btn_send":"Send",
+    "ota.title":"Over-The-Air Update (OTA)","ota.guard_label":"OTA Security Guard",
+    "ota.guard_desc":"When ON, inputs are suspended and unauthorized flashes are rejected.",
+    "ota.btn_upload":"Upload","ota.btn_status":"Check Status",
+    "btn.apply":"Apply","btn.save":"Save","btn.cancel":"Cancel","btn.test":"Test",
+    "pop.mode_switch_confirm":"Switch mode {cur} → {tgt}?",
+    "pop.mode_switch_ok":"Mode {tgt} switched",
+    "pop.calib_ok":"Calibration requested","pop.force_release_ok":"All held keys released",
+    "pop.host_cycle_ok":"Host cycle requested","pop.pair_ok":"Pairing mode requested",
+    "pop.i2c_ok":"I2C recovery requested","pop.sleep_ok":"Sleep scheduled",
+    "pop.safemode_on":"Safe Mode ON","pop.safemode_off":"Safe Mode OFF",
+    "pop.factory_confirm":"Factory reset? All profiles will be erased.",
+    "pop.factory_ok":"Reset complete, reloading",
+    "pop.reboot_confirm":"Restart device now?",
+    "pop.dpi_applied":"DPI {v} applied","pop.prec_applied":"Precision {v} applied",
+    "pop.key_test_ok":"Key Test OK · {page} mod={mod} code={code}",
+    "pop.switch_fail":"Profile switch failed:","pop.prof_name_prompt":"Enter new profile name (max 15):",
+    "pop.prof_create_fail":"Profile creation failed:",
+    "pop.prof_delete_active_confirm":"⚠ Deleting active Profile (#{idx}).\n\nSwitch to another profile.\nContinue?",
+    "pop.prof_delete_confirm":"Delete Profile #{idx} \"{name}\"?",
+    "pop.prof_delete_fail":"Profile deletion failed:","pop.prof_rename_prompt":"Rename profile (max 15):",
+    "pop.prof_rename_fail":"Profile rename failed:","pop.no_action_assigned":"No action assigned.",
+    "pop.live_test_confirm":"Execute live test? (kind: {kind})",
+    "pop.test_fail":"Test failed:","pop.slot_save_fail":"Failed to save slot assignments:",
+    "pop.macro_empty":"Macro has no steps.",
+    "pop.macro_test_confirm":"Execute Macro \"{name}\"?",
+    "pop.macro_save_fail":"Macro save failed:","pop.macro_exec_fail":"Macro execution failed:",
+    "pop.macro_del_confirm":"Delete Macro \"{name}\"?",
+    "pop.macro_new_prompt":"Enter new macro name (max 15):",
+    "pop.safeboot_exit_confirm":"Exit SafeBoot and restart?",
+    "pop.safeboot_exit_fail":"Exit SafeBoot failed:",
+    "pop.safemode_enter_confirm":"Enter Safe Mode? Inputs will be suspended.",
+    "pop.safemode_exit_confirm":"Exit Safe Mode? Inputs will resume.",
+    "pop.safemode_change_fail":"Safe mode change failed:","pop.factory_reset_fail":"Factory reset failed:",
+    "pop.preset_apply_confirm":"Apply motion preset \"{preset}\"?",
+    "pop.preset_applied":"Preset \"{preset}\" applied",
+    "pop.diag_reset_confirm":"Reset diagnostics counters and events?",
+    "pop.diag_reset_fail":"Diagnostics reset failed:",
+    "pop.host_cycle_confirm":"Switch to next paired Bluetooth device?",
+    "pop.host_cycle_fail":"Device switch failed:",
+    "pop.i2c_recover_confirm":"Start I2C bus recovery?",
+    "pop.i2c_recover_fail":"I2C recovery request failed:",
+    "pop.i2c_recover_hardware_warn":"I2C recovery failed. Check hardware wiring.",
+    "pop.gyro_calib_confirm":"Keep device stationary on a flat surface.\nStart calibration?",
+    "pop.gyro_calib_fail":"Calibration request failed:",
+    "pop.net_mode_switch_confirm":"Current: {current}\nSwitch to {target}?",
+    "pop.file_select_req":"Please select a firmware file (.bin).",
+    "pop.trouble_fail":"Request failed:",
+    "log.none":"No commands yet","cfg.save_ok":"Saved","slot.save_ok":"Slots saved","macro.save_ok":"Macros saved"
+  }
+};
+
+function t(key, params){
+  const dict = I18N_DICT[g_currLang] || I18N_DICT.ko;
+  let s = dict[key] || (I18N_DICT.ko[key]) || key;
+  if (params && typeof params === "object"){
+    for (const k of Object.keys(params)) s = s.split(`{${k}}`).join(String(params[k]));
+  }
+  return s;
+}
+function applyI18nToDom(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const s = t(el.getAttribute("data-i18n")); if (s) el.textContent = s;
+  });
+}
+function setLanguage(lang){
+  if (!I18N_DICT[lang]) lang = "ko";
+  g_currLang = lang;
+  try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch(e){}
+  document.documentElement.lang = lang;
+  applyI18nToDom();
+  if (typeof _renderController === "function") _renderController(g_currentActiveMode);
+  if (typeof _updateModeTabs === "function") _updateModeTabs();
+  if (typeof renderModeTools === "function") renderModeTools();
+  if (typeof renderSlotEditor === "function") renderSlotEditor();
+  if (typeof macroRenderList === "function") macroRenderList();
+  if (typeof macroRenderEditor === "function") macroRenderEditor();
+  if (typeof renderRecentLog === "function") renderRecentLog();
+}
+function initI18n(){
+  let saved = null;
+  try { saved = localStorage.getItem(I18N_STORAGE_KEY); } catch(e){}
+  if (!saved){
+    const nav = (navigator.language || "").toLowerCase();
+    saved = nav.startsWith("ko") ? "ko" : "en";
+  }
+  setLanguage(saved);
+}
+
+/* ========== 3. State ========== */
+const APP_MODE_ONLINE = "ONLINE";
+const APP_MODE_OFFLINE = "OFFLINE";
+let g_appMode = (window.location.protocol === "file:") ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
+
+let g_currentActiveMode = 1;      /* 통합: 미리보기/실제 구분 없음 */
+let g_isRemoteFolded = false;
+let g_lastStatus = null;
+let g_dpiLevel = 2;
+let g_precMode = 0;
+let g_view = "global";
+let g_macroSel = -1;
+let g_keycodes = null;
+let g_triggers = [];
+let g_profile = null;
+
+const REMOTE_FOLD_KEY     = "am_remote_folded_0413";
+const MODE_TOOLS_FOLD_KEY = "am_tools_folded_0413";
+const TROUBLE_FOLD_KEY    = "am_trouble_folded_0413";
+const OFFLINE_STORAGE_KEY = "am_v0413_full";
+const OFFLINE_STORE_SCHEMA = 3;
+let g_offlineStore = null;
+
+const MODE_LABELS = {
+  1: { ico:"🖱️", short:"PC",  fullKey:"dash.mode_btn_1" },
+  2: { ico:"🎤", short:"PPT", fullKey:"dash.mode_btn_2" },
+  3: { ico:"📺", short:"TV",  fullKey:"dash.mode_btn_3" }
+};
+
+/* ========== 4. Keycodes (HID) ========== */
+const G_KEYCODES = {
+  action_kinds: [
+    { value:0,  name:"NONE" }, { value:1,  name:"MOUSE_CLICK" }, { value:2,  name:"MOUSE_HOLD" },
+    { value:3,  name:"MOUSE_WHEEL" }, { value:4,  name:"KB_TAP" }, { value:5,  name:"KB_COMBO" },
+    { value:6,  name:"KB_REPEAT" }, { value:7,  name:"CONSUMER_TAP" }, { value:8,  name:"CONSUMER_REPEAT" },
+    { value:9,  name:"SPECIAL" }, { value:10, name:"MACRO" }
+  ],
+  mods: [
+    { name:"None", mask:0 }, { name:"L_CTRL", mask:1 }, { name:"L_SHIFT", mask:2 },
+    { name:"L_ALT", mask:4 }, { name:"L_GUI", mask:8 }, { name:"R_CTRL", mask:16 },
+    { name:"R_SHIFT", mask:32 }, { name:"R_ALT", mask:64 }, { name:"R_GUI", mask:128 }
+  ],
+  consumer: [
+    { name:"VOL_UP", mask:1 }, { name:"VOL_DOWN", mask:2 }, { name:"MUTE", mask:4 },
+    { name:"PLAY_PAUSE", mask:8 }, { name:"STOP", mask:16 }, { name:"NEXT_TRACK", mask:32 },
+    { name:"PREV_TRACK", mask:64 }, { name:"FF", mask:128 }, { name:"REWIND", mask:256 },
+    { name:"AC_BACK", mask:512 }, { name:"AC_HOME", mask:1024 }, { name:"AC_SEARCH", mask:2048 },
+    { name:"POWER", mask:4096 }, { name:"TV_INPUT", mask:8192 }, { name:"CH_UP", mask:16384 },
+    { name:"CH_DOWN", mask:32768 }
+  ],
+  specials: [
+    { value:0, name:"NONE" }, { value:1, name:"GYRO_RECALIB" }, { value:2, name:"SLEEP_NOW" },
+    { value:3, name:"MODE_CYCLE" }, { value:4, name:"PAIRING" }, { value:5, name:"HOST_CYCLE" }
+  ],
+  kb: (function(){
+    const names = {0:"None",4:"A",5:"B",6:"C",7:"D",8:"E",9:"F",10:"G",11:"H",12:"I",13:"J",14:"K",
+    15:"L",16:"M",17:"N",18:"O",19:"P",20:"Q",21:"R",22:"S",23:"T",24:"U",25:"V",26:"W",27:"X",28:"Y",
+    29:"Z",30:"1",31:"2",32:"3",33:"4",34:"5",35:"6",36:"7",37:"8",38:"9",39:"0",40:"Enter",41:"Esc",
+    42:"Backspace",43:"Tab",44:"Space",58:"F1",59:"F2",60:"F3",61:"F4",62:"F5",63:"F6",64:"F7",65:"F8",
+    66:"F9",67:"F10",68:"F11",69:"F12",74:"Home",75:"PageUp",77:"End",78:"PageDown",79:"Right",80:"Left",
+    81:"Down",82:"Up"};
+    const arr = [];
+    for (let c = 0; c <= 0xE7; c++) arr.push({ code:c, name: names[c] || ("0x"+c.toString(16).toUpperCase().padStart(2,"0")) });
+    return arr;
+  })(),
+  triggers: [
+    { idx:0, name:"Top L Click", group:"button", locked:true },
+    { idx:1, name:"Top L Double", group:"button", locked:false },
+    { idx:2, name:"Top L Long", group:"button", locked:false },
+    { idx:3, name:"Top M Click", group:"button", locked:false },
+    { idx:4, name:"Top M Hold", group:"button", locked:true },
+    { idx:5, name:"Top R Click", group:"button", locked:false },
+    { idx:6, name:"Top R Double", group:"button", locked:false },
+    { idx:7, name:"Top R Long", group:"button", locked:false },
+    { idx:8, name:"Side F Click", group:"button", locked:false },
+    { idx:9, name:"Side F Long", group:"button", locked:false },
+    { idx:10, name:"Side C Click", group:"button", locked:false },
+    { idx:11, name:"Side C Double", group:"button", locked:true },
+    { idx:12, name:"Side C 2s Hold", group:"button", locked:true },
+    { idx:13, name:"Side R Click", group:"button", locked:false },
+    { idx:14, name:"Side R Long", group:"button", locked:false },
+    { idx:15, name:"Flick Left", group:"gesture", locked:false },
+    { idx:16, name:"Flick Right", group:"gesture", locked:false },
+    { idx:17, name:"Flick Up", group:"gesture", locked:false },
+    { idx:18, name:"Flick Down", group:"gesture", locked:false },
+    { idx:19, name:"Linear Left", group:"gesture", locked:false },
+    { idx:20, name:"Linear Right", group:"gesture", locked:false },
+    { idx:21, name:"Linear Up", group:"gesture", locked:false },
+    { idx:22, name:"Linear Down", group:"gesture", locked:false },
+    { idx:23, name:"Tilt Left", group:"tilt", locked:false },
+    { idx:24, name:"Tilt Right", group:"tilt", locked:false },
+    { idx:25, name:"Tilt Up", group:"tilt", locked:false },
+    { idx:26, name:"Tilt Down", group:"tilt", locked:false }
+  ]
+};
+
+/* ========== 5. Offline Store ========== */
+function makeDefaultProfile(name="Default"){
+  return {
+    ver:410, name,
+    e10:{
+      dpi_level:2, hard_click_lock:true, led_brightness:128,
+      accel_threshold:8.0, scroll_cursor_damp:0.25,
+      scale_base:[0.55,0.75,1.0], accel_gain:[0.35,0.55,0.85],
+      wheel:{ threshold_deg:90, step_max:6 },
+      gesture:{ flick_deg:200, cooldown_ms:600 },
+      motion_adv:{
+        click_freeze:{ enable:true, gyro_th:15.0, max_ms:150, hold_ms:20, fadeout_ms:30, move_th:2.0, freeze_move_th:30.0 },
+        ema:{ alpha_min:0.05, alpha_max:0.80, deadzone_th:3.0, fast_th:15.0, reversal_th:8.0, reversal_reset:true },
+        snap:{ enable:true, mode_mask:0x02, axis_mode:0, confirm_frames:3, ratio_enter:4.0, strength:0.85 }
+      },
+      power:{ idle_sleep_sec:60, deep_sleep_sec:600, wom_threshold:25, wom_duration:2, led_fade_ms:800, wake_debounce_ms:150 },
+      button:{ debounce_press_ms:20, debounce_release_ms:30, click_ms:250, dblclick_gap_ms:300, long_press_ms:600, min_click_ms:30 },
+      active_mode:1, battery_pct:92, ble_connected:false, safe_mode:false
+    },
+    slots:{
+      global: Array.from({length:27}, ()=>({k:0,h:0,p16:0,p32:0})),
+      modes: [
+        { mask:0, slots:[] },
+        { mask:0, slots:[] },
+        { mask:0, slots:[] }
+      ]
+    },
+    macros:[]
+  };
+}
+function loadOfflineStore(){
+  try {
+    const raw = localStorage.getItem(OFFLINE_STORAGE_KEY);
+    if (raw){
+      const p = JSON.parse(raw);
+      if (p && p._v === OFFLINE_STORE_SCHEMA && p.profiles){ g_offlineStore = p; return; }
+    }
+  } catch(e){}
+  g_offlineStore = {
+    _v: OFFLINE_STORE_SCHEMA, active:0,
+    profiles:[{idx:0, name:"Default"}],
+    profileData:{0: makeDefaultProfile("Default")}
+  };
+  saveOfflineStore();
+}
+function saveOfflineStore(){
+  try { localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(g_offlineStore)); } catch(e){}
+}
+function getActiveProfile(){
+  const idx = g_offlineStore.active;
+  if (!g_offlineStore.profileData[idx]) g_offlineStore.profileData[idx] = makeDefaultProfile();
+  return g_offlineStore.profileData[idx];
+}
+
+/* ========== 6. API 래퍼 ========== */
+async function apiGet(url){
+  if (g_appMode === APP_MODE_OFFLINE) return handleOfflineApi(url, "GET", null);
+  try {
+    const r = await fetch(url, { cache:"no-store" });
+    const tx = await r.text();
+    let j = null; try { j = JSON.parse(tx); } catch(e){}
+    return { ok:r.ok, status:r.status, text:tx, json:j };
+  } catch(e){
+    g_appMode = APP_MODE_OFFLINE;
+    return handleOfflineApi(url, "GET", null);
+  }
+}
+async function apiPostJson(url, obj){
+  if (g_appMode === APP_MODE_OFFLINE) return handleOfflineApi(url, "POST", obj);
+  try {
+    const r = await fetch(url, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(obj), cache:"no-store"
+    });
+    const tx = await r.text();
+    let j = null; try { j = JSON.parse(tx); } catch(e){}
+    return { ok:r.ok, status:r.status, text:tx, json:j };
+  } catch(e){
+    g_appMode = APP_MODE_OFFLINE;
+    return handleOfflineApi(url, "POST", obj);
+  }
+}
+function unwrapApi(resp){
+  const j = resp.json;
+  if (j && typeof j === "object" && typeof j.ok === "boolean") return j;
+  return { ok: resp.ok, code: resp.ok ? "ok" : "http", msg:"", data: j };
+}
+function handleOfflineApi(url, method, body){
+  if (!g_offlineStore) loadOfflineStore();
+  const u = new URL(url, "http://localhost");
+  const path = u.pathname;
+  let res = { ok:true, code:"ok", msg:"", data:null };
+
+  if (path === "/api/profiles"){
+    res.data = { active: g_offlineStore.active, count: g_offlineStore.profiles.length, profiles: g_offlineStore.profiles };
+  }
+  else if (path === "/api/profiles/active"){
+    if (method === "GET"){
+      res.data = { idx: g_offlineStore.active, count: g_offlineStore.profiles.length, config: getActiveProfile() };
+    } else if (method === "POST"){
+      const cfg = getActiveProfile();
+      if (body){
+        const merged = Object.assign({}, cfg);
+        if (body.name   !== undefined) merged.name   = body.name;
+        if (body.e10    !== undefined) merged.e10    = Object.assign({}, cfg.e10 || {}, body.e10);
+        if (body.slots  !== undefined) merged.slots  = JSON.parse(JSON.stringify(body.slots));
+        if (body.macros !== undefined) merged.macros = JSON.parse(JSON.stringify(body.macros));
+        g_offlineStore.profileData[g_offlineStore.active] = merged;
+      }
+      saveOfflineStore();
+      res.data = { idx: g_offlineStore.active, saved:true, reloaded:true };
+    }
+  }
+  else if (path === "/api/profiles/switch"){
+    if (method === "POST" && body && typeof body.idx === "number"){
+      g_offlineStore.active = body.idx; saveOfflineStore();
+      res.data = { active: g_offlineStore.active };
+    }
+  }
+  else if (path === "/api/profiles/create"){
+    if (g_offlineStore.profiles.length >= 5){
+      return { ok:false, status:400, text:"{}", json:{ ok:false, code:"limit_reached", msg:"최대 5개" } };
+    }
+    const used = new Set(g_offlineStore.profiles.map(p=>p.idx));
+    let newIdx = 0; while (used.has(newIdx) && newIdx < 5) newIdx++;
+    const nn = (body.name || ("Profile " + newIdx)).trim().substring(0, 15);
+    g_offlineStore.profiles.push({ idx:newIdx, name:nn });
+    g_offlineStore.profileData[newIdx] = makeDefaultProfile(nn);
+    g_offlineStore.active = newIdx; saveOfflineStore();
+    res.data = { idx:newIdx, count: g_offlineStore.profiles.length };
+  }
+  else if (path === "/api/profiles/delete"){
+    if (g_offlineStore.profiles.length <= 1){
+      return { ok:false, status:400, text:"{}", json:{ ok:false, code:"cannot_delete" } };
+    }
+    g_offlineStore.profiles = g_offlineStore.profiles.filter(p=>p.idx !== body.idx);
+    delete g_offlineStore.profileData[body.idx];
+    if (g_offlineStore.active === body.idx) g_offlineStore.active = g_offlineStore.profiles[0].idx;
+    saveOfflineStore();
+    res.data = { deleted:body.idx };
+  }
+  else if (path === "/api/profiles/rename"){
+    const p = g_offlineStore.profiles.find(x=>x.idx === body.idx);
+    if (p){
+      p.name = (body.name || p.name).trim().substring(0, 15);
+      if (g_offlineStore.profileData[body.idx]) g_offlineStore.profileData[body.idx].name = p.name;
+      saveOfflineStore();
+    }
+    res.data = { idx:body.idx, name: p ? p.name : "" };
+  }
+  else if (path === "/api/keycodes"){ res.data = G_KEYCODES; }
+  else if (path === "/api/triggers"){
+    res.data = { count: G_KEYCODES.triggers.length, triggers: G_KEYCODES.triggers };
+  }
+  else if (path === "/api/status"){
+    const cfg = getActiveProfile();
+    res.data = {
+      groups:{
+        sys:{ uptime_ms: Math.floor(performance.now()) },
+        mem:{ heap_free: 245760 },
+        net:{ mode:"OFFLINE", ssid:"Local" },
+        e10: cfg.e10,
+        boot:{ safe_mode: !!cfg.e10.safe_mode }
+      },
+      policy:{ reboot_required:false, reboot_reasons:"" }
+    };
+  }
+  else if (path === "/api/diag"){
+    res.data = { diag:{ body_too_large:0, no_body_slot:0, json_bad:0, safe_blocked:0, ota_blocked:0 },
+                 events:[{ ms: Math.floor(performance.now()), code:"OFFLINE_MODE" }] };
+  }
+  else if (path === "/api/diag/clear"){ res.data = { cleared:true }; }
+  else if (path === "/api/control"){
+    const cfg = getActiveProfile();
+    if (body && body.cmd === "set_dpi"){ cfg.e10.dpi_level = body.level | 0; saveOfflineStore(); }
+    res.data = { cmd: body && body.cmd, simulated:true };
+  }
+  else if (path === "/api/action/test" || path === "/api/action/test_macro" || path === "/api/ppt/test"){
+    res.data = body;
+  }
+  else if (path === "/api/safeboot"){
+    res.data = { safe_mode: !!getActiveProfile().e10.safe_mode, offline:true };
+  }
+  else if (path === "/api/reboot/check"){
+    res.data = { required:false, mask:0, reasons:"", allowed:false };
+  }
+  else if (path === "/api/config/export"){ res.text = "{}"; res.data = {}; }
+  else if (path === "/api/config/import"){
+    if (body && g_offlineStore.profiles.length < 5){
+      const used = new Set(g_offlineStore.profiles.map(p=>p.idx));
+      let newIdx = 0; while (used.has(newIdx) && newIdx < 5) newIdx++;
+      const nn = (body.name || ("Import_" + newIdx)).substring(0, 15);
+      body.name = nn;
+      g_offlineStore.profiles.push({ idx:newIdx, name:nn });
+      g_offlineStore.profileData[newIdx] = body;
+      g_offlineStore.active = newIdx; saveOfflineStore();
+      res.data = { idx:newIdx, count: g_offlineStore.profiles.length };
+    }
+  }
+  else { res.msg = "Offline stub"; }
+
+  const jsonStr = JSON.stringify(res);
+  return { ok:true, status:200, text:jsonStr, json:res };
+}
+
+/* ========== 7. Recent Log ========== */
+const RECENT_LOG_CAP = 12;
+const g_recentLog = [];
+function pushRecentLog(label, ok=true){
+  g_recentLog.push({ ts:nowMs(), label, ok:!!ok });
+  while (g_recentLog.length > RECENT_LOG_CAP) g_recentLog.shift();
+  renderRecentLog();
+}
+function renderRecentLog(){
+  const listEl = qs("recentLogList"), cntEl = qs("recentLogCount");
+  if (cntEl) cntEl.textContent = `(${g_recentLog.length})`;
+  if (!listEl) return;
+  if (!g_recentLog.length){ listEl.innerHTML = `<div class="hint2">${t("log.none")}</div>`; return; }
+  listEl.innerHTML = "";
+  for (let i = g_recentLog.length - 1; i >= 0; i--){
+    const e = g_recentLog[i], d = document.createElement("div");
+    d.className = "logline";
+    const tSec = Math.floor((nowMs() - e.ts) / 1000);
+    const age = (tSec < 60) ? `${tSec}s` : `${Math.floor(tSec/60)}m`;
+    d.textContent = `[${age}] ${e.ok ? "✓" : "✗"} ${e.label}`;
+    if (!e.ok) d.style.color = "#ff8a8a";
+    listEl.appendChild(d);
+  }
+}
+
+/* ========== 8. Key Test ========== */
+function keyTest(page, mod, code, labelOverride){
+  const label = labelOverride || ((page === "kb")
+    ? `KB u=${code} mod=${mod}`
+    : `Consumer 0x${(code>>>0).toString(16).toUpperCase()}`);
+  pushRecentLog(label, true);
+  setMsg(t("pop.key_test_ok", { page, mod, code }), true);
+  const evEl = qs("diagEvents");
+  if (evEl){
+    const line = document.createElement("div");
+    line.className = "logline";
+    line.textContent = `[${Math.floor(performance.now())}ms] KEYTEST ${label}`;
+    evEl.insertBefore(line, evEl.firstChild);
+    while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
+  }
+  if (g_appMode === APP_MODE_ONLINE){
+    apiPostJson("/api/ppt/test", { page, mod, code }).catch(()=>{});
+  }
+}
+
+/* ========== 9. Mode Tools ========== */
+const MODE_TOOLS = {
+  1: { badge:"PC", ico:"🖱️", groups:[
+    { labelKey:"tools.pc.window", items:[
+      { labelKey:"tools.pc.win_max",   page:"kb", mod:8, code:82, ico:"⬆️" },
+      { labelKey:"tools.pc.win_left",  page:"kb", mod:8, code:80, ico:"⬅️" },
+      { labelKey:"tools.pc.win_right", page:"kb", mod:8, code:79, ico:"➡️" },
+      { labelKey:"tools.pc.win_desk",  page:"kb", mod:8, code:7,  ico:"🖥️" },
+      { labelKey:"tools.pc.taskview",  page:"kb", mod:8, code:43, ico:"🗂️" }
+    ]},
+    { labelKey:"tools.pc.edit", items:[
+      { labelKey:"tools.pc.copy",   page:"kb", mod:1, code:6,  ico:"📋" },
+      { labelKey:"tools.pc.paste",  page:"kb", mod:1, code:25, ico:"📥" },
+      { labelKey:"tools.pc.undo",   page:"kb", mod:1, code:29, ico:"↩️" },
+      { labelKey:"tools.pc.select", page:"kb", mod:1, code:4,  ico:"🔲" },
+      { labelKey:"tools.pc.find",   page:"kb", mod:1, code:9,  ico:"🔍" }
+    ]},
+    { labelKey:"tools.pc.misc", items:[
+      { labelKey:"tools.pc.newtab", page:"kb", mod:1, code:23, ico:"➕" },
+      { labelKey:"tools.pc.close",  page:"kb", mod:1, code:26, ico:"✖️" },
+      { labelKey:"tools.pc.lock",   page:"kb", mod:8, code:15, ico:"🔒" }
+    ]}
+  ]},
+  2: { badge:"PPT", ico:"🎤", groups:[
+    { labelKey:"tools.ppt.show", items:[
+      { labelKey:"tools.ppt.start",     page:"kb", mod:0, code:62, ico:"▶️" },
+      { labelKey:"tools.ppt.start_cur", page:"kb", mod:2, code:62, ico:"⏯️" },
+      { labelKey:"tools.ppt.end",       page:"kb", mod:0, code:41, ico:"⏹️" }
+    ]},
+    { labelKey:"tools.ppt.screen", items:[
+      { labelKey:"tools.ppt.black", page:"kb", mod:0, code:5,  ico:"⬛" },
+      { labelKey:"tools.ppt.white", page:"kb", mod:0, code:26, ico:"⬜" },
+      { labelKey:"tools.ppt.pen",   page:"kb", mod:1, code:19, ico:"🖊️" },
+      { labelKey:"tools.ppt.laser", page:"kb", mod:1, code:15, ico:"🔴" }
+    ]},
+    { labelKey:"tools.ppt.nav", items:[
+      { labelKey:"tools.ppt.home",  page:"kb", mod:0, code:74, ico:"⏮️" },
+      { labelKey:"tools.ppt.endpg", page:"kb", mod:0, code:77, ico:"⏭️" }
+    ]}
+  ]},
+  3: { badge:"TV", ico:"📺", groups:[
+    { labelKey:"tools.tv.channel", items:[
+      { labelKey:"tools.tv.ch_up",   page:"consumer", mod:0, code:0x4000, ico:"📶" },
+      { labelKey:"tools.tv.ch_down", page:"consumer", mod:0, code:0x8000, ico:"📶" }
+    ]},
+    { labelKey:"tools.tv.media", items:[
+      { labelKey:"tools.tv.play", page:"consumer", mod:0, code:0x0008, ico:"▶️" },
+      { labelKey:"tools.tv.stop", page:"consumer", mod:0, code:0x0010, ico:"⏹️" },
+      { labelKey:"tools.tv.next", page:"consumer", mod:0, code:0x0020, ico:"⏭️" },
+      { labelKey:"tools.tv.prev", page:"consumer", mod:0, code:0x0040, ico:"⏮️" }
+    ]},
+    { labelKey:"tools.tv.nav", items:[
+      { labelKey:"tools.tv.home",   page:"consumer", mod:0, code:0x0400, ico:"🏠" },
+      { labelKey:"tools.tv.back",   page:"consumer", mod:0, code:0x0200, ico:"↩️" },
+      { labelKey:"tools.tv.input",  page:"consumer", mod:0, code:0x2000, ico:"🔀" },
+      { labelKey:"tools.tv.search", page:"consumer", mod:0, code:0x0800, ico:"🔍" }
+    ]},
+    { labelKey:"tools.tv.vol", items:[
+      { labelKey:"tools.tv.vol_up",   page:"consumer", mod:0, code:0x0001, ico:"🔊" },
+      { labelKey:"tools.tv.vol_down", page:"consumer", mod:0, code:0x0002, ico:"🔉" },
+      { labelKey:"tools.tv.mute",     page:"consumer", mod:0, code:0x0004, ico:"🔇" }
+    ]}
+  ]}
+};
+function renderModeTools(){
+  const bodyEl = qs("modeToolsBody"); if (!bodyEl) return;
+  const badgeEl = qs("modeToolsBadge");
+  const icoEl = qs("modeToolsIco");
+  const cfg = MODE_TOOLS[g_currentActiveMode] || MODE_TOOLS[1];
+  if (badgeEl) badgeEl.textContent = cfg.badge;
+  if (icoEl) icoEl.textContent = cfg.ico;
+
+  bodyEl.innerHTML = "";
+  for (const group of cfg.groups){
+    const gDiv = document.createElement("div");
+    gDiv.className = "tool-group";
+    const gT = document.createElement("div");
+    gT.className = "tool-group-title";
+    gT.textContent = t(group.labelKey);
+    gDiv.appendChild(gT);
+
+    const bWrap = document.createElement("div");
+    bWrap.className = "tool-btns";
+    for (const item of group.items){
+      const btn = document.createElement("button");
+      btn.className = "tool-btn";
+      btn.innerHTML = `<span class="tool-ico">${item.ico || "•"}</span><span>${t(item.labelKey)}</span>`;
+      btn.addEventListener("click", ()=> keyTest(item.page, item.mod || 0, item.code));
+      bWrap.appendChild(btn);
+    }
+    gDiv.appendChild(bWrap);
+    bodyEl.appendChild(gDiv);
+  }
+}
+
+/* ========== 10. Virtual Remote Config ========== */
+const REMOTE_CONFIG_BY_MODE = {
+  1: {
+    themeClass:"mode-pc", badgeKey:"remote.badge_pc", guideKey:"remote.guide_pc",
+    top1:{label:"Win",subKey:"remote.sub_start",action:()=>keyTest("kb",8,0)},
+    top2:{label:"🔇",subKey:"remote.sub_mute",action:()=>keyTest("consumer",0,0x0004)},
+    ringUp:{label:"▲",action:()=>keyTest("kb",0,82)},
+    ringDown:{label:"▼",action:()=>keyTest("kb",0,81)},
+    ringLeft:{label:"◀",action:()=>keyTest("kb",0,80)},
+    ringRight:{label:"▶",action:()=>keyTest("kb",0,79)},
+    knobText:"Enter", knobTap:()=>keyTest("kb",0,40),
+    sub1:{label:"ESC",subKey:"remote.sub_cancel",action:()=>keyTest("kb",0,41)},
+    sub2:{label:"캡처",subKey:"remote.sub_screenshot",action:()=>keyTest("kb",10,22)},
+    pad1U:{label:"Vol +",action:()=>keyTest("consumer",0,0x0001)},
+    pad1D:{label:"Vol -",action:()=>keyTest("consumer",0,0x0002)},
+    pad2U:{label:"▶⏸",action:()=>keyTest("consumer",0,0x0008)},
+    pad2D:{label:"정지",action:()=>keyTest("consumer",0,0x0010)},
+    pad3U:{label:"PgUp",action:()=>keyTest("kb",0,75)},
+    pad3D:{label:"PgDn",action:()=>keyTest("kb",0,78)},
+    pad3LblKey:"remote.pad_doc"
+  },
+  2: {
+    themeClass:"mode-ppt", badgeKey:"remote.badge_ppt", guideKey:"remote.guide_ppt",
+    top1:{labelKey:"remote.ppt_f5",action:()=>keyTest("kb",0,58)},
+    top2:{labelKey:"remote.ppt_shf5",action:()=>keyTest("kb",2,62)},
+    ringUp:{labelKey:"remote.ppt_end",action:()=>keyTest("kb",0,41)},
+    ringDown:{labelKey:"remote.ppt_laser",action:()=>keyTest("kb",1,15)},
+    ringLeft:{labelKey:"remote.ppt_prev",action:()=>keyTest("kb",0,75)},
+    ringRight:{labelKey:"remote.ppt_next",action:()=>keyTest("kb",0,78)},
+    knobTextKey:"remote.ppt_sel", knobTap:()=>keyTest("kb",0,40),
+    sub1:{labelKey:"remote.ppt_black",action:()=>keyTest("kb",0,5)},
+    sub2:{labelKey:"remote.ppt_white",action:()=>keyTest("kb",0,26)},
+    pad1U:{labelKey:"remote.ppt_prev",action:()=>keyTest("kb",0,75)},
+    pad1D:{labelKey:"remote.ppt_next",action:()=>keyTest("kb",0,78)},
+    pad2U:{labelKey:"remote.ppt_pen",action:()=>keyTest("kb",1,19)},
+    pad2D:{labelKey:"remote.ppt_arrow",action:()=>keyTest("kb",1,4)},
+    pad3U:{label:"Vol +",action:()=>keyTest("consumer",0,0x0001)},
+    pad3D:{label:"Vol -",action:()=>keyTest("consumer",0,0x0002)},
+    pad3LblKey:"remote.pad_ppt_vol"
+  },
+  3: {
+    themeClass:"mode-tv", badgeKey:"remote.badge_tv", guideKey:"remote.guide_tv",
+    top1:{labelKey:"remote.tv_power",action:()=>keyTest("consumer",0,0x1000)},
+    top2:{label:"🔇",action:()=>keyTest("consumer",0,0x0004)},
+    ringUp:{label:"▲",action:()=>keyTest("kb",0,82)},
+    ringDown:{label:"▼",action:()=>keyTest("kb",0,81)},
+    ringLeft:{label:"◀",action:()=>keyTest("kb",0,80)},
+    ringRight:{label:"▶",action:()=>keyTest("kb",0,79)},
+    knobTextKey:"remote.tv_ok", knobTap:()=>keyTest("kb",0,40),
+    sub1:{labelKey:"remote.tv_back",action:()=>keyTest("consumer",0,0x0200)},
+    sub2:{labelKey:"remote.tv_home",action:()=>keyTest("consumer",0,0x0400)},
+    pad1U:{label:"VOL +",action:()=>keyTest("consumer",0,0x0001)},
+    pad1D:{label:"VOL -",action:()=>keyTest("consumer",0,0x0002)},
+    pad2U:{label:"▶⏸",action:()=>keyTest("consumer",0,0x0008)},
+    pad2D:{labelKey:"remote.tv_input",action:()=>keyTest("consumer",0,0x2000)},
+    pad3U:{labelKey:"remote.tv_ch_up",action:()=>keyTest("consumer",0,0x4000)},
+    pad3D:{labelKey:"remote.tv_ch_down",action:()=>keyTest("consumer",0,0x8000)},
+    pad3LblKey:"remote.pad_ch"
+  }
+};
+
+function _renderController(mode){
+  const cfg = REMOTE_CONFIG_BY_MODE[mode] || REMOTE_CONFIG_BY_MODE[1];
+  const card = qs("remoteCard");
+  if (card){
+    card.classList.remove("mode-pc","mode-ppt","mode-tv","remote-flash");
+    void card.offsetWidth;
+    card.classList.add(cfg.themeClass, "remote-flash");
+    setTimeout(()=>card.classList.remove("remote-flash"), 700);
+  }
+  const badge = qs("remoteActiveModeBadge");
+  if (badge) badge.textContent = t(cfg.badgeKey);
+  const hintEl = qs("dpadGuideHint");
+  if (hintEl) hintEl.textContent = t(cfg.guideKey);
+
+  const setBtn = (id, def, subId)=>{
+    const el = qs(id); if (!el || !def) return;
+    const v_lbl = def.labelKey ? t(def.labelKey) : def.label;
+    if (v_lbl !== undefined) el.textContent = v_lbl;
+    const cloned = el.cloneNode(true);
+    el.parentNode.replaceChild(cloned, el);
+    if (typeof def.action === "function") cloned.addEventListener("click", def.action);
+    if (subId){
+      const sEl = qs(subId);
+      if (sEl) sEl.textContent = def.subKey ? t(def.subKey) : "";
+    }
+  };
+  setBtn("rbtnTop1", cfg.top1, "lblTop1");
+  setBtn("rbtnTop2", cfg.top2, "lblTop2");
+  setBtn("rbtnRingUp", cfg.ringUp);
+  setBtn("rbtnRingDown", cfg.ringDown);
+  setBtn("rbtnRingLeft", cfg.ringLeft);
+  setBtn("rbtnRingRight", cfg.ringRight);
+  setBtn("rbtnSub1", cfg.sub1, "lblSub1");
+  setBtn("rbtnSub2", cfg.sub2, "lblSub2");
+  setBtn("rbtnPad1Up", cfg.pad1U);
+  setBtn("rbtnPad1Down", cfg.pad1D);
+  setBtn("rbtnPad2Up", cfg.pad2U);
+  setBtn("rbtnPad2Down", cfg.pad2D);
+  setBtn("rbtnPad3Up", cfg.pad3U);
+  setBtn("rbtnPad3Down", cfg.pad3D);
+  const pad3Lbl = qs("lblPad3");
+  if (pad3Lbl && cfg.pad3LblKey) pad3Lbl.textContent = t(cfg.pad3LblKey);
+  const knobText = qs("joyKnobText");
+  if (knobText) knobText.textContent = cfg.knobTextKey ? t(cfg.knobTextKey) : (cfg.knobText || "");
+}
+
+function _updateModeTabs(){
+  qsa(".preview-tab").forEach(b=>{
+    b.classList.toggle("on", parseIntFlex(b.dataset.mode, 0) === g_currentActiveMode);
+  });
+}
+
+/* ========== 11. Mode Switching ========== */
+async function ctlSetMode(target){
+  target = Math.max(1, Math.min(3, target|0));
+  const cur = g_currentActiveMode;
+  if (target === cur) return true;
+  if (!confirm(t("pop.mode_switch_confirm", { cur, tgt:target }))) return false;
+
+  const cfg = getActiveProfile();
+  if (cfg.e10) { cfg.e10.active_mode = target; saveOfflineStore(); }
+
+  showLoading(`모드 ${target} 전환 중…`);
+  try {
+    if (g_appMode === APP_MODE_ONLINE){
+      const steps = ((target - cur) + 3) % 3;
+      for (let i = 0; i < steps; i++){
+        await apiPostJson("/api/action/test", { k:9, h:0, p16:3, p32:0 });
+        await new Promise(r => setTimeout(r, 320));
+      }
+    } else {
+      await new Promise(r => setTimeout(r, 400));
+    }
+    applyRemoteMode(target);
+    setMsg(t("pop.mode_switch_ok", { tgt:target }), true);
+    pushRecentLog(`MODE → ${target}`, true);
+    return true;
+  } finally { hideLoading(); }
+}
+
+function applyRemoteMode(mode){
+  g_currentActiveMode = mode;
+  const cfg = getActiveProfile();
+  if (cfg.e10) { cfg.e10.active_mode = mode; saveOfflineStore(); }
+  _renderController(mode);
+  _updateModeTabs();
+  renderModeTools();
+}
+
+/* ========== 12. Troubleshoot ========== */
+async function handleTrouble(kind){
+  try {
+    switch(kind){
+      case "calib":
+        await apiPostJson("/api/control", { cmd:"gyro_calib", snapshot:false });
+        setMsg(t("pop.calib_ok"), true); pushRecentLog("GYRO_CALIB", true); break;
+      case "release":
+        await apiPostJson("/api/control", { cmd:"force_release", snapshot:false });
+        setMsg(t("pop.force_release_ok"), true); pushRecentLog("FORCE_RELEASE", true); break;
+      case "host":
+        await apiPostJson("/api/action/test", { k:9, h:0, p16:5, p32:0 });
+        setMsg(t("pop.host_cycle_ok"), true); pushRecentLog("HOST_CYCLE", true); break;
+      case "pair":
+        await apiPostJson("/api/action/test", { k:9, h:0, p16:4, p32:0 });
+        setMsg(t("pop.pair_ok"), true); pushRecentLog("PAIRING", true); break;
+      case "i2c":
+        await apiPostJson("/api/control", { cmd:"i2c_recover", snapshot:false });
+        setMsg(t("pop.i2c_ok"), true); pushRecentLog("I2C_RECOVER", true); break;
+      case "sleep":
+        await apiPostJson("/api/action/test", { k:9, h:0, p16:2, p32:0 });
+        setMsg(t("pop.sleep_ok"), true); pushRecentLog("SLEEP_NOW", true); break;
+      case "safemode": {
+        const cfg = getActiveProfile();
+        cfg.e10.safe_mode = !cfg.e10.safe_mode; saveOfflineStore();
+        await apiPostJson("/api/control", { cmd:"set_safe_mode", enable: cfg.e10.safe_mode, snapshot:true });
+        setMsg(cfg.e10.safe_mode ? t("pop.safemode_on") : t("pop.safemode_off"), true);
+        pushRecentLog(`SAFE_MODE_${cfg.e10.safe_mode ? "ON" : "OFF"}`, true);
+        await refreshStatus();
+        break;
+      }
+      case "factory":
+        if (!confirm(t("pop.factory_confirm"))) return;
+        try { localStorage.clear(); } catch(e){}
+        alert(t("pop.factory_ok"));
+        location.reload();
+        break;
+      case "safeinfo":
+        alert(pretty({ safe_mode: !!getActiveProfile().e10.safe_mode, offline: g_appMode === APP_MODE_OFFLINE }));
+        break;
+      case "safeexit":
+        if (!confirm(t("pop.safeboot_exit_confirm"))) return;
+        getActiveProfile().e10.safe_mode = false; saveOfflineStore();
+        await refreshStatus();
+        pushRecentLog("SAFEBOOT_EXIT", true);
+        break;
+    }
+  } catch(e){
+    setMsg(`${t("pop.trouble_fail")} ${e.message||e}`, false);
+  }
+}
+
+/* ========== 13. Fold persistence ========== */
+function bindFoldPersist(detailsId, storageKey, defaultOpen){
+  const el = qs(detailsId); if (!el) return;
+  let v_open = !!defaultOpen;
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved === "1") v_open = true;
+    else if (saved === "0") v_open = false;
+  } catch(e){}
+  el.open = v_open;
+  el.addEventListener("toggle", ()=>{
+    try { localStorage.setItem(storageKey, el.open ? "1" : "0"); } catch(e){}
+  });
+}
+function _restoreRemoteFold(){
+  try { g_isRemoteFolded = (localStorage.getItem(REMOTE_FOLD_KEY) === "1"); }
+  catch(e) { g_isRemoteFolded = false; }
+  const body = qs("remoteCollapseBody"), btn = qs("btnToggleRemoteFold");
+  if (body) body.classList.toggle("folded", g_isRemoteFolded);
+  if (btn)  btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
+}
+function bindRemoteFoldToggle(){
+  const btn = qs("btnToggleRemoteFold"), body = qs("remoteCollapseBody");
+  if (!btn || !body) return;
+  _restoreRemoteFold();
+  btn.addEventListener("click", ()=>{
+    g_isRemoteFolded = !g_isRemoteFolded;
+    body.classList.toggle("folded", g_isRemoteFolded);
+    btn.textContent = g_isRemoteFolded ? "펼치기 ▼" : "접기 ▲";
+    try { localStorage.setItem(REMOTE_FOLD_KEY, g_isRemoteFolded ? "1" : "0"); } catch(e){}
+  });
+}
+
+/* ========== 14. Joystick ========== */
+function initHybridJoystick(){
+  const ring = qs("dpadRing"), knob = qs("joyStickKnob");
+  if (!ring || !knob) return;
+  const MAX_RADIUS = 38, DEADZONE = 12;
+  let isDragging = false, startX = 0, startY = 0, repeatTimer = null, activeDir = null;
+
+  function getDir(dx, dy){
+    const a = Math.atan2(dy, dx) * 180 / Math.PI;
+    if (a >= -45 && a <= 45) return "RIGHT";
+    if (a > 45 && a < 135) return "DOWN";
+    if (a >= 135 || a <= -135) return "LEFT";
+    if (a < -45 && a > -135) return "UP";
+    return null;
+  }
+  function triggerTilt(dir){
+    if (!dir) return;
+    if (g_currentActiveMode === 2){
+      keyTest("kb", 0, (dir === "RIGHT" || dir === "DOWN") ? 78 : 75);
+    } else {
+      const map = { UP:82, DOWN:81, LEFT:80, RIGHT:79 };
+      keyTest("kb", 0, map[dir] || 0);
+    }
+  }
+  function handleStart(e){
+    if (e.target.classList.contains("ring-btn")) return;
+    isDragging = true;
+    const rect = ring.getBoundingClientRect();
+    startX = rect.left + rect.width / 2;
+    startY = rect.top + rect.height / 2;
+    handleMove(e);
+  }
+  function handleMove(e){
+    if (!isDragging) return;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    let dx = cx - startX, dy = cy - startY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > MAX_RADIUS){ dx = (dx/dist)*MAX_RADIUS; dy = (dy/dist)*MAX_RADIUS; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    if (dist > DEADZONE){
+      const dir = getDir(dx, dy);
+      if (dir !== activeDir){
+        activeDir = dir;
+        triggerTilt(dir);
+        clearInterval(repeatTimer);
+        repeatTimer = setInterval(()=>{ if (activeDir) triggerTilt(activeDir); }, 300);
+      }
+    } else { activeDir = null; clearInterval(repeatTimer); }
+  }
+  function handleEnd(){
+    if (!isDragging) return;
+    isDragging = false; clearInterval(repeatTimer);
+    if (!activeDir){
+      const cfg = REMOTE_CONFIG_BY_MODE[g_currentActiveMode];
+      if (cfg && cfg.knobTap) cfg.knobTap();
+    }
+    activeDir = null;
+    knob.style.transition = "transform .15s cubic-bezier(0.175,0.885,0.32,1.275)";
+    knob.style.transform = "translate(0px,0px)";
+    setTimeout(()=>{ knob.style.transition = ""; }, 150);
+  }
+  knob.addEventListener("mousedown", handleStart);
+  window.addEventListener("mousemove", handleMove);
+  window.addEventListener("mouseup", handleEnd);
+  knob.addEventListener("touchstart", handleStart, { passive:false });
+  window.addEventListener("touchmove", handleMove, { passive:false });
+  window.addEventListener("touchend", handleEnd);
+  window.addEventListener("touchcancel", handleEnd);
+}
+
+/* ========== 15. Drawer ========== */
+function openDrawer(){ qs("drawer")?.classList.add("on"); qs("drawerBackdrop")?.classList.add("on"); }
+function closeDrawer(){ qs("drawer")?.classList.remove("on"); qs("drawerBackdrop")?.classList.remove("on"); }
+function _updateNetLabel(){
+  const lbl = qs("drawerNetLabel");
+  if (lbl) lbl.textContent = `NET: ${g_appMode}`;
+}
+function bindDrawer(){
+  qs("btnMenu")?.addEventListener("click", openDrawer);
+  qs("btnDrawerClose")?.addEventListener("click", closeDrawer);
+  qs("drawerBackdrop")?.addEventListener("click", closeDrawer);
+
+  qsa(".drawer-item[data-tab]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const tabId = btn.getAttribute("data-tab");
+      qsa(".drawer-item[data-tab]").forEach(x=>x.classList.remove("on"));
+      btn.classList.add("on");
+      qsa(".tabpane").forEach(x=>x.classList.remove("on"));
+      qs("tab-" + tabId)?.classList.add("on");
+      window.scrollTo({ top:0, behavior:"smooth" });
+      closeDrawer();
+      if (tabId === "diag") refreshDiag().catch(console.error);
+    });
+  });
+
+  qs("btnDrawerRefresh")?.addEventListener("click", ()=>{ refreshStatus(); closeDrawer(); });
+  qs("btnDrawerReboot")?.addEventListener("click", ()=>{
+    if (confirm(t("pop.reboot_confirm"))) location.reload();
+  });
+  qs("btnDrawerNetToggle")?.addEventListener("click", ()=>{
+    const target = (g_appMode === APP_MODE_ONLINE) ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
+    if (!confirm(t("pop.net_mode_switch_confirm", { current:g_appMode, target }))) return;
+    g_appMode = target;
+    _updateNetLabel();
+    setMsg(`모드 전환: ${g_appMode}`, true);
+    profileReloadAll().then(()=>{
+      renderSlotEditor(); macroRenderList(); macroRenderEditor(); cfgLoad(); refreshStatus();
+    });
+    closeDrawer();
+  });
+  qs("drawer")?.querySelectorAll("[data-lang]").forEach(b=>{
+    b.addEventListener("click", ()=>{ setLanguage(b.dataset.lang); closeDrawer(); });
+  });
+}
+
+/* ========== 16. Banner ========== */
+function bindBanner(){
+  qs("btnBannerClose")?.addEventListener("click", ()=>{
+    qs("bannerReboot")?.classList.remove("on");
+  });
+  qs("btnBannerReboot")?.addEventListener("click", ()=>{
+    if (confirm(t("pop.reboot_confirm"))) location.reload();
+  });
+}
+
+/* ========== 17. Mode Tabs / Trouble 바인딩 ========== */
+function bindModeTabs(){
+  qsa(".preview-tab").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const m = parseIntFlex(b.dataset.mode, 0);
+      ctlSetMode(m);
+    });
+  });
+}
+function bindTroubleshoot(){
+  qsa("[data-trouble]").forEach(btn=>{
+    btn.addEventListener("click", ()=> handleTrouble(btn.getAttribute("data-trouble")));
+  });
+}
+
+/* ========== 18. Profile ========== */
+function renderProfileSelect(){
+  const sel = qs("profSelect"); if (!sel) return;
+  sel.innerHTML = "";
+  for (const p of g_offlineStore.profiles){
+    const o = document.createElement("option");
+    o.value = String(p.idx);
+    o.textContent = `${p.idx}: ${p.name}`;
+    sel.appendChild(o);
+  }
+  sel.value = String(g_offlineStore.active);
+  const bc = qs("btnProfCreate"); if (bc) bc.disabled = (g_offlineStore.profiles.length >= 5);
+  const bd = qs("btnProfDelete"); if (bd) bd.disabled = (g_offlineStore.profiles.length <= 1);
+}
+async function profileReloadAll(){
+  await apiGet("/api/profiles");
+  renderProfileSelect();
+  const r = await apiGet("/api/profiles/active");
+  const u = unwrapApi(r);
+  if (u.ok && u.data){
+    g_profile = { idx: u.data.idx, count: u.data.count, config: u.data.config || {} };
+  }
+}
+async function profileSwitch(idx){
+  showLoading(`프로파일 #${idx} 전환 중…`);
+  try {
+    const u = unwrapApi(await apiPostJson("/api/profiles/switch", { idx }));
+    if (!u.ok){ alert(`${t("pop.switch_fail")} ${u.msg||u.code}`); return; }
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+    await cfgLoad();
+    await refreshStatus();
+    const m = g_profile?.config?.e10?.active_mode || 1;
+    applyRemoteMode(m);
+  } finally { hideLoading(); }
+}
+async function profileCreate(){
+  const name = prompt(t("pop.prof_name_prompt"), "New"); if (!name) return;
+  showLoading(t("loading.processing"));
+  try {
+    const u = unwrapApi(await apiPostJson("/api/profiles/create", { name: name.trim().substring(0,15) }));
+    if (!u.ok){ alert(`${t("pop.prof_create_fail")} ${u.msg||u.code}`); return; }
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+  } finally { hideLoading(); closeDrawer(); }
+}
+async function profileDelete(){
+  if (!g_profile) return;
+  const v_count = g_offlineStore.profiles.length;
+  let msg;
+  if (v_count > 1) msg = t("pop.prof_delete_active_confirm", { idx: g_profile.idx });
+  else msg = t("pop.prof_delete_confirm", { idx: g_profile.idx, name: g_profile.config?.name || "" });
+  if (!confirm(msg)) return;
+  showLoading(t("loading.processing"));
+  try {
+    const u = unwrapApi(await apiPostJson("/api/profiles/delete", { idx: g_profile.idx }));
+    if (!u.ok){ alert(`${t("pop.prof_delete_fail")} ${u.msg||u.code}`); return; }
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+    await cfgLoad();
+  } finally { hideLoading(); closeDrawer(); }
+}
+async function profileRename(){
+  if (!g_profile) return;
+  const cur = (g_profile.config && g_profile.config.name) || "";
+  const name = prompt(t("pop.prof_rename_prompt"), cur); if (!name) return;
+  const u = unwrapApi(await apiPostJson("/api/profiles/rename", {
+    idx: g_profile.idx, name: name.trim().substring(0,15)
+  }));
+  if (!u.ok){ alert(`${t("pop.prof_rename_fail")} ${u.msg||u.code}`); return; }
+  await profileReloadAll(); closeDrawer();
+}
+
+/* ========== 19. Slots Editor ========== */
+function viewToModeIdx(v){
+  if (v === "mode1") return 0;
+  if (v === "mode2") return 1;
+  if (v === "mode3") return 2;
+  return -1;
+}
+function getSlotsArray(){
+  if (!g_profile || !g_profile.config) return null;
+  const s = g_profile.config.slots; if (!s) return null;
+  const mi = viewToModeIdx(g_view);
+  function _ensure27(arr){
+    while (arr.length < 27) arr.push({ k:0,h:0,p16:0,p32:0 });
+    if (arr.length > 27) arr.length = 27;
+    return arr;
+  }
+  if (mi < 0){
+    if (!Array.isArray(s.global)) s.global = [];
+    return _ensure27(s.global);
+  }
+  if (!Array.isArray(s.modes)) s.modes = [];
+  while (s.modes.length < 3) s.modes.push({ mask:0, slots:[] });
+  if (!s.modes[mi]) s.modes[mi] = { mask:0, slots:[] };
+  if (!Array.isArray(s.modes[mi].slots)) s.modes[mi].slots = [];
+  return _ensure27(s.modes[mi].slots);
+}
+function getOverrideMask(){
+  if (!g_profile || !g_profile.config) return 0;
+  const mi = viewToModeIdx(g_view);
+  if (mi < 0) return 0;
+  const s = g_profile.config.slots;
+  const m = (s.modes || [])[mi];
+  return m ? (m.mask >>> 0) : 0;
+}
+function setOverrideBit(idx, on){
+  if (!g_profile || !g_profile.config) return;
+  const mi = viewToModeIdx(g_view);
+  if (mi < 0) return;
+  const s = g_profile.config.slots;
+  if (!s.modes) s.modes = [];
+  while (s.modes.length < 3) s.modes.push({ mask:0, slots:[] });
+  if (!s.modes[mi]) s.modes[mi] = { mask:0, slots:[] };
+  if (!s.modes[mi].slots) s.modes[mi].slots = [];
+  while (s.modes[mi].slots.length < 27) s.modes[mi].slots.push({ k:0,h:0,p16:0,p32:0 });
+  if (on) s.modes[mi].mask = (s.modes[mi].mask | (1 << idx)) >>> 0;
+  else    s.modes[mi].mask = (s.modes[mi].mask & ~(1 << idx)) >>> 0;
+  if (on && s.global && s.global[idx]){
+    s.modes[mi].slots[idx] = JSON.parse(JSON.stringify(s.global[idx]));
+  }
+}
+function renderSlotEditor(){
+  const root = qs("slotEditor"); if (!root) return;
+  if (!g_profile || !g_profile.config){
+    root.innerHTML = '<div class="hint2">프로파일 로드 대기 중…</div>';
+    return;
+  }
+  const triggers = G_KEYCODES.triggers;
+  const slotsArr = getSlotsArray() || [];
+  const mask     = getOverrideMask();
+  const mi       = viewToModeIdx(g_view);
+  const isGlobal = (mi < 0);
+
+  root.innerHTML = "";
+
+  const groups = [
+    { key:"button",  label:t("slots.grp_btn") },
+    { key:"gesture", label:t("slots.grp_gesture") },
+    { key:"tilt",    label:t("slots.grp_tilt") }
+  ];
+
+  for (const g of groups){
+    const isTiltGroup = (g.key === "tilt");
+    const tiltDisabled = isTiltGroup && !isGlobal && (mi !== 2);
+
+    const head = document.createElement("div");
+    head.className = "trig-group-head";
+    head.textContent = g.label;
+    root.appendChild(head);
+
+    if (isTiltGroup && tiltDisabled){
+      const banner = document.createElement("div");
+      banner.className = "tilt-banner warn";
+      banner.textContent = t("slots.tilt_disabled_warn");
+      root.appendChild(banner);
+    }
+
+    for (const trg of triggers){
+      if (trg.group !== g.key) continue;
+      const idx = trg.idx;
+      const row = document.createElement("div");
+      row.className = "trig-row";
+      if (trg.locked) row.classList.add("locked");
+      if (tiltDisabled) row.classList.add("disabled-by-mode");
+
+      const isOver = isGlobal ? false : ((mask & (1 << idx)) !== 0);
+      if (!isGlobal && isOver && !tiltDisabled) row.classList.add("override");
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "trig-name";
+      nameEl.textContent = (trg.locked ? "🔒 " : "") + trg.name;
+      row.appendChild(nameEl);
+
+      const badge = document.createElement("div");
+      badge.className = "trig-badge";
+      if (tiltDisabled){
+        badge.textContent = "M3"; badge.classList.add("g");
+        row.appendChild(badge);
+      } else if (isGlobal){
+        badge.textContent = "G"; badge.classList.add("g");
+        row.appendChild(badge);
+      } else if (isOver){
+        badge.textContent = `M${mi+1}`; badge.classList.add("m");
+        if (!trg.locked){
+          badge.style.cursor = "pointer";
+          badge.onclick = ()=>{ setOverrideBit(idx, false); renderSlotEditor(); };
+        }
+        row.appendChild(badge);
+      } else {
+        badge.textContent = "G"; badge.classList.add("g");
+        if (!trg.locked){
+          badge.style.cursor = "pointer";
+          badge.onclick = ()=>{ setOverrideBit(idx, true); renderSlotEditor(); };
+        }
+        row.appendChild(badge);
+      }
+
+      const slot = isGlobal
+        ? (slotsArr[idx] || {k:0,h:0,p16:0,p32:0})
+        : (isOver
+            ? (slotsArr[idx] || {k:0,h:0,p16:0,p32:0})
+            : ((g_profile.config.slots.global && g_profile.config.slots.global[idx])
+                || {k:0,h:0,p16:0,p32:0}));
+
+      const isEditable = !trg.locked && !tiltDisabled && (isGlobal || isOver);
+
+      const editor = renderActionEditor(slot, isEditable, (newSlot)=>{
+        const arr = getSlotsArray();
+        if (!arr) return;
+        const v_mi = viewToModeIdx(g_view);
+        if (v_mi < 0){
+          g_profile.config.slots.global[idx] = newSlot;
+        } else {
+          g_profile.config.slots.modes[v_mi].slots[idx] = newSlot;
+        }
+      });
+      row.appendChild(editor);
+
+      const tcell = document.createElement("div");
+      if (!trg.locked && !tiltDisabled){
+        const btn = document.createElement("button");
+        btn.className = "btn mini";
+        btn.textContent = "Test";
+        btn.onclick = async ()=>{
+          const arr = getSlotsArray();
+          const s = (arr && arr[idx]) ? arr[idx] : slot;
+          if (!s || s.k === 0){ alert(t("pop.no_action_assigned")); return; }
+          if (!confirm(t("pop.live_test_confirm", { kind:s.k }))) return;
+          const u = unwrapApi(await apiPostJson("/api/action/test", { k:s.k, h:s.h, p16:s.p16, p32:s.p32 }));
+          if (!u.ok) alert(`${t("pop.test_fail")} ${u.msg||u.code}`);
+        };
+        tcell.appendChild(btn);
+      }
+      row.appendChild(tcell);
+
+      root.appendChild(row);
+    }
+  }
+}
+
+function renderActionEditor(slot, editable, onChange){
+  const wrap = document.createElement("div");
+  wrap.className = "action-editor";
+
+  const kinds    = G_KEYCODES.action_kinds;
+  const mods     = G_KEYCODES.mods;
+  const consumer = G_KEYCODES.consumer;
+  const specials = G_KEYCODES.specials;
+
+  const cur = { k: slot.k ?? 0, h: slot.h ?? 0, p16: slot.p16 ?? 0, p32: slot.p32 ?? 0 };
+  function emit(){ onChange({ k:cur.k, h:cur.h, p16:cur.p16, p32:cur.p32 }); }
+  function getKindName(v){ const k = kinds.find(x=>x.value === v); return k ? k.name : ("Kind " + v); }
+
+  function renderParams(){
+    wrap.innerHTML = "";
+    const selKind = document.createElement("select");
+    selKind.className = "select mini"; selKind.disabled = !editable;
+    for (const kk of kinds){
+      const o = document.createElement("option");
+      o.value = String(kk.value); o.textContent = getKindName(kk.value);
+      selKind.appendChild(o);
+    }
+    selKind.value = String(cur.k);
+    selKind.onchange = ()=>{
+      cur.k = parseIntFlex(selKind.value, 0); cur.h = 0; cur.p16 = 0; cur.p32 = 0;
+      renderParams(); emit();
+    };
+    wrap.appendChild(selKind);
+
+    const k = cur.k;
+    if (k === 0){ /* NONE */ }
+    else if (k === 1 || k === 2){
+      const sel = document.createElement("select");
+      sel.className = "select mini"; sel.disabled = !editable;
+      sel.innerHTML = [0,1,2,4,8,16].map(v=>{
+        const lbl = ["None","L","R","M","Back","Fwd"][[0,1,2,4,8,16].indexOf(v)] || v;
+        return `<option value="${v}">${lbl} (${v})</option>`;
+      }).join("");
+      sel.value = String(cur.p16);
+      sel.onchange = ()=>{ cur.p16 = parseIntFlex(sel.value, 0); emit(); };
+      wrap.appendChild(sel);
+    }
+    else if (k === 3){
+      const ax = document.createElement("select");
+      ax.className = "select mini"; ax.disabled = !editable;
+      ax.innerHTML = `<option value="0">Y축(세로)</option><option value="1">X축(가로)</option>`;
+      const di = document.createElement("select");
+      di.className = "select mini"; di.disabled = !editable;
+      di.innerHTML = `<option value="0">▲위/◀왼</option><option value="1">▼아래/▶오른</option>`;
+      ax.value = String((cur.p16 >>> 8) & 0xFF);
+      di.value = String(cur.p16 & 0xFF);
+      const upd = ()=>{ cur.p16 = ((parseIntFlex(ax.value,0) << 8) | (parseIntFlex(di.value,0) & 0xFF)); emit(); };
+      ax.onchange = upd; di.onchange = upd;
+      wrap.appendChild(ax); wrap.appendChild(di);
+    }
+    else if (k === 4 || k === 6){
+      const selMod = document.createElement("select");
+      selMod.className = "select mini"; selMod.disabled = !editable;
+      selMod.innerHTML = mods.map(m=>`<option value="${m.mask}">${m.name}</option>`).join("");
+      selMod.value = String(cur.p32 & 0xFF);
+      selMod.onchange = ()=>{ cur.p32 = parseIntFlex(selMod.value,0); emit(); };
+      wrap.appendChild(selMod);
+
+      const selU = document.createElement("select");
+      selU.className = "select mini"; selU.style.minWidth = "160px"; selU.disabled = !editable;
+      selU.innerHTML = G_KEYCODES.kb.map(it=>`<option value="${it.code}">${it.name}</option>`).join("");
+      selU.value = String(cur.p16 & 0xFF);
+      selU.onchange = ()=>{ cur.p16 = parseIntFlex(selU.value,0) & 0xFF; emit(); };
+      wrap.appendChild(selU);
+    }
+    else if (k === 5){
+      const selMod = document.createElement("select");
+      selMod.className = "select mini"; selMod.disabled = !editable;
+      selMod.innerHTML = mods.map(m=>`<option value="${m.mask}">${m.name}</option>`).join("");
+      selMod.value = String(cur.p32 & 0xFF);
+      selMod.onchange = ()=>{ cur.p32 = ((cur.p32 & 0xFFFFFF00) | parseIntFlex(selMod.value,0)) >>> 0; emit(); };
+      wrap.appendChild(selMod);
+      for (let i = 0; i < 3; i++){
+        const shift = 8 + i * 8;
+        const curCode = (cur.p32 >>> shift) & 0xFF;
+        const selU = document.createElement("select");
+        selU.className = "select mini"; selU.style.minWidth = "140px"; selU.disabled = !editable;
+        selU.innerHTML = G_KEYCODES.kb.map(it=>`<option value="${it.code}">${it.name}</option>`).join("");
+        selU.value = String(curCode);
+        selU.onchange = ()=>{
+          const v = parseIntFlex(selU.value,0) & 0xFF;
+          cur.p32 = ((cur.p32 & ~(0xFF << shift)) | (v << shift)) >>> 0;
+          emit();
+        };
+        wrap.appendChild(selU);
+      }
+    }
+    else if (k === 7 || k === 8){
+      const sel = document.createElement("select");
+      sel.className = "select mini"; sel.disabled = !editable;
+      sel.innerHTML = `<option value="0">None</option>` +
+        consumer.map(c=>`<option value="${c.mask}">${c.name}</option>`).join("");
+      sel.value = String(cur.p32 >>> 0);
+      sel.onchange = ()=>{ cur.p32 = parseIntFlex(sel.value,0) >>> 0; emit(); };
+      wrap.appendChild(sel);
+    }
+    else if (k === 9){
+      const sel = document.createElement("select");
+      sel.className = "select mini"; sel.disabled = !editable;
+      sel.innerHTML = specials.map(s=>`<option value="${s.value}">${s.name}</option>`).join("");
+      sel.value = String(cur.p16);
+      sel.onchange = ()=>{ cur.p16 = parseIntFlex(sel.value,0); emit(); };
+      wrap.appendChild(sel);
+    }
+    else if (k === 10){
+      const macros = (g_profile && g_profile.config && g_profile.config.macros) || [];
+      const sel = document.createElement("select");
+      sel.className = "select mini"; sel.disabled = !editable;
+      if (macros.length === 0){
+        sel.innerHTML = `<option value="0">(매크로 없음)</option>`; sel.disabled = true;
+      } else {
+        sel.innerHTML = macros.map((m,i)=>`<option value="${i}">${i}: ${m.name||("Macro "+i)}</option>`).join("");
+        const curIdx = (cur.p32 >= 0 && cur.p32 < macros.length) ? cur.p32 : 0;
+        if (curIdx !== cur.p32){ cur.p32 = curIdx; emit(); }
+        sel.value = String(curIdx);
+      }
+      sel.onchange = ()=>{ cur.p32 = parseIntFlex(sel.value, 0); emit(); };
+      wrap.appendChild(sel);
+    }
+  }
+  renderParams();
+  return wrap;
+}
+
+async function saveProfile(){
+  if (!g_profile) return;
+  showLoading(t("loading.processing"));
+  try {
+    const u = unwrapApi(await apiPostJson("/api/profiles/active", g_profile.config));
+    if (!u.ok){ alert(`${t("pop.slot_save_fail")} ${u.msg||u.code}`); return; }
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+    await refreshStatus();
+    setMsg(t("slot.save_ok"), true);
+  } finally { hideLoading(); }
+}
+
+/* ========== 20. Macro Editor ========== */
+function getMacrosArray(){
+  if (!g_profile || !g_profile.config) return [];
+  if (!g_profile.config.macros) g_profile.config.macros = [];
+  return g_profile.config.macros;
+}
+function macroRenderList(){
+  const root = qs("macroList"); if (!root) return;
+  root.innerHTML = "";
+  const macros = getMacrosArray();
+  const cntEl = qs("macroCountLabel");
+  if (cntEl) cntEl.textContent = `${macros.length} / 8`;
+  const btnAdd = qs("btnMacroAdd");
+  if (btnAdd) btnAdd.disabled = (macros.length >= 8);
+
+  if (macros.length === 0){
+    const div = document.createElement("div");
+    div.className = "hint2"; div.textContent = t("macros.empty_hint");
+    root.appendChild(div); return;
+  }
+  macros.forEach((m, i)=>{
+    const el = document.createElement("div");
+    el.className = "macro-item";
+    if (i === g_macroSel) el.classList.add("on");
+    el.innerHTML = `<span class="macro-item-idx">${i}</span>
+      <span class="macro-item-name">${m.name || ("Macro "+i)}</span>
+      <span class="macro-item-steps">${(m.steps||[]).length} step</span>`;
+    el.onclick = ()=>{ g_macroSel = i; macroRenderList(); macroRenderEditor(); };
+    root.appendChild(el);
+  });
+}
+function macroRenderEditor(){
+  const root = qs("macroEditor"); if (!root) return;
+  root.innerHTML = "";
+  const macros = getMacrosArray();
+
+  if (g_macroSel < 0 || g_macroSel >= macros.length){
+    root.innerHTML = `<div class="hint2">${t("macros.select_hint")}</div>`;
+    return;
+  }
+  const m = macros[g_macroSel];
+  if (!m.steps) m.steps = [];
+
+  const head = document.createElement("div");
+  head.className = "macro-editor-head";
+
+  const nameInp = document.createElement("input");
+  nameInp.type = "text"; nameInp.maxLength = 15;
+  nameInp.placeholder = "Macro name";
+  nameInp.value = m.name || "";
+  nameInp.oninput = ()=>{ m.name = nameInp.value; };
+  head.appendChild(nameInp);
+
+  const btnTest = document.createElement("button");
+  btnTest.className = "btn primary mini"; btnTest.textContent = t("btn.test");
+  btnTest.onclick = async ()=>{
+    if (!m.steps || m.steps.length === 0){ alert(t("pop.macro_empty")); return; }
+    if (!confirm(t("pop.macro_test_confirm", { name: m.name }))) return;
+    await macroSave(true);
+    const u = unwrapApi(await apiPostJson("/api/action/test_macro", { idx: g_macroSel }));
+    if (!u.ok) alert(`${t("pop.macro_exec_fail")} ${u.msg||u.code}`);
+    else pushRecentLog(`MACRO: ${m.name}`, true);
+  };
+  head.appendChild(btnTest);
+
+  const btnDel = document.createElement("button");
+  btnDel.className = "btn danger mini"; btnDel.textContent = "🗑";
+  btnDel.onclick = async ()=>{
+    if (!confirm(t("pop.macro_del_confirm", { name: m.name }))) return;
+    macros.splice(g_macroSel, 1);
+    g_macroSel = macros.length > 0 ? Math.min(g_macroSel, macros.length - 1) : -1;
+    await macroSave(true);
+    macroRenderList(); macroRenderEditor(); renderSlotEditor();
+  };
+  head.appendChild(btnDel);
+  root.appendChild(head);
+
+  const wrap = document.createElement("div");
+  wrap.className = "macro-steps";
+
+  m.steps.forEach((s, i)=>{
+    const row = document.createElement("div");
+    row.className = "macro-step";
+
+    const idxEl = document.createElement("div");
+    idxEl.className = "macro-step-idx"; idxEl.textContent = String(i+1);
+    row.appendChild(idxEl);
+
+    const params = document.createElement("div");
+    params.className = "macro-step-params";
+    buildMacroStepParams(params, s);
+    row.appendChild(params);
+
+    const dInp = document.createElement("input");
+    dInp.className = "macro-step-delay"; dInp.type = "number";
+    dInp.min = "0"; dInp.max = "2000"; dInp.step = "10";
+    dInp.value = String(s.d ?? 0);
+    dInp.oninput = ()=>{ let v = parseIntFlex(dInp.value, 0); if (v<0) v=0; if (v>2000) v=2000; s.d = v; };
+    row.appendChild(dInp);
+
+    const acts = document.createElement("div");
+    acts.className = "macro-step-actions";
+    const up = document.createElement("button");
+    up.className = "btn mini"; up.textContent = "▲"; up.disabled = (i===0);
+    up.onclick = ()=>{ [m.steps[i-1], m.steps[i]] = [m.steps[i], m.steps[i-1]]; macroRenderEditor(); };
+    acts.appendChild(up);
+
+    const dn = document.createElement("button");
+    dn.className = "btn mini"; dn.textContent = "▼"; dn.disabled = (i===m.steps.length-1);
+    dn.onclick = ()=>{ [m.steps[i+1], m.steps[i]] = [m.steps[i], m.steps[i+1]]; macroRenderEditor(); };
+    acts.appendChild(dn);
+
+    const del = document.createElement("button");
+    del.className = "btn danger mini"; del.textContent = "✕";
+    del.onclick = ()=>{ m.steps.splice(i, 1); macroRenderEditor(); };
+    acts.appendChild(del);
+
+    row.appendChild(acts);
+    wrap.appendChild(row);
+  });
+  root.appendChild(wrap);
+
+  const btnAdd = document.createElement("button");
+  btnAdd.className = "btn"; btnAdd.style.marginTop = "10px";
+  btnAdd.textContent = t("macros.add_step");
+  btnAdd.disabled = (m.steps.length >= 8);
+  btnAdd.onclick = ()=>{
+    if (m.steps.length >= 8) return;
+    m.steps.push({ k:4, h:0, d:0, p16:4, p32:0 });
+    macroRenderEditor();
+  };
+  root.appendChild(btnAdd);
+}
+function buildMacroStepParams(container, s){
+  const kinds    = G_KEYCODES.action_kinds.filter(x => x.value !== 0 && x.value !== 9 && x.value !== 10);
+  const mods     = G_KEYCODES.mods;
+  const consumer = G_KEYCODES.consumer;
+
+  const selKind = document.createElement("select");
+  selKind.className = "select mini";
+  selKind.innerHTML = `<option value="0">NONE</option>` +
+    kinds.map(k=>`<option value="${k.value}">${k.name}</option>`).join("");
+  selKind.value = String(s.k ?? 0);
+  container.appendChild(selKind);
+
+  function renderParams(){
+    while (container.children.length > 1) container.removeChild(container.lastChild);
+    const k = s.k;
+    if (k === 1 || k === 2){
+      const sel = document.createElement("select");
+      sel.className = "select mini";
+      sel.innerHTML = [0,1,2,4,8,16].map(v=>`<option value="${v}">Btn ${v}</option>`).join("");
+      sel.value = String(s.p16 ?? 0);
+      sel.onchange = ()=>{ s.p16 = parseIntFlex(sel.value, 0); };
+      container.appendChild(sel);
+    }
+    else if (k === 3){
+      const ax = document.createElement("select");
+      ax.className = "select mini";
+      ax.innerHTML = `<option value="0">Y</option><option value="1">X</option>`;
+      const di = document.createElement("select");
+      di.className = "select mini";
+      di.innerHTML = `<option value="0">Up/Left</option><option value="1">Down/Right</option>`;
+      ax.value = String((s.p16 >>> 8) & 0xFF);
+      di.value = String(s.p16 & 0xFF);
+      const upd = ()=>{ s.p16 = ((parseIntFlex(ax.value,0)<<8)|(parseIntFlex(di.value,0)&0xFF)); };
+      ax.onchange = upd; di.onchange = upd;
+      container.appendChild(ax); container.appendChild(di);
+    }
+    else if (k === 4 || k === 6){
+      const mod = document.createElement("select");
+      mod.className = "select mini";
+      mod.innerHTML = mods.map(m=>`<option value="${m.mask}">${m.name}</option>`).join("");
+      mod.value = String((s.p32 ?? 0) & 0xFF);
+      mod.onchange = ()=>{ s.p32 = (s.p32 & ~0xFF) | (parseIntFlex(mod.value,0) & 0xFF); };
+      container.appendChild(mod);
+      const u = document.createElement("select");
+      u.className = "select mini"; u.style.minWidth = "150px";
+      u.innerHTML = G_KEYCODES.kb.map(it=>`<option value="${it.code}">${it.name}</option>`).join("");
+      u.value = String(s.p16 ?? 0);
+      u.onchange = ()=>{ s.p16 = parseIntFlex(u.value,0) & 0xFF; };
+      container.appendChild(u);
+    }
+    else if (k === 5){
+      const mod = document.createElement("select");
+      mod.className = "select mini";
+      mod.innerHTML = mods.map(m=>`<option value="${m.mask}">${m.name}</option>`).join("");
+      mod.value = String((s.p32 ?? 0) & 0xFF);
+      mod.onchange = ()=>{ s.p32 = ((s.p32 & 0xFFFFFF00) | (parseIntFlex(mod.value,0) & 0xFF)) >>> 0; };
+      container.appendChild(mod);
+      for (let i = 0; i < 3; i++){
+        const sh = 8 + i*8;
+        const u = document.createElement("select");
+        u.className = "select mini"; u.style.minWidth = "130px";
+        u.innerHTML = G_KEYCODES.kb.map(it=>`<option value="${it.code}">${it.name}</option>`).join("");
+        u.value = String((s.p32 >>> sh) & 0xFF);
+        u.onchange = ()=>{
+          const v = parseIntFlex(u.value,0) & 0xFF;
+          s.p32 = ((s.p32 & ~(0xFF << sh)) | (v << sh)) >>> 0;
+        };
+        container.appendChild(u);
+      }
+    }
+    else if (k === 7 || k === 8){
+      const sel = document.createElement("select");
+      sel.className = "select mini";
+      sel.innerHTML = `<option value="0">None</option>` +
+        consumer.map(c=>`<option value="${c.mask}">${c.name}</option>`).join("");
+      sel.value = String(s.p32 >>> 0);
+      sel.onchange = ()=>{ s.p32 = parseIntFlex(sel.value, 0) >>> 0; };
+      container.appendChild(sel);
+    }
+  }
+
+  selKind.onchange = ()=>{
+    s.k = parseIntFlex(selKind.value, 0);
+    s.h = 0; s.p16 = 0; s.p32 = 0;
+    renderParams();
+  };
+  renderParams();
+}
+async function macroAdd(){
+  const macros = getMacrosArray();
+  if (macros.length >= 8) return;
+  const name = prompt(t("pop.macro_new_prompt"), "Macro");
+  if (!name) return;
+  macros.push({ name: name.trim().substring(0,15),
+    steps: [{ k:4, h:0, d:0, p16:4, p32:0 }] });
+  g_macroSel = macros.length - 1;
+  await macroSave(true);
+  macroRenderList(); macroRenderEditor(); renderSlotEditor();
+}
+async function macroSave(silent = false){
+  if (!g_profile){ await cfgLoad(); }
+  const u = unwrapApi(await apiPostJson("/api/profiles/active", { macros: getMacrosArray() }));
+  if (!u.ok){
+    if (!silent) alert(`${t("pop.macro_save_fail")} ${u.msg||u.code}`);
+    return false;
+  }
+  if (!silent){
+    await profileReloadAll();
+    macroRenderList(); macroRenderEditor(); renderSlotEditor();
+    setMsg(t("macro.save_ok"), true);
+  }
+  return true;
+}
+async function macroReload(){
+  await profileReloadAll();
+  g_macroSel = -1;
+  macroRenderList(); macroRenderEditor(); renderSlotEditor();
+}
+
+/* ========== 21. Config ========== */
+function configToUi(cfg){
+  if (!cfg) return;
+  const e = cfg.e10 || {};
+  if (qs("e10Dpi"))         qs("e10Dpi").value         = String(e.dpi_level ?? 2);
+  if (qs("e10HardClick"))   qs("e10HardClick").value   = String((e.hard_click_lock ?? true) ? "true" : "false");
+  if (qs("ledBrightness"))  qs("ledBrightness").value  = String(e.led_brightness ?? 128);
+  if (qs("accelThreshold")) qs("accelThreshold").value = String(e.accel_threshold ?? 8.0);
+  if (qs("scrollDamp"))     qs("scrollDamp").value     = String(e.scroll_cursor_damp ?? 0.25);
+
+  const sb = e.scale_base || [0.55,0.75,1.0];
+  if (qs("sb0")) qs("sb0").value = String(sb[0]);
+  if (qs("sb1")) qs("sb1").value = String(sb[1]);
+  if (qs("sb2")) qs("sb2").value = String(sb[2]);
+
+  const ag = e.accel_gain || [0.35,0.55,0.85];
+  if (qs("ag0")) qs("ag0").value = String(ag[0]);
+  if (qs("ag1")) qs("ag1").value = String(ag[1]);
+  if (qs("ag2")) qs("ag2").value = String(ag[2]);
+
+  const w = e.wheel || {};
+  if (qs("wheelTh"))      qs("wheelTh").value      = String(w.threshold_deg ?? 90);
+  if (qs("wheelStepMax")) qs("wheelStepMax").value = String(w.step_max ?? 6);
+
+  const g = e.gesture || {};
+  if (qs("flickDeg"))   qs("flickDeg").value   = String(g.flick_deg ?? 200);
+  if (qs("cooldownMs")) qs("cooldownMs").value = String(g.cooldown_ms ?? 600);
+
+  const ma = e.motion_adv || {};
+  const cf = ma.click_freeze || {};
+  if (qs("cfEnable"))       qs("cfEnable").value       = String((cf.enable ?? true) ? "true":"false");
+  if (qs("cfGyroTh"))       qs("cfGyroTh").value       = String(cf.gyro_th ?? 15.0);
+  if (qs("cfMaxMs"))        qs("cfMaxMs").value        = String(cf.max_ms ?? 150);
+  if (qs("cfHoldMs"))       qs("cfHoldMs").value       = String(cf.hold_ms ?? 20);
+  if (qs("cfFadeoutMs"))    qs("cfFadeoutMs").value    = String(cf.fadeout_ms ?? 30);
+  if (qs("cfMoveTh"))       qs("cfMoveTh").value       = String(cf.move_th ?? 2.0);
+  if (qs("cfFreezeMoveTh")) qs("cfFreezeMoveTh").value = String(cf.freeze_move_th ?? 30.0);
+
+  const ema = ma.ema || {};
+  if (qs("emaAlphaMin"))      qs("emaAlphaMin").value      = String(ema.alpha_min ?? 0.05);
+  if (qs("emaAlphaMax"))      qs("emaAlphaMax").value      = String(ema.alpha_max ?? 0.80);
+  if (qs("emaDeadzoneTh"))    qs("emaDeadzoneTh").value    = String(ema.deadzone_th ?? 3.0);
+  if (qs("emaFastTh"))        qs("emaFastTh").value        = String(ema.fast_th ?? 15.0);
+  if (qs("emaReversalTh"))    qs("emaReversalTh").value    = String(ema.reversal_th ?? 8.0);
+  if (qs("emaReversalReset")) qs("emaReversalReset").value = String((ema.reversal_reset ?? true) ? "true":"false");
+
+  const snap = ma.snap || {};
+  if (qs("snapEnable"))        qs("snapEnable").value        = String((snap.enable ?? true) ? "true":"false");
+  if (qs("snapMode1"))         qs("snapMode1").checked       = !!(snap.mode_mask & 0x01);
+  if (qs("snapMode2"))         qs("snapMode2").checked       = !!(snap.mode_mask & 0x02);
+  if (qs("snapMode3"))         qs("snapMode3").checked       = !!(snap.mode_mask & 0x04);
+  if (qs("snapAxisMode"))      qs("snapAxisMode").value      = String(snap.axis_mode ?? 0);
+  if (qs("snapRatio"))         qs("snapRatio").value         = String(snap.ratio_enter ?? 4.0);
+  if (qs("snapStrength"))      qs("snapStrength").value      = String(snap.strength ?? 0.85);
+  if (qs("snapConfirmFrames")) qs("snapConfirmFrames").value = String(snap.confirm_frames ?? 3);
+
+  const pw = e.power || {};
+  if (qs("pwrIdleSleepSec"))   qs("pwrIdleSleepSec").value   = String(pw.idle_sleep_sec ?? 60);
+  if (qs("pwrDeepSleepSec"))   qs("pwrDeepSleepSec").value   = String(pw.deep_sleep_sec ?? 600);
+  if (qs("pwrWomThreshold"))   qs("pwrWomThreshold").value   = String(pw.wom_threshold ?? 25);
+  if (qs("pwrWomDuration"))    qs("pwrWomDuration").value    = String(pw.wom_duration ?? 2);
+  if (qs("pwrLedFadeMs"))      qs("pwrLedFadeMs").value      = String(pw.led_fade_ms ?? 800);
+  if (qs("pwrWakeDebounceMs")) qs("pwrWakeDebounceMs").value = String(pw.wake_debounce_ms ?? 150);
+
+  const bt = e.button || {};
+  if (qs("btnDebouncePressMs"))   qs("btnDebouncePressMs").value   = String(bt.debounce_press_ms ?? 20);
+  if (qs("btnDebounceReleaseMs")) qs("btnDebounceReleaseMs").value = String(bt.debounce_release_ms ?? 30);
+  if (qs("btnClickMs"))            qs("btnClickMs").value            = String(bt.click_ms ?? 250);
+  if (qs("btnDblclickGapMs"))      qs("btnDblclickGapMs").value      = String(bt.dblclick_gap_ms ?? 300);
+  if (qs("btnLongPressMs"))        qs("btnLongPressMs").value        = String(bt.long_press_ms ?? 600);
+  if (qs("btnMinClickMs"))         qs("btnMinClickMs").value         = String(bt.min_click_ms ?? 30);
+
+  if (qs("cfgJsonArea")) qs("cfgJsonArea").value = pretty(cfg);
+}
+function uiToConfig(){
+  const cfg = (g_profile && g_profile.config) ? g_profile.config : { e10:{} };
+  cfg.e10 = cfg.e10 || {};
+  const e = cfg.e10;
+
+  e.dpi_level          = parseNum(qs("e10Dpi")?.value, 2);
+  e.hard_click_lock    = parseBool(qs("e10HardClick")?.value);
+  e.led_brightness     = parseNum(qs("ledBrightness")?.value, 128);
+  e.accel_threshold    = parseNum(qs("accelThreshold")?.value, 8.0);
+  e.scroll_cursor_damp = parseNum(qs("scrollDamp")?.value, 0.25);
+  e.scale_base = [parseNum(qs("sb0")?.value,0.55), parseNum(qs("sb1")?.value,0.75), parseNum(qs("sb2")?.value,1.0)];
+  e.accel_gain = [parseNum(qs("ag0")?.value,0.35), parseNum(qs("ag1")?.value,0.55), parseNum(qs("ag2")?.value,0.85)];
+  e.wheel = e.wheel || {};
+  e.wheel.threshold_deg = parseNum(qs("wheelTh")?.value, 90);
+  e.wheel.step_max      = parseNum(qs("wheelStepMax")?.value, 6);
+  e.gesture = e.gesture || {};
+  e.gesture.flick_deg   = parseNum(qs("flickDeg")?.value, 200);
+  e.gesture.cooldown_ms = parseNum(qs("cooldownMs")?.value, 600);
+
+  e.motion_adv = e.motion_adv || {};
+  e.motion_adv.click_freeze = {
+    enable:         parseBool(qs("cfEnable")?.value),
+    gyro_th:        parseNum(qs("cfGyroTh")?.value, 15.0),
+    max_ms:         parseNum(qs("cfMaxMs")?.value, 150),
+    hold_ms:        parseNum(qs("cfHoldMs")?.value, 20),
+    fadeout_ms:     parseNum(qs("cfFadeoutMs")?.value, 30),
+    move_th:        parseNum(qs("cfMoveTh")?.value, 2.0),
+    freeze_move_th: parseNum(qs("cfFreezeMoveTh")?.value, 30.0)
+  };
+  e.motion_adv.ema = {
+    alpha_min:      parseNum(qs("emaAlphaMin")?.value, 0.05),
+    alpha_max:      parseNum(qs("emaAlphaMax")?.value, 0.80),
+    deadzone_th:    parseNum(qs("emaDeadzoneTh")?.value, 3.0),
+    fast_th:        parseNum(qs("emaFastTh")?.value, 15.0),
+    reversal_th:    parseNum(qs("emaReversalTh")?.value, 8.0),
+    reversal_reset: parseBool(qs("emaReversalReset")?.value)
+  };
+  e.motion_adv.snap = {
+    enable:         parseBool(qs("snapEnable")?.value),
+    mode_mask:      (qs("snapMode1")?.checked ? 0x01:0) | (qs("snapMode2")?.checked ? 0x02:0) | (qs("snapMode3")?.checked ? 0x04:0),
+    axis_mode:      parseNum(qs("snapAxisMode")?.value, 0),
+    ratio_enter:    parseNum(qs("snapRatio")?.value, 4.0),
+    strength:       parseNum(qs("snapStrength")?.value, 0.85),
+    confirm_frames: parseNum(qs("snapConfirmFrames")?.value, 3)
+  };
+
+  e.power = {
+    idle_sleep_sec:   parseNum(qs("pwrIdleSleepSec")?.value, 60),
+    deep_sleep_sec:   parseNum(qs("pwrDeepSleepSec")?.value, 600),
+    wom_threshold:    parseNum(qs("pwrWomThreshold")?.value, 25),
+    wom_duration:     parseNum(qs("pwrWomDuration")?.value, 2),
+    led_fade_ms:      parseNum(qs("pwrLedFadeMs")?.value, 800),
+    wake_debounce_ms: parseNum(qs("pwrWakeDebounceMs")?.value, 150)
+  };
+  e.button = {
+    debounce_press_ms:   parseNum(qs("btnDebouncePressMs")?.value, 20),
+    debounce_release_ms: parseNum(qs("btnDebounceReleaseMs")?.value, 30),
+    click_ms:            parseNum(qs("btnClickMs")?.value, 250),
+    dblclick_gap_ms:     parseNum(qs("btnDblclickGapMs")?.value, 300),
+    long_press_ms:       parseNum(qs("btnLongPressMs")?.value, 600),
+    min_click_ms:        parseNum(qs("btnMinClickMs")?.value, 30)
+  };
+  return cfg;
+}
+async function cfgLoad(){
+  if (!g_profile || !g_profile.config){
+    const r = await apiGet("/api/profiles/active");
+    const u = unwrapApi(r);
+    if (!u.ok || !u.data){ setMsg("Load failed", false); return; }
+    g_profile = { idx: u.data.idx, count: u.data.count, config: u.data.config || {} };
+  }
+  configToUi(g_profile.config);
+  setMsg("Config loaded", true);
+}
+async function cfgSave(){
+  if (!g_profile){ await cfgLoad(); }
+  const cfg = uiToConfig();
+  const u = unwrapApi(await apiPostJson("/api/profiles/active", { e10: cfg.e10 }));
+  if (!u.ok){ setMsg("Save failed: " + (u.msg||u.code), false); return; }
+  if (g_profile.config) g_profile.config.e10 = cfg.e10;
+  configToUi(g_profile.config);
+  setMsg(t("cfg.save_ok"), true);
+  await refreshStatus();
+}
+function cfgExport(){
+  const cfg = (g_profile && g_profile.config) ? g_profile.config : {};
+  const pName = (cfg.name || ("profile_" + (g_profile ? g_profile.idx : 0)))
+    .replace(/[^a-zA-Z0-9_\-]/g, "_");
+  if (g_appMode === APP_MODE_ONLINE){
+    const a = document.createElement("a");
+    a.href = `/api/config/export?filename=${encodeURIComponent(pName + ".json")}`;
+    a.download = ""; document.body.appendChild(a); a.click(); a.remove();
+    return;
+  }
+  const blob = new Blob([pretty(cfg)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${pName}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+async function cfgImport(file){
+  if (!file) return;
+  const text = await file.text();
+  let obj = null;
+  try { obj = JSON.parse(text); } catch(e){
+    setMsg("Import JSON error: " + e.message, false); return;
+  }
+  showLoading("Import 중…");
+  try {
+    const u = unwrapApi(await apiPostJson("/api/config/import", obj));
+    if (!u.ok){ setMsg("Import failed: " + (u.msg||u.code), false); return; }
+    setMsg("Import OK", true);
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+    await cfgLoad();
+  } finally { hideLoading(); }
+}
+
+/* ========== 22. Presets ========== */
+const MOTION_PRESETS = {
+  PC:        { cf:{enable:true,  max_ms:150, gyro_th:15.0}, ema:{alpha_min:0.05, alpha_max:0.80}, snap:{enable:false, mode_mask:0x00} },
+  PPT:       { cf:{enable:true,  max_ms:100, gyro_th:15.0}, ema:{alpha_min:0.05, alpha_max:0.80}, snap:{enable:true,  mode_mask:0x02} },
+  TV:        { cf:{enable:false, max_ms:150, gyro_th:15.0}, ema:{alpha_min:0.10, alpha_max:0.85}, snap:{enable:false, mode_mask:0x00} },
+  Gaming:    { cf:{enable:false, max_ms:150, gyro_th:15.0}, ema:{alpha_min:0.15, alpha_max:0.90}, snap:{enable:false, mode_mask:0x00} },
+  Precision: { cf:{enable:true,  max_ms:200, gyro_th:15.0}, ema:{alpha_min:0.03, alpha_max:0.70}, snap:{enable:false, mode_mask:0x00} }
+};
+async function applyMotionPreset(key){
+  const p = MOTION_PRESETS[key];
+  if (!p) return;
+  if (!confirm(t("pop.preset_apply_confirm", { preset:key }))) return;
+  if (qs("cfEnable"))    qs("cfEnable").value    = String(p.cf.enable ? "true":"false");
+  if (qs("cfMaxMs"))     qs("cfMaxMs").value     = String(p.cf.max_ms);
+  if (qs("cfGyroTh"))    qs("cfGyroTh").value    = String(p.cf.gyro_th);
+  if (qs("emaAlphaMin")) qs("emaAlphaMin").value = String(p.ema.alpha_min);
+  if (qs("emaAlphaMax")) qs("emaAlphaMax").value = String(p.ema.alpha_max);
+  if (qs("snapEnable"))  qs("snapEnable").value  = String(p.snap.enable ? "true":"false");
+  if (qs("snapMode1"))   qs("snapMode1").checked = !!(p.snap.mode_mask & 0x01);
+  if (qs("snapMode2"))   qs("snapMode2").checked = !!(p.snap.mode_mask & 0x02);
+  if (qs("snapMode3"))   qs("snapMode3").checked = !!(p.snap.mode_mask & 0x04);
+  uiToConfig();
+  await cfgSave();
+  const hint = qs("presetHint");
+  if (hint) hint.textContent = t("pop.preset_applied", { preset:key });
+}
+
+/* ========== 23. Status / Diag / OTA ========== */
+async function refreshStatus(){
+  _updateNetLabel();
+  const r = await apiGet("/api/status?compact=1");
+  const u = unwrapApi(r);
+  if (!u.ok || !u.data) return;
+  g_lastStatus = u.data;
+  const g = u.data.groups || {};
+  const sys  = g.sys || {};
+  const mem  = g.mem || {};
+  const net  = g.net || {};
+  const e10  = g.e10 || {};
+
+  const idx = g_offlineStore.active;
+  const bat = (typeof e10.battery_pct === "number") ? e10.battery_pct : 92;
+
+  const pStatProf = qs("pStatProf"); if (pStatProf) pStatProf.textContent = `#${idx}`;
+  const pStatBat = qs("pStatBat");
+  if (pStatBat){ pStatBat.textContent = `${bat}%`; pStatBat.style.color = bat < 20 ? "#ff6666" : ""; }
+  const pStatBle = qs("pStatBle");
+  if (pStatBle){
+    pStatBle.textContent = e10.ble_connected ? "BLE✓" : "BLE";
+    pStatBle.style.color = e10.ble_connected ? "#4c7dff" : "var(--txt-muted)";
+  }
+
+  if (qs("stUptime")) qs("stUptime").textContent = `${sys.uptime_ms ?? "-"} ms`;
+  if (qs("stHeap"))   qs("stHeap").textContent   = `${mem.heap_free ?? "-"} B`;
+  if (qs("stWiFi"))   qs("stWiFi").textContent   = `${net.mode ?? "-"} / ${net.ssid ?? "-"}`;
+  if (qs("stProfile")) qs("stProfile").textContent = `#${idx} ${getActiveProfile().name}`;
+
+  /* 물리 버튼 모드 동기화 */
+  if (typeof e10.active_mode === "number" && e10.active_mode >= 1 && e10.active_mode <= 3
+      && e10.active_mode !== g_currentActiveMode){
+    applyRemoteMode(e10.active_mode);
+  }
+
+  [1,2,3].forEach(v=>qs("btnDpi"+v)?.classList.toggle("on", v === g_dpiLevel));
+  [0,1,2,3,4].forEach(v=>qs("btnPrec"+v)?.classList.toggle("on", v === g_precMode));
+}
+
+async function refreshDiag(){
+  const r = await apiGet("/api/diag");
+  const u = unwrapApi(r);
+  const data = u.data || {};
+  const d = data.diag || {};
+  const events = Array.isArray(data.events) ? data.events : [];
+
+  const cEl = qs("diagCounters");
+  if (cEl){
+    cEl.innerHTML = "";
+    const items = [
+      ["body_too_large", d.body_too_large], ["no_body_slot", d.no_body_slot],
+      ["bad_json", d.json_bad], ["safe_blocked", d.safe_blocked], ["ota_blocked", d.ota_blocked]
+    ];
+    for (const [k,v] of items){
+      const div = document.createElement("div");
+      div.className = "pill";
+      div.textContent = `${k}: ${v ?? 0}`;
+      cEl.appendChild(div);
+    }
+  }
+  const listEl = qs("diagEvents");
+  if (listEl){
+    listEl.innerHTML = "";
+    for (const ev of events.slice().reverse().slice(0, 40)){
+      const div = document.createElement("div");
+      div.className = "logline";
+      div.textContent = `[${ev.ms ?? 0}ms] ${ev.code ?? "-"}`;
+      listEl.appendChild(div);
+    }
+    if (!events.length){
+      const div = document.createElement("div");
+      div.className = "hint2"; div.textContent = "No events.";
+      listEl.appendChild(div);
+    }
+  }
+}
+async function diagClear(){
+  if (!confirm(t("pop.diag_reset_confirm"))) return;
+  const u = unwrapApi(await apiPostJson("/api/diag/clear", {}));
+  if (!u.ok){ alert(`${t("pop.diag_reset_fail")} ${u.msg||u.code}`); return; }
+  await refreshDiag();
+}
+
+async function otaUpload(){
+  const f = qs("otaFile")?.files?.[0];
+  if (!f){ alert(t("pop.file_select_req")); return; }
+  qs("otaHint").textContent = `uploading: ${f.name}...`;
+  if (g_appMode === APP_MODE_OFFLINE){
+    qs("otaHint").textContent = "오프라인 모드: 업로드 시뮬레이션";
+    qs("otaJson").textContent = pretty({ simulated:true, file:f.name, size:f.size });
+    return;
+  }
+  try {
+    const r = await fetch("/api/ota", { method:"POST", body:f });
+    qs("otaHint").textContent = await r.text();
+    await otaStatus();
+  } catch(e){
+    qs("otaHint").textContent = "업로드 실패: " + e.message;
+  }
+}
+async function otaStatus(){
+  const r = await apiGet("/api/ota/status");
+  qs("otaJson").textContent = pretty(unwrapApi(r).data || r.text);
+}
+
+/* ========== 24. Slots/Tuning/Presets 바인딩 ========== */
+function bindSlotsAndConfig(){
+  qsa(".view-tab").forEach(b=>b.addEventListener("click", ()=>{
+    qsa(".view-tab").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    g_view = b.dataset.view || "global";
+    renderSlotEditor();
+  }));
+  qs("btnSlotSave")?.addEventListener("click", saveProfile);
+  qs("btnSlotReload")?.addEventListener("click", async ()=>{
+    await profileReloadAll();
+    renderSlotEditor(); macroRenderList(); macroRenderEditor();
+  });
+
+  qs("btnMacroAdd")?.addEventListener("click", macroAdd);
+  qs("btnMacroSave")?.addEventListener("click", ()=>macroSave(false));
+  qs("btnMacroReload")?.addEventListener("click", macroReload);
+
+  qs("btnCfgLoad")?.addEventListener("click", cfgLoad);
+  qs("btnCfgSave")?.addEventListener("click", cfgSave);
+  qs("btnCfgExport")?.addEventListener("click", cfgExport);
+  qs("cfgImportFile")?.addEventListener("change", (e)=>{
+    const f = e.target.files?.[0]; e.target.value = ""; cfgImport(f);
+  });
+
+  [1,2,3].forEach(v=>qs("btnDpi"+v)?.addEventListener("click", async ()=>{
+    g_dpiLevel = v; getActiveProfile().e10.dpi_level = v; saveOfflineStore();
+    await apiPostJson("/api/control", { cmd:"set_dpi", level:v, snapshot:true });
+    pushRecentLog(`DPI → ${v}`, true); setMsg(t("pop.dpi_applied", { v }), true); refreshStatus();
+  }));
+  [0,1,2,3,4].forEach(v=>qs("btnPrec"+v)?.addEventListener("click", ()=>{
+    g_precMode = v; pushRecentLog(`PRECISION → ${v}`, true);
+    setMsg(t("pop.prec_applied", { v }), true); refreshStatus();
+  }));
+
+  qs("btnPresetPC")?.addEventListener("click",        ()=>applyMotionPreset("PC"));
+  qs("btnPresetPPT")?.addEventListener("click",       ()=>applyMotionPreset("PPT"));
+  qs("btnPresetTV")?.addEventListener("click",        ()=>applyMotionPreset("TV"));
+  qs("btnPresetGaming")?.addEventListener("click",    ()=>applyMotionPreset("Gaming"));
+  qs("btnPresetPrecision")?.addEventListener("click", ()=>applyMotionPreset("Precision"));
+
+  qs("btnFactory")?.addEventListener("click", ()=>handleTrouble("factory"));
+
+  qs("btnDiagRefresh")?.addEventListener("click", refreshDiag);
+  qs("btnDiagClear")?.addEventListener("click", diagClear);
+  qs("btnKeyTest")?.addEventListener("click", ()=>{
+    const page = qs("ktPage")?.value || "kb";
+    const mod  = parseIntFlex(qs("ktMod")?.value || "0", 0);
+    const code = parseIntFlex(qs("ktCode")?.value || "0", 0);
+    keyTest(page, mod, code);
+  });
+
+  qs("btnOta")?.addEventListener("click", otaUpload);
+  qs("btnOtaStatus")?.addEventListener("click", otaStatus);
+  qs("btnOtaGuardApply")?.addEventListener("click", async ()=>{
+    const v_on = !!qs("otaGuardManual")?.checked;
+    const u = unwrapApi(await apiPostJson("/api/control", { cmd:"set_ota_guard", enable:v_on, snapshot:true }));
+    if (u.ok) setMsg(`OTA Guard ${v_on ? "ON":"OFF"}`, true);
+  });
+
+  qs("profSelect")?.addEventListener("change", ()=>{
+    const idx = parseIntFlex(qs("profSelect").value, 0);
+    profileSwitch(idx);
+  });
+  qs("btnProfCreate")?.addEventListener("click", profileCreate);
+  qs("btnProfDelete")?.addEventListener("click", profileDelete);
+  qs("btnProfRename")?.addEventListener("click", profileRename);
+}
+
+/* ========== 25. Main ========== */
+async function main(){
+  loadOfflineStore();
+  initI18n();
+
+  g_keycodes = G_KEYCODES;
+  await profileReloadAll();
+
+  bindDrawer();
+  bindBanner();
+  bindModeTabs();
+  bindRemoteFoldToggle();
+  bindTroubleshoot();
+  bindFoldPersist("modeToolsCard", MODE_TOOLS_FOLD_KEY, false);
+  bindFoldPersist("troubleCard",   TROUBLE_FOLD_KEY, false);
+  initHybridJoystick();
+  bindSlotsAndConfig();
+
+  renderSlotEditor();
+  macroRenderList();
+  macroRenderEditor();
+  await cfgLoad();
+  renderRecentLog();
+  await refreshStatus();
+
+  const initMode = getActiveProfile()?.e10?.active_mode || 1;
+  applyRemoteMode(initMode);
+
+  _updateNetLabel();
+
+  setInterval(async ()=>{
+    try { await refreshStatus(); } catch(e){}
+  }, 2500);
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  main().catch(e=> console.error("[main] error:", e));
+});
+</script>
+</body>
+</html>
+```
+
+---
+
+🔄 변경 요약
+
+제거
+
+· ❌ "작동 모드 선택" 접힘 카드 (모드 1/2/3 아이콘 버튼 3개) — 완전히 삭제
+· ❌ 미리보기 경고 배너 (previewWarn) — 미리보기/실제 구분 자체가 사라짐
+· ❌ MODE_SEL_FOLD_KEY, applyPreviewMode, _updateModeSelectorSummary, _updatePreviewWarn 등
+
+통합
+
+· ✅ 가상 컨트롤러 내부 탭이 유일한 모드 선택기
+· ✅ 탭 라벨: 아이콘 + "모드 N" (3열 그리드)
+  ```
+  [🖱️ 모드 1]  [🎤 모드 2]  [📺 모드 3]
+  ```
+· ✅ 탭 클릭 → 실제 기기 모드 전환 (확인 다이얼로그 후)
+· ✅ 활성 탭: 컨트롤러 테마 색상과 일치 (PC=파랑 / PPT=초록 / TV=주황)
+· ✅ 물리 버튼으로 모드 변경 시 탭 자동 갱신
+· ✅ 탭 상태는 g_currentActiveMode 단일 변수로 관리
+
+탭 스타일
+
+· 각 탭 min-height: 70px (모바일 66px)
+· 아이콘 1.35rem + 라벨 .74rem
+· 활성 시 테두리 + 배경 하이라이트 + pulse 애니메이션 유지
+
+이제 화면 상단이 훨씬 간결해지고, 가상 컨트롤러 하나에서 모드 확인 + 전환 + 버튼 조작이 모두 완결됩니다.
+
