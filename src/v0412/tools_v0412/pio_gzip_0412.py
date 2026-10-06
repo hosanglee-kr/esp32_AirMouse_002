@@ -24,6 +24,10 @@
 #   - 하나라도 실패(exit != 0) 시 SystemExit(1) → 빌드 중단
 #   - 긴급 우회: 환경변수 G_SKIP_VERIFY=1
 #
+# [SCons 환경 주의]
+#   - PlatformIO의 extra_scripts는 exec() 컨텍스트로 로드되므로 __file__ 미정의.
+#   - 경로는 env["PROJECT_DIR"] 기준으로 구성한다.
+#
 # [정책 메모]
 #   - platformio.ini: data_dir = ./src/v0412/data_v0412
 #   - extra_scripts : pre:src/v0412/tools_v0412/pio_gzip_0412.py
@@ -41,16 +45,18 @@ from SCons.Script import COMMAND_LINE_TARGETS
 # -------------------------------------------------------
 # [경로 정의]
 # -------------------------------------------------------
+# SCons의 exec() 컨텍스트에서는 __file__이 정의되지 않으므로
+# PROJECT_DIR 기반으로 경로를 조립한다.
+_PROJECT_DIR = env["PROJECT_DIR"]
+
 # SRC: version-controlled 웹 소스 (v0414)
-SRC_WWW_DIR = os.path.join(
-    env["PROJECT_DIR"], "src", "v0412", "data_v0414_www"
-)
+SRC_WWW_DIR = os.path.join(_PROJECT_DIR, "src", "v0412", "data_v0414_www")
 
 # DST: buildfs 스테이징 (data_dir 기준 www/)
 DST_WWW_DIR = os.path.join(env["PROJECT_DATA_DIR"], "www")
 
 # 검증 스크립트 위치 (본 파일과 동일 디렉토리)
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+THIS_DIR = os.path.join(_PROJECT_DIR, "src", "v0412", "tools_v0412")
 
 # -------------------------------------------------------
 # [확장자 및 제외 정책]
@@ -97,7 +103,7 @@ def _run_verify_script(script_name, description, timeout_sec=30):
             capture_output=True,
             text=True,
             timeout=timeout_sec,
-            cwd=env["PROJECT_DIR"],  # 상대 경로 호환
+            cwd=_PROJECT_DIR,  # 상대 경로 호환
         )
     except subprocess.TimeoutExpired:
         print(f"[verify] FAIL: {script_name} timed out ({timeout_sec}s)")
