@@ -2,9 +2,10 @@
    File: /www/lib/am_remote_0414.js
    Elite AirMouse WebConfig v0414 — Virtual Controller & Joystick
    - 로드 순서: 8
-   - [Phase 3.3 M-7] ring 배경 드래그 지원
-   - [Phase 3.5 M-8] 모드 변경 저장
-   - [Phase 4.3 L-3] forced reflow → requestAnimationFrame
+   - Phase 3.3 M-7 : ring 배경 드래그 지원
+   - Phase 3.5 M-8 : 모드 변경 저장
+   - Phase 4.3 L-3 : forced reflow → requestAnimationFrame
+   - Layout O-2    : 모드 배지 축약 ("PC"/"PPT"/"TV")
    ======================================================= */
 
 /* =======================================================
@@ -194,6 +195,9 @@ const REMOTE_CONFIG_BY_MODE = {
   }
 };
 
+/* [Layout O-2] 배지 축약 매핑 */
+const REMOTE_BADGE_SHORT = { 1: "PC", 2: "PPT", 3: "TV" };
+
 /* [Phase 4.3 L-3] rAF로 reflow 제거 */
 function _renderController(mode) {
   const cfg = REMOTE_CONFIG_BY_MODE[mode] || REMOTE_CONFIG_BY_MODE[1];
@@ -205,8 +209,13 @@ function _renderController(mode) {
       setTimeout(() => card.classList.remove("remote-flash"), 700);
     });
   }
+
+  // [Layout O-2] 배지 = "PC"/"PPT"/"TV" 축약 (탭과 정보 중복 회피)
   const badge = qs("remoteActiveModeBadge");
-  if (badge) badge.textContent = t(cfg.badgeKey);
+  if (badge) {
+    badge.textContent = REMOTE_BADGE_SHORT[mode] || `M${mode}`;
+  }
+
   const hintEl = qs("dpadGuideHint");
   if (hintEl) hintEl.textContent = t(cfg.guideKey);
 

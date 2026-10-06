@@ -1,9 +1,10 @@
 <!-- =======================================================
      File: /www/index_0414.html
      Elite AirMouse WebConfig v0414
-     - [Phase 1.1] Power/Button 계층 노출 (advanced opts)
-     - [Phase 1.3] pillNet/pillSafe, diagFilter, diagJson
-     - [Phase 3.7.2] 배터리 N/A 표시
+     - Phase 1.1 : Power/Button 계층 노출
+     - Phase 1.3 : pillNet/pillSafe, diagFilter, diagJson
+     - Phase 3.7.2 : 배터리 N/A 표시
+     - Layout O-4 : fold-arrow span 문자 제거 (CSS 삼각형으로 대체)
 ======================================================= -->
 
 <!doctype html>
@@ -194,7 +195,7 @@
               <span data-i18n="tools.title">모드별 추가 도구</span>
               <span class="summary-badge" id="modeToolsBadge">PC</span>
             </span>
-            <span class="fold-arrow">▼</span>
+            <span class="fold-arrow"></span>
           </summary>
           <div class="collapsible-content">
             <div id="modeToolsBody"></div>
@@ -207,7 +208,7 @@
               <span class="drawer-ico">🛠️</span>
               <span data-i18n="trouble.title">문제 해결 도구</span>
             </span>
-            <span class="fold-arrow">▼</span>
+            <span class="fold-arrow"></span>
           </summary>
           <div class="collapsible-content">
             <div class="tool-group">
@@ -613,7 +614,6 @@
     <div data-i18n="cfg.foot">v0414 · Full Standalone · 통합 모드 선택기</div>
   </footer>
 
-  <!-- ===== v0414 모듈 로드 순서 ===== -->
   <script src="./lib/am_base_0414.js"></script>
   <script src="./lib/am_i18n_0414.js"></script>
   <script src="./lib/am_offline_0414.js"></script>
