@@ -2,10 +2,16 @@
    File: /www/lib/am_profile_0414.js
    Elite AirMouse WebConfig v0414 — Profile / Slots / ActionEditor
    - 로드 순서: 3
-   - 의존: am_base_0414.js
-   - [v0412] C-01 (const→let), C-03 (배열 27 강제), C-04 (busy),
-             N-13 (오버레이), N-14 (slots_meta 라벨), N-21 (삭제 경고)
+   - [Phase 2.2 H-1] getActiveProfile() 정식 정의
+   - [Phase 3.6 L-5] saveProfile 성공 시 clearDirty, emit에 markSlotDirty
    ======================================================= */
+
+/* =======================================================
+   [Phase 2.2 H-1] 활성 프로파일 config 접근자
+   ======================================================= */
+function getActiveProfile() {
+  return (g_profile && g_profile.config) ? g_profile.config : null;
+}
 
 /* =======================================================
    프로파일 관리
@@ -49,11 +55,10 @@ async function profileReloadAll() {
   return { active, count, list };
 }
 
-/* [C-04] 프로파일 스위치 재진입 방지 플래그 */
+/* [C-04] 프로파일 스위치 재진입 방지 */
 let g_profileSwitchBusy = false;
 
 async function profileSwitch(idx) {
-  // [C-04] 진행 중 재진입 방지
   if (g_profileSwitchBusy) {
     console.info("[profileSwitch] busy, ignored idx=", idx);
     return;
@@ -63,7 +68,6 @@ async function profileSwitch(idx) {
   const v_sel = qs("profSelect");
   if (v_sel) v_sel.disabled = true;
 
-  // [N-13] 로딩 오버레이
   showLoading(t("pop.prof_switching", { idx }));
 
   try {
@@ -103,7 +107,6 @@ async function profileCreate() {
 async function profileDelete() {
   if (!g_profile) return;
 
-  // [N-21] 활성 프로파일 경고 강화
   const v_count = (g_profile.count || 1);
 
   let msg;
@@ -142,33 +145,29 @@ async function profileRename() {
    트리거 라이브러리 & 키코드 로드
    ======================================================= */
 async function loadTriggers() {
-  /* 1) keycodes.triggers 최우선 (온라인/오프라인 모두 응답에 포함) */
   if (g_keycodes && Array.isArray(g_keycodes.triggers) && g_keycodes.triggers.length) {
     g_triggers = g_keycodes.triggers;
     return;
   }
-  
-  /* 2) 오프라인 모드: 상수 즉시 사용 (불필요한 mock 호출 회피) */
+
   if (g_appMode === APP_MODE_OFFLINE && typeof G_OFFLINE_TRIGGERS !== "undefined") {
     g_triggers = G_OFFLINE_TRIGGERS;
     return;
   }
-  
-  /* 3) 온라인 별도 조회 */
+
   const r = await apiGet("/api/triggers");
   const u = unwrapApi(r);
   if (u.ok && u.data && Array.isArray(u.data.triggers) && u.data.triggers.length) {
     g_triggers = u.data.triggers;
     return;
   }
-  
-  /* 4) 최후 fallback */
+
   if (typeof G_OFFLINE_TRIGGERS !== "undefined") {
     console.warn("[loadTriggers] fallback constant");
     g_triggers = G_OFFLINE_TRIGGERS;
     return;
   }
-  
+
   g_triggers = [];
   console.error("[loadTriggers] no triggers available");
 }
@@ -193,7 +192,6 @@ function viewToModeIdx(v) {
   return -1;
 }
 
-/* [C-03] 배열 27 강제 (sparse array 방지) */
 function getSlotsArray() {
   if (!g_profile || !g_profile.config) return null;
   const s = g_profile.config.slots;
@@ -253,9 +251,6 @@ function setOverrideBit(trigIdx, on) {
 
 /* =======================================================
    슬롯 편집기 렌더
-   - Tilt 그룹 Mode 3 제한
-   - Live Test는 최신 배열 재조회
-   - [N-14] slots_meta 부가 라벨
    ======================================================= */
 function renderSlotEditor() {
   const root = qs("slotEditor");
@@ -272,8 +267,7 @@ function renderSlotEditor() {
     (g_keycodes && Array.isArray(g_keycodes.triggers) && g_keycodes.triggers.length) ?
     g_keycodes.triggers :
     (typeof G_OFFLINE_TRIGGERS !== "undefined" ? G_OFFLINE_TRIGGERS : []);
-    
-  
+
   const slotsArr = getSlotsArray() || [];
   const mask = getOverrideMask();
   const mi = viewToModeIdx(g_view);
@@ -287,7 +281,6 @@ function renderSlotEditor() {
     { key: "tilt", label: t("slots.grp_tilt") }
   ];
 
-  // [N-14] slots_meta 조회용
   const v_metaArr = (g_keycodes && Array.isArray(g_keycodes.slots_meta))
     ? g_keycodes.slots_meta : [];
 
@@ -295,7 +288,6 @@ function renderSlotEditor() {
     const isTiltGroup = (g.key === "tilt");
     const tiltDisabled = isTiltGroup && !isGlobal && (mi !== 2);
 
-    /* 그룹 헤더 */
     const head = document.createElement("div");
     head.className = "trig-group-head";
     if (isTiltGroup) {
@@ -306,7 +298,6 @@ function renderSlotEditor() {
     }
     root.appendChild(head);
 
-    /* Tilt 그룹 배너 */
     if (isTiltGroup) {
       const banner = document.createElement("div");
       banner.className = "tilt-banner";
@@ -322,7 +313,6 @@ function renderSlotEditor() {
       if (banner.textContent) root.appendChild(banner);
     }
 
-    /* 트리거 행 */
     for (const t of triggers) {
       if (t.group !== g.key) continue;
 
@@ -337,7 +327,6 @@ function renderSlotEditor() {
       const isOver = isGlobal ? false : ((mask & (1 << idx)) !== 0);
       if (!isGlobal && isOver && !tiltDisabled) row.classList.add("override");
 
-      /* (1) 트리거 이름 (+ [N-14] slots_meta 부가 라벨) */
       const nameEl = document.createElement("div");
       nameEl.className = "trig-name";
 
@@ -350,7 +339,6 @@ function renderSlotEditor() {
       nameEl.innerHTML = `${t.locked ? "🔒 " : ""}${t.name}${v_metaSub}`;
       row.appendChild(nameEl);
 
-      /* (2) Global/Mode 뱃지 */
       const badge = document.createElement("div");
       badge.className = "trig-badge";
 
@@ -389,7 +377,6 @@ function renderSlotEditor() {
         row.appendChild(badge);
       }
 
-      /* (3) 액션 편집기 */
       const slot = isGlobal
         ? (slotsArr[idx] || { k: 0, h: 0, p16: 0, p32: 0 })
         : (isOver
@@ -412,7 +399,6 @@ function renderSlotEditor() {
       });
       row.appendChild(editor);
 
-      /* (4) Live Test */
       const testCell = document.createElement("div");
       testCell.className = "trig-test";
       if (!t.locked && !tiltDisabled) {
@@ -439,7 +425,8 @@ function renderSlotEditor() {
 }
 
 /* =======================================================
-   Action 편집기 — [C-01] let 사용
+   Action 편집기
+   - [Phase 3.6 L-5] emit 시 markSlotDirty
    ======================================================= */
 function renderActionEditor(slot, editable, onChange) {
   const wrap = document.createElement("div");
@@ -449,7 +436,6 @@ function renderActionEditor(slot, editable, onChange) {
     ? g_keycodes
     : ((typeof G_OFFLINE_KEYCODES !== "undefined") ? G_OFFLINE_KEYCODES : null);
 
-  // [C-01] let 사용 (오프라인 폴백 재할당 가능)
   let kinds = (v_kc && v_kc.action_kinds) || [];
   let specials = (v_kc && v_kc.specials) || [];
   let consumer = (v_kc && v_kc.consumer) || [];
@@ -458,14 +444,11 @@ function renderActionEditor(slot, editable, onChange) {
   const v_needsFallback =
     !kinds.length || !mods.length || !consumer.length || !specials.length;
 
-  if (v_needsFallback &&
-    typeof G_OFFLINE_KEYCODES !== "undefined" &&
-    G_OFFLINE_KEYCODES) {
+  if (v_needsFallback && typeof G_OFFLINE_KEYCODES !== "undefined" && G_OFFLINE_KEYCODES) {
     if (!kinds.length) kinds = G_OFFLINE_KEYCODES.action_kinds || [];
     if (!mods.length) mods = G_OFFLINE_KEYCODES.mods || [];
     if (!consumer.length) consumer = G_OFFLINE_KEYCODES.consumer || [];
     if (!specials.length) specials = G_OFFLINE_KEYCODES.specials || [];
-    console.warn("[renderActionEditor] fallback to G_OFFLINE_KEYCODES (g_keycodes empty)");
   }
 
   const cur = {
@@ -477,12 +460,13 @@ function renderActionEditor(slot, editable, onChange) {
 
   function emit() {
     onChange({ k: cur.k, h: cur.h, p16: cur.p16, p32: cur.p32 });
+    // [L-5] 슬롯 편집 dirty 표시
+    if (typeof markSlotDirty === "function") markSlotDirty();
   }
 
   function renderParams() {
     wrap.innerHTML = "";
 
-    /* kind select */
     const selKind = document.createElement("select");
     selKind.className = "select mini";
     selKind.disabled = !editable;
@@ -503,9 +487,7 @@ function renderActionEditor(slot, editable, onChange) {
 
     const k = cur.k;
 
-    if (k === 0) {
-      /* NONE */
-    }
+    if (k === 0) { /* NONE */ }
     else if (k === 1 || k === 2) {
       const sel = document.createElement("select");
       sel.className = "select mini"; sel.disabled = !editable;
@@ -680,6 +662,7 @@ function renderActionEditor(slot, editable, onChange) {
 
 /* =======================================================
    프로파일 저장
+   - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
 async function saveProfile() {
   if (!g_profile) return;
@@ -694,8 +677,8 @@ async function saveProfile() {
     macroRenderEditor();
     await refreshStatus();
     setMsg(t("slots.save") + " OK", true);
+    if (typeof clearDirty === "function") clearDirty();
   } finally {
     hideLoading();
   }
 }
-

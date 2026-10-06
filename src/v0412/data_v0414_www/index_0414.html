@@ -1,7 +1,9 @@
 <!-- =======================================================
      File: /www/index_0414.html
      Elite AirMouse WebConfig v0414
-     (Modular Architecture: HTML + CSS + lib/* + app_0414_0001.js)
+     - [Phase 1.1] Power/Button 계층 노출 (advanced opts)
+     - [Phase 1.3] pillNet/pillSafe, diagFilter, diagJson
+     - [Phase 3.7.2] 배터리 N/A 표시
 ======================================================= -->
 
 <!doctype html>
@@ -29,21 +31,18 @@
       <div class="pill" id="pillStatus" data-i18n-title="nav.status_tooltip">
         <span id="pStatProf">#0</span>
         <span class="pm-sep">·</span>
-        <span id="pStatBat">--%</span>
+        <span id="pStatBat" data-i18n-title="dash.batt_na_tip" title="Battery ADC not implemented">N/A</span>
         <span class="pm-sep">·</span>
         <span id="pStatBle">BLE</span>
       </div>
-      <!-- [C-4] 신규: NET / SAFE 배지 -->
       <div class="pill pill-net" id="pillNet" title="Network Mode">NET: --</div>
       <div class="pill pill-safe" id="pillSafe" title="Safe Boot">SAFE: OFF</div>
     </div>
-
   </header>
 
   <div class="top-banner" id="bannerReboot">
     <span class="banner-ico">⚠</span>
-    <span class="banner-text"><span data-i18n="top.reboot_needed">다시 시작 필요:</span> <b
-        id="bannerRebootReason">-</b></span>
+    <span class="banner-text"><span data-i18n="top.reboot_needed">다시 시작 필요:</span> <b id="bannerRebootReason">-</b></span>
     <button class="btn mini warn" id="btnBannerReboot" data-i18n="top.reboot_now">지금 다시 시작</button>
     <button class="btn mini" id="btnBannerClose">×</button>
   </div>
@@ -70,29 +69,20 @@
     </div>
 
     <nav class="drawer-nav">
-      <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span
-          data-i18n="tab.dash">홈</span></button>
-      <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작
-          할당</span></button>
-      <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로
-          관리</span></button>
-      <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및
-          센서 설정</span></button>
-      <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력
-          테스트</span></button>
-      <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선
-          업데이트</span></button>
+      <button class="drawer-item on" data-tab="dash"><span class="drawer-ico">🏠</span><span data-i18n="tab.dash">홈</span></button>
+      <button class="drawer-item" data-tab="slots"><span class="drawer-ico">🎮</span><span data-i18n="tab.slots">버튼 및 동작 할당</span></button>
+      <button class="drawer-item" data-tab="macros"><span class="drawer-ico">📜</span><span data-i18n="tab.macros">매크로 관리</span></button>
+      <button class="drawer-item" data-tab="config"><span class="drawer-ico">⚙️</span><span data-i18n="tab.config">포인터 및 센서 설정</span></button>
+      <button class="drawer-item" data-tab="diag"><span class="drawer-ico">🔧</span><span data-i18n="tab.diag">진단 및 입력 테스트</span></button>
+      <button class="drawer-item" data-tab="ota"><span class="drawer-ico">⬆️</span><span data-i18n="tab.ota">무선 업데이트</span></button>
     </nav>
 
     <div class="drawer-divider"></div>
 
     <nav class="drawer-nav">
-      <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span
-          data-i18n="top.refresh">새로 고침</span></button>
-      <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시
-          시작</span></button>
-      <button class="drawer-item" id="btnDrawerNetToggle"><span class="drawer-ico">🌐</span><span
-          id="drawerNetLabel">NET: ONLINE</span></button>
+      <button class="drawer-item" id="btnDrawerRefresh"><span class="drawer-ico">🔄</span><span data-i18n="top.refresh">새로 고침</span></button>
+      <button class="drawer-item" id="btnDrawerReboot"><span class="drawer-ico">⚡</span><span data-i18n="top.reboot">다시 시작</span></button>
+      <button class="drawer-item" id="btnDrawerNetToggle"><span class="drawer-ico">🌐</span><span id="drawerNetLabel">NET: ONLINE</span></button>
     </nav>
 
     <div class="drawer-divider"></div>
@@ -128,7 +118,6 @@
               <button class="remote-fold-btn" id="btnToggleRemoteFold" data-i18n="remote.fold">접기 ▲</button>
             </div>
 
-            <!-- ===== 통합 모드 선택 탭 ===== -->
             <div class="preview-tabs" role="tablist">
               <button class="preview-tab on" data-mode="1" title="모드 1: PC (마우스)" data-i18n-title="dash.mode_tab_1_title">
                 <span class="pt-ico">🖱️</span>
@@ -224,41 +213,31 @@
             <div class="tool-group">
               <div class="tool-group-title" data-i18n="trouble.pointer">포인터</div>
               <div class="tool-btns">
-                <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span
-                    data-i18n="trouble.calib">자이로 영점 조절</span></button>
-                <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span
-                    data-i18n="trouble.release">눌린 키 강제 해제</span></button>
+                <button class="tool-btn" data-trouble="calib"><span class="tool-ico">🎯</span><span data-i18n="trouble.calib">자이로 영점 조절</span></button>
+                <button class="tool-btn" data-trouble="release"><span class="tool-ico">🔓</span><span data-i18n="trouble.release">눌린 키 강제 해제</span></button>
               </div>
             </div>
             <div class="tool-group">
               <div class="tool-group-title" data-i18n="trouble.conn">무선 연결</div>
               <div class="tool-btns">
-                <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span
-                    data-i18n="trouble.host">호스트 기기 전환</span></button>
-                <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span
-                    data-i18n="trouble.pair">페어링 모드</span></button>
-                <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span
-                    data-i18n="trouble.i2c">센서 연결(I2C) 복구</span></button>
+                <button class="tool-btn" data-trouble="host"><span class="tool-ico">🔀</span><span data-i18n="trouble.host">호스트 기기 전환</span></button>
+                <button class="tool-btn" data-trouble="pair"><span class="tool-ico">📡</span><span data-i18n="trouble.pair">페어링 모드</span></button>
+                <button class="tool-btn" data-trouble="i2c"><span class="tool-ico">🔌</span><span data-i18n="trouble.i2c">센서 연결(I2C) 복구</span></button>
               </div>
             </div>
             <div class="tool-group">
               <div class="tool-group-title" data-i18n="trouble.system">시스템</div>
               <div class="tool-btns">
-                <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span
-                    data-i18n="trouble.sleep">지금 절전 모드</span></button>
-                <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span
-                    data-i18n="trouble.safemode">안전 모드 토글</span></button>
-                <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span
-                    data-i18n="trouble.factory">공장 초기화</span></button>
+                <button class="tool-btn warn" data-trouble="sleep"><span class="tool-ico">💤</span><span data-i18n="trouble.sleep">지금 절전 모드</span></button>
+                <button class="tool-btn warn" data-trouble="safemode"><span class="tool-ico">🛡️</span><span data-i18n="trouble.safemode">안전 모드 토글</span></button>
+                <button class="tool-btn danger" data-trouble="factory"><span class="tool-ico">⚠️</span><span data-i18n="trouble.factory">공장 초기화</span></button>
               </div>
             </div>
             <div class="tool-group">
               <div class="tool-group-title" data-i18n="trouble.safeboot">안전 부팅 (SafeBoot)</div>
               <div class="tool-btns">
-                <button class="tool-btn" data-trouble="safeinfo"><span class="tool-ico">ℹ️</span><span
-                    data-i18n="trouble.safeinfo">안전 부팅 상태</span></button>
-                <button class="tool-btn warn" data-trouble="safeexit"><span class="tool-ico">🔓</span><span
-                    data-i18n="trouble.safeexit">안전 부팅 모드 종료</span></button>
+                <button class="tool-btn" data-trouble="safeinfo"><span class="tool-ico">ℹ️</span><span data-i18n="trouble.safeinfo">안전 부팅 상태</span></button>
+                <button class="tool-btn warn" data-trouble="safeexit"><span class="tool-ico">🔓</span><span data-i18n="trouble.safeexit">안전 부팅 모드 종료</span></button>
               </div>
             </div>
           </div>
@@ -372,37 +351,28 @@
             <option value="false" data-i18n="cfg.hard_click_off">사용 안 함</option>
           </select>
         </div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness"
-            class="inp" type="number" min="0" max="255" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold"
-            class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp"
-            class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness" class="inp" type="number" min="0" max="255" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold" class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp" class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
       </div>
 
       <h3 data-i18n="cfg.sec_motion_modes">2. 모드별 포인터 이동 특성</h3>
       <div class="form three">
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_sb">모드별 기본 속도 비율</label>
-          <div class="arr"><input id="sb0" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input
-              id="sb1" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb2" class="inp mini"
-              type="number" min="0.2" max="2.0" step="0.05" /></div>
+          <div class="arr"><input id="sb0" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb1" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /><input id="sb2" class="inp mini" type="number" min="0.2" max="2.0" step="0.05" /></div>
         </div>
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_ag">모드별 가속 증가량</label>
-          <div class="arr"><input id="ag0" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input
-              id="ag1" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag2" class="inp mini"
-              type="number" min="0.1" max="2.0" step="0.05" /></div>
+          <div class="arr"><input id="ag0" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag1" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /><input id="ag2" class="inp mini" type="number" min="0.1" max="2.0" step="0.05" /></div>
         </div>
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_wheel">휠 스크롤 민감도</label>
-          <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input
-              id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
+          <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
         </div>
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_flick">휘두르기 제스처 감도</label>
-          <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input
-              id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
+          <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
         </div>
       </div>
 
@@ -415,32 +385,21 @@
             <option value="false" data-i18n="cfg.cf_off">사용 안 함</option>
           </select>
         </div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_gyro">정지 판단 회전 속도</label><input id="cfGyroTh"
-            class="inp" type="number" step="0.5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_max">최대 동결 시간</label><input id="cfMaxMs" class="inp"
-            type="number" step="10" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_hold">뗀 후 동결 유지</label><input id="cfHoldMs"
-            class="inp" type="number" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_fadeout">복귀 시간</label><input id="cfFadeoutMs"
-            class="inp" type="number" step="5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_move">강제 해제 이동 (px)</label><input id="cfMoveTh"
-            class="inp" type="number" step="0.5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_freeze_move">의도적 이동 판단</label><input
-            id="cfFreezeMoveTh" class="inp" type="number" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_gyro">정지 판단 회전 속도</label><input id="cfGyroTh" class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_max">최대 동결 시간</label><input id="cfMaxMs" class="inp" type="number" step="10" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_hold">뗀 후 동결 유지</label><input id="cfHoldMs" class="inp" type="number" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_fadeout">복귀 시간</label><input id="cfFadeoutMs" class="inp" type="number" step="5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_move">강제 해제 이동 (px)</label><input id="cfMoveTh" class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_cf_freeze_move">의도적 이동 판단</label><input id="cfFreezeMoveTh" class="inp" type="number" step="1" /></div>
       </div>
 
       <h3 data-i18n="cfg.sec_ema">4. 적응형 손떨림 보정 (Adaptive EMA)</h3>
       <div class="form two">
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_min">Alpha Min</label><input id="emaAlphaMin"
-            class="inp" type="number" step="0.01" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_max">Alpha Max</label><input id="emaAlphaMax"
-            class="inp" type="number" step="0.01" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_deadzone">손떨림 흡수 기준</label><input
-            id="emaDeadzoneTh" class="inp" type="number" step="0.5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_fast">고속 추종 전환</label><input id="emaFastTh"
-            class="inp" type="number" step="1" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_reversal">방향 전환 감지</label><input id="emaReversalTh"
-            class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_min">Alpha Min</label><input id="emaAlphaMin" class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_max">Alpha Max</label><input id="emaAlphaMax" class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_deadzone">손떨림 흡수 기준</label><input id="emaDeadzoneTh" class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_fast">고속 추종 전환</label><input id="emaFastTh" class="inp" type="number" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ema_reversal">방향 전환 감지</label><input id="emaReversalTh" class="inp" type="number" step="0.5" /></div>
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_ema_rev_reset">방향 전환 리셋</label>
           <select id="emaReversalReset" class="select">
@@ -462,12 +421,9 @@
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_snap_modes">적용 모드</label>
           <div class="arr" style="gap:14px;">
-            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
-                id="snapMode1" /><span>1</span></label>
-            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
-                id="snapMode2" /><span>2</span></label>
-            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"
-                id="snapMode3" /><span>3</span></label>
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode1" /><span>1</span></label>
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode2" /><span>2</span></label>
+            <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="snapMode3" /><span>3</span></label>
           </div>
         </div>
         <div class="frow">
@@ -478,24 +434,19 @@
             <option value="2" data-i18n="cfg.snap_axis_v">세로만</option>
           </select>
         </div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_ratio">기울기 비율</label><input id="snapRatio"
-            class="inp" type="number" step="0.5" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_strength">고정 강도</label><input id="snapStrength"
-            class="inp" type="number" step="0.01" /></div>
-        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input
-            id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_ratio">기울기 비율</label><input id="snapRatio" class="inp" type="number" step="0.5" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_strength">고정 강도</label><input id="snapStrength" class="inp" type="number" step="0.01" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_snap_frames">판정 프레임</label><input id="snapConfirmFrames" class="inp" type="number" step="1" /></div>
       </div>
-      
-      
-      
-      
-      
+
       <h3 data-i18n="cfg.sec_power">6. 절전 및 전원 관리</h3>
       <div class="form two">
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_idle_pc">모드 1 (PC) 대기 (초)</label>
           <input id="pwrIdleSleepM1" class="inp" type="number" min="5" max="3600" step="10" /></div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_deep">딥슬립 대기 (초)</label>
-          <input id="pwrDeepSleepSec" class="inp" type="number" min="0" max="7200" step="30" /></div>
+          <input id="pwrDeepSleepSec" class="inp" type="number" min="0" max="7200" step="30" title="0=비활성, 또는 300~7200초" />
+          <div class="hint2" style="font-size:.72em;">0 (비활성) 또는 300~7200초</div>
+        </div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_th">흔들어 깨우기 감도</label>
           <input id="pwrWomThreshold" class="inp" type="number" min="5" max="100" step="5" /></div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_pwr_wom_dur">흔들림 유지 (ms)</label>
@@ -522,7 +473,7 @@
             <input id="pwrLedFadeinMs" class="inp" type="number" min="0" max="1000" step="50" /></div>
         </div>
       </details>
-      
+
       <h3 data-i18n="cfg.sec_buttons">7. 버튼 타이밍</h3>
       <div class="form two">
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_btn_deb_press">누름 디바운스 (ms)</label>
@@ -548,8 +499,6 @@
         </div>
       </details>
 
-      
-      
       <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
       <div class="row preset-row">
         <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>
@@ -581,22 +530,10 @@
 
       <h3 style="margin-top:14px;" data-i18n="diag.system_status">시스템 현황</h3>
       <div class="row">
-        <div class="kv">
-          <div class="k" data-i18n="dash.uptime">가동 시간</div>
-          <div class="v" id="stUptime">-</div>
-        </div>
-        <div class="kv">
-          <div class="k" data-i18n="dash.heap">여유 메모리</div>
-          <div class="v" id="stHeap">-</div>
-        </div>
-        <div class="kv">
-          <div class="k" data-i18n="dash.wifi">와이파이</div>
-          <div class="v" id="stWiFi">-</div>
-        </div>
-        <div class="kv">
-          <div class="k" data-i18n="dash.cur_prof">현재 프로필</div>
-          <div class="v" id="stProfile">-</div>
-        </div>
+        <div class="kv"><div class="k" data-i18n="dash.uptime">가동 시간</div><div class="v" id="stUptime">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.heap">여유 메모리</div><div class="v" id="stHeap">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.wifi">와이파이</div><div class="v" id="stWiFi">-</div></div>
+        <div class="kv"><div class="k" data-i18n="dash.cur_prof">현재 프로필</div><div class="v" id="stProfile">-</div></div>
       </div>
 
       <div class="sep"></div>
@@ -615,7 +552,7 @@
                data-i18n-placeholder="diag.filter_ph" />
       </div>
       <div class="log" id="diagEvents" style="max-height:200px;"></div>
-      
+
       <details class="adv-opts" style="margin-top:10px;">
         <summary data-i18n="diag.raw_json">Raw JSON</summary>
         <pre class="log" id="diagJson" style="margin-top:6px;max-height:200px;">-</pre>
@@ -675,7 +612,8 @@
   <footer class="foot">
     <div data-i18n="cfg.foot">v0414 · Full Standalone · 통합 모드 선택기</div>
   </footer>
-  <!-- ===== v0414 모듈 로드 순서 정합성 보장 ===== -->
+
+  <!-- ===== v0414 모듈 로드 순서 ===== -->
   <script src="./lib/am_base_0414.js"></script>
   <script src="./lib/am_i18n_0414.js"></script>
   <script src="./lib/am_offline_0414.js"></script>

@@ -1,12 +1,24 @@
 /* =======================================================
    File: /www/lib/am_status_0414.js
    Elite AirMouse WebConfig v0414 — Status / Diag / OTA
-   - 로드 순서: 6
-   - 의존: am_base_0414.js
-   - [v0412] N-3 (diagClear), N-5 (배너), N-6 (rebootCheck),
-             N-7 (ctlSetDpi/Precision), N-8 (ctlHostCycle),
-             N-9 (keyTest), N-18 (I2C 피드백), N-19 (캘리브 피드백)
+   - 로드 순서: 7
+   - [Phase 2.1 C-3/H-5] keyTest 통합 (am_base 버전 흡수)
+   - [Phase 3.1 H-4] 배너 dismiss 세션 플래그
+   - [Phase 3.4 M-10] 캘리브 피드백 통일
+   - [Phase 3.7 L-7] 배터리 N/A 처리
+   - [Phase 4.2 M-9] reboot/check 폴링 중복 제거
    ======================================================= */
+
+/* =======================================================
+   [Phase 3.1 H-4] 배너 dismiss 세션 플래그
+   ======================================================= */
+let g_bannerDismissed = false;
+let g_bannerDismissedMask = 0;
+
+function dismissRebootBanner(maskSnapshot) {
+  g_bannerDismissed = true;
+  g_bannerDismissedMask = (maskSnapshot >>> 0);
+}
 
 /* =======================================================
    Status 새로고침
@@ -38,10 +50,24 @@ async function refreshStatus() {
   setPill(qs("pillBle"), `BLE: ${e10.ble_connected ? "ON" : "OFF"}`, !!e10.ble_connected);
   setPill(qs("pillSafe"), `SAFE: ${boot.safe_mode ? "ON" : "OFF"}`, !!boot.safe_mode);
 
-  // 상단 통합 알약 (#pStatProf, #pStatBat, #pStatBle)
+  // 상단 통합 알약
   const pProf = qs("pStatProf"), pBat = qs("pStatBat"), pBle = qs("pStatBle");
   if (pProf) pProf.textContent = `#${cfg.profile_idx ?? 0}`;
-  if (pBat) pBat.textContent = `${sys.bat_pct != null ? sys.bat_pct + "%" : "--%"}`;
+
+  // [Phase 3.7 L-7] 배터리 ADC 미구현 → "N/A" + 툴팁
+  if (pBat) {
+    const v_pct = (sys.bat_pct != null) ? sys.bat_pct : null;
+    if (v_pct != null) {
+      pBat.textContent = `${v_pct}%`;
+      pBat.style.color = "";
+      pBat.removeAttribute("title");
+    } else {
+      pBat.textContent = "N/A";
+      pBat.style.color = "var(--txt-muted)";
+      pBat.title = (typeof t === "function") ? t("dash.batt_na_tip") : "Battery ADC not implemented";
+    }
+  }
+
   if (pBle) {
     pBle.textContent = e10.ble_connected ? "BLE ON" : "BLE OFF";
     pBle.style.color = e10.ble_connected ? "var(--success)" : "var(--txt-muted)";
@@ -58,24 +84,50 @@ async function refreshStatus() {
   const v_guardEl = qs("otaGuardManual");
   if (v_guardEl) v_guardEl.checked = v_guard;
 
-  // [N-6, N-16] reboot/check 백그라운드
-  _updateRebootCheckAsync();
-
+  // [M-9] _updateRebootCheckAsync() 호출 제거
+  //   - /api/status 응답의 policy.reboot_required / reboot_reason_mask로 충분
+  //   - 별도 /api/reboot/check 조회는 중복 트래픽
 }
 
 /* =======================================================
-   [N-5] 재부팅 필요 배너
+   [N-5, H-4] 재부팅 배너
    ======================================================= */
 function _updateRebootBanner(policy) {
   const banner = qs("bannerReboot");
   if (!banner) return;
 
-  const v_req = !!(policy && policy.reboot_required);
+  const v_req     = !!(policy && policy.reboot_required);
   const v_reasons = (policy && policy.reboot_reasons) || "";
+  const v_mask    = ((policy && policy.reboot_reason_mask) || 0) >>> 0;
 
-  banner.style.display = v_req ? "flex" : "none";
+  // 재부팅 불필요 → 숨김 + dismiss 초기화
+  if (!v_req) {
+    banner.style.display = "none";
+    g_bannerDismissed = false;
+    g_bannerDismissedMask = 0;
+    return;
+  }
+
+  // 사용자가 같은 마스크로 dismiss한 상태 → 숨김 유지
+  if (g_bannerDismissed && v_mask === g_bannerDismissedMask) {
+    banner.style.display = "none";
+    return;
+  }
+
+  // 마스크가 바뀌면 dismiss 무효화
+  if (g_bannerDismissed && v_mask !== g_bannerDismissedMask) {
+    g_bannerDismissed = false;
+    g_bannerDismissedMask = 0;
+  }
+
+  banner.style.display = "flex";
   const rEl = qs("bannerRebootReason");
   if (rEl) rEl.textContent = v_reasons || "(WiFi 변경 등)";
+
+  // [M-9] banner.title에 mask 정보 (구 _updateRebootCheckAsync 역할)
+  banner.title =
+    `mask: 0x${v_mask.toString(16)}\n` +
+    `reasons: ${v_reasons || "(none)"}`;
 }
 
 /* =======================================================
@@ -108,7 +160,7 @@ async function diagClear() {
 }
 
 /* =======================================================
-   [N-7] 실시간 DPI / Precision (apply-only)
+   [N-7] 실시간 DPI / Precision
    ======================================================= */
 async function ctlSetDpi(level) {
   const u = unwrapApi(await apiPostJson("/api/control", {
@@ -142,7 +194,7 @@ async function ctlHostCycle() {
 }
 
 /* =======================================================
-   [N-18] I2C 복구 결과 표시
+   [N-18] I2C 복구
    ======================================================= */
 async function ctlI2cRecoverWithFeedback() {
   if (!confirm(t("pop.i2c_recover_confirm"))) return;
@@ -190,14 +242,34 @@ async function ctlI2cRecoverWithFeedback() {
 }
 
 /* =======================================================
-   [N-9] 단발 키 테스트
+   [Phase 2.1 C-3/H-5] Key Test — am_base 버전 흡수
    ======================================================= */
-async function keyTest(page, mod, code) {
+async function keyTest(page, mod, code, labelOverride) {
+  // 1) 로컬 부가 로그 (Recent Command Log)
+  const label = labelOverride || ((page === "kb")
+    ? `KB u=${code} mod=${mod}`
+    : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
+  if (typeof pushRecentLog === "function") {
+    pushRecentLog(label, true);
+  }
+
+  // 2) diagEvents 라인 삽입 (개발자 관측용)
+  const evEl = qs("diagEvents");
+  if (evEl) {
+    const line = document.createElement("div");
+    line.className = "logline";
+    line.textContent = `[${Math.floor(performance.now())}ms] KEYTEST ${label}`;
+    evEl.insertBefore(line, evEl.firstChild);
+    while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
+  }
+
+  // 3) 코드 유효성 검사
   if (!Number.isFinite(code) || code < 0) {
     alert(t("trouble.invalid_code"));
     return;
   }
 
+  // 4) 서버 요청 (오프라인 mock 포함)
   const u = unwrapApi(await apiPostJson("/api/ppt/test", {
     page: page, mod: mod, code: code
   }));
@@ -210,7 +282,7 @@ async function keyTest(page, mod, code) {
 }
 
 /* =======================================================
-   [N-19] 자이로 캘리브 피드백
+   [Phase 3.4 M-10] 자이로 캘리브 피드백
    ======================================================= */
 async function ctlGyroCalibWithFeedback() {
   if (!confirm(t("pop.gyro_calib_confirm"))) return;
@@ -224,6 +296,9 @@ async function ctlGyroCalibWithFeedback() {
     alert(`${t("pop.gyro_calib_fail")} ${u.msg || u.code}`);
     return;
   }
+
+  // [M-10] 최근 로그 기록 (문제해결 카드 경로에서도 반영)
+  if (typeof pushRecentLog === "function") pushRecentLog("GYRO_CALIB", true);
 
   showLoading(t("loading.processing"));
 
@@ -264,51 +339,13 @@ function _getE10Bias() {
 }
 
 /* =======================================================
-   [N-6, N-16] reboot/check 백그라운드 조회
+   [Phase 4.2 M-9] reboot/check (수동 조회 API만 유지)
+   - refreshStatus에서 주기 호출 제거됨
+   - 필요 시 개발자 콘솔에서 rebootCheck() 수동 호출 가능
    ======================================================= */
-let _rebootCheckBusy = false;
-
 async function rebootCheck() {
   const u = unwrapApi(await apiGet("/api/reboot/check"));
   return (u.ok && u.data) ? u.data : null;
-}
-
-async function _updateRebootCheckAsync() {
-  if (_rebootCheckBusy) return;
-  _rebootCheckBusy = true;
-  try {
-    const d = await rebootCheck();
-    if (d && d.required) {
-      const banner = qs("bannerReboot");
-      if (banner) {
-        banner.style.display = "flex";
-        banner.title =
-          `mask: 0x${(d.mask >>> 0).toString(16)}\n` +
-          `reasons: ${d.reasons}\n` +
-          `allowed: ${d.allowed}` + (d.deny_code ? `\ndeny: ${d.deny_code}` : "");
-      }
-    }
-  } catch (e) { }
-  finally { _rebootCheckBusy = false; }
-}
-
-/* =======================================================
-   Online / Offline 모드 전환
-   ======================================================= */
-function toggleAppMode() {
-  const targetMode = (g_appMode === APP_MODE_ONLINE) ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
-  if (!confirm(t("pop.net_mode_switch_confirm", { current: g_appMode, target: targetMode }))) return;
-
-  setAppMode(targetMode);
-  setMsg(t("pop.mode_switch_ok", { tgt: g_appMode }), true);
-
-  profileReloadAll().then(() => {
-    renderSlotEditor();
-    macroRenderList();
-    macroRenderEditor();
-    cfgLoad();
-    refreshStatus();
-  });
 }
 
 /* =======================================================
@@ -401,9 +438,8 @@ async function otaStatus() {
   qs("otaJson").textContent = pretty(unwrapApi(r).data || r.text);
 }
 
-
 /* =======================================================
-   최근 명령 로그 (Recent Command Log)
+   최근 명령 로그
    ======================================================= */
 const RECENT_LOGS_MAX = 8;
 const g_recentLogs = [];
@@ -427,46 +463,51 @@ function renderRecentLogs() {
 }
 
 /* =======================================================
-   문제 해결 도구 (Troubleshoot Tools)
+   문제 해결 도구
+   - [Phase 3.4 M-10] calib → ctlGyroCalibWithFeedback()
+   - [Phase 1.5 H-6] safemode/safeinfo/safeexit 서버 상태 기반
+   - [Phase 1.4 C-5] factory → factoryReset()
    ======================================================= */
 async function handleTrouble(kind) {
   try {
     switch (kind) {
       case "calib":
-        await apiPostJson("/api/control", { cmd: "gyro_calib", snapshot: false });
-        setMsg(t("pop.calib_ok"), true);
-        pushRecentLog("GYRO_CALIB", true);
+        // [M-10] N-19 피드백 통합 (RMS 변화량 + bias 좌표)
+        await ctlGyroCalibWithFeedback();
         break;
+
       case "release":
         await apiPostJson("/api/control", { cmd: "force_release", snapshot: false });
         setMsg(t("pop.force_release_ok"), true);
         pushRecentLog("FORCE_RELEASE", true);
         break;
+
       case "host":
         await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 5, p32: 0 });
         setMsg(t("pop.host_cycle_ok"), true);
         pushRecentLog("HOST_CYCLE", true);
         break;
+
       case "pair":
         await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 4, p32: 0 });
         setMsg(t("pop.pair_ok"), true);
         pushRecentLog("PAIRING", true);
         break;
+
       case "i2c":
         await apiPostJson("/api/control", { cmd: "i2c_recover", snapshot: false });
         setMsg(t("pop.i2c_ok"), true);
         pushRecentLog("I2C_RECOVER", true);
         break;
+
       case "sleep":
         await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 2, p32: 0 });
         setMsg(t("pop.sleep_ok"), true);
         pushRecentLog("SLEEP_NOW", true);
         break;
-        
+
       case "factory":
         // [C-5, L-8] config 탭과 동일한 factoryReset()으로 위임
-        //   - 오프라인: /api/factory_reset mock → OFFLINE_STORAGE_KEY만 삭제
-        //   - 온라인: 실제 서버 초기화 + 재부팅 폴링
         await factoryReset();
         break;
 
@@ -477,10 +518,10 @@ async function handleTrouble(kind) {
           && g_lastStatus.groups.boot
           && g_lastStatus.groups.boot.safe_mode);
         const v_target = !v_current;
-      
+
         const msg = v_target ? t("pop.safemode_enter_confirm") : t("pop.safemode_exit_confirm");
         if (!confirm(msg)) return;
-      
+
         const u = unwrapApi(await apiPostJson("/api/control", {
           cmd: "set_safe_mode", enable: v_target, snapshot: true
         }));
@@ -490,21 +531,18 @@ async function handleTrouble(kind) {
         }
         setMsg(v_target ? t("pop.safemode_on") : t("pop.safemode_off"), true);
         pushRecentLog(`SAFE_MODE_${v_target ? "ON" : "OFF"}`, true);
-      
-        // 캐시 갱신은 다음 폴링(2.5s)에서 자동 반영. 즉시 반영 원하면 refreshStatus 호출.
         await refreshStatus();
         break;
       }
-      
+
       case "safeinfo": {
-        // [H-6] boot.safe_mode를 진실 공급원으로 사용
         const v_safe = !!(g_lastStatus
           && g_lastStatus.groups
           && g_lastStatus.groups.boot
           && g_lastStatus.groups.boot.safe_mode);
         const v_fail = (g_lastStatus?.groups?.boot?.fail_count) ?? 0;
         const v_pending = !!(g_lastStatus?.groups?.boot?.pending);
-      
+
         alert(pretty({
           safe_mode: v_safe,
           fail_count: v_fail,
@@ -514,18 +552,17 @@ async function handleTrouble(kind) {
         }));
         break;
       }
-      
+
       case "safeexit": {
-        // [H-6, D-2=(B)] /api/safeboot exit 사용 (로컬 조작 금지)
+        // [H-6, D-2=(B)] /api/safeboot exit 사용
         if (!confirm(t("pop.safeboot_exit_confirm"))) return;
-      
+
         const u = unwrapApi(await apiPostJson("/api/safeboot", { exit: true }));
         if (!u.ok) {
           alert(`${t("pop.safeboot_exit_fail")} ${u.msg || u.code}`);
           return;
         }
         pushRecentLog("SAFEBOOT_EXIT", true);
-        // 서버가 재부팅함 → 폴링 대기
         showLoading(t("pop.reboot_waiting"));
         let v_tries = 0;
         const v_timer = setInterval(async () => {
@@ -546,7 +583,6 @@ async function handleTrouble(kind) {
         }, 1000);
         break;
       }
-
     }
   } catch (e) {
     setMsg(`${t("pop.trouble_fail")} ${e.message || e}`, false);
@@ -558,3 +594,23 @@ function bindTroubleshoot() {
     btn.addEventListener("click", () => handleTrouble(btn.getAttribute("data-trouble")));
   });
 }
+
+/* =======================================================
+   Online / Offline 모드 전환
+   ======================================================= */
+function toggleAppMode() {
+  const targetMode = (g_appMode === APP_MODE_ONLINE) ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
+  if (!confirm(t("pop.net_mode_switch_confirm", { current: g_appMode, target: targetMode }))) return;
+
+  setAppMode(targetMode);
+  setMsg(t("pop.mode_switch_ok", { tgt: g_appMode }), true);
+
+  profileReloadAll().then(() => {
+    renderSlotEditor();
+    macroRenderList();
+    macroRenderEditor();
+    cfgLoad();
+    refreshStatus();
+  });
+}
+

@@ -1,11 +1,10 @@
 /* =======================================================
    File: /www/lib/am_config_0414.js
    Elite AirMouse WebConfig v0414 — E10 Config / Control / SafeBoot
-   - 로드 순서: 5
-   - 의존: am_base_0414.js, am_profile_0414.js
-   - [v0412] N-1 (safeBootExit), N-2 (otaGuardSet), N-4 (safeModeSet),
-             N-10 (cfgExport 서버화), N-20 (factoryReset 진행 표시),
-             Phase 1~3 (Motion Advanced UI + 프리셋)
+   - 로드 순서: 6
+   - [Phase 2.0.1 N-1] deep_idle_timeout_ms 클램프
+   - [Phase 3.2 H-8] 프리셋 19필드 전체화
+   - [Phase 3.6 L-5] bindConfigDirtyTracker + clearDirty
    ======================================================= */
 
 /* =======================================================
@@ -44,7 +43,6 @@ function configToUi(cfg) {
   // ====================================================
   const ma = e.motion_adv || {};
 
-  // [Phase 1] Click-Freeze
   const cf = ma.click_freeze || {};
   if (qs("cfEnable")) qs("cfEnable").value = String((cf.enable ?? true) ? "true" : "false");
   if (qs("cfGyroTh")) qs("cfGyroTh").value = String(cf.gyro_th ?? 15.0);
@@ -54,7 +52,6 @@ function configToUi(cfg) {
   if (qs("cfMoveTh")) qs("cfMoveTh").value = String(cf.move_th ?? 2.0);
   if (qs("cfFreezeMoveTh")) qs("cfFreezeMoveTh").value = String(cf.freeze_move_th ?? 30.0);
 
-  // [Phase 2] Adaptive EMA
   const ema = ma.ema || {};
   if (qs("emaAlphaMin")) qs("emaAlphaMin").value = String(ema.alpha_min ?? 0.05);
   if (qs("emaAlphaMax")) qs("emaAlphaMax").value = String(ema.alpha_max ?? 0.80);
@@ -63,7 +60,6 @@ function configToUi(cfg) {
   if (qs("emaReversalTh")) qs("emaReversalTh").value = String(ema.reversal_th ?? 8.0);
   if (qs("emaReversalReset")) qs("emaReversalReset").value = String((ema.reversal_reset ?? true) ? "true" : "false");
 
-  // [Phase 3] Snap-to-Axis
   const snap = ma.snap || {};
   if (qs("snapEnable")) qs("snapEnable").value = String((snap.enable ?? true) ? "true" : "false");
   if (qs("snapMode1")) qs("snapMode1").checked = !!(snap.mode_mask & 0x01);
@@ -73,36 +69,30 @@ function configToUi(cfg) {
   if (qs("snapRatio")) qs("snapRatio").value = String(snap.ratio_enter ?? 4.0);
   if (qs("snapStrength")) qs("snapStrength").value = String(snap.strength ?? 0.85);
   if (qs("snapConfirmFrames")) qs("snapConfirmFrames").value = String(snap.confirm_frames ?? 3);
-  
-  
-  
+
   // ====================================================
-  // [Phase 11.6] Power (D-1: 계층 노출)
-  //   - 백엔드: idle_timeout_ms[3] 배열 + 나머지 개별 필드
-  //   - 프론트: 초 단위 노출, ms↔초 변환
+  // [Phase 11.6] Power
   // ====================================================
   const pw = e.power || {};
   const pIdleMs = Array.isArray(pw.idle_timeout_ms) ?
     pw.idle_timeout_ms :
     [60000, 120000, 300000];
-  
+
   if (qs("pwrIdleSleepM1")) qs("pwrIdleSleepM1").value = String(Math.round((pIdleMs[0] ?? 60000) / 1000));
   if (qs("pwrIdleSleepM2")) qs("pwrIdleSleepM2").value = String(Math.round((pIdleMs[1] ?? 120000) / 1000));
   if (qs("pwrIdleSleepM3")) qs("pwrIdleSleepM3").value = String(Math.round((pIdleMs[2] ?? 300000) / 1000));
   if (qs("pwrIdleSleepBle")) qs("pwrIdleSleepBle").value = String(Math.round((pw.idle_timeout_ble_ms ?? 300000) / 1000));
   if (qs("pwrPairingIdleSec")) qs("pwrPairingIdleSec").value = String(Math.round((pw.pairing_idle_timeout_ms ?? 30000) / 1000));
-  
   if (qs("pwrDeepSleepSec")) qs("pwrDeepSleepSec").value = String(Math.round((pw.deep_idle_timeout_ms ?? 600000) / 1000));
-  
   if (qs("pwrWakeMinActiveMs")) qs("pwrWakeMinActiveMs").value = String(pw.wake_min_active_ms ?? 500);
   if (qs("pwrWomThreshold")) qs("pwrWomThreshold").value = String(pw.wom_threshold ?? 25);
   if (qs("pwrWomDuration")) qs("pwrWomDuration").value = String(pw.wom_duration ?? 4);
   if (qs("pwrFastRecalibMs")) qs("pwrFastRecalibMs").value = String(pw.fast_recalib_ms ?? 300);
   if (qs("pwrLedFadeoutMs")) qs("pwrLedFadeoutMs").value = String(pw.led_fadeout_ms ?? 500);
   if (qs("pwrLedFadeinMs")) qs("pwrLedFadeinMs").value = String(pw.led_fadein_ms ?? 300);
-  
+
   // ====================================================
-  // [Phase 11.7] Button Timing (D-1: 계층 노출)
+  // [Phase 11.7] Button Timing
   // ====================================================
   const bt = e.button || {};
   if (qs("btnDebouncePressMs")) qs("btnDebouncePressMs").value = String(bt.debounce_press_ms ?? 32);
@@ -113,12 +103,12 @@ function configToUi(cfg) {
   if (qs("btnHold2sMs")) qs("btnHold2sMs").value = String(bt.hold_2s_ms ?? 2000);
   if (qs("btnHold3sMs")) qs("btnHold3sMs").value = String(bt.hold_3s_ms ?? 3000);
   if (qs("btnDebounceMinTicks")) qs("btnDebounceMinTicks").value = String(bt.debounce_min_ticks ?? 3);
-  
+
   if (qs("cfgJsonArea")) qs("cfgJsonArea").value = pretty(cfg);
 }
 
 /* =======================================================
-   UI → Config 반영 (E10만)
+   UI → Config 반영
    ======================================================= */
 function uiToConfig() {
   if (!g_profile || !g_profile.config) g_profile = g_profile || { config: {} };
@@ -156,7 +146,6 @@ function uiToConfig() {
   // ====================================================
   e.motion_adv = e.motion_adv || {};
 
-  // [Phase 1] Click-Freeze
   e.motion_adv.click_freeze = e.motion_adv.click_freeze || {};
   const cf = e.motion_adv.click_freeze;
   cf.enable = parseBool(qs("cfEnable")?.value);
@@ -167,7 +156,6 @@ function uiToConfig() {
   cf.move_th = parseNum(qs("cfMoveTh")?.value, 2.0);
   cf.freeze_move_th = parseNum(qs("cfFreezeMoveTh")?.value, 30.0);
 
-  // [Phase 2] Adaptive EMA
   e.motion_adv.ema = e.motion_adv.ema || {};
   const ema = e.motion_adv.ema;
   ema.alpha_min = parseNum(qs("emaAlphaMin")?.value, 0.05);
@@ -177,7 +165,6 @@ function uiToConfig() {
   ema.reversal_th = parseNum(qs("emaReversalTh")?.value, 8.0);
   ema.reversal_reset = parseBool(qs("emaReversalReset")?.value);
 
-  // [Phase 3] Snap-to-Axis
   e.motion_adv.snap = e.motion_adv.snap || {};
   const snap = e.motion_adv.snap;
   snap.enable = parseBool(qs("snapEnable")?.value);
@@ -190,12 +177,11 @@ function uiToConfig() {
   snap.confirm_frames = parseNum(qs("snapConfirmFrames")?.value, 3);
 
   // ====================================================
-  // [Phase 11.6] Power (D-1 = (C) 계층)
-  //   - 초 → ms 변환 후 저장
+  // [Phase 11.6] Power
   // ====================================================
   e.power = e.power || {};
   const pSec2Ms = (v, defSec) => Math.max(0, Math.round(parseNum(v, defSec) * 1000));
-  
+
   e.power.idle_timeout_ms = [
     pSec2Ms(qs("pwrIdleSleepM1")?.value, 60),
     pSec2Ms(qs("pwrIdleSleepM2")?.value, 120),
@@ -203,15 +189,18 @@ function uiToConfig() {
   ];
   e.power.idle_timeout_ble_ms = pSec2Ms(qs("pwrIdleSleepBle")?.value, 300);
   e.power.pairing_idle_timeout_ms = pSec2Ms(qs("pwrPairingIdleSec")?.value, 30);
-  
-  const v_deepSec = parseNum(qs("pwrDeepSleepSec")?.value, 600);
-  // 0(비활성) 이거나 300~7200만 허용, 그 외는 가장 가까운 유효값으로 스냅
-  if (v_deepSec !== 0 && v_deepSec < 300) {
-    e.power.deep_idle_timeout_ms = 300 * 1000; // 자동 상향
-  } else if (v_deepSec > 7200) {
-    e.power.deep_idle_timeout_ms = 7200 * 1000; // 자동 하향
-  } else {
-    e.power.deep_idle_timeout_ms = v_deepSec * 1000;
+
+  // [N-1] 서버 validateE10: 0 또는 300000~7200000ms(300~7200초)만 허용
+  //   - 범위 밖 값이면 가장 가까운 유효값으로 스냅 (조용한 저장 실패 방지)
+  {
+    const v_deepSec = parseNum(qs("pwrDeepSleepSec")?.value, 600);
+    if (v_deepSec !== 0 && v_deepSec < 300) {
+      e.power.deep_idle_timeout_ms = 300 * 1000;      // 자동 상향 (300초)
+    } else if (v_deepSec > 7200) {
+      e.power.deep_idle_timeout_ms = 7200 * 1000;     // 자동 하향 (7200초)
+    } else {
+      e.power.deep_idle_timeout_ms = Math.round(v_deepSec * 1000);
+    }
   }
 
   e.power.wake_min_active_ms = parseNum(qs("pwrWakeMinActiveMs")?.value, 500);
@@ -220,8 +209,8 @@ function uiToConfig() {
   e.power.fast_recalib_ms = parseNum(qs("pwrFastRecalibMs")?.value, 300);
   e.power.led_fadeout_ms = parseNum(qs("pwrLedFadeoutMs")?.value, 500);
   e.power.led_fadein_ms = parseNum(qs("pwrLedFadeinMs")?.value, 300);
-  
-  // 클라이언트 측 범위 클램프 (서버 validateE10과 정합)
+
+  // 클라이언트 측 범위 클램프
   const _pwClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   e.power.wake_min_active_ms = _pwClamp(e.power.wake_min_active_ms, 100, 2000);
   e.power.wom_threshold = _pwClamp(e.power.wom_threshold, 5, 100);
@@ -229,9 +218,9 @@ function uiToConfig() {
   e.power.fast_recalib_ms = _pwClamp(e.power.fast_recalib_ms, 100, 1000);
   e.power.led_fadeout_ms = _pwClamp(e.power.led_fadeout_ms, 0, 1000);
   e.power.led_fadein_ms = _pwClamp(e.power.led_fadein_ms, 0, 1000);
-  
+
   // ====================================================
-  // [Phase 11.7] Button Timing (D-1 = (C) 계층)
+  // [Phase 11.7] Button Timing
   // ====================================================
   e.button = e.button || {};
   e.button.debounce_press_ms = parseNum(qs("btnDebouncePressMs")?.value, 32);
@@ -242,17 +231,14 @@ function uiToConfig() {
   e.button.hold_2s_ms = parseNum(qs("btnHold2sMs")?.value, 2000);
   e.button.hold_3s_ms = parseNum(qs("btnHold3sMs")?.value, 3000);
   e.button.debounce_min_ticks = parseNum(qs("btnDebounceMinTicks")?.value, 3);
-  
+
   // 서버 validateE10 강제 조건 클라이언트 선반영
-  // (1) debounce_press >= debounce_release
   if (e.button.debounce_press_ms < e.button.debounce_release_ms) {
     e.button.debounce_press_ms = e.button.debounce_release_ms;
   }
-  // (2) hold_2s < hold_3s
   if (e.button.hold_2s_ms >= e.button.hold_3s_ms) {
     e.button.hold_3s_ms = e.button.hold_2s_ms + 1000;
   }
-  // (3) 8ms 배수 정렬 (C20: 8ms tick)
   const _align8 = (v) => Math.round(v / 8) * 8;
   e.button.debounce_press_ms = Math.max(8, _align8(e.button.debounce_press_ms));
   e.button.debounce_release_ms = Math.max(8, _align8(e.button.debounce_release_ms));
@@ -263,6 +249,7 @@ function uiToConfig() {
 
 /* =======================================================
    Config 로드 / 저장
+   - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
 async function cfgLoad() {
   if (!g_profile || !g_profile.config) {
@@ -294,11 +281,26 @@ async function cfgSave() {
   configToUi(g_profile.config);
 
   setMsg("Save OK (reloaded=" + (u.data && u.data.reloaded ? "yes" : "no") + ")", true);
+  // [L-5] 저장 성공 시 dirty 클리어
+  if (typeof clearDirty === "function") clearDirty();
   await refreshStatus();
 }
 
 /* =======================================================
-   [N-10] Config Export (온라인: 서버 파일 사용)
+   [Phase 3.6 L-5] Config 폼 dirty 추적 (이벤트 위임)
+   ======================================================= */
+function bindConfigDirtyTracker() {
+  const tabConfig = qs("tab-config");
+  if (!tabConfig) return;
+  if (tabConfig.dataset.dirtyBound === "1") return;
+  tabConfig.dataset.dirtyBound = "1";
+
+  tabConfig.addEventListener("input",  () => { if (typeof markCfgDirty === "function") markCfgDirty(); });
+  tabConfig.addEventListener("change", () => { if (typeof markCfgDirty === "function") markCfgDirty(); });
+}
+
+/* =======================================================
+   [N-10] Config Export
    ======================================================= */
 function cfgExport() {
   const cfg = (g_profile && g_profile.config) ? g_profile.config : {};
@@ -385,7 +387,6 @@ async function safeInfo() {
   alert(pretty(r.json || r.text));
 }
 
-/* [N-1] SafeBoot 해제 (재부팅 포함) */
 async function safeBootExit() {
   if (!confirm(t("pop.safeboot_exit_confirm"))) return;
 
@@ -420,7 +421,6 @@ async function safeBootExit() {
   }, 1000);
 }
 
-/* [N-4] SafeMode 수동 토글 */
 async function safeModeSet(enable) {
   const msg = enable
     ? t("pop.safemode_enter_confirm")
@@ -438,7 +438,6 @@ async function safeModeSet(enable) {
   await refreshStatus();
 }
 
-/* [N-2] OTA Guard 수동 토글 */
 async function otaGuardSet(enable) {
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "set_ota_guard", enable: !!enable, snapshot: true
@@ -452,20 +451,23 @@ async function otaGuardSet(enable) {
   return true;
 }
 
-/* [N-20] Factory Reset (진행 표시 + 자동 재접속) */
+/* [N-20] Factory Reset — [Phase 3.6 L-5] 미저장 경고 추가 */
 async function factoryReset() {
+  // [L-5] 저장 안 된 변경사항 경고
+  if (typeof hasUnsavedChanges === "function" && hasUnsavedChanges()) {
+    if (!confirm(t("pop.unsaved_changes_confirm"))) return;
+  }
   if (!confirm(t("pop.factory_reset_confirm"))) return;
 
   const hint = qs("factoryHint");
   if (hint) hint.textContent = t("pop.request_sending");
-  
+
   try {
     const raw = await fetch("/api/factory_reset", { method: "POST" });
     const text = await raw.text();
     let json = null;
-    try { json = JSON.parse(text); } catch (e) {}
-    
-    // [L-8] envelope 파싱: 실패 시 서버 코드/메시지 노출
+    try { json = JSON.parse(text); } catch (e) { }
+
     const u = unwrapApi({ ok: raw.ok, status: raw.status, text, json });
     if (!u.ok) {
       if (hint) hint.textContent = `${t("pop.factory_reset_fail")} ${u.code || ""}`;
@@ -473,7 +475,7 @@ async function factoryReset() {
       alert(`${t("pop.factory_reset_fail")} ${u.msg || u.code || raw.status}`);
       return;
     }
-    
+
     if (hint) hint.textContent = t("pop.reboot_waiting");
     showLoading(t("pop.reboot_waiting"));
 
@@ -502,7 +504,11 @@ async function factoryReset() {
   }
 }
 
+/* [Phase 3.6 L-5] 미저장 경고 추가 */
 async function rebootDevice() {
+  if (typeof hasUnsavedChanges === "function" && hasUnsavedChanges()) {
+    if (!confirm(t("pop.unsaved_changes_confirm"))) return;
+  }
   if (!confirm(t("pop.reboot_confirm"))) return;
   const u = unwrapApi(await apiPostJson("/api/reboot", { delay_ms: 500 }));
   alert(u.ok ? t("pop.reboot_requested")
@@ -510,33 +516,87 @@ async function rebootDevice() {
 }
 
 /* =======================================================
-   [Phase 1~3] Motion Advanced 프리셋
+   [Phase 3.2 H-8] Motion 프리셋 (19필드 전체)
    ======================================================= */
 const MOTION_PRESETS = {
+  /* 일반 PC */
   PC: {
-    click_freeze: { enable: true, max_ms: 150, gyro_th: 15.0 },
-    ema: { alpha_min: 0.05, alpha_max: 0.80 },
-    snap: { enable: false, mode_mask: 0x00 }
+    click_freeze: {
+      enable: true, gyro_th: 15.0, max_ms: 150, hold_ms: 20,
+      fadeout_ms: 30, move_th: 2.0, freeze_move_th: 30.0
+    },
+    ema: {
+      alpha_min: 0.05, alpha_max: 0.80, deadzone_th: 3.0,
+      fast_th: 15.0, reversal_th: 8.0, reversal_reset: true
+    },
+    snap: {
+      enable: false, mode_mask: 0x00, axis_mode: 0,
+      confirm_frames: 3, ratio_enter: 4.0, strength: 0.85
+    }
   },
+
+  /* 프레젠테이션 */
   PPT: {
-    click_freeze: { enable: true, max_ms: 100, gyro_th: 15.0 },
-    ema: { alpha_min: 0.05, alpha_max: 0.80 },
-    snap: { enable: true, mode_mask: 0x02 }
+    click_freeze: {
+      enable: true, gyro_th: 15.0, max_ms: 100, hold_ms: 20,
+      fadeout_ms: 30, move_th: 2.0, freeze_move_th: 30.0
+    },
+    ema: {
+      alpha_min: 0.05, alpha_max: 0.80, deadzone_th: 3.0,
+      fast_th: 15.0, reversal_th: 8.0, reversal_reset: true
+    },
+    snap: {
+      enable: true, mode_mask: 0x02, axis_mode: 0,
+      confirm_frames: 3, ratio_enter: 4.0, strength: 0.85
+    }
   },
+
+  /* 스마트 TV */
   TV: {
-    click_freeze: { enable: false, max_ms: 150, gyro_th: 15.0 },
-    ema: { alpha_min: 0.10, alpha_max: 0.85 },
-    snap: { enable: false, mode_mask: 0x00 }
+    click_freeze: {
+      enable: false, gyro_th: 15.0, max_ms: 150, hold_ms: 20,
+      fadeout_ms: 30, move_th: 2.0, freeze_move_th: 30.0
+    },
+    ema: {
+      alpha_min: 0.10, alpha_max: 0.85, deadzone_th: 3.5,
+      fast_th: 15.0, reversal_th: 8.0, reversal_reset: true
+    },
+    snap: {
+      enable: false, mode_mask: 0x00, axis_mode: 0,
+      confirm_frames: 3, ratio_enter: 4.0, strength: 0.85
+    }
   },
+
+  /* 게이밍 */
   Gaming: {
-    click_freeze: { enable: false, max_ms: 150, gyro_th: 15.0 },
-    ema: { alpha_min: 0.15, alpha_max: 0.90 },
-    snap: { enable: false, mode_mask: 0x00 }
+    click_freeze: {
+      enable: false, gyro_th: 15.0, max_ms: 150, hold_ms: 20,
+      fadeout_ms: 30, move_th: 2.0, freeze_move_th: 30.0
+    },
+    ema: {
+      alpha_min: 0.15, alpha_max: 0.90, deadzone_th: 2.0,
+      fast_th: 12.0, reversal_th: 8.0, reversal_reset: true
+    },
+    snap: {
+      enable: false, mode_mask: 0x00, axis_mode: 0,
+      confirm_frames: 3, ratio_enter: 4.0, strength: 0.85
+    }
   },
+
+  /* 정밀 작업 */
   Precision: {
-    click_freeze: { enable: true, max_ms: 200, gyro_th: 15.0 },
-    ema: { alpha_min: 0.03, alpha_max: 0.70 },
-    snap: { enable: false, mode_mask: 0x00 }
+    click_freeze: {
+      enable: true, gyro_th: 15.0, max_ms: 200, hold_ms: 25,
+      fadeout_ms: 40, move_th: 2.0, freeze_move_th: 30.0
+    },
+    ema: {
+      alpha_min: 0.03, alpha_max: 0.70, deadzone_th: 4.0,
+      fast_th: 15.0, reversal_th: 8.0, reversal_reset: true
+    },
+    snap: {
+      enable: false, mode_mask: 0x00, axis_mode: 0,
+      confirm_frames: 3, ratio_enter: 4.0, strength: 0.85
+    }
   }
 };
 
@@ -546,22 +606,33 @@ async function applyMotionPreset(presetKey) {
 
   if (!confirm(t("pop.preset_apply_confirm", { preset: presetKey }))) return;
 
-  // [Phase 1] Click-Freeze UI 반영
-  if (qs("cfEnable")) qs("cfEnable").value = String(p.click_freeze.enable ? "true" : "false");
-  if (qs("cfMaxMs")) qs("cfMaxMs").value = String(p.click_freeze.max_ms);
-  if (qs("cfGyroTh")) qs("cfGyroTh").value = String(p.click_freeze.gyro_th);
+  // [Phase 1] Click-Freeze 7 필드
+  if (qs("cfEnable"))       qs("cfEnable").value       = String(p.click_freeze.enable ? "true" : "false");
+  if (qs("cfGyroTh"))       qs("cfGyroTh").value       = String(p.click_freeze.gyro_th);
+  if (qs("cfMaxMs"))        qs("cfMaxMs").value        = String(p.click_freeze.max_ms);
+  if (qs("cfHoldMs"))       qs("cfHoldMs").value       = String(p.click_freeze.hold_ms);
+  if (qs("cfFadeoutMs"))    qs("cfFadeoutMs").value    = String(p.click_freeze.fadeout_ms);
+  if (qs("cfMoveTh"))       qs("cfMoveTh").value       = String(p.click_freeze.move_th);
+  if (qs("cfFreezeMoveTh")) qs("cfFreezeMoveTh").value = String(p.click_freeze.freeze_move_th);
 
-  // [Phase 2] EMA UI 반영
-  if (qs("emaAlphaMin")) qs("emaAlphaMin").value = String(p.ema.alpha_min);
-  if (qs("emaAlphaMax")) qs("emaAlphaMax").value = String(p.ema.alpha_max);
+  // [Phase 2] Adaptive EMA 6 필드
+  if (qs("emaAlphaMin"))      qs("emaAlphaMin").value      = String(p.ema.alpha_min);
+  if (qs("emaAlphaMax"))      qs("emaAlphaMax").value      = String(p.ema.alpha_max);
+  if (qs("emaDeadzoneTh"))    qs("emaDeadzoneTh").value    = String(p.ema.deadzone_th);
+  if (qs("emaFastTh"))        qs("emaFastTh").value        = String(p.ema.fast_th);
+  if (qs("emaReversalTh"))    qs("emaReversalTh").value    = String(p.ema.reversal_th);
+  if (qs("emaReversalReset")) qs("emaReversalReset").value = String(p.ema.reversal_reset ? "true" : "false");
 
-  // [Phase 3] Snap UI 반영
-  if (qs("snapEnable")) qs("snapEnable").value = String(p.snap.enable ? "true" : "false");
-  if (qs("snapMode1")) qs("snapMode1").checked = !!(p.snap.mode_mask & 0x01);
-  if (qs("snapMode2")) qs("snapMode2").checked = !!(p.snap.mode_mask & 0x02);
-  if (qs("snapMode3")) qs("snapMode3").checked = !!(p.snap.mode_mask & 0x04);
+  // [Phase 3] Snap-to-Axis 6 필드
+  if (qs("snapEnable"))        qs("snapEnable").value        = String(p.snap.enable ? "true" : "false");
+  if (qs("snapMode1"))         qs("snapMode1").checked       = !!(p.snap.mode_mask & 0x01);
+  if (qs("snapMode2"))         qs("snapMode2").checked       = !!(p.snap.mode_mask & 0x02);
+  if (qs("snapMode3"))         qs("snapMode3").checked       = !!(p.snap.mode_mask & 0x04);
+  if (qs("snapAxisMode"))      qs("snapAxisMode").value      = String(p.snap.axis_mode);
+  if (qs("snapConfirmFrames")) qs("snapConfirmFrames").value = String(p.snap.confirm_frames);
+  if (qs("snapRatio"))         qs("snapRatio").value         = String(p.snap.ratio_enter);
+  if (qs("snapStrength"))      qs("snapStrength").value      = String(p.snap.strength);
 
-  // Config 반영 + 저장
   uiToConfig();
   await cfgSave();
 

@@ -3,13 +3,12 @@
    Elite AirMouse WebConfig v0414 — i18n Core (Full)
    - 다국어(KO / EN) 사전 및 DOM/런타임 번역 코어
    - 표준 용어 체계(Windows, 마우스, 프레젠테이션, TV 리모컨) 전수 준수
-   - 가이드라인 문서: /docs_v0412/UI_TERMINOLOGY_GUIDELINES_0414.md
-   =======================================================
-   [표준화 4대 원칙 및 규칙 요약]
-   1. 단일 기능-단일 용어: 프로필(Profile), 다시 시작(Restart), 공장 초기화(Factory Reset), 자이로 영점 조절(Gyro Zero Calibration)
-   2. Windows 표준: 포인터 속도(Pointer Speed), 포인터 정밀도(Pointer Precision), 시작 메뉴, 창 최대화, 화면 분할, 작업 보기 등
-   3. 프레젠테이션 표준: 슬라이드 쇼(Slide Show), 처음부터, 현재부터, 쇼 종료, 이전/다음 슬라이드, 레이저 포인터 등
-   4. TV 리모컨 표준: 전원, 외부 입력, 홈, 뒤로 가기, 확인, 채널, 볼륨, 재생/일시 정지 등
+   - [Phase 2.0.3 N-3] 미사용 키 4쌍 삭제
+   - [Phase 3.2 H-8] 프리셋 확인 문구 강화
+   - [Phase 3.6 L-5] pop.unsaved_changes_confirm 추가
+   - [Phase 3.7 L-7] dash.batt_na_tip 추가
+   - [Phase 4.4 L-6] _setI18nText 자식 노드 보존
+   - [Phase 4.5 M-3] 미사용 키 11쌍 삭제
    ======================================================= */
 
 const I18N_STORAGE_KEY = "am_lang_0413";
@@ -35,16 +34,12 @@ const I18N_DICT = {
     "tab.diag": "진단 및 입력 테스트",
     "tab.ota": "무선 업데이트 (OTA)",
 
-    "dash.mode_tap_to_change": "탭하여 모드 변경",
     "dash.mode_tab_1": "모드 1",
     "dash.mode_tab_2": "모드 2",
     "dash.mode_tab_3": "모드 3",
     "dash.mode_tab_1_title": "모드 1: PC (마우스)",
     "dash.mode_tab_2_title": "모드 2: 프레젠테이션",
     "dash.mode_tab_3_title": "모드 3: 스마트 TV",
-    "dash.mode_btn_1": "모드 1 (PC)",
-    "dash.mode_btn_2": "모드 2 (프레젠테이션)",
-    "dash.mode_btn_3": "모드 3 (스마트 TV)",
     "dash.quick_tune": "포인터 빠른 조정",
     "dash.quick_tune_hint": "즉시 적용 (기기 다시 시작 전까지 유지)",
     "dash.dpi_label": "포인터 속도:",
@@ -63,6 +58,7 @@ const I18N_DICT = {
     "dash.wifi": "와이파이",
     "dash.cur_prof": "현재 프로필",
     "dash.factory_reset": "공장 초기화",
+    "dash.batt_na_tip": "배터리 ADC 미구현 (v0412)",
 
     "remote.title": "가상 컨트롤러",
     "remote.fold": "접기 ▲",
@@ -103,11 +99,6 @@ const I18N_DICT = {
     "remote.tv_input": "외부 입력",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
-
-    "preview.apply": "적용",
-    "preview.warn_label": "미리보기",
-    "preview.actual_label": "실제",
-    "preview.note": "미리보기 모드의 키가 그대로 전송됩니다.",
 
     "tools.title": "모드별 추가 도구",
     "tools.pc.window": "창 및 화면 제어",
@@ -171,6 +162,11 @@ const I18N_DICT = {
     "trouble.factory": "공장 초기화",
     "trouble.safeinfo": "안전 부팅 상태",
     "trouble.safeexit": "안전 부팅 모드 종료",
+    "trouble.i2c_progress": "센서 I2C 버스 복구 진행 중…",
+    "trouble.i2c_success": "센서 I2C 복구 완료 (성공) · 총 {cnt}회",
+    "trouble.i2c_fail": "센서 I2C 복구 실패 · 총 {cnt}회",
+    "trouble.i2c_sent": "센서 I2C 복구 요청 전송됨",
+    "trouble.invalid_code": "유효하지 않은 키 코드입니다.",
 
     "slots.title": "버튼 및 동작 맞춤 할당",
     "slots.hint": "27가지 조작 동작에 원하는 키나 기능을 지정합니다. [기본 공통]은 모든 모드의 기본값이며, 모드별로 개별 재정의할 수 있습니다.",
@@ -189,14 +185,15 @@ const I18N_DICT = {
     "slots.badge_g_title": "클릭하여 이 모드 전용 재정의 생성",
     "slots.badge_m_title": "클릭하여 기본 공통으로 되돌리기",
     "slots.badge_m3_title": "모드 3 (스마트 TV) 전용 — 기본 공통 상속",
+    "slots.opt_none_mod": "조합 키 없음 (None)",
+    "slots.opt_none_action": "할당 안 함 (선택 안 함)",
+    "slots.opt_no_macro": "(등록된 매크로 없음)",
 
     "macros.title": "연속 동작 매크로 관리",
     "macros.hint": "버튼 한 번으로 복잡한 단축키나 연속 입력을 자동으로 실행합니다.",
     "macros.add": "+ 새 매크로",
     "macros.save": "매크로 저장",
     "macros.reload": "다시 불러오기",
-    "macros.name_label": "매크로 이름:",
-    "macros.step_label": "실행 단계:",
     "macros.name_ph": "매크로 이름 입력",
     "macros.empty_hint": "등록된 매크로가 없습니다.",
     "macros.select_hint": "왼쪽 목록에서 매크로를 선택하십시오.",
@@ -204,6 +201,7 @@ const I18N_DICT = {
     "macros.btn_del": "삭제",
     "macros.delay_label": "지연 시간 (0~2000 ms)",
     "macro.save_ok": "매크로 저장 완료",
+    "macro.opt_no_action": "동작 없음 (None)",
 
     "cfg.title": "포인터 및 센서 세부 설정",
     "cfg.hint": "현재 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정합니다.",
@@ -219,7 +217,7 @@ const I18N_DICT = {
     "cfg.sec_power": "6. 절전 및 전원 관리",
     "cfg.sec_buttons": "7. 버튼 타이밍",
     "cfg.sec_preset": "추천 동작 프리셋",
-    "cfg.preset_hint": "프리셋 선택 시 현재 프로필에 권장 설정이 즉시 반영됩니다.",
+    "cfg.preset_hint": "프리셋 선택 시 프로필의 동작 정밀도 19개 항목 전체가 프리셋 기본값으로 재설정됩니다.",
     "cfg.preset_pc": "일반 PC",
     "cfg.preset_ppt": "프레젠테이션",
     "cfg.preset_tv": "스마트 TV",
@@ -257,18 +255,15 @@ const I18N_DICT = {
     "cfg.lbl_snap_ratio": "축 우세 판정 비율",
     "cfg.lbl_snap_strength": "축 고정 강도",
     "cfg.lbl_snap_frames": "판정 유지 프레임",
-
     "cfg.lbl_pwr_deep": "2단계 깊은 절전 (초)",
     "cfg.lbl_pwr_wom_th": "움직임 깨우기 감도 (WOM)",
     "cfg.lbl_pwr_wom_dur": "움직임 지속 시간 (ms)",
-
     "cfg.lbl_btn_deb_press": "누름 디바운스 (ms)",
     "cfg.lbl_btn_deb_rel": "뗌 디바운스 (ms)",
-    "cfg.lbl_btn_click": "단일 클릭 최대 시간 (ms)",
     "cfg.lbl_btn_dblclick": "두 번 클릭 최대 간격 (ms)",
     "cfg.lbl_btn_long": "길게 누르기 판정 시간 (ms)",
     "cfg.lbl_btn_min_click": "최소 유효 클릭 시간 (ms)",
-    
+
     "cfg.adv_power": "⚙ 절전 고급 설정",
     "cfg.adv_button": "⚙ 버튼 고급 설정",
     "cfg.lbl_pwr_idle_pc": "모드 1 (PC) 대기 (초)",
@@ -284,7 +279,6 @@ const I18N_DICT = {
     "cfg.lbl_btn_hold3s": "Host Cycle 임계 (ms)",
     "cfg.lbl_btn_min_ticks": "디바운스 최소 틱",
 
-
     "cfg.dpi_opt_1": "1단계: 정밀 작업용 (느림)",
     "cfg.dpi_opt_2": "2단계: 일반 사무 (권장)",
     "cfg.dpi_opt_3": "3단계: 대형 화면 (빠름)",
@@ -299,18 +293,20 @@ const I18N_DICT = {
     "cfg.snap_axis_both": "가로 및 세로 (X/Y)",
     "cfg.snap_axis_h": "가로 전용 (X축)",
     "cfg.snap_axis_v": "세로 전용 (Y축)",
+    "cfg.save_ok": "설정 저장 완료 (시뮬레이터)",
 
     "diag.title": "진단 및 입력 테스트",
     "diag.clear": "카운터 초기화",
-    "diag.auto": "자동 새로 고침",
     "diag.recent_events": "최근 이벤트 기록",
     "diag.key_test_title": "입력 신호 테스트 (Key Test)",
     "diag.btn_send": "신호 전송",
     "diag.raw_json": "원시 JSON 보기",
     "diag.kt_kb": "키보드 키 (KB)",
     "diag.kt_consumer": "미디어 / 소비자 키 (Consumer)",
-    
     "diag.filter_ph": "이벤트 코드 필터",
+    "diag.system_status": "시스템 현황",
+    "diag.mod_none": "조합 키 없음",
+    "diag.reset_ok": "진단 카운터 초기화 완료",
 
     "ota.title": "무선 펌웨어 업데이트 (OTA)",
     "ota.guard_label": "업데이트 보안 잠금 (OTA Guard)",
@@ -367,7 +363,7 @@ const I18N_DICT = {
     "pop.safemode_exit_confirm": "안전 모드를 종료합니다. 입력이 정상 재개됩니다. 계속하시겠습니까?",
     "pop.safemode_change_fail": "안전 모드 변경 실패:",
     "pop.factory_reset_fail": "공장 초기화 실패:",
-    "pop.preset_apply_confirm": "동작 프리셋 \"{preset}\"을(를) 현재 프로필에 적용하시겠습니까?",
+    "pop.preset_apply_confirm": "동작 정밀도 설정 19개 항목 전체를 \"{preset}\" 프리셋 기본값으로 재설정합니다. 기존 세부 조정값은 사라집니다. 계속하시겠습니까?",
     "pop.preset_applied": "프리셋 \"{preset}\" 적용 및 저장 완료",
     "pop.diag_reset_confirm": "진단 카운터와 이벤트 기록을 초기화하시겠습니까?",
     "pop.diag_reset_fail": "진단 카운터 초기화 실패:",
@@ -392,23 +388,13 @@ const I18N_DICT = {
     "pop.reboot_waiting": "기기 다시 시작 대기 중…",
     "pop.reboot_delayed": "다시 시작 지연 — 잠시 후 새로 고침하세요",
     "pop.prof_switching": "프로필 #{idx} 전환 중…",
+    "pop.unsaved_changes_confirm": "저장하지 않은 변경사항이 있습니다. 계속 진행하면 변경 내용이 사라집니다. 계속하시겠습니까?",
+
     "nav.menu": "메뉴",
     "nav.close": "닫기",
     "nav.status_tooltip": "프로필 · 배터리 · BLE",
-    "diag.system_status": "시스템 현황",
-    "diag.mod_none": "조합 키 없음",
-    "diag.reset_ok": "진단 카운터 초기화 완료",
-    "slots.opt_none_mod": "조합 키 없음 (None)",
-    "slots.opt_none_action": "할당 안 함 (선택 안 함)",
-    "slots.opt_no_macro": "(등록된 매크로 없음)",
-    "macro.opt_no_action": "동작 없음 (None)",
-    "trouble.i2c_progress": "센서 I2C 버스 복구 진행 중…",
-    "trouble.i2c_success": "센서 I2C 복구 완료 (성공) · 총 {cnt}회",
-    "trouble.i2c_fail": "센서 I2C 복구 실패 · 총 {cnt}회",
-    "trouble.i2c_sent": "센서 I2C 복구 요청 전송됨",
-    "trouble.invalid_code": "유효하지 않은 키 코드입니다.",
+
     "log.none": "명령 기록 없음",
-    "cfg.save_ok": "설정 저장 완료 (시뮬레이터)",
     "slot.save_ok": "동작 할당 저장 완료 (시뮬레이터)"
   },
 
@@ -431,16 +417,12 @@ const I18N_DICT = {
     "tab.diag": "Diagnostics & Input Test",
     "tab.ota": "Firmware Update (OTA)",
 
-    "dash.mode_tap_to_change": "Tap to change mode",
     "dash.mode_tab_1": "Mode 1",
     "dash.mode_tab_2": "Mode 2",
     "dash.mode_tab_3": "Mode 3",
     "dash.mode_tab_1_title": "Mode 1: PC (Mouse)",
     "dash.mode_tab_2_title": "Mode 2: Presentation",
     "dash.mode_tab_3_title": "Mode 3: Smart TV",
-    "dash.mode_btn_1": "Mode 1 (PC)",
-    "dash.mode_btn_2": "Mode 2 (Presentation)",
-    "dash.mode_btn_3": "Mode 3 (Smart TV)",
     "dash.quick_tune": "Quick Pointer Tuning",
     "dash.quick_tune_hint": "Applied immediately (until restart)",
     "dash.dpi_label": "Pointer Speed:",
@@ -459,6 +441,7 @@ const I18N_DICT = {
     "dash.wifi": "Wi-Fi",
     "dash.cur_prof": "Active Profile",
     "dash.factory_reset": "Factory Reset",
+    "dash.batt_na_tip": "Battery ADC not implemented (v0412)",
 
     "remote.title": "Virtual Controller",
     "remote.fold": "Collapse ▲",
@@ -499,11 +482,6 @@ const I18N_DICT = {
     "remote.tv_input": "Input Source",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
-
-    "preview.apply": "Apply",
-    "preview.warn_label": "Preview",
-    "preview.actual_label": "Actual",
-    "preview.note": "Keys of the previewed mode are transmitted as-is.",
 
     "tools.title": "Mode-Specific Tools",
     "tools.pc.window": "Window & Screen",
@@ -567,6 +545,11 @@ const I18N_DICT = {
     "trouble.factory": "Factory Reset",
     "trouble.safeinfo": "SafeBoot Status",
     "trouble.safeexit": "Exit SafeBoot",
+    "trouble.i2c_progress": "Recovering sensor I2C bus…",
+    "trouble.i2c_success": "Sensor I2C recovery succeeded · Total {cnt} times",
+    "trouble.i2c_fail": "Sensor I2C recovery failed · Total {cnt} times",
+    "trouble.i2c_sent": "Sensor I2C recovery requested",
+    "trouble.invalid_code": "Invalid key code.",
 
     "slots.title": "Button & Action Assignment",
     "slots.hint": "Assign keys or functions to 27 trigger actions. [Global Default] applies across all modes and can be overridden per mode.",
@@ -585,14 +568,15 @@ const I18N_DICT = {
     "slots.badge_g_title": "Click to override for this mode",
     "slots.badge_m_title": "Click to restore to Global Default",
     "slots.badge_m3_title": "Mode 3 (Smart TV) Only — Inherits Global Default",
+    "slots.opt_none_mod": "No Modifier (None)",
+    "slots.opt_none_action": "Unassigned (None)",
+    "slots.opt_no_macro": "(No Macros Registered)",
 
     "macros.title": "Sequential Macro Manager",
     "macros.hint": "Automate sequential keystrokes or media controls with a single click.",
     "macros.add": "+ New Macro",
     "macros.save": "Save Macros",
     "macros.reload": "Reload",
-    "macros.name_label": "Macro Name:",
-    "macros.step_label": "Execution Steps:",
     "macros.name_ph": "Enter macro name",
     "macros.empty_hint": "No macros registered.",
     "macros.select_hint": "Select a macro from the list on the left.",
@@ -600,6 +584,7 @@ const I18N_DICT = {
     "macros.btn_del": "Delete",
     "macros.delay_label": "Delay ms (0~2000)",
     "macro.save_ok": "Macro saved",
+    "macro.opt_no_action": "No Action (None)",
 
     "cfg.title": "Pointer & Sensor Settings",
     "cfg.hint": "Configure pointer speed, acceleration, gestures, and precision for the active profile.",
@@ -615,7 +600,7 @@ const I18N_DICT = {
     "cfg.sec_power": "6. Power Management",
     "cfg.sec_buttons": "7. Button Timings",
     "cfg.sec_preset": "Recommended Motion Presets",
-    "cfg.preset_hint": "Selecting a preset applies recommended settings to the active profile.",
+    "cfg.preset_hint": "Selecting a preset resets all 19 motion precision settings to preset defaults.",
     "cfg.preset_pc": "PC (General)",
     "cfg.preset_ppt": "Presentation",
     "cfg.preset_tv": "Smart TV",
@@ -653,18 +638,15 @@ const I18N_DICT = {
     "cfg.lbl_snap_ratio": "Axis Dominance Ratio",
     "cfg.lbl_snap_strength": "Snap Correction Strength",
     "cfg.lbl_snap_frames": "Confirmation Frames",
-
     "cfg.lbl_pwr_deep": "Stage 2 Deep Sleep (s)",
     "cfg.lbl_pwr_wom_th": "Wake-On-Motion Sensitivity",
     "cfg.lbl_pwr_wom_dur": "Motion Duration (ms)",
-
     "cfg.lbl_btn_deb_press": "Press Debounce (ms)",
     "cfg.lbl_btn_deb_rel": "Release Debounce (ms)",
-    "cfg.lbl_btn_click": "Single-Click Max Time (ms)",
     "cfg.lbl_btn_dblclick": "Double-Click Interval (ms)",
     "cfg.lbl_btn_long": "Long-Press Threshold (ms)",
     "cfg.lbl_btn_min_click": "Min Click Glitch Filter (ms)",
-    
+
     "cfg.adv_power": "⚙ Advanced Power Settings",
     "cfg.adv_button": "⚙ Advanced Button Settings",
     "cfg.lbl_pwr_idle_pc": "Mode 1 (PC) Timeout (s)",
@@ -680,7 +662,6 @@ const I18N_DICT = {
     "cfg.lbl_btn_hold3s": "Host Cycle Threshold (ms)",
     "cfg.lbl_btn_min_ticks": "Debounce Min Ticks",
 
-
     "cfg.dpi_opt_1": "Level 1: Precision (Slow)",
     "cfg.dpi_opt_2": "Level 2: Standard (Recommended)",
     "cfg.dpi_opt_3": "Level 3: Fast (Large Screen)",
@@ -695,18 +676,20 @@ const I18N_DICT = {
     "cfg.snap_axis_both": "Both (X & Y)",
     "cfg.snap_axis_h": "Horizontal Only (X)",
     "cfg.snap_axis_v": "Vertical Only (Y)",
+    "cfg.save_ok": "Settings saved (Simulator)",
 
     "diag.title": "Diagnostics & Input Test",
     "diag.clear": "Reset Counters",
-    "diag.auto": "Auto Refresh",
     "diag.recent_events": "Recent Event Log",
     "diag.key_test_title": "Single Key Input Test",
     "diag.btn_send": "Send Key",
     "diag.raw_json": "View Raw JSON",
     "diag.kt_kb": "Keyboard (KB)",
     "diag.kt_consumer": "Media / Consumer",
-    
     "diag.filter_ph": "Filter event code",
+    "diag.system_status": "System Status",
+    "diag.mod_none": "None",
+    "diag.reset_ok": "Diagnostic counters cleared",
 
     "ota.title": "Firmware Update (OTA)",
     "ota.guard_label": "OTA Security Guard",
@@ -763,7 +746,7 @@ const I18N_DICT = {
     "pop.safemode_exit_confirm": "Exit Safe Mode? Inputs will resume.",
     "pop.safemode_change_fail": "Safe mode change failed:",
     "pop.factory_reset_fail": "Factory reset failed:",
-    "pop.preset_apply_confirm": "Apply motion preset \"{preset}\" to the active profile?",
+    "pop.preset_apply_confirm": "Reset ALL 19 motion precision settings to the \"{preset}\" preset defaults? Existing fine-tuned values will be lost.",
     "pop.preset_applied": "Preset \"{preset}\" applied and saved",
     "pop.diag_reset_confirm": "Reset diagnostic counters and event log?",
     "pop.diag_reset_fail": "Diagnostics reset failed:",
@@ -788,23 +771,13 @@ const I18N_DICT = {
     "pop.reboot_waiting": "Waiting for device restart…",
     "pop.reboot_delayed": "Restart delayed — please refresh shortly",
     "pop.prof_switching": "Switching to Profile #{idx}…",
+    "pop.unsaved_changes_confirm": "There are unsaved changes. Continuing will discard them. Continue?",
+
     "nav.menu": "Menu",
     "nav.close": "Close",
     "nav.status_tooltip": "Profile · Battery · BLE",
-    "diag.system_status": "System Status",
-    "diag.mod_none": "None",
-    "diag.reset_ok": "Diagnostic counters cleared",
-    "slots.opt_none_mod": "No Modifier (None)",
-    "slots.opt_none_action": "Unassigned (None)",
-    "slots.opt_no_macro": "(No Macros Registered)",
-    "macro.opt_no_action": "No Action (None)",
-    "trouble.i2c_progress": "Recovering sensor I2C bus…",
-    "trouble.i2c_success": "Sensor I2C recovery succeeded · Total {cnt} times",
-    "trouble.i2c_fail": "Sensor I2C recovery failed · Total {cnt} times",
-    "trouble.i2c_sent": "Sensor I2C recovery requested",
-    "trouble.invalid_code": "Invalid key code.",
+
     "log.none": "No command log",
-    "cfg.save_ok": "Settings saved (Simulator)",
     "slot.save_ok": "Slots saved (Simulator)"
   }
 };
@@ -818,9 +791,34 @@ function t(key, params) {
   return s;
 }
 
+/* =======================================================
+   [Phase 4.4 L-6] 자식 노드 보존 i18n 갱신 헬퍼
+   ======================================================= */
+function _setI18nText(el, text) {
+  if (!el || text === undefined || text === null) return;
+
+  const v_hasChildElement = Array.from(el.childNodes)
+    .some(n => n.nodeType === Node.ELEMENT_NODE);
+
+  if (!v_hasChildElement) {
+    el.textContent = text;
+    return;
+  }
+
+  const v_firstText = Array.from(el.childNodes)
+    .find(n => n.nodeType === Node.TEXT_NODE);
+
+  if (v_firstText) {
+    v_firstText.nodeValue = text;
+  } else {
+    el.insertBefore(document.createTextNode(text), el.firstChild);
+  }
+}
+
 function applyI18nToDom() {
   document.querySelectorAll("[data-i18n]").forEach(el => {
-    const s = t(el.getAttribute("data-i18n")); if (s) el.textContent = s;
+    const s = t(el.getAttribute("data-i18n"));
+    if (s) _setI18nText(el, s);
   });
   document.querySelectorAll("[data-i18n-html]").forEach(el => {
     const s = t(el.getAttribute("data-i18n-html")); if (s) el.innerHTML = s;
@@ -840,11 +838,8 @@ function setLanguage(lang) {
   document.documentElement.lang = lang;
   applyI18nToDom();
 
-  /* app 함수 재렌더 (있으면) */
-  const m = (typeof g_currentActiveMode === "number") ? g_currentActiveMode : ((typeof g_previewMode === "number") ? g_previewMode : 1);
+  const m = (typeof g_currentActiveMode === "number") ? g_currentActiveMode : 1;
   if (typeof _renderController === "function") _renderController(m);
-  if (typeof _updateModeSelectorSummary === "function") _updateModeSelectorSummary();
-  if (typeof _updatePreviewWarn === "function") _updatePreviewWarn();
   if (typeof renderModeTools === "function") renderModeTools();
   if (typeof renderSlotEditor === "function") renderSlotEditor();
   if (typeof macroRenderList === "function") macroRenderList();

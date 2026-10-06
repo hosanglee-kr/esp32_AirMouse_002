@@ -1,10 +1,11 @@
 /* =======================================================
    File: /www/lib/am_offline_0414.js
    Elite AirMouse WebConfig v0414 — Offline Simulator
-   - 오프라인 기본 데이터 + localStorage 스토어 + 모킹 라우터
-   - 로드 순서: 2
-   - 의존: am_base_0414.js
-   - [v0412] C-05 (keycodes 확장), 스키마 v2, ver/wifi 필드
+   - 로드 순서: 3
+   - [Phase 2.0.2 N-2] boot 객체 SPEC 정합
+   - [Phase 2.3 M-1/L-1] saveOfflineStore 가드
+   - [Phase 2.4 M-11] 참조 반환 방지 (deep clone)
+   - [Phase 2.5 H-3] 재귀 병합
    ======================================================= */
 
 const G_OFFLINE_START_TIME = Date.now();
@@ -43,7 +44,7 @@ const G_OFFLINE_TRIGGERS = [
 ];
 
 /* =======================================================
-   오프라인 키코드 (온라인 /api/keycodes 응답과 1:1)
+   오프라인 키코드
    ======================================================= */
 const G_OFFLINE_KEYCODES = {
   action_kinds: [
@@ -119,7 +120,6 @@ const G_OFFLINE_KEYCODES = {
     return arr;
   })(),
 
-  /* [C-05] 온라인 /api/keycodes 응답과 1:1 정합 - 부가 필드 */
   directions: [
     { name: "LEFT" }, { name: "RIGHT" }, { name: "UP" }, { name: "DOWN" }
   ],
@@ -158,7 +158,7 @@ const G_OFFLINE_KEYCODES = {
 };
 
 /* =======================================================
-   오프라인 기본 프로파일 (makeDefaultsSlots 1:1)
+   오프라인 기본 프로파일 (SPEC rev6 정합)
    ======================================================= */
 const G_OFFLINE_DEFAULT_PROFILE_0 = {
   ver: 410,
@@ -193,11 +193,8 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
     active_mode: 1,
     active_peer_index: 0,
 
-    // ====================================================
     // [Phase 1~3] Motion Advanced
-    // ====================================================
     motion_adv: {
-      // [Phase 1] Click-Freeze
       click_freeze: {
         enable: true,
         gyro_th: 15.0,
@@ -207,7 +204,6 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
         move_th: 2.0,
         freeze_move_th: 30.0
       },
-      // [Phase 2] Adaptive EMA
       ema: {
         alpha_min: 0.05,
         alpha_max: 0.80,
@@ -216,7 +212,6 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
         reversal_th: 8.0,
         reversal_reset: true
       },
-      // [Phase 3] Snap-to-Axis
       snap: {
         enable: true,
         mode_mask: 0x02,
@@ -227,9 +222,7 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
       }
     },
 
-    // ====================================================
-    // [Phase 11.6 & 11.7] Power & Button
-    // ====================================================
+    // [Phase 11.6] Power (SPEC rev6)
     power: {
       idle_timeout_ms: [60000, 120000, 300000],
       idle_timeout_ble_ms: 300000,
@@ -243,6 +236,7 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
       led_fadein_ms: 300
     },
 
+    // [Phase 11.7] Button (SPEC rev6)
     button: {
       debounce_press_ms: 32,
       debounce_release_ms: 16,
@@ -357,10 +351,10 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
 };
 
 /* =======================================================
-   오프라인 로컬 저장소 (스키마 버전 관리)
+   오프라인 로컬 저장소
    ======================================================= */
 const OFFLINE_STORAGE_KEY = "airmouse_v0412_offline_store";
-const OFFLINE_STORE_SCHEMA = 6;   // [1.1] power/button 필드명 SPEC rev6 동기화로 bump
+const OFFLINE_STORE_SCHEMA = 6;   // [Phase 2.0] power/button SPEC rev6 동기화
 let g_offlineStore = null;
 
 function loadOfflineStore() {
@@ -392,6 +386,9 @@ function loadOfflineStore() {
 }
 
 function saveOfflineStore() {
+  // [Phase 2.3 M-1, L-1] 온라인 모드에서는 오프라인 스토어를 조작하지 않음
+  if (g_appMode !== APP_MODE_OFFLINE) return;
+
   try {
     if (g_offlineStore) {
       localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(g_offlineStore));
@@ -422,24 +419,51 @@ function handleOfflineApi(url, method, body) {
   else if (path === "/api/profiles/active") {
     if (method === "GET") {
       const activeIdx = g_offlineStore.active;
-      const cfg = g_offlineStore.profileData[activeIdx]
-        || JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
-      resObj.data = { idx: activeIdx, count: g_offlineStore.profiles.length, config: cfg };
+      // [Phase 2.4 M-11] 상수 참조 반환 금지 → 반드시 deep clone
+      if (!g_offlineStore.profileData[activeIdx]) {
+        g_offlineStore.profileData[activeIdx] =
+          JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
+      }
+      resObj.data = {
+        idx: activeIdx,
+        count: g_offlineStore.profiles.length,
+        config: g_offlineStore.profileData[activeIdx]
+      };
     } else if (method === "POST") {
+      // [Phase 2.5 H-3] 재귀적 병합
       const activeIdx = g_offlineStore.active;
       if (!g_offlineStore.profileData[activeIdx]) {
-        g_offlineStore.profileData[activeIdx] = JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
+        g_offlineStore.profileData[activeIdx] =
+          JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
       }
+      const target = g_offlineStore.profileData[activeIdx];
+
+      function _deepMerge(dst, src) {
+        if (src === null || src === undefined) return dst;
+        if (Array.isArray(src) || typeof src !== "object") return src;
+        if (typeof dst !== "object" || dst === null || Array.isArray(dst)) {
+          dst = {};
+        }
+        for (const k of Object.keys(src)) {
+          const v = src[k];
+          if (v === undefined) continue;
+          if (v === null) { dst[k] = null; continue; }
+          if (Array.isArray(v)) { dst[k] = JSON.parse(JSON.stringify(v)); continue; }
+          if (typeof v === "object") {
+            dst[k] = _deepMerge(dst[k], v);
+            continue;
+          }
+          dst[k] = v;
+        }
+        return dst;
+      }
+
       if (body) {
-        const target = g_offlineStore.profileData[activeIdx]
-          || JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
-        const merged = Object.assign({}, target);
-        if (body.name !== undefined) merged.name = body.name;
-        if (body.e10 !== undefined) merged.e10 = Object.assign({}, target.e10 || {}, body.e10);
-        if (body.slots !== undefined) merged.slots = JSON.parse(JSON.stringify(body.slots));
-        if (body.macros !== undefined) merged.macros = JSON.parse(JSON.stringify(body.macros));
-        if (body.wifi !== undefined) merged.wifi = Object.assign({}, target.wifi || {}, body.wifi);
-        g_offlineStore.profileData[activeIdx] = merged;
+        if (body.name   !== undefined) target.name   = body.name;
+        if (body.e10    !== undefined) target.e10    = _deepMerge(target.e10  || {}, body.e10);
+        if (body.wifi   !== undefined) target.wifi   = _deepMerge(target.wifi || {}, body.wifi);
+        if (body.slots  !== undefined) target.slots  = JSON.parse(JSON.stringify(body.slots));
+        if (body.macros !== undefined) target.macros = JSON.parse(JSON.stringify(body.macros));
       }
       saveOfflineStore();
       resObj.data = { idx: activeIdx, saved: true, reloaded: true };
@@ -523,12 +547,8 @@ function handleOfflineApi(url, method, body) {
           ble_connected: false, ppt_active: false, active_mode: 1, battery_pct: 100,
           gate: { ota_guard: false }
         },
-        boot: {
-          safe_mode: false,
-          fail_count: 0,
-          pending: false,
-          last_reset_reason: 0
-        },
+        // [N-2] 서버 SPEC rev6 정합
+        boot: { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 },
         config: {
           profile_idx: act, profile_name: actP.name,
           profile_count: g_offlineStore.profiles.length
@@ -589,24 +609,21 @@ function handleOfflineApi(url, method, body) {
   }
   else if (path === "/api/safeboot") {
     if (method === "POST" && body && body.exit === true) {
-      // 오프라인에서는 재부팅 시뮬레이션 없이 캐시만 초기화
+      // 오프라인: 재부팅 시뮬레이션 없이 캐시 초기화
       resObj.data = { exit: true, offline: true, note: "Offline: no actual reboot." };
     } else {
       resObj.data = { safe_mode: false, fail_count: 0, pending: false, offline: true };
     }
   }
-  
   else if (path === "/api/factory_reset") {
     if (method === "POST") {
       // [H-7] 언어/UI 상태는 유지, 오프라인 스토어만 리셋
-      try { localStorage.removeItem(OFFLINE_STORAGE_KEY); } catch (e) {}
-      // 재초기화
+      try { localStorage.removeItem(OFFLINE_STORAGE_KEY); } catch (e) { }
       g_offlineStore = null;
       loadOfflineStore();
       resObj.data = { reset: true, offline: true };
     }
   }
-
   else if (path === "/api/reboot/check") {
     resObj.data = { required: false, mask: 0, reasons: "", allowed: false, deny_code: "no_reboot_needed" };
   }
@@ -617,4 +634,3 @@ function handleOfflineApi(url, method, body) {
   const jsonStr = JSON.stringify(resObj);
   return { ok: true, status: 200, text: jsonStr, json: resObj };
 }
-

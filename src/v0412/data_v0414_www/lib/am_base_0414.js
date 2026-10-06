@@ -1,9 +1,9 @@
 /* =======================================================
    File: /www/lib/am_base_0414.js
    Elite AirMouse WebConfig v0414 — Base Utilities
-   - 모드 상수 / DOM·파싱 유틸 / API 래퍼 / 전역 상태
-   - 로드 순서: 1 (최우선)
-   - 표준화된 한/영 용어 매핑 및 HID 드롭다운 헬퍼 완결형
+   - 로드 순서: 1
+   - [Phase 2.1] keyTest 정의 삭제 (am_status로 통합)
+   - [Phase 3.6 L-5] dirty 추적 플래그/API 추가
    ======================================================= */
 
 /* ---------------- 모드 상수 ---------------- */
@@ -26,6 +26,15 @@ let g_diagTypingUntilMs = 0;
 let g_currentActiveMode = 1;
 let g_isRemoteFolded = false;
 const REMOTE_FOLD_KEY = "am_remote_folded_0414";
+
+/* ---------------- [L-5] Unsaved changes 추적 ---------------- */
+let g_cfgDirty  = false;
+let g_slotDirty = false;
+
+function markCfgDirty()      { g_cfgDirty = true; }
+function markSlotDirty()     { g_slotDirty = true; }
+function clearDirty()        { g_cfgDirty = false; g_slotDirty = false; }
+function hasUnsavedChanges() { return g_cfgDirty || g_slotDirty; }
 
 function nowMs() { return Date.now(); }
 
@@ -110,7 +119,7 @@ async function apiGet(url) {
     let j = null; try { j = JSON.parse(t); } catch (e) { }
     return { ok: r.ok, status: r.status, text: t, json: j };
   } catch (e) {
-    console.warn(`[Network] ${url} fetch failed, falling back to OFFLINE mode:`, e);
+    console.warn(`[Network] ${url} fetch failed, falling back to OFFLINE:`, e);
     setAppMode(APP_MODE_OFFLINE);
     const failMsg = (typeof g_currLang !== "undefined" && g_currLang === "en")
       ? "Network connection failed: Switched to Offline Simulator."
@@ -135,7 +144,7 @@ async function apiPostJson(url, obj) {
     let j = null; try { j = JSON.parse(t); } catch (e) { }
     return { ok: r.ok, status: r.status, text: t, json: j };
   } catch (e) {
-    console.warn(`[Network] ${url} post failed, falling back to OFFLINE mode:`, e);
+    console.warn(`[Network] ${url} post failed, falling back to OFFLINE:`, e);
     setAppMode(APP_MODE_OFFLINE);
     const failMsg = (typeof g_currLang !== "undefined" && g_currLang === "en")
       ? "Network connection failed: Switched to Offline Simulator."
@@ -146,7 +155,7 @@ async function apiPostJson(url, obj) {
 }
 
 /* =======================================================
-   HID Usage 드롭다운 헬퍼 (다국어 표준 명칭 반영)
+   HID Usage 드롭다운 헬퍼
    ======================================================= */
 function _kbUsageGroup(code, name) {
   const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
@@ -180,7 +189,7 @@ function _kbUsageName(code) {
   return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
 }
 
-/* ---------------- 사용자 친화 라벨 매핑 헬퍼 (표준 용어 다국어 연동) ---------------- */
+/* ---------------- 사용자 친화 라벨 매핑 ---------------- */
 function getActionKindFriendlyName(name, val) {
   const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
   const MAP_KO = {
@@ -336,7 +345,6 @@ function getSpecialFriendlyName(name) {
   return desc ? `${name} — ${desc}` : name;
 }
 
-// usage dropdown 생성 + 값 세팅 (오프라인 폴백 및 다국어 지원 포함)
 function populateKbUsageSelect(p_selectEl, p_currentCode) {
   if (!p_selectEl) return;
   p_selectEl.innerHTML = "";
@@ -349,8 +357,6 @@ function populateKbUsageSelect(p_selectEl, p_currentCode) {
     Array.isArray(G_OFFLINE_KEYCODES.kb) &&
     G_OFFLINE_KEYCODES.kb.length) {
     v_kb = G_OFFLINE_KEYCODES.kb;
-    console.info("[populateKbUsageSelect] fallback to G_OFFLINE_KEYCODES.kb",
-      v_kb.length, "items");
   }
 
   if (!v_kb || !v_kb.length) {
@@ -421,7 +427,8 @@ function populateKbUsageSelect(p_selectEl, p_currentCode) {
 }
 
 /* =======================================================
-   전역 로딩 오버레이 제어 & 키 테스트 헬퍼
+   전역 로딩 오버레이 제어
+   - [Phase 2.1] keyTest 함수는 am_status_0414.js로 통합 이관됨
    ======================================================= */
 function showLoading(text) {
   const ov = qs("loadingOverlay");
@@ -440,32 +447,3 @@ function hideLoading() {
     ov.style.display = "none";
   }
 }
-
-async function keyTest(page, mod, code, labelOverride) {
-  const label = labelOverride || ((page === "kb")
-    ? `KB u=${code} mod=${mod}`
-    : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
-  if (typeof pushRecentLog === "function") {
-    pushRecentLog(label, true);
-  }
-  if (typeof t === "function" && typeof setMsg === "function") {
-    setMsg(t("pop.key_test_ok", { page, mod, code }), true);
-  }
-  const evEl = qs("diagEvents");
-  if (evEl) {
-    const line = document.createElement("div");
-    line.className = "logline";
-    line.textContent = `[${Math.floor(performance.now())}ms] KEYTEST ${label}`;
-    evEl.insertBefore(line, evEl.firstChild);
-    while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
-  }
-  if (g_appMode === APP_MODE_ONLINE) {
-    try {
-      await apiPostJson("/api/ppt/test", { page, mod: mod || 0, code: code || 0 });
-    } catch (e) {
-      console.warn("keyTest error:", e);
-    }
-  }
-}
-
-

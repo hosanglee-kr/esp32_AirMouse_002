@@ -1,14 +1,14 @@
 /* =======================================================
    File: /www/lib/am_remote_0414.js
    Elite AirMouse WebConfig v0414 — Virtual Controller & Joystick
-   - 가상 리모컨 렌더러 / 하이브리드 조이스틱 인터랙션
-   - 모드별 도구 (Mode Tools) / 기기 모드 실시간 전환
-   - 로드 순서: 7 (am_status_0414.js 다음, app_0414_0001.js 이전)
-   - 의존: am_base_0414.js, am_i18n_0414.js, am_offline_0414.js
+   - 로드 순서: 8
+   - [Phase 3.3 M-7] ring 배경 드래그 지원
+   - [Phase 3.5 M-8] 모드 변경 저장
+   - [Phase 4.3 L-3] forced reflow → requestAnimationFrame
    ======================================================= */
 
 /* =======================================================
-   1. Mode Tools (모드별 빠른 실행 도구 정의 및 렌더러)
+   1. Mode Tools
    ======================================================= */
 const MODE_TOOLS = {
   1: {
@@ -194,14 +194,16 @@ const REMOTE_CONFIG_BY_MODE = {
   }
 };
 
+/* [Phase 4.3 L-3] rAF로 reflow 제거 */
 function _renderController(mode) {
   const cfg = REMOTE_CONFIG_BY_MODE[mode] || REMOTE_CONFIG_BY_MODE[1];
   const card = qs("remoteCard");
   if (card) {
     card.classList.remove("mode-pc", "mode-ppt", "mode-tv", "remote-flash");
-    void card.offsetWidth;
-    card.classList.add(cfg.themeClass, "remote-flash");
-    setTimeout(() => card.classList.remove("remote-flash"), 700);
+    requestAnimationFrame(() => {
+      card.classList.add(cfg.themeClass, "remote-flash");
+      setTimeout(() => card.classList.remove("remote-flash"), 700);
+    });
   }
   const badge = qs("remoteActiveModeBadge");
   if (badge) badge.textContent = t(cfg.badgeKey);
@@ -247,7 +249,8 @@ function _updateModeTabs() {
 }
 
 /* =======================================================
-   3. Mode Switching (실제 기기 모드 전환)
+   3. Mode Switching
+   - [Phase 3.5 M-8] 서버 저장 (재부팅 후 유지)
    ======================================================= */
 async function ctlSetMode(target) {
   target = Math.max(1, Math.min(3, target | 0));
@@ -276,6 +279,17 @@ async function ctlSetMode(target) {
     applyRemoteMode(target);
     setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
     if (typeof pushRecentLog === "function") pushRecentLog(`MODE → ${target}`, true);
+
+    // [Phase 3.5 M-8, D-4=(A)] 프로파일에 active_mode 저장
+    if (g_appMode === APP_MODE_ONLINE) {
+      const u2 = unwrapApi(await apiPostJson("/api/profiles/active", {
+        e10: { active_mode: target }
+      }));
+      if (!u2.ok) {
+        console.warn("[M-8] active_mode save failed:", u2.code);
+      }
+    }
+
     return true;
   } finally {
     hideLoading();
@@ -295,7 +309,7 @@ function applyRemoteMode(mode) {
 }
 
 /* =======================================================
-   4. Fold Persistence (아코디언 및 리모컨 접기 상태 유지)
+   4. Fold Persistence
    ======================================================= */
 function bindFoldPersist(detailsId, storageKey, defaultOpen) {
   const el = qs(detailsId); if (!el) return;
@@ -332,7 +346,8 @@ function bindRemoteFoldToggle() {
 }
 
 /* =======================================================
-   5. Hybrid Joystick (D-Pad 링 + 아날로그 조이스틱 노브)
+   5. Hybrid Joystick
+   - [Phase 3.3 M-7] ring 배경 드래그
    ======================================================= */
 function initHybridJoystick() {
   const ring = qs("dpadRing"), knob = qs("joyStickKnob");
@@ -404,17 +419,19 @@ function initHybridJoystick() {
     setTimeout(() => { knob.style.transition = ""; }, 150);
   }
 
-  knob.addEventListener("mousedown", handleStart);
+  // [M-7] ring 배경 드래그: ring에 바인딩 (knob은 자식이므로 버블링으로 커버)
+  ring.addEventListener("mousedown", handleStart);
+  ring.addEventListener("touchstart", handleStart, { passive: false });
+
   window.addEventListener("mousemove", handleMove);
   window.addEventListener("mouseup", handleEnd);
-  knob.addEventListener("touchstart", handleStart, { passive: false });
   window.addEventListener("touchmove", handleMove, { passive: false });
   window.addEventListener("touchend", handleEnd);
   window.addEventListener("touchcancel", handleEnd);
 }
 
 /* =======================================================
-   6. Mode Tabs 바인딩
+   6. Mode Tabs
    ======================================================= */
 function bindModeTabs() {
   qsa(".preview-tab").forEach(b => {

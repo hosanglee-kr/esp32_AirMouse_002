@@ -1,9 +1,9 @@
 /* =======================================================
    File: /www/lib/am_macro_0414.js
    Elite AirMouse WebConfig v0414 — Macro Editor
-   - 로드 순서: 4
-   - 의존: am_base_0414.js, am_profile_0414.js
-   - [v0414] 매크로 Step 개수 제한: 4 → 8개로 증가
+   - 로드 순서: 5
+   - [Phase 2.6 L-4] silent fail 로그
+   - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
 
 function getMacrosArray() {
@@ -225,12 +225,6 @@ function buildMacroStepParams(container, s) {
   const consumer = (v_kc && v_kc.consumer) || [];
   const mods = (v_kc && v_kc.mods) || [];
 
-  if (!kinds.length || !mods.length) {
-    console.error("[buildMacroStepParams] keycodes missing", {
-      g_keycodes, G_OFFLINE_KEYCODES_type: typeof G_OFFLINE_KEYCODES
-    });
-  }
-
   const allowedKinds = kinds.filter(k => k.value !== 0 && k.value !== 9 && k.value !== 10);
 
   const selKind = document.createElement("select");
@@ -363,6 +357,8 @@ function buildMacroStepParams(container, s) {
 
 /* =======================================================
    매크로 추가 / 저장 / 재로드
+   - [Phase 2.6 L-4] silent fail도 로그 기록
+   - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
 async function macroAdd() {
   const macros = getMacrosArray();
@@ -389,9 +385,18 @@ async function macroSave(silent = false) {
   const patch = { macros: getMacrosArray() };
   const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
   if (!u.ok) {
+    // [L-4] silent 실패도 최근 로그에 남겨 사용자 피드백 확보
+    if (typeof pushRecentLog === "function") {
+      pushRecentLog(`MACRO_SAVE_FAIL:${u.code || "?"}`, false);
+    }
     if (!silent) alert(`${t("pop.macro_save_fail")} ${u.msg || u.code}`);
     return false;
   }
+
+  if (typeof pushRecentLog === "function") {
+    pushRecentLog(silent ? "MACRO_SAVE(auto)" : "MACRO_SAVE", true);
+  }
+
   if (!silent) {
     await profileReloadAll();
     macroRenderList();
@@ -399,6 +404,8 @@ async function macroSave(silent = false) {
     renderSlotEditor();
     setMsg(t("macro.save_ok"), true);
   }
+  // [L-5] 저장 성공 시 dirty 클리어
+  if (typeof clearDirty === "function") clearDirty();
   return true;
 }
 
@@ -409,4 +416,3 @@ async function macroReload() {
   macroRenderEditor();
   renderSlotEditor();
 }
-
