@@ -203,7 +203,7 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
 |---|---|---|:---:|
 | **디렉터리 및 소스** | `src/v0412/` | `v0410`에서 `v0412`로 버전 업그레이드 복사 및 38개 파일/폴더명, 심볼, 인클루드 전수 현행화 | ✅ 완료 |
 | **빌드 환경** | `platformio.ini`, `main.cpp` | `data_dir = ./src/v0412/data_v0412`, `src_filter = +<v0412/> -<v0410/>`, `extra_scripts` 및 `main.cpp` 인클루드/로그 전환 | ✅ 완료 |
-| **Web UI & 번들** | `data_v0412_www/`, `data_v0412/` | HTML/CSS/JS 및 manifest/schema v0412 동기화, Gzip 사전 스테이징 검증 | ✅ 완료 |
+| **Web UI & 번들** | `data_v0414_www/`, `data_v0412/` | HTML/CSS/JS 및 manifest/schema v0414 동기화, Gzip 사전 스테이징 검증 | ✅ 완료 |
 | **계약 산출물** | `docs_v0412/contract_doc/` | 5대 문서(CONTRACT, STATE, FLOW, BUDGET, SPEC) rev5 Round 2/3 조치 및 v0412 경로 현행화 | ✅ 완료 |
 | **검증 & 빌드** | PlatformIO / Graphify | `platformio run -e esp32-s3-zero` 빌드 성공 (RAM 41.1%, Flash 45.9%), `graphify update .` 지식 그래프 갱신 (18,363 노드) | ✅ 완료 |
 

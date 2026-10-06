@@ -1,7 +1,7 @@
 {
   ".vscode/extensions.json": {
-    "mtime": 1791254490.2877767,
-    "seen": 1791264488.9790962,
+    "mtime": 1791276208.7373517,
+    "seen": 1791276737.27152,
     "ast_hash": "b4fe65422789c169a6e60ad8eeb1d8c6",
     "semantic_hash": "b4fe65422789c169a6e60ad8eeb1d8c6"
   },
@@ -2166,9 +2166,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci_1_build_010.yml": {
-    "mtime": 1791272832.2068677,
-    "seen": 1791273542.552646,
-    "ast_hash": "c7cb4daae5a68ed8355b4b8998ff7b8a",
+    "mtime": 1791276808.1911983,
+    "seen": 1791276849.2431638,
+    "ast_hash": "b4bb84605383552a1f04a06d079ab2d4",
     "semantic_hash": ""
   },
   ".github/workflows/pr_artifact_comment.yml": {
@@ -2634,9 +2634,9 @@
     "semantic_hash": ""
   },
   "agent.md": {
-    "mtime": 1790924698.185954,
-    "seen": 1790924745.7207131,
-    "ast_hash": "eb58733942a911dc4cd1795023250e5f",
+    "mtime": 1791276631.4023635,
+    "seen": 1791276737.272518,
+    "ast_hash": "76d85173e30d4deb48a236be8ef333d7",
     "semantic_hash": ""
   },
   "src/v0410/docs_v0410/Req_ImplPlan/20.Impl_Plan_0410_01.md": {
@@ -3210,9 +3210,9 @@
     "semantic_hash": ""
   },
   "src/v0412/tools_v0412/pio_gzip_0412.py": {
-    "mtime": 1791272345.8898551,
-    "seen": 1791273542.552646,
-    "ast_hash": "65b7fc98f9c617626c10bd2f48ea4787",
+    "mtime": 1791276474.0266137,
+    "seen": 1791276737.272518,
+    "ast_hash": "11fddd57f4c34689ec4c686c94ab893b",
     "semantic_hash": ""
   },
   "src/v0412/data_v0412_www/index_0412.html": {
@@ -3372,9 +3372,9 @@
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/SPEC_0412.md": {
-    "mtime": 1790924289.7850025,
-    "seen": 1790924360.182954,
-    "ast_hash": "53b4727cdbe356fc366acf10f3ca87d1",
+    "mtime": 1791279788.1588633,
+    "seen": 1791280151.7907228,
+    "ast_hash": "5e9e47b7b14f0ca9fb4225943c24ae85",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/STATE_0412.md": {
@@ -3384,15 +3384,15 @@
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/SPEC_Manual/00.SPEC_0412_002.md": {
-    "mtime": 1790923850.4246683,
-    "seen": 1790924745.7207131,
-    "ast_hash": "70f3e39de44d8c068f03fcf4a58c8af6",
+    "mtime": 1791279991.0046794,
+    "seen": 1791280151.7907228,
+    "ast_hash": "d5f4977bcbd92b14110293827c5b85df",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/SPEC_Manual/00.UserManual_0412_003.md": {
-    "mtime": 1790923850.4290662,
-    "seen": 1790924745.7207131,
-    "ast_hash": "75259af920810d8e69869bc785e6f67b",
+    "mtime": 1791279035.0421195,
+    "seen": 1791280151.7907228,
+    "ast_hash": "5ff1f990a0d247129fcb7e4731ddaf03",
     "semantic_hash": ""
   },
   "lib/LD2420/library.json": {
@@ -3479,60 +3479,6 @@
     "ast_hash": "f485d522d068b025568614f3068a47b1",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/app_0414_0001.js": {
-    "mtime": 1791264204.945148,
-    "seen": 1791264488.9790962,
-    "ast_hash": "1993cda485cf89c35f69f5db23db73cc",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_base_0414.js": {
-    "mtime": 1791264196.870235,
-    "seen": 1791264488.9790962,
-    "ast_hash": "953e6a292bc04175124576bfc9544bc6",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_config_0414.js": {
-    "mtime": 1791253912.6641548,
-    "seen": 1791264488.9790962,
-    "ast_hash": "86aba7b67ba18a5ec20f582087b25efc",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_i18n_0414.js": {
-    "mtime": 1791263753.6636634,
-    "seen": 1791264488.9790962,
-    "ast_hash": "b0d0c4cb0c65aa172e14bcdc52ea1e16",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_macro_0414.js": {
-    "mtime": 1791253929.2277565,
-    "seen": 1791264488.9790962,
-    "ast_hash": "9070b9ef51b91148a96276d8c5de4e60",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_offline_0414.js": {
-    "mtime": 1791253943.141235,
-    "seen": 1791264488.9790962,
-    "ast_hash": "7b8bc2ce790659666df0941b1c7a4352",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_profile_0414.js": {
-    "mtime": 1791253959.2381322,
-    "seen": 1791264488.9790962,
-    "ast_hash": "361e2060e23cfff50cbdac2f16a330aa",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_remote_0414.js": {
-    "mtime": 1791263829.7679057,
-    "seen": 1791264488.9790962,
-    "ast_hash": "029cc51203da197f026dcaac2567b003",
-    "semantic_hash": ""
-  },
-  "src/v0412/data_v0414/lib/am_status_0414.js": {
-    "mtime": 1791263882.5691242,
-    "seen": 1791264488.9790962,
-    "ast_hash": "e440e8e761ef396a8b72072565304dc5",
-    "semantic_hash": ""
-  },
   ".github/workflows/release_v2.3.yml": {
     "mtime": 1790926205.3725681,
     "seen": 1791264488.9790962,
@@ -3593,46 +3539,112 @@
     "ast_hash": "b6b108e8bc7e1fd731a4d70824757064",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/index_0414.html": {
-    "mtime": 1791263917.5931866,
-    "seen": 1791264488.9790962,
-    "ast_hash": "de429971c56180569b5f5c88be0f3922",
+  "src/v0412/data_v0414_www/app_0414_0001.js": {
+    "mtime": 1791277671.8457258,
+    "seen": 1791278039.8096855,
+    "ast_hash": "11a00596b3011268fb7daadb6b6f7572",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/robots.txt": {
+  "src/v0412/data_v0414_www/lib/am_base_0414.js": {
+    "mtime": 1791278376.9348764,
+    "seen": 1791278658.1931999,
+    "ast_hash": "31872ec83a950d60c9addb3d32ffe085",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_config_0414.js": {
+    "mtime": 1791277879.9378812,
+    "seen": 1791278039.8096855,
+    "ast_hash": "368ad6844358ab4c47acceae698d6dc1",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_i18n_0414.js": {
+    "mtime": 1791278336.1527202,
+    "seen": 1791278658.1931999,
+    "ast_hash": "65f88839824c33e3c59756d7ca78dbb3",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_macro_0414.js": {
+    "mtime": 1791277790.9694362,
+    "seen": 1791278039.8096855,
+    "ast_hash": "00d7ea858105d109872c4a602d541ee2",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_offline_0414.js": {
+    "mtime": 1791253943.141235,
+    "seen": 1791276737.272518,
+    "ast_hash": "7b8bc2ce790659666df0941b1c7a4352",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_profile_0414.js": {
+    "mtime": 1791278572.8716075,
+    "seen": 1791278658.1931999,
+    "ast_hash": "7db8b745e2dcbae93a2335931b0af5ac",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_remote_0414.js": {
+    "mtime": 1791277893.5093734,
+    "seen": 1791278039.8096855,
+    "ast_hash": "dcfbaf2c871825fcb39a5a5e5fed9fd7",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/lib/am_status_0414.js": {
+    "mtime": 1791278582.8116262,
+    "seen": 1791278658.1931999,
+    "ast_hash": "a90f708f64f6eee2fde5da19b41ff3ee",
+    "semantic_hash": ""
+  },
+  "README_0412_001.md": {
+    "mtime": 1791279923.1675448,
+    "seen": 1791280151.7907228,
+    "ast_hash": "38fff5682a9b8f63cce4c7a53d29eac5",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/index_0414.html": {
+    "mtime": 1791278527.046426,
+    "seen": 1791278658.1942003,
+    "ast_hash": "cfe22ced8701b548cefc52b00417bdf5",
+    "semantic_hash": ""
+  },
+  "src/v0412/data_v0414_www/robots.txt": {
     "mtime": 1790647674.069864,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "388ed88eec82ddeacbf877ee7dc4b225",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/images/android-chrome-192x192.png": {
+  "src/v0412/data_v0414_www/images/android-chrome-192x192.png": {
     "mtime": 1790647674.0596056,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "ec25c338c26b9866885d67bf628a3488",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/images/android-chrome-512x512.png": {
+  "src/v0412/data_v0414_www/images/android-chrome-512x512.png": {
     "mtime": 1790647674.0596056,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "172852edec68c51ab8c194ae9fb2928c",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/images/apple-touch-icon.png": {
+  "src/v0412/data_v0414_www/images/apple-touch-icon.png": {
     "mtime": 1790647674.0648847,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "d6549c3fc0d3736b57cde83eb7537bb9",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/images/favicon-16x16.png": {
+  "src/v0412/data_v0414_www/images/favicon-16x16.png": {
     "mtime": 1790647674.0665686,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "09dbc19a6e6de9cf5eeab5aee59c1a33",
     "semantic_hash": ""
   },
-  "src/v0412/data_v0414/images/favicon-32x32.png": {
+  "src/v0412/data_v0414_www/images/favicon-32x32.png": {
     "mtime": 1790647674.0665686,
-    "seen": 1791264488.9790962,
+    "seen": 1791276737.272518,
     "ast_hash": "b1d3a9405046fe306c995a116b463584",
+    "semantic_hash": ""
+  },
+  "src/v0412/docs_v0412/SPEC_Manual/UI_TERMINOLOGY_GUIDELINES_0414.md": {
+    "mtime": 1791278182.9908605,
+    "seen": 1791280151.7907228,
+    "ast_hash": "1658ee94710d653f8a12e8c782121497",
     "semantic_hash": ""
   }
 }

@@ -30,7 +30,7 @@ on:
       - 'src/**/*.ino'
       - 'src/**/*.py'
       # Web 소스 (VCS 대상: v0414 최신 및 레거시)
-      - 'src/v0412/data_v0414/**'
+      - 'src/v0412/data_v0414_www/**'
       - 'src/v0412/data_v0412_www/**'
       # 설정 및 스키마 JSON 소스 (VCS 대상)
       - 'src/v0412/data_v0412/json/**'
@@ -261,11 +261,11 @@ jobs:
 
           echo "=== [2/3] staging 소스 폴더 확인 (v0414 / v0412) ==="
           MISSING_DIR=0
-          if [ ! -d "src/v0412/data_v0414" ] && [ ! -d "src/v0412/data_v0412_www" ]; then
-            echo "::error::Web staging 소스 누락: src/v0412/data_v0414 또는 src/v0412/data_v0412_www"
+          if [ ! -d "src/v0412/data_v0414_www" ] && [ ! -d "src/v0412/data_v0412_www" ]; then
+            echo "::error::Web staging 소스 누락: src/v0412/data_v0414_www 또는 src/v0412/data_v0412_www"
             MISSING_DIR=1
           else
-            [ -d "src/v0412/data_v0414" ] && echo "  OK: src/v0412/data_v0414 (v0414 최신 Web 소스)"
+            [ -d "src/v0412/data_v0414_www" ] && echo "  OK: src/v0412/data_v0414_www (v0414 최신 Web 소스)"
             [ -d "src/v0412/data_v0412_www" ] && echo "  OK: src/v0412/data_v0412_www"
           fi
 
@@ -295,7 +295,7 @@ jobs:
           fi
 
           echo "=== [3/3] gzip 스크립트의 Web 소스 참조 확인 ==="
-          if grep -rqE "data_v0414|data_v0412_www" src/v0412/tools_v0412/ 2>/dev/null; then
+          if grep -rqE "data_v0414_www|data_v0412_www" src/v0412/tools_v0412/ 2>/dev/null; then
             echo "  OK: tools_v0412 내 Web staging 소스 참조 확인"
           else
             echo "::warning::tools_v0412 내 Web staging 참조 미검출 (버전 불일치 가능)"

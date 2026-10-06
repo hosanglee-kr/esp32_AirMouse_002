@@ -8,7 +8,7 @@
 #   - data_v0412/www/**   : 파생물(.gitignore) — 매 buildfs마다 클린 후 재생성
 #
 # [설계 요약]
-#   1) SRC(원본):  <PROJECT>/src/v0412/data_v0412_www/**
+#   1) SRC(원본):  <PROJECT>/src/v0412/data_v0414_www/**
 #   2) DST(빌드fs): <PROJECT>/src/v0412/data_v0412/www/** (= PROJECT_DATA_DIR/www)
 #   3) 규칙
 #      - html/css/js : DST에 .gz 생성(원본은 DST에 두지 않음 → LittleFS 절약)
@@ -33,7 +33,7 @@ from SCons.Script import COMMAND_LINE_TARGETS
 # -------------------------------------------------------
 # SRC: version-controlled 웹 소스 (v0414)
 SRC_WWW_DIR = os.path.join(
-    env["PROJECT_DIR"], "src", "v0412", "data_v0414"
+    env["PROJECT_DIR"], "src", "v0412", "data_v0414_www"
 )
 
 # DST: buildfs 스테이징 (data_dir 기준 www/)
@@ -112,7 +112,7 @@ def clean_dst_www():
 
 
 # =======================================================
-# [SYNC] data_v0412_www → data_v0412/www
+# [SYNC] data_v0414_www → data_v0412/www
 # =======================================================
 def sync_www():
     if not os.path.isdir(SRC_WWW_DIR):
