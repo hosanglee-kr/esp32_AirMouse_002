@@ -18,7 +18,9 @@
 #   4) buildfs 직전 DST/www 전체 삭제 → 구파일 잔존으로 인한 잘못된 서빙 방지
 #
 # [Phase 5.3 검증]
-#   - buildfs/uploadfs 직전 다음 스크립트를 순차 실행:
+#   - 다음 타깃에서 검증 스크립트를 순차 실행:
+#       · buildprog  (일반 펌웨어 빌드) — 검증만 (CI 실패 조기 감지)
+#       · buildfs / uploadfs           — 검증 + clean + sync + gzip
 #       1) check_i18n_0412.py    : KO/EN 키 1:1 정합성
 #       2) check_schema_0412.py  : 백엔드 H ↔ 프론트 JS ↔ 오프라인 기본값 필드명 3자 비교
 #   - 하나라도 실패(exit != 0) 시 SystemExit(1) → 빌드 중단
@@ -61,16 +63,10 @@ THIS_DIR = os.path.join(_PROJECT_DIR, "src", "v0412", "tools_v0412")
 # -------------------------------------------------------
 # [확장자 및 제외 정책]
 # -------------------------------------------------------
-# gzip 생성 대상 (텍스트)
 GZ_EXTS = {".html", ".css", ".js"}
-
-# 복사만 대상 (바이너리/정적 + txt + json)
 COPY_ONLY_EXTS = {".svg", ".png", ".webp", ".ico", ".txt", ".json"}
-
-# 이름 기반 화이트리스트 (확장자 없는 케이스 대비)
 COPY_ONLY_NAMES = {"robots.txt", "favicon.ico"}
 
-# 제외 대상 (구버전 및 작업용 Standalone 파일)
 EXCLUDE_NAMES = {
     "app_0412_0001.js", "app_0413_0001_1.js",
     "index_0412.html", "index_0413_1.html", "index_0413_2.html",
@@ -81,35 +77,29 @@ EXCLUDE_NAMES = {
 
 # =======================================================
 # [Phase 5.3] 정합성 검증
-# -------------------------------------------------------
-# check_i18n_0412.py / check_schema_0412.py 실행.
-# 실패 시 예외를 던져 buildfs 진행을 중단한다.
 # =======================================================
 def _run_verify_script(script_name, description, timeout_sec=30):
-    """
-    단일 검증 스크립트 실행. 성공(exit 0) 시 True, 실패 시 False.
-    """
+    """단일 검증 스크립트 실행. 성공(exit 0) 시 True, 실패 시 False."""
     script_path = os.path.join(THIS_DIR, script_name)
 
     if not os.path.isfile(script_path):
-        # 파일 자체가 없으면 skip (개발 편의용)
         print(f"[verify] SKIP: {script_name} not found (dev-only check)")
         return True
 
-    print(f"[verify] running {script_name}  ({description})")
+    print(f"[verify] running {script_name}  ({description})", flush=True)
     try:
         result = subprocess.run(
             [sys.executable, script_path],
             capture_output=True,
             text=True,
             timeout=timeout_sec,
-            cwd=_PROJECT_DIR,  # 상대 경로 호환
+            cwd=_PROJECT_DIR,
         )
     except subprocess.TimeoutExpired:
-        print(f"[verify] FAIL: {script_name} timed out ({timeout_sec}s)")
+        print(f"[verify] FAIL: {script_name} timed out ({timeout_sec}s)", flush=True)
         return False
     except Exception as exc:
-        print(f"[verify] FAIL: {script_name} exec error: {exc}")
+        print(f"[verify] FAIL: {script_name} exec error: {exc}", flush=True)
         return False
 
     # stdout/stderr 출력 (들여쓰기)
@@ -121,23 +111,20 @@ def _run_verify_script(script_name, description, timeout_sec=30):
             print(f"  {line}", file=sys.stderr)
 
     if result.returncode != 0:
-        print(f"[verify] ❌ {script_name} FAILED (exit={result.returncode})")
+        print(f"[verify] ❌ {script_name} FAILED (exit={result.returncode})", flush=True)
         return False
 
-    print(f"[verify] ✅ {script_name} passed")
+    print(f"[verify] ✅ {script_name} passed", flush=True)
     return True
 
 
 def run_verification():
-    """
-    전체 검증 시퀀스. 실패 시 SystemExit.
-    G_SKIP_VERIFY=1 환경변수로 우회 가능.
-    """
+    """전체 검증 시퀀스. 실패 시 SystemExit. G_SKIP_VERIFY=1로 우회 가능."""
     if os.environ.get("G_SKIP_VERIFY") == "1":
-        print("[verify] SKIPPED by G_SKIP_VERIFY=1")
+        print("[verify] SKIPPED by G_SKIP_VERIFY=1", flush=True)
         return
 
-    print("[verify] ---- Start verification ----")
+    print("[verify] ---- Start verification ----", flush=True)
 
     checks = [
         ("check_i18n_0412.py",   "KO/EN key parity"),
@@ -151,12 +138,12 @@ def run_verification():
             # 첫 실패에서 즉시 중단하지 않고 모두 보고
             # (개발자가 한 번에 여러 이슈를 볼 수 있도록)
 
-    print("[verify] ---- End verification ----")
+    print("[verify] ---- End verification ----", flush=True)
 
     if not all_ok:
-        print("")
-        print("[verify] ❌ Verification FAILED. Build aborted.")
-        print("[verify]    Fix the reported issues, or set G_SKIP_VERIFY=1 to bypass (hotfix only).")
+        print("", flush=True)
+        print("[verify] ❌ Verification FAILED. Build aborted.", flush=True)
+        print("[verify]    Fix the reported issues, or set G_SKIP_VERIFY=1 to bypass (hotfix only).", flush=True)
         raise SystemExit(1)
 
 
@@ -169,14 +156,11 @@ def ensure_dir(path):
 
 
 def relpath_safe(path, base):
-    """경로를 base 기준 상대경로(슬래시 통일)로 반환."""
     return os.path.relpath(path, base).replace("\\", "/")
 
 
 def gzip_file(src_path, dst_gz_path):
-    """src_path를 gzip 압축하여 dst_gz_path에 저장. mtime=0으로 결정론적 빌드 지원."""
     ensure_dir(os.path.dirname(dst_gz_path))
-
     with open(src_path, "rb") as f_in:
         with gzip.open(dst_gz_path, "wb", compresslevel=9) as f_out:
             shutil.copyfileobj(f_in, f_out)
@@ -189,7 +173,6 @@ def gzip_file(src_path, dst_gz_path):
 
 
 def copy_file(src_path, dst_path):
-    """src_path를 dst_path로 복사(메타데이터 보존)."""
     ensure_dir(os.path.dirname(dst_path))
     shutil.copy2(src_path, dst_path)
     print(f"  [COPY] {os.path.basename(src_path)} -> "
@@ -198,12 +181,6 @@ def copy_file(src_path, dst_path):
 
 # =======================================================
 # [DST 클린]
-# -------------------------------------------------------
-# data_v0412/www/ 아래의 예전 파일(.gz 포함)이 다음 빌드에 그대로 포함되면
-# "구버전 파일 서빙" 문제가 발생한다. buildfs 직전에 www 전체를 삭제하고,
-# SRC 기준으로만 다시 구성한다.
-# -------------------------------------------------------
-# 주의: data_v0412/json/** 은 소스이므로 절대 손대지 않는다.
 # =======================================================
 def clean_dst_www():
     if os.path.isdir(DST_WWW_DIR):
@@ -247,43 +224,85 @@ def sync_www():
 
 
 # =======================================================
-# [PRE-ACTION] buildfs / uploadfs 직전 실행 보장
+# [PRE-ACTION] buildprog / buildfs / uploadfs 훅
 # -------------------------------------------------------
-# 시퀀스:
+# 시퀀스 (프로세스 내 1회 보장):
 #   1) 검증 (check_i18n / check_schema) — 실패 시 즉시 중단
-#   2) DST 클린
-#   3) SRC → DST 동기화 + gzip
+#   2) DST 클린 (buildfs 계열만)
+#   3) SRC → DST 동기화 + gzip (buildfs 계열만)
 # =======================================================
-_has_run_sync = False
+_has_run_verify = False   # [개선 2] 검증 1회 보장 (buildprog ↔ buildfs 공유)
+_has_run_sync   = False   # [개선 2] clean+sync 1회 보장 (buildfs 계열)
+
+
+def _ensure_verify_done():
+    """검증이 프로세스 내에서 1회만 실행되도록 보장."""
+    global _has_run_verify
+    if _has_run_verify:
+        return
+    _has_run_verify = True
+    run_verification()
+
+
+def run_verify_only(source=None, target=None, env=None):
+    """[개선 2] buildprog pre-action: 검증만 실행 (gzip 동기화 없음).
+
+    목적: 일반 빌드(`pio run -e esp32-s3-zero`)에서도 i18n/schema 검증을
+          실행하여 CI에서 실패를 조기에 감지 (firmware 빌드 시간 낭비 방지).
+    """
+    _ensure_verify_done()
+
 
 def run_www_sync(source=None, target=None, env=None):
+    """buildfs/uploadfs pre-action: 검증 + clean + sync + gzip.
+
+    검증은 `_ensure_verify_done()`으로 1회만 실행됨.
+    buildfs 계열에서는 clean + sync + gzip 을 수행.
+    """
     global _has_run_sync
     if _has_run_sync:
         return
     _has_run_sync = True
 
-    # ---- [Phase 5.3] 1단계: 검증 ----
-    run_verification()
+    # ---- 검증 (buildprog에서 이미 했으면 skip) ----
+    _ensure_verify_done()
 
-    # ---- 2단계: DST 클린 ----
+    # ---- DST 클린 ----
     print("[WWW] Clean start")
     clean_dst_www()
     print("[WWW] Clean done")
 
-    # ---- 3단계: Sync + Gzip ----
+    # ---- Sync + Gzip ----
     print("[WWW] Sync+Gzip start")
     sync_www()
     print("[WWW] Sync+Gzip done")
 
 
-# 1) CLI 또는 IDE에서 buildfs / uploadfs 타깃이 요청된 경우, 빌드 시작 전 즉시 동기화 실행
+# =======================================================
+# [HOOK 등록]
+# =======================================================
+
+# 1) CLI/IDE에서 buildfs/uploadfs 타깃 요청 시 즉시 실행 (early sync)
 if any(t in COMMAND_LINE_TARGETS for t in ["buildfs", "uploadfs"]):
     run_www_sync()
 
-# 2) SCons의 LittleFS 바이너리 빌드 타깃 노드에 PreAction 등록 (mklittlefs 실행 직전 보장)
-fs_bin_name = env.subst("${ESP32_FS_IMAGE_NAME}.bin") if "${ESP32_FS_IMAGE_NAME}" in env else "littlefs.bin"
+# 2) LittleFS 바이너리 빌드 노드 pre-action (mklittlefs 직전 보장)
+#    [개선 1] fs_bin_name 조건 안전화:
+#      - 기존: `"${ESP32_FS_IMAGE_NAME}" in env` (항상 False → fallback 고정)
+#      - 변경: env.subst() 결과가 리터럴 "${...}"이면 미정의로 간주 → fallback
+_fs_name_raw = env.subst("${ESP32_FS_IMAGE_NAME}").strip()
+if _fs_name_raw and not _fs_name_raw.startswith("${"):
+    fs_bin_name = _fs_name_raw + ".bin"
+else:
+    fs_bin_name = "littlefs.bin"
+
 fs_bin_path = os.path.join(env.subst("$BUILD_DIR"), fs_bin_name)
 env.AddPreAction(fs_bin_path, run_www_sync)
 
-# 3) 하위 호환성을 위해 buildfs 타깃에도 등록
+# 3) buildfs 타깃 pre-action (하위 호환성)
 env.AddPreAction("buildfs", run_www_sync)
+
+# 4) [개선 2] buildprog 타깃 pre-action → 일반 빌드에서도 검증 실행
+#    - `pio run -e esp32-s3-zero` 시점에 i18n/schema 검증 → CI 조기 실패
+#    - `_ensure_verify_done()`이 buildfs와 공유되어 중복 실행 방지
+env.AddPreAction("buildprog", run_verify_only)
