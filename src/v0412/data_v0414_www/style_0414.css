@@ -602,16 +602,29 @@ input:checked + .slider:before { transform: translateX(16px); }
   display: flex;
   align-items: center;
   gap: 6px;
+  
+  position: relative;
+  padding-left: 20px;   /* 삼각형 공간 확보 */
 }
+
 .adv-opts > summary::-webkit-details-marker { display: none; }
 .adv-opts > summary::before {
-  content: "▶";
-  font-size: .68em;
-  display: inline-block;
-  transition: transform .18s ease;
-  color: var(--primary);
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--primary);
+  transform: translateY(-50%);
+  transition: transform .18s ease;#42445A
 }
-.adv-opts[open] > summary::before { transform: rotate(90deg); }
+.adv-opts[open]>summary::before {
+  transform: translateY(-50%) rotate(90deg);
+}
+
 .adv-opts > summary:hover { color: var(--primary-hover); }
 
 /* Footer / Loading */

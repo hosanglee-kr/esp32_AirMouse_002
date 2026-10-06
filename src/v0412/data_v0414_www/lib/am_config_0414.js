@@ -144,37 +144,46 @@ function uiToConfig() {
   // ====================================================
   // [Phase 1~3] Motion Advanced
   // ====================================================
+  // [H-1] 서버 validateE10()과 정합하도록 클라이언트 클램프
   e.motion_adv = e.motion_adv || {};
-
+  
+  const _c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  
+  // [Phase 1] Click-Freeze
   e.motion_adv.click_freeze = e.motion_adv.click_freeze || {};
   const cf = e.motion_adv.click_freeze;
   cf.enable = parseBool(qs("cfEnable")?.value);
-  cf.gyro_th = parseNum(qs("cfGyroTh")?.value, 15.0);
-  cf.max_ms = parseNum(qs("cfMaxMs")?.value, 150);
-  cf.hold_ms = parseNum(qs("cfHoldMs")?.value, 20);
-  cf.fadeout_ms = parseNum(qs("cfFadeoutMs")?.value, 30);
-  cf.move_th = parseNum(qs("cfMoveTh")?.value, 2.0);
-  cf.freeze_move_th = parseNum(qs("cfFreezeMoveTh")?.value, 30.0);
-
+  cf.gyro_th = _c(parseNum(qs("cfGyroTh")?.value, 15.0), 5.0, 30.0);
+  cf.max_ms = _c(parseNum(qs("cfMaxMs")?.value, 150), 50, 300);
+  cf.hold_ms = _c(parseNum(qs("cfHoldMs")?.value, 20), 0, 50);
+  cf.fadeout_ms = _c(parseNum(qs("cfFadeoutMs")?.value, 30), 0, 80);
+  cf.move_th = _c(parseNum(qs("cfMoveTh")?.value, 2.0), 1.0, 10.0);
+  cf.freeze_move_th = _c(parseNum(qs("cfFreezeMoveTh")?.value, 30.0), 10.0, 60.0);
+  
+  // [Phase 2] Adaptive EMA
   e.motion_adv.ema = e.motion_adv.ema || {};
   const ema = e.motion_adv.ema;
-  ema.alpha_min = parseNum(qs("emaAlphaMin")?.value, 0.05);
-  ema.alpha_max = parseNum(qs("emaAlphaMax")?.value, 0.80);
-  ema.deadzone_th = parseNum(qs("emaDeadzoneTh")?.value, 3.0);
-  ema.fast_th = parseNum(qs("emaFastTh")?.value, 15.0);
-  ema.reversal_th = parseNum(qs("emaReversalTh")?.value, 8.0);
+  ema.alpha_min = _c(parseNum(qs("emaAlphaMin")?.value, 0.05), 0.01, 0.20);
+  ema.alpha_max = _c(parseNum(qs("emaAlphaMax")?.value, 0.80), 0.50, 0.95);
+  if (ema.alpha_min >= ema.alpha_max) ema.alpha_max = ema.alpha_min + 0.01;
+  ema.deadzone_th = _c(parseNum(qs("emaDeadzoneTh")?.value, 3.0), 1.0, 10.0);
+  ema.fast_th = _c(parseNum(qs("emaFastTh")?.value, 15.0), 10.0, 30.0);
+  if (ema.deadzone_th >= ema.fast_th) ema.fast_th = ema.deadzone_th + 1.0;
+  ema.reversal_th = _c(parseNum(qs("emaReversalTh")?.value, 8.0), 5.0, 20.0);
   ema.reversal_reset = parseBool(qs("emaReversalReset")?.value);
-
+  
+  // [Phase 3] Snap-to-Axis
   e.motion_adv.snap = e.motion_adv.snap || {};
   const snap = e.motion_adv.snap;
   snap.enable = parseBool(qs("snapEnable")?.value);
-  snap.mode_mask = (qs("snapMode1")?.checked ? 0x01 : 0) |
+  snap.mode_mask = ((qs("snapMode1")?.checked ? 0x01 : 0) |
     (qs("snapMode2")?.checked ? 0x02 : 0) |
-    (qs("snapMode3")?.checked ? 0x04 : 0);
-  snap.axis_mode = parseNum(qs("snapAxisMode")?.value, 0);
-  snap.ratio_enter = parseNum(qs("snapRatio")?.value, 4.0);
-  snap.strength = parseNum(qs("snapStrength")?.value, 0.85);
-  snap.confirm_frames = parseNum(qs("snapConfirmFrames")?.value, 3);
+    (qs("snapMode3")?.checked ? 0x04 : 0)) & 0x07;
+  snap.axis_mode = _c(parseNum(qs("snapAxisMode")?.value, 0), 0, 2);
+  snap.ratio_enter = _c(parseNum(qs("snapRatio")?.value, 4.0), 2.0, 10.0);
+  snap.strength = _c(parseNum(qs("snapStrength")?.value, 0.85), 0.5, 1.0);
+  snap.confirm_frames = _c(parseNum(qs("snapConfirmFrames")?.value, 3), 1, 10);
+  
 
   // ====================================================
   // [Phase 11.6] Power
@@ -251,11 +260,12 @@ function uiToConfig() {
    Config 로드 / 저장
    - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
+
 async function cfgLoad() {
   if (!g_profile || !g_profile.config) {
     const r = await apiGet("/api/profiles/active");
     const u = unwrapApi(r);
-    if (!u.ok || !u.data) { setMsg("Load failed", false); return; }
+    if (!u.ok || !u.data) { setMsg(t("cfg.load_fail"), false); return; }
     g_profile = {
       idx: u.data.idx,
       count: u.data.count,
@@ -263,8 +273,9 @@ async function cfgLoad() {
     };
   }
   configToUi(g_profile.config);
-  setMsg("Config loaded", true);
+  setMsg(t("cfg.load_ok"), true);
 }
+
 
 async function cfgSave() {
   if (!g_profile) { await cfgLoad(); }
@@ -273,16 +284,17 @@ async function cfgSave() {
   const patch = { e10: cfg.e10 };
   const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
   if (!u.ok) {
-    setMsg("Save failed: " + (u.msg || u.code), false);
+    setMsg(`${t("cfg.save_fail")}: ${u.msg || u.code}`, false);
     return;
   }
 
   if (g_profile.config) g_profile.config.e10 = cfg.e10;
   configToUi(g_profile.config);
 
-  setMsg("Save OK (reloaded=" + (u.data && u.data.reloaded ? "yes" : "no") + ")", true);
+  setMsg(t("cfg.save_ok_resp", { reloaded: (u.data && u.data.reloaded) ? "yes" : "no" }), true);
   // [L-5] 저장 성공 시 dirty 클리어
-  if (typeof clearDirty === "function") clearDirty();
+  // ── 이후 ──
+  if (typeof clearCfgDirty === "function") clearCfgDirty();
   await refreshStatus();
 }
 
@@ -336,7 +348,7 @@ async function cfgImport(file) {
   try {
     obj = JSON.parse(text);
   } catch (e) {
-    setMsg("Import JSON error: " + e.message, false);
+    setMsg(t("cfg.import_err", { msg: e.message }), false);
     return;
   }
 
@@ -344,11 +356,12 @@ async function cfgImport(file) {
   try {
     const u = unwrapApi(await apiPostJson("/api/config/import", obj));
     if (!u.ok) {
-      setMsg("Import failed: " + (u.msg || u.code), false);
+      setMsg(`${t("cfg.import_fail")}: ${u.msg || u.code}`, false);
       return;
     }
 
-    setMsg("Import OK (new idx=" + ((u.data && u.data.idx) ?? "?") + ")", true);
+    setMsg(t("cfg.import_ok", { idx: (u.data && u.data.idx) ?? "?" }), true);
+
     await profileReloadAll();
     renderSlotEditor();
     macroRenderList();

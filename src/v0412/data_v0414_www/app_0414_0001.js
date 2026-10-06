@@ -87,11 +87,14 @@ function bindDrawer() {
 function bindBanner() {
   qs("btnBannerClose")?.addEventListener("click", () => {
     const banner = qs("bannerReboot");
-    if (banner) banner.style.display = "none";
-    // [H-4] dismiss 플래그 + 현재 마스크 스냅샷
+    if (banner) {
+      banner.style.display = ""; // [H-4] 인라인 초기화
+      banner.classList.remove("on");
+    }
     const v_mask = (g_lastStatus?.policy?.reboot_reason_mask) || 0;
     if (typeof dismissRebootBanner === "function") dismissRebootBanner(v_mask);
   });
+  
   qs("btnBannerReboot")?.addEventListener("click", () => {
     if (confirm(t("pop.reboot_confirm"))) rebootDevice();
   });

@@ -399,11 +399,15 @@ function saveOfflineStore() {
 /* =======================================================
    오프라인 모킹 라우터
    ======================================================= */
+
 function handleOfflineApi(url, method, body) {
   if (!g_offlineStore) loadOfflineStore();
 
   const u = new URL(url, "http://localhost");
   const path = u.pathname;
+  // [H-7] 쿼리 파라미터 파싱 (온라인 서버와 정합)
+  const compact = (u.searchParams.get("compact") === "1");
+  const flat    = (u.searchParams.get("flat") !== "0");
 
   let resObj = { ok: true, code: "ok", msg: "", data: null };
 
@@ -535,24 +539,31 @@ function handleOfflineApi(url, method, body) {
   else if (path === "/api/keycodes") {
     resObj.data = G_OFFLINE_KEYCODES;
   }
+  
   else if (path === "/api/status") {
+    // [H-7] compact/flat 반영: top-level 필드 선택적 제거
     const act = g_offlineStore.active;
     const actP = g_offlineStore.profiles.find(p => p.idx === act) || { idx: 0, name: "Default" };
-    resObj.data = {
+    const topData = {
+      uptime_ms: Date.now() - G_OFFLINE_START_TIME,
+      heap_free: 245760,
+      heap_min_free: 220000,
+      heap_max_alloc: 245760,
+      api_ver: 410,
       groups: {
-        sys: { uptime_ms: Date.now() - G_OFFLINE_START_TIME, loop_hz: 100 },
-        mem: { heap_free: 245760, heap_min: 220000 },
-        net: { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0 },
-        e10: {
-          ble_connected: false, ppt_active: false, active_mode: 1, battery_pct: 100,
-          gate: { ota_guard: false }
-        },
-        // [N-2] 서버 SPEC rev6 정합
+        sys: { uptime_ms: Date.now() - G_OFFLINE_START_TIME, api_ver: 410 },
+        mem: { heap_free: 245760, heap_min_free: 220000, heap_max_alloc: 245760 },
+        net: { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0, mdns: "elite-airmouse.local" },
+        diag: { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 },
+        e10: { ble_connected: false, ppt_mode: false, active_mode: 1, dpi_level: 2, precision_mode: 0,
+               gate: { ota_guard: false } },
         boot: { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 },
-        config: {
-          profile_idx: act, profile_name: actP.name,
-          profile_count: g_offlineStore.profiles.length
-        }
+        config: { ver: 410, etag_ok: false, etag: 0, size: 0,
+                  profile_idx: act, profile_count: g_offlineStore.profiles.length, profile_name: actP.name,
+                  last_apply_ok: true, last_apply_ms: 0, last_apply_age_ms: 0,
+                  last_apply_code: "", last_apply_src: "" },
+        features: { etag_config: true, reboot_api: true, safe_mode_policy: true, ota_guard: true, e10_observability: true },
+        ota: { in_progress: false, total: 0, written: 0, ok: false, err: "none" }
       },
       policy: {
         reboot_required: false, reboot_reason_mask: 0,
@@ -560,7 +571,23 @@ function handleOfflineApi(url, method, body) {
         ota_upload_blocked: false
       }
     };
+    if (compact || !flat) {
+      delete topData.uptime_ms;
+      delete topData.heap_free;
+      delete topData.heap_min_free;
+      delete topData.heap_max_alloc;
+      delete topData.api_ver;
+    }
+    if (compact) {
+      delete topData.e10;
+      delete topData.boot;
+      delete topData.config;
+      delete topData.features;
+      // groups만 남김
+    }
+    resObj.data = topData;
   }
+  
   else if (path === "/api/diag") {
     resObj.data = {
       diag: { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 },

@@ -278,13 +278,18 @@ async function ctlSetMode(target) {
     if (g_appMode === APP_MODE_ONLINE) {
       const steps = ((target - cur) + 3) % 3;
       for (let i = 0; i < steps; i++) {
-        // EN_C20_ACT_SPECIAL (k=9, p16=3 MODE NEXT)
-        await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 3, p32: 0 });
+        // [G-2] 서버 응답 검증 (BLE 미연결 등 실패 시 로컬만 갱신되는 문제 방지)
+        const u = unwrapApi(await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 3, p32: 0 }));
+        if (!u.ok) {
+          alert(`${t("pop.mode_switch_fail") || "Mode switch failed:"} ${u.msg || u.code}`);
+          return false;
+        }
         await new Promise(r => setTimeout(r, 320));
       }
     } else {
       await new Promise(r => setTimeout(r, 400));
     }
+
     applyRemoteMode(target);
     setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
     if (typeof pushRecentLog === "function") pushRecentLog(`MODE → ${target}`, true);

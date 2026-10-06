@@ -33,7 +33,11 @@ let g_slotDirty = false;
 
 function markCfgDirty()      { g_cfgDirty = true; }
 function markSlotDirty()     { g_slotDirty = true; }
-function clearDirty()        { g_cfgDirty = false; g_slotDirty = false; }
+
+function clearCfgDirty()     { g_cfgDirty  = false; }
+function clearSlotDirty()    { g_slotDirty = false; }
+function clearDirty()        { g_cfgDirty = false; g_slotDirty = false; }  // 호환용(전체 초기화)
+
 function hasUnsavedChanges() { return g_cfgDirty || g_slotDirty; }
 
 function nowMs() { return Date.now(); }
@@ -79,17 +83,24 @@ function setPill(el, text, good) {
 
 /* ---------------- API Envelope ---------------- */
 function unwrapApi(resp) {
+  // [H-2] resp null/undefined 방어 (fetch 실패, mock 예외 등)
+  if (!resp) {
+    return { ok: false, code: "no_response", msg: "", data: null };
+  }
   const j = resp.json;
   if (j && typeof j === "object" && typeof j.ok === "boolean" && ("code" in j) && ("data" in j)) {
     return { ok: !!j.ok, code: String(j.code || ""), msg: String(j.msg || ""), data: j.data };
   }
-  return { ok: resp.ok, code: resp.ok ? "ok" : `http_${resp.status}`, msg: "", data: j };
+  return { ok: !!resp.ok, code: resp.ok ? "ok" : `http_${resp.status}`, msg: "", data: j };
 }
+
 
 /* ---------------- 모드 전환 ---------------- */
 function setAppMode(mode) {
   g_appMode = mode;
   updateAppModeUi();
+  // [F-9] 드로어 라벨도 함께 동기 (온라인 fallback 경로에서 갱신 누락 방지)
+  if (typeof _updateNetLabel === "function") _updateNetLabel();
 }
 
 function updateAppModeUi() {

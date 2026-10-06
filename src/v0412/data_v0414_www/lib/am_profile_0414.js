@@ -664,20 +664,24 @@ function renderActionEditor(slot, editable, onChange) {
    프로파일 저장
    - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
+
 async function saveProfile() {
   if (!g_profile) return;
-
+    
   showLoading(t("loading.processing"));
   try {
-    const u = unwrapApi(await apiPostJson("/api/profiles/active", g_profile.config));
+    // [G-8] slots만 patch 전송 (Config 탭 미저장값의 의도치 않은 저장 방지)
+    const patch = { slots: g_profile.config.slots };
+    const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
     if (!u.ok) { alert(`${t("pop.slot_save_fail")} ${u.msg || u.code}`); return; }
+
     await profileReloadAll();
     renderSlotEditor();
     macroRenderList();
     macroRenderEditor();
     await refreshStatus();
     setMsg(t("slots.save") + " OK", true);
-    if (typeof clearDirty === "function") clearDirty();
+    if (typeof clearSlotDirty === "function") clearSlotDirty();
   } finally {
     hideLoading();
   }

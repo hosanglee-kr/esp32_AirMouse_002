@@ -294,6 +294,14 @@ const I18N_DICT = {
     "cfg.snap_axis_h": "가로 전용 (X축)",
     "cfg.snap_axis_v": "세로 전용 (Y축)",
     "cfg.save_ok": "설정 저장 완료 (시뮬레이터)",
+    
+    "cfg.load_ok": "설정 로드 완료",
+    "cfg.load_fail": "설정 로드 실패",
+    "cfg.save_fail": "설정 저장 실패",
+    "cfg.save_ok_resp": "설정 저장 완료 (재로드: {reloaded})",
+    "cfg.import_ok": "가져오기 완료 (새 인덱스: {idx})",
+    "cfg.import_err": "가져오기 JSON 오류: {msg}",
+    "cfg.import_fail": "가져오기 실패",
 
     "diag.title": "진단 및 입력 테스트",
     "diag.clear": "카운터 초기화",
@@ -322,6 +330,8 @@ const I18N_DICT = {
 
     "pop.mode_switch_confirm": "모드를 {cur} → {tgt}(으)로 전환하시겠습니까?",
     "pop.mode_switch_ok": "모드 {tgt} 전환 완료",
+    "pop.mode_switch_fail": "모드 전환 실패:",
+    
     "pop.calib_ok": "자이로 영점 조절 요청 완료",
     "pop.force_release_ok": "눌린 키 강제 해제 완료",
     "pop.host_cycle_ok": "호스트 기기 전환 요청 완료",
@@ -677,6 +687,14 @@ const I18N_DICT = {
     "cfg.snap_axis_h": "Horizontal Only (X)",
     "cfg.snap_axis_v": "Vertical Only (Y)",
     "cfg.save_ok": "Settings saved (Simulator)",
+    
+    "cfg.load_ok": "Config loaded",
+    "cfg.load_fail": "Config load failed",
+    "cfg.save_fail": "Config save failed",
+    "cfg.save_ok_resp": "Save OK (reloaded: {reloaded})",
+    "cfg.import_ok": "Import OK (new idx: {idx})",
+    "cfg.import_err": "Import JSON error: {msg}",
+    "cfg.import_fail": "Import failed",
 
     "diag.title": "Diagnostics & Input Test",
     "diag.clear": "Reset Counters",
@@ -705,6 +723,8 @@ const I18N_DICT = {
 
     "pop.mode_switch_confirm": "Switch mode from {cur} to {tgt}?",
     "pop.mode_switch_ok": "Switched to Mode {tgt}",
+    "pop.mode_switch_fail": "Mode switch failed:",
+
     "pop.calib_ok": "Gyro calibration requested",
     "pop.force_release_ok": "All held keys released",
     "pop.host_cycle_ok": "Host device switch requested",
@@ -837,6 +857,11 @@ function setLanguage(lang) {
   try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch (e) { }
   document.documentElement.lang = lang;
   applyI18nToDom();
+  
+  // [G-9] 언어 버튼 active 상태 반영
+  qsa(".lang-btn").forEach(b => {
+    b.classList.toggle("on", b.dataset.lang === g_currLang);
+  });
 
   const m = (typeof g_currentActiveMode === "number") ? g_currentActiveMode : 1;
   if (typeof _renderController === "function") _renderController(m);

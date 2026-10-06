@@ -100,27 +100,30 @@ function _updateRebootBanner(policy) {
   const v_reasons = (policy && policy.reboot_reasons) || "";
   const v_mask    = ((policy && policy.reboot_reason_mask) || 0) >>> 0;
 
-  // 재부팅 불필요 → 숨김 + dismiss 초기화
+  // [H-4] 클래스 기반 통일 (인라인 style 제거)
+  const _showBanner = (show) => {
+    banner.style.display = ""; // 인라인 초기화
+    banner.classList.toggle("on", !!show);
+  };
+  
   if (!v_req) {
-    banner.style.display = "none";
+    _showBanner(false);
     g_bannerDismissed = false;
     g_bannerDismissedMask = 0;
     return;
   }
-
-  // 사용자가 같은 마스크로 dismiss한 상태 → 숨김 유지
+  
   if (g_bannerDismissed && v_mask === g_bannerDismissedMask) {
-    banner.style.display = "none";
+    _showBanner(false);
     return;
   }
-
-  // 마스크가 바뀌면 dismiss 무효화
+  
   if (g_bannerDismissed && v_mask !== g_bannerDismissedMask) {
     g_bannerDismissed = false;
     g_bannerDismissedMask = 0;
   }
-
-  banner.style.display = "flex";
+  
+  _showBanner(true);
   const rEl = qs("bannerRebootReason");
   if (rEl) rEl.textContent = v_reasons || "(WiFi 변경 등)";
 
@@ -245,15 +248,17 @@ async function ctlI2cRecoverWithFeedback() {
    [Phase 2.1 C-3/H-5] Key Test — am_base 버전 흡수
    ======================================================= */
 async function keyTest(page, mod, code, labelOverride) {
-  // 1) 로컬 부가 로그 (Recent Command Log)
+  // [G-1] 검증 먼저 (부정확한 로그 기록 방지)
+  if (!Number.isFinite(code) || code < 0) {
+    alert(t("trouble.invalid_code"));
+    return;
+  }
+
   const label = labelOverride || ((page === "kb")
     ? `KB u=${code} mod=${mod}`
     : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
-  if (typeof pushRecentLog === "function") {
-    pushRecentLog(label, true);
-  }
+  if (typeof pushRecentLog === "function") pushRecentLog(label, true);
 
-  // 2) diagEvents 라인 삽입 (개발자 관측용)
   const evEl = qs("diagEvents");
   if (evEl) {
     const line = document.createElement("div");
@@ -263,13 +268,6 @@ async function keyTest(page, mod, code, labelOverride) {
     while (evEl.children.length > 60) evEl.removeChild(evEl.lastChild);
   }
 
-  // 3) 코드 유효성 검사
-  if (!Number.isFinite(code) || code < 0) {
-    alert(t("trouble.invalid_code"));
-    return;
-  }
-
-  // 4) 서버 요청 (오프라인 mock 포함)
   const u = unwrapApi(await apiPostJson("/api/ppt/test", {
     page: page, mod: mod, code: code
   }));
@@ -445,8 +443,10 @@ const RECENT_LOGS_MAX = 8;
 const g_recentLogs = [];
 
 function pushRecentLog(cmd, ok) {
-  const tStr = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+  // [G-6] 로케일 무관 24시간 포맷
+  const tStr = new Date().toLocaleTimeString(undefined, { hour12: false });
   g_recentLogs.unshift({ t: tStr, cmd, ok });
+
   if (g_recentLogs.length > RECENT_LOGS_MAX) g_recentLogs.pop();
   renderRecentLogs();
 }
@@ -495,9 +495,8 @@ async function handleTrouble(kind) {
         break;
 
       case "i2c":
-        await apiPostJson("/api/control", { cmd: "i2c_recover", snapshot: false });
-        setMsg(t("pop.i2c_ok"), true);
-        pushRecentLog("I2C_RECOVER", true);
+        // [G-5] N-18 피드백 통합 (recover_count 변화 + last_ok 검증)
+        await ctlI2cRecoverWithFeedback();
         break;
 
       case "sleep":
@@ -512,6 +511,9 @@ async function handleTrouble(kind) {
         break;
 
       case "safemode": {
+        // [G-3] stale 상태 사용 방지: 토글 직전 새로고침
+        await refreshStatus();
+        
         // [H-6, D-2=(B)] 서버 상태를 진실 공급원으로 사용
         const v_current = !!(g_lastStatus
           && g_lastStatus.groups

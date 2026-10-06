@@ -65,6 +65,18 @@ function macroRenderList() {
 function macroRenderEditor() {
   const root = qs("macroEditor");
   if (!root) return;
+  
+  // [F-2] dirty 추적: 편집 컨테이너에 이벤트 위임 (1회 바인딩)
+  if (root.dataset.dirtyBound !== "1") {
+    root.dataset.dirtyBound = "1";
+    root.addEventListener("input", () => {
+      if (typeof markSlotDirty === "function") markSlotDirty();
+    });
+    root.addEventListener("change", () => {
+      if (typeof markSlotDirty === "function") markSlotDirty();
+    });
+  }
+
   root.innerHTML = "";
 
   const macros = getMacrosArray();
@@ -107,15 +119,33 @@ function macroRenderEditor() {
   const btnDel = document.createElement("button");
   btnDel.className = "btn danger mini";
   btnDel.textContent = t("macros.btn_del");
+  
   btnDel.onclick = async () => {
     if (!confirm(t("pop.macro_del_confirm", { name: m.name }))) return;
-    macros.splice(g_macroSel, 1);
+    const deletedIdx = g_macroSel;
+    macros.splice(deletedIdx, 1);
+    
+    // [H-8] 슬롯 참조 정리: 삭제 인덱스 참조는 0으로, 이후 인덱스는 -1
+    const slots = g_profile?.config?.slots;
+    if (slots) {
+      const allSlots = [
+        ...(slots.global || []),
+        ...((slots.modes || []).flatMap(m => m.slots || []))
+      ];
+      for (const s of allSlots) {
+        if (!s || s.k !== 10) continue; // MACRO kind
+        if (s.p32 === deletedIdx) s.p32 = 0; // 삭제된 매크로 → NONE
+        else if (s.p32 > deletedIdx) s.p32 -= 1; // 뒤 인덱스 시프트
+      }
+    }
+    
     g_macroSel = macros.length > 0 ? Math.min(g_macroSel, macros.length - 1) : -1;
     await macroSave(true);
     macroRenderList();
     macroRenderEditor();
     renderSlotEditor();
   };
+  
   head.appendChild(btnDel);
 
   root.appendChild(head);
@@ -405,7 +435,7 @@ async function macroSave(silent = false) {
     setMsg(t("macro.save_ok"), true);
   }
   // [L-5] 저장 성공 시 dirty 클리어
-  if (typeof clearDirty === "function") clearDirty();
+  if (typeof clearSlotDirty === "function") clearSlotDirty();
   return true;
 }
 
