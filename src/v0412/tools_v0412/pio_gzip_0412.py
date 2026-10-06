@@ -31,16 +31,16 @@ from SCons.Script import COMMAND_LINE_TARGETS
 # -------------------------------------------------------
 # [경로 정의]
 # -------------------------------------------------------
-# SRC: version-controlled 웹 소스
+# SRC: version-controlled 웹 소스 (v0414)
 SRC_WWW_DIR = os.path.join(
-    env["PROJECT_DIR"], "src", "v0412", "data_v0412_www"
+    env["PROJECT_DIR"], "src", "v0412", "data_v0414"
 )
 
 # DST: buildfs 스테이징 (data_dir 기준 www/)
 DST_WWW_DIR = os.path.join(env["PROJECT_DATA_DIR"], "www")
 
 # -------------------------------------------------------
-# [확장자 정책]
+# [확장자 및 제외 정책]
 # -------------------------------------------------------
 # gzip 생성 대상 (텍스트)
 GZ_EXTS = {".html", ".css", ".js"}
@@ -50,6 +50,14 @@ COPY_ONLY_EXTS = {".svg", ".png", ".webp", ".ico", ".txt", ".json"}
 
 # 이름 기반 화이트리스트 (확장자 없는 케이스 대비)
 COPY_ONLY_NAMES = {"robots.txt", "favicon.ico"}
+
+# 제외 대상 (구버전 및 작업용 Standalone 파일)
+EXCLUDE_NAMES = {
+    "app_0412_0001.js", "app_0413_0001_1.js",
+    "index_0412.html", "index_0413_1.html", "index_0413_2.html",
+    "index_0413_standalone.html", "index_0413_standalone2.html", "index_0413_standalone3.html",
+    "style_0412.css", "style_0413_1.css", "style_0413_2.css"
+}
 
 
 # =======================================================
@@ -115,6 +123,9 @@ def sync_www():
 
     for root, _dirs, files in os.walk(SRC_WWW_DIR):
         for fn in files:
+            if fn in EXCLUDE_NAMES:
+                continue
+
             src_path = os.path.join(root, fn)
             ext      = os.path.splitext(fn)[1].lower()
 

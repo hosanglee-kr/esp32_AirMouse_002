@@ -64,8 +64,8 @@ static constexpr const char* G_W10_PATH_WWW_PREFIX         = "/www/";
 static constexpr const char* G_W10_PATH_JSON_PUBLIC_PREFIX = "/json/public/";
 
 // 루트 접속 시 기본 index (프로젝트 빌드/배포 규칙에 맞게 고정)
-// - 예: /www/index_0276.html
-static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0412.html";
+// - 예: /www/index_0414.html
+static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0414.html";
 
 // -------------------------------------------------------
 // Cache-Control presets
