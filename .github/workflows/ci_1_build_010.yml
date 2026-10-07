@@ -1,16 +1,16 @@
 # =====================================================================
-# .github/workflows/ci_1_build_009.yml
+# .github/workflows/ci_1_build_010.yml
 # ---------------------------------------------------------------------
 # PlatformIO PR 빌드 및 에이전트 친화적 실패 마커 생성 파이프라인
-#  - 대상: AirMouse Elite S3 (v0.400.x)
+#  - 대상: AirMouse Elite S3
 #  - env : esp32-s3-zero
-#  - data_dir     : src/v0412/data_v0412
-#  - extra_scripts: src/v0412/tools_v0412/pio_gzip_0412.py
+#  - data_dir     : src/v0415/data_v0415
+#  - extra_scripts: src/v0415/tools_v0415/pio_gzip_0415.py
 #
 # [v010 주요 갱신]
-#   1. 실제 폴더 구조 반영: data_v0412_www / data_v0412/public / tools_v0412
+#   1. 실제 폴더 구조 반영: data_v0415_www / data_v0415/public / tools_v0415
 #   2. paths 필터에 공개 JSON·설정 JSON·WWW 소스 추가
-#   3. 검증 스텝의 오타(v0412/tools) 수정
+#   3. 검증 스텝의 오타(v0415/tools) 수정
 #   4. stale .o 방지를 위한 clean 스텝 추가
 #   5. buildfs 산출물 검증 조건 완화(스크립트가 만들 수 있는 실제 위치 기준)
 # =====================================================================
@@ -29,15 +29,15 @@ on:
       - 'src/**/*.h'
       - 'src/**/*.ino'
       - 'src/**/*.py'
-      # Web 소스 (VCS 대상: v0414 최신 및 레거시)
-      - 'src/v0412/data_v0414_www/**'
-      - 'src/v0412/data_v0412_www/**'
+      # Web 소스 (VCS 대상: v0415 최신 및 레거시)
+      - 'src/v0415/data_v0415_www/**'
+      - 'src/v0415/data_v0415_www/**'
       # 설정 및 스키마 JSON 소스 (VCS 대상)
-      - 'src/v0412/data_v0412/json/**'
+      - 'src/v0415/data_v0415/json/**'
       - '.github/workflows/*.yml'
       - '!**/*.md'
       # buildfs 파생물만 제외 (gzip 스크립트가 재생성하는 위치)
-      - '!src/v0412/data_v0412/www/**'
+      - '!src/v0415/data_v0415/www/**'
       - '!src/**/*_backup/**'
 
 permissions:
@@ -259,35 +259,35 @@ jobs:
             exit 1
           fi
 
-          echo "=== [2/3] staging 소스 폴더 확인 (v0414 / v0412) ==="
+          echo "=== [2/3] staging 소스 폴더 확인 (v0415 / v0415) ==="
           MISSING_DIR=0
-          if [ ! -d "src/v0412/data_v0414_www" ] && [ ! -d "src/v0412/data_v0412_www" ]; then
-            echo "::error::Web staging 소스 누락: src/v0412/data_v0414_www 또는 src/v0412/data_v0412_www"
+          if [ ! -d "src/v0415/data_v0415_www" ] && [ ! -d "src/v0415/data_v0415_www" ]; then
+            echo "::error::Web staging 소스 누락: src/v0415/data_v0415_www 또는 src/v0415/data_v0415_www"
             MISSING_DIR=1
           else
-            [ -d "src/v0412/data_v0414_www" ] && echo "  OK: src/v0412/data_v0414_www (v0414 최신 Web 소스)"
-            [ -d "src/v0412/data_v0412_www" ] && echo "  OK: src/v0412/data_v0412_www"
+            [ -d "src/v0415/data_v0415_www" ] && echo "  OK: src/v0415/data_v0415_www (v0415 최신 Web 소스)"
+            [ -d "src/v0415/data_v0415_www" ] && echo "  OK: src/v0415/data_v0415_www"
           fi
 
           # 공개 JSON staging: 현재 위치(public) 또는 재편 위치(json/public) 중 하나는 있어야 함
-          if [ -d "src/v0412/data_v0412/json/public" ]; then
-            echo "  OK: src/v0412/data_v0412/json/public (권장 위치)"
-          elif [ -d "src/v0412/data_v0412/public" ]; then
-            echo "::warning::src/v0412/data_v0412/public 발견. LittleFS 경로는 /public/ 이 되어"
+          if [ -d "src/v0415/data_v0415/json/public" ]; then
+            echo "  OK: src/v0415/data_v0415/json/public (권장 위치)"
+          elif [ -d "src/v0415/data_v0415/public" ]; then
+            echo "::warning::src/v0415/data_v0415/public 발견. LittleFS 경로는 /public/ 이 되어"
             echo "           프론트엔드의 /json/public/ 요청과 어긋납니다."
-            echo "           권장: src/v0412/data_v0412/json/public/ 로 이동."
+            echo "           권장: src/v0415/data_v0415/json/public/ 로 이동."
           else
             echo "::error::공개 JSON staging 소스 누락 (public 또는 json/public)"
             MISSING_DIR=1
           fi
 
           # 설정/부팅 JSON: 루트 또는 json/ 하위
-          if [ -d "src/v0412/data_v0412/json" ]; then
-            echo "  OK: src/v0412/data_v0412/json (설정/부팅 json 위치)"
-          elif ls src/v0412/data_v0412/*.json >/dev/null 2>&1; then
-            echo "::warning::설정/부팅 json이 data_v0412 루트에 있음."
+          if [ -d "src/v0415/data_v0415/json" ]; then
+            echo "  OK: src/v0415/data_v0415/json (설정/부팅 json 위치)"
+          elif ls src/v0415/data_v0415/*.json >/dev/null 2>&1; then
+            echo "::warning::설정/부팅 json이 data_v0415 루트에 있음."
             echo "           코드의 CFG_PATH/BOOT_PATH가 /json/... 이면 로드 실패."
-            echo "           권장: src/v0412/data_v0412/json/ 로 이동."
+            echo "           권장: src/v0415/data_v0415/json/ 로 이동."
           fi
 
           if [ "$MISSING_DIR" -ne 0 ]; then
@@ -295,10 +295,10 @@ jobs:
           fi
 
           echo "=== [3/3] gzip 스크립트의 Web 소스 참조 확인 ==="
-          if grep -rqE "data_v0414_www|data_v0412_www" src/v0412/tools_v0412/ 2>/dev/null; then
-            echo "  OK: tools_v0412 내 Web staging 소스 참조 확인"
+          if grep -rqE "data_v0415_www|data_v0415_www" src/v0415/tools_v0415/ 2>/dev/null; then
+            echo "  OK: tools_v0415 내 Web staging 소스 참조 확인"
           else
-            echo "::warning::tools_v0412 내 Web staging 참조 미검출 (버전 불일치 가능)"
+            echo "::warning::tools_v0415 내 Web staging 참조 미검출 (버전 불일치 가능)"
           fi
 
       # ---------------------------------------------------------------
@@ -333,18 +333,18 @@ jobs:
           if [ "$status" -eq 0 ]; then
             HAVE_WWW=0
             HAVE_JSON=0
-            [ -d "src/v0412/data_v0412/www" ] && HAVE_WWW=1
-            [ -d "src/v0412/data_v0412/json" ] && HAVE_JSON=1
+            [ -d "src/v0415/data_v0415/www" ] && HAVE_WWW=1
+            [ -d "src/v0415/data_v0415/json" ] && HAVE_JSON=1
 
             if [ "$HAVE_WWW" -eq 0 ] && [ "$HAVE_JSON" -eq 0 ]; then
               echo "::error::buildfs 성공했지만 data_dir 하위에 www/json 이 생성되지 않았습니다."
-              echo "  → pio_gzip_0412.py 의 SRC/DST 상수와 staging 위치를 확인하세요."
+              echo "  → pio_gzip_0415.py 의 SRC/DST 상수와 staging 위치를 확인하세요."
               status=1
             else
               echo "[OK] data_dir 산출물:"
               echo "  www  present: $HAVE_WWW"
               echo "  json present: $HAVE_JSON"
-              ls -laR src/v0412/data_v0412 | head -n 80 || true
+              ls -laR src/v0415/data_v0415 | head -n 80 || true
             fi
 
             # littlefs.bin 자체도 확인 (아티팩트 업로드 전 검증)

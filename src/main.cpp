@@ -5,11 +5,11 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-#include "v0412/A40_ComFunc_0412.h" // 내부에서 D10_Logger_0412.h 포함
-#include "v0412/C10_Config_0412.h"
-#include "v0412/E10_AirMouse_0412.h"
-#include "v0412/HW_Def_0412.h"
-#include "v0412/W10_Web_0412.h"
+#include "v0415/A40_ComFunc_0415.h" // 내부에서 D10_Logger_0415.h 포함
+#include "v0415/C10_Config_0415.h"
+#include "v0415/E10_AirMouse_0415.h"
+#include "v0415/HW_Def_0415.h"
+#include "v0415/W10_Web_0415.h"
 
 static CL_C10_Config        g_cfg;
 static CL_E10_EliteAirMouse g_e10;
@@ -150,7 +150,7 @@ void setup() {
     // 2) Factory Reset (Side C 6초 hold)
     if (_holdAtBoot(HW_DEF::PIN_BTN_SIDE_C, 6000)) {
         (void)g_cfg.factoryReset(true);
-        D10_LOGW("[0412] FactoryReset by boot key. rebooting...");
+        D10_LOGW("[0415] FactoryReset by boot key. rebooting...");
         delay(200);
         ESP.restart();
     }
@@ -163,10 +163,10 @@ void setup() {
     
     // SafeMode 활성 시에만 errHist 이벤트 기록
     if (v_safe) {
-        D10_LOGW("[0412] SAFE BOOT MODE ACTIVE");
+        D10_LOGW("[0415] SAFE BOOT MODE ACTIVE");
         g_e10.setSafeMode(true);
     } else {
-        D10_LOGI("[0412] boot normal mode");
+        D10_LOGI("[0415] boot normal mode");
     }
 
     // W10-E10 interface bind
@@ -194,7 +194,7 @@ void setup() {
 
     g_w10.begin(&g_cfg, &g_w10E10If);
     
-    D10_LOGI("[0412] started");
+    D10_LOGI("[0415] started");
 
     g_bootOkDone = false;
 }
@@ -204,7 +204,7 @@ void loop() {
     if (!g_bootOkDone) {
         if (g_cfg.bootMarkOkIfGracePassed(G_BOOT_GRACE_MS)) {
             g_bootOkDone = true;
-            D10_LOGI("[0412] boot grace passed -> boot ok marked");
+            D10_LOGI("[0415] boot grace passed -> boot ok marked");
         }
     }
 

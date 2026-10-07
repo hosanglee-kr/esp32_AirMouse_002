@@ -1,6 +1,6 @@
 # CLAUDE.md — Claude Code Project Guidelines
 
-> Target Project: esp32_AirMouse_002 (v0410)
+> Target Project: esp32_AirMouse_002
 > Architecture: ESP32-S3-Zero + MPU6050 BLE HID Composite AirMouse
 
 ---
@@ -15,7 +15,7 @@ Claude Code는 본 프로젝트의 기본 아키텍처, 하드웨어 핀맵, 네
 
 모든 코드 수정, 신규 기능 추가 또는 코드 리뷰 시 Claude Code는 **반드시** 아래 경로에 위치한 5대 지속 산출물(Persistent Artifacts)을 대조 기준으로 삼아 정합성을 검증해야 합니다:
 
-- 계약 문서 경로: [src/v0410/docs_v0410/contract_doc/](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/src/v0410/docs_v0410/contract_doc/)
+- 계약 문서 경로: [src/v0415/docs_v0415/contract_doc/](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/src/v0415/docs_v0415/contract_doc/)
   1. **CONTRACT.md**: 모듈 경계, 호출 권한, FreeRTOS 큐 계약, 공유 변수 동기화 및 원자성 계약
   2. **STATE.md**: 상태 변수 단독 소유권(Writer/Reader) 및 FSM(Click-Freeze, Snap, Precision, Macro) 명세
   3. **FLOW.md**: 모션 파이프라인(8ms), 프로파일 전환 시퀀스, 액션/제스처 디스패치 흐름
