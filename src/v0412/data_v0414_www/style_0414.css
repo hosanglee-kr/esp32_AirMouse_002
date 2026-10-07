@@ -619,13 +619,32 @@ input:checked + .slider:before { transform: translateX(16px); }
   border-bottom: 5px solid transparent;
   border-left: 6px solid var(--primary);
   transform: translateY(-50%);
-  transition: transform .18s ease;#42445A
+  transition: transform .18s ease;
 }
 .adv-opts[open]>summary::before {
   transform: translateY(-50%) rotate(90deg);
 }
 
 .adv-opts > summary:hover { color: var(--primary-hover); }
+
+/* [G-9] Language Button Active */
+.lang-btn.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* [H-13] Remote Mode Badge */
+.remote-mode-badge {
+  font-size: .7rem;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  min-width: 44px;
+  text-align: center;
+}
 
 /* Footer / Loading */
 .foot { text-align: center; color: var(--txt-muted); font-size: .75rem; padding: 24px 0; }

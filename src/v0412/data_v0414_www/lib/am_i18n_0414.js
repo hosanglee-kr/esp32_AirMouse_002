@@ -849,6 +849,10 @@ function applyI18nToDom() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
     const s = t(el.getAttribute("data-i18n-placeholder")); if (s) el.placeholder = s;
   });
+  // [G-13] aria-label i18n 지원
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el => {
+    const s = t(el.getAttribute("data-i18n-aria-label")); if (s) el.setAttribute("aria-label", s);
+  });
 }
 
 function setLanguage(lang) {

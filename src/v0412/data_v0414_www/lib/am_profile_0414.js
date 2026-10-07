@@ -680,6 +680,7 @@ async function saveProfile() {
     macroRenderList();
     macroRenderEditor();
     await refreshStatus();
+    if (typeof cfgLoad === "function") await cfgLoad(); // [H-12] Config 탭 UI 재렌더
     setMsg(t("slots.save") + " OK", true);
     if (typeof clearSlotDirty === "function") clearSlotDirty();
   } finally {

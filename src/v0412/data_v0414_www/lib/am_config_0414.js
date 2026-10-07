@@ -388,18 +388,16 @@ async function ctlForceRelease() {
     cmd: "force_release", snapshot: false
   }));
   if (!u.ok) alert(`${t("pop.test_fail")} ${u.msg || u.code}`);
-  else alert(t("pop.force_release_ok"));
+  else {
+    alert(t("pop.force_release_ok"));
+    if (typeof pushRecentLog === "function") pushRecentLog("FORCE_RELEASE", true);
+  }
   await refreshStatus();
 }
 
 /* =======================================================
    SafeBoot / Factory Reset / Reboot
    ======================================================= */
-async function safeInfo() {
-  const r = await apiGet("/api/safeboot");
-  alert(pretty(r.json || r.text));
-}
-
 async function safeBootExit() {
   if (!confirm(t("pop.safeboot_exit_confirm"))) return;
 
@@ -412,6 +410,7 @@ async function safeBootExit() {
     return;
   }
 
+  if (typeof pushRecentLog === "function") pushRecentLog("SAFEBOOT_EXIT", true);
   setMsg(t("pop.safeboot_exit_done"), true);
   showLoading(t("pop.reboot_waiting"));
 

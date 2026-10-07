@@ -41,8 +41,9 @@ function bindDrawer() {
       qs("tab-" + tabId)?.classList.add("on");
       window.scrollTo({ top: 0, behavior: "smooth" });
       closeDrawer();
-      if (tabId === "diag" && typeof refreshDiag === "function") {
-        refreshDiag().catch(console.error);
+      if (tabId === "diag") {
+        if (typeof refreshDiag === "function") refreshDiag().catch(console.error);
+        if (typeof renderRecentLogs === "function") renderRecentLogs(); // [H-9]
       }
     });
   });
@@ -109,7 +110,8 @@ function bindQuickTuning() {
       const prof = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile?.config);
       if (prof?.e10) {
         prof.e10.dpi_level = v;
-        if (g_appMode === APP_MODE_OFFLINE && typeof saveOfflineStore === "function") saveOfflineStore();
+        // [F-5] saveOfflineStore 내부에 이미 모드 가드가 있어 호출부 조건 제거
+        if (typeof saveOfflineStore === "function") saveOfflineStore();
       }
       await apiPostJson("/api/control", { cmd: "set_dpi", level: v, snapshot: true });
       if (typeof pushRecentLog === "function") pushRecentLog(`DPI → ${v}`, true);
@@ -123,7 +125,8 @@ function bindQuickTuning() {
       const prof = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile?.config);
       if (prof?.e10) {
         prof.e10.precision_mode = v;
-        if (g_appMode === APP_MODE_OFFLINE && typeof saveOfflineStore === "function") saveOfflineStore();
+        // [F-5] saveOfflineStore 내부에 이미 모드 가드가 있어 호출부 조건 제거
+        if (typeof saveOfflineStore === "function") saveOfflineStore();
       }
       await apiPostJson("/api/control", { cmd: "set_precision", mode: v, snapshot: true });
       if (typeof pushRecentLog === "function") pushRecentLog(`PREC → ${v}`, true);
@@ -236,8 +239,11 @@ function bindUi() {
    6. Main Entry Point
    ======================================================= */
 async function main() {
-  /* 1. 오프라인 스토어 + 다국어 */
-  if (typeof loadOfflineStore === "function") loadOfflineStore();
+  /* 1. 오프라인 스토어 및 다국어 초기화 */
+  // [F-7] 온라인 모드에서는 스토어 로드 생략 (handleOfflineApi 내부에서 lazy 로드)
+  if (g_appMode === APP_MODE_OFFLINE && typeof loadOfflineStore === "function") {
+    loadOfflineStore();
+  }
   if (typeof initI18n === "function") initI18n();
   
   /* 2. 키코드 로드 [C-1] */

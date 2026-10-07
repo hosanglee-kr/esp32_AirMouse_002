@@ -125,7 +125,7 @@ function macroRenderEditor() {
     const deletedIdx = g_macroSel;
     macros.splice(deletedIdx, 1);
     
-    // [H-8] 슬롯 참조 정리: 삭제 인덱스 참조는 0으로, 이후 인덱스는 -1
+    // [H-8] 슬롯 참조 정리: 삭제 인덱스 참조는 NONE(k=0)으로 완전 초기화, 이후 인덱스는 -1
     const slots = g_profile?.config?.slots;
     if (slots) {
       const allSlots = [
@@ -134,8 +134,11 @@ function macroRenderEditor() {
       ];
       for (const s of allSlots) {
         if (!s || s.k !== 10) continue; // MACRO kind
-        if (s.p32 === deletedIdx) s.p32 = 0; // 삭제된 매크로 → NONE
-        else if (s.p32 > deletedIdx) s.p32 -= 1; // 뒤 인덱스 시프트
+        if (s.p32 === deletedIdx) {
+          s.k = 0; s.p16 = 0; s.p32 = 0; s.h = 0; // [H-8] EN_C20_ACT_NONE 완전 초기화
+        } else if (s.p32 > deletedIdx) {
+          s.p32 -= 1; // 뒤 인덱스 시프트
+        }
       }
     }
     
@@ -413,6 +416,9 @@ async function macroSave(silent = false) {
   if (!g_profile) { await cfgLoad(); }
 
   const patch = { macros: getMacrosArray() };
+  if (g_profile && g_profile.config && g_profile.config.slots) {
+    patch.slots = g_profile.config.slots; // [H-8 연계] 슬롯 동반 저장으로 validateSlots 통과 보장
+  }
   const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
   if (!u.ok) {
     // [L-4] silent 실패도 최근 로그에 남겨 사용자 피드백 확보

@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0412` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0412/docs_v0412/contract_doc/CONTRACT_0412.md`
-> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 조치 + enqueue 실패 안전망)
+> 최종 갱신: 2026-10-07 (rev6 — 웹 API 부분 패치 무결성 계약 및 enqueue 실패 안전망 현행화)
 
 ---
 
@@ -60,6 +60,11 @@
 > - `_enqueueAction`(액션 슬롯)은 drop 허용 (다음 프레임 재시도 가능).
 > - `_pushFrame`은 `size=1 Overwrite`이므로 실패 없음.
 > - `_reqSpecialAction` / `_reqResetBtnDisp` / `_reqResetGesture` / `_reqGyroCalib` / `_reqI2CRecover` / `_reqClearDiag` / `_reqSaveCfg` / `_reqCommReleaseAll`은 **위임 플래그** (volatile, 재시도 없이 다음 소비 시점에 처리).
+
+> **웹 API (`/api/profiles/active`) 부분 패치 무결성 계약 (rev6)**:
+> - 웹 클라이언트가 매크로(`macros`) 또는 슬롯(`slots`)을 부분 패치(POST)할 때, 백엔드 `validateProfile()`는 모든 슬롯에 대해 매크로 인덱스 경계(`param32 < macroCount`)를 원자적으로 검증한다.
+> - 따라서 매크로를 삭제하거나 인덱스를 재정렬하는 경우, 클라이언트는 해당 매크로를 참조하던 슬롯을 `EN_C20_ACT_NONE (0)`으로 초기화하고, **반드시 `patch.macros`와 `patch.slots`를 단일 요청에 포함하여 원자적으로 전송**해야 한다.
+> - 위반 시 백엔드는 400 Bad Request (`validation_failed`)를 반환하고 프로파일 수정을 원천 거부한다.
 
 ---
 

@@ -137,7 +137,7 @@ function renderModeTools() {
    ======================================================= */
 const REMOTE_CONFIG_BY_MODE = {
   1: {
-    themeClass: "mode-pc", badgeKey: "remote.badge_pc", guideKey: "remote.guide_pc",
+    themeClass: "mode-pc", guideKey: "remote.guide_pc",
     top1: { label: "Win", subKey: "remote.sub_start", action: () => keyTest("kb", 8, 0) },
     top2: { label: "🔇", subKey: "remote.sub_mute", action: () => keyTest("consumer", 0, 0x0004) },
     ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
@@ -156,7 +156,7 @@ const REMOTE_CONFIG_BY_MODE = {
     pad3LblKey: "remote.pad_doc"
   },
   2: {
-    themeClass: "mode-ppt", badgeKey: "remote.badge_ppt", guideKey: "remote.guide_ppt",
+    themeClass: "mode-ppt", guideKey: "remote.guide_ppt",
     top1: { labelKey: "remote.ppt_f5", action: () => keyTest("kb", 0, 58) },
     top2: { labelKey: "remote.ppt_shf5", action: () => keyTest("kb", 2, 62) },
     ringUp: { labelKey: "remote.ppt_end", action: () => keyTest("kb", 0, 41) },
@@ -175,7 +175,7 @@ const REMOTE_CONFIG_BY_MODE = {
     pad3LblKey: "remote.pad_ppt_vol"
   },
   3: {
-    themeClass: "mode-tv", badgeKey: "remote.badge_tv", guideKey: "remote.guide_tv",
+    themeClass: "mode-tv", guideKey: "remote.guide_tv",
     top1: { labelKey: "remote.tv_power", action: () => keyTest("consumer", 0, 0x1000) },
     top2: { label: "🔇", action: () => keyTest("consumer", 0, 0x0004) },
     ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
@@ -281,6 +281,7 @@ async function ctlSetMode(target) {
         // [G-2] 서버 응답 검증 (BLE 미연결 등 실패 시 로컬만 갱신되는 문제 방지)
         const u = unwrapApi(await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 3, p32: 0 }));
         if (!u.ok) {
+          if (cfg && cfg.e10) cfg.e10.active_mode = cur; // 실패 시 로컬 active_mode 롤백 방어
           alert(`${t("pop.mode_switch_fail") || "Mode switch failed:"} ${u.msg || u.code}`);
           return false;
         }

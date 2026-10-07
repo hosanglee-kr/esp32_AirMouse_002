@@ -47,6 +47,11 @@ function pretty(o) {
   try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); }
 }
 
+/**
+ * [G-14] 정수 파싱 유틸.
+ * - "0x" 접두어(양수만) 인식. negative hex("-0x10")는 미지원 (실사용 없음).
+ * - 정규식 실패 시 Number() 폴백, 실패 시 def 반환.
+ */
 function parseIntFlex(v, def = 0) {
   if (v === null || v === undefined) return def;
   const s = String(v).trim();
@@ -61,9 +66,15 @@ function parseNum(v, def = 0) {
   return Number.isFinite(n) ? n : def;
 }
 
+/**
+ * [H-5] 관대한 bool 파싱.
+ * - true 반환: true, "true"/"TRUE"/"True", "1", "on"/"ON"
+ * - false 반환: false, 그 외 모든 값(빈 문자열/undefined/null 포함)
+ * - 서버는 <option value="true|false">만 사용하므로 이 수준으로 충분.
+ */
 function parseBool(v) {
   if (v === true || v === false) return v;
-  const s = String(v).toLowerCase();
+  const s = String(v).toLowerCase().trim();
   return s === "true" || s === "1" || s === "on";
 }
 
@@ -187,17 +198,6 @@ function _kbUsageLabel(code, name) {
   if (name === "None") return isEn ? "None (Unassigned)" : "선택 안 함 (None)";
   if (name && !/^0x/i.test(name)) return `${name} (${hex})`;
   return hex;
-}
-
-function _kbUsageName(code) {
-  const kb = (g_keycodes && g_keycodes.kb) || [];
-  for (const it of kb) {
-    if (it.code === code) {
-      if (it.name && !/^0x/i.test(it.name)) return it.name;
-      return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
-    }
-  }
-  return "0x" + code.toString(16).toUpperCase().padStart(2, "0");
 }
 
 /* ---------------- 사용자 친화 라벨 매핑 ---------------- */

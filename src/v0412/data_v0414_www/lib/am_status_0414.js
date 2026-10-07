@@ -477,9 +477,8 @@ async function handleTrouble(kind) {
         break;
 
       case "release":
-        await apiPostJson("/api/control", { cmd: "force_release", snapshot: false });
-        setMsg(t("pop.force_release_ok"), true);
-        pushRecentLog("FORCE_RELEASE", true);
+        // [G-10] ctlForceRelease로 통일
+        await ctlForceRelease();
         break;
 
       case "host":
@@ -555,36 +554,10 @@ async function handleTrouble(kind) {
         break;
       }
 
-      case "safeexit": {
-        // [H-6, D-2=(B)] /api/safeboot exit 사용
-        if (!confirm(t("pop.safeboot_exit_confirm"))) return;
-
-        const u = unwrapApi(await apiPostJson("/api/safeboot", { exit: true }));
-        if (!u.ok) {
-          alert(`${t("pop.safeboot_exit_fail")} ${u.msg || u.code}`);
-          return;
-        }
-        pushRecentLog("SAFEBOOT_EXIT", true);
-        showLoading(t("pop.reboot_waiting"));
-        let v_tries = 0;
-        const v_timer = setInterval(async () => {
-          v_tries++;
-          try {
-            const r = await fetch("/api/status?compact=1", { cache: "no-store" });
-            if (r.ok) {
-              clearInterval(v_timer);
-              hideLoading();
-              location.reload();
-            }
-          } catch (e) { }
-          if (v_tries >= 15) {
-            clearInterval(v_timer);
-            hideLoading();
-            alert(t("pop.reboot_delay_warn"));
-          }
-        }, 1000);
+      case "safeexit":
+        // [G-12] am_config의 safeBootExit()으로 통일
+        await safeBootExit();
         break;
-      }
     }
   } catch (e) {
     setMsg(`${t("pop.trouble_fail")} ${e.message || e}`, false);

@@ -541,36 +541,52 @@ function handleOfflineApi(url, method, body) {
   }
   
   else if (path === "/api/status") {
-    // [H-7] compact/flat 반영: top-level 필드 선택적 제거
+    // [H-7] compact/flat 반영: 온라인 서버(_apiStatus)와 100% 동일하게 top-level 필드 구성 및 선택적 제거
     const act = g_offlineStore.active;
     const actP = g_offlineStore.profiles.find(p => p.idx === act) || { idx: 0, name: "Default" };
+
+    const gSys = { uptime_ms: Date.now() - G_OFFLINE_START_TIME, api_ver: 410 };
+    const gMem = { heap_free: 245760, heap_min_free: 220000, heap_max_alloc: 245760 };
+    const gNet = { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0, mdns: "elite-airmouse.local" };
+    const gDiag = { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 };
+    const gE10 = { ble_connected: false, ppt_mode: false, active_mode: 1, dpi_level: 2, precision_mode: 0,
+                   gate: { ota_guard: false } };
+    const gBoot = { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 };
+    const gConfig = { ver: 410, etag_ok: false, etag: 0, size: 0,
+                      profile_idx: act, profile_count: g_offlineStore.profiles.length, profile_name: actP.name,
+                      last_apply_ok: true, last_apply_ms: 0, last_apply_age_ms: 0,
+                      last_apply_code: "", last_apply_src: "" };
+    const gFeatures = { etag_config: true, reboot_api: true, safe_mode_policy: true, ota_guard: true, e10_observability: true };
+    const gOta = { in_progress: false, total: 0, written: 0, ok: false, err: "none" };
+    const gPolicy = {
+      reboot_required: false, reboot_reason_mask: 0,
+      reboot_reasons: "", safe_mode_api_limited: false,
+      ota_upload_blocked: false
+    };
+
     const topData = {
-      uptime_ms: Date.now() - G_OFFLINE_START_TIME,
-      heap_free: 245760,
-      heap_min_free: 220000,
-      heap_max_alloc: 245760,
+      uptime_ms: gSys.uptime_ms,
+      heap_free: gMem.heap_free,
+      heap_min_free: gMem.heap_min_free,
+      heap_max_alloc: gMem.heap_max_alloc,
       api_ver: 410,
+      sys: { ...gSys },
+      mem: { ...gMem },
+      net: { ...gNet },
+      diag: { ...gDiag },
+      e10: { ...gE10 },
+      boot: { ...gBoot },
+      config: { ...gConfig },
+      features: { ...gFeatures },
+      ota: { ...gOta },
+      policy: { ...gPolicy },
       groups: {
-        sys: { uptime_ms: Date.now() - G_OFFLINE_START_TIME, api_ver: 410 },
-        mem: { heap_free: 245760, heap_min_free: 220000, heap_max_alloc: 245760 },
-        net: { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0, mdns: "elite-airmouse.local" },
-        diag: { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 },
-        e10: { ble_connected: false, ppt_mode: false, active_mode: 1, dpi_level: 2, precision_mode: 0,
-               gate: { ota_guard: false } },
-        boot: { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 },
-        config: { ver: 410, etag_ok: false, etag: 0, size: 0,
-                  profile_idx: act, profile_count: g_offlineStore.profiles.length, profile_name: actP.name,
-                  last_apply_ok: true, last_apply_ms: 0, last_apply_age_ms: 0,
-                  last_apply_code: "", last_apply_src: "" },
-        features: { etag_config: true, reboot_api: true, safe_mode_policy: true, ota_guard: true, e10_observability: true },
-        ota: { in_progress: false, total: 0, written: 0, ok: false, err: "none" }
-      },
-      policy: {
-        reboot_required: false, reboot_reason_mask: 0,
-        reboot_reasons: "", safe_mode_api_limited: false,
-        ota_upload_blocked: false
+        sys: gSys, mem: gMem, net: gNet, diag: gDiag, e10: gE10,
+        boot: gBoot, config: gConfig, features: gFeatures, ota: gOta
       }
     };
+
+    // flat=0 또는 compact=1이면 top-level 메트릭 제거
     if (compact || !flat) {
       delete topData.uptime_ms;
       delete topData.heap_free;
@@ -578,12 +594,17 @@ function handleOfflineApi(url, method, body) {
       delete topData.heap_max_alloc;
       delete topData.api_ver;
     }
+    // compact=1이면 top-level 하위 그룹 객체 제거 (groups와 policy만 유지)
     if (compact) {
-      delete topData.e10;
+      delete topData.sys;
+      delete topData.mem;
+      delete topData.net;
+      delete topData.diag;
+      delete topData.ota;
       delete topData.boot;
       delete topData.config;
+      delete topData.e10;
       delete topData.features;
-      // groups만 남김
     }
     resObj.data = topData;
   }

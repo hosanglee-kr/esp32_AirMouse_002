@@ -136,13 +136,13 @@ def main():
     ok = True
 
     if ko_dup:
-        print(f"\n[WARN] KO duplicated keys ({len(ko_dup)}):")
+        print(f"\n[FAIL] KO duplicated keys ({len(ko_dup)}):")
         for k in sorted(ko_dup):
             print(f"   - {k}")
         ok = False
 
     if en_dup:
-        print(f"\n[WARN] EN duplicated keys ({len(en_dup)}):")
+        print(f"\n[FAIL] EN duplicated keys ({len(en_dup)}):")
         for k in sorted(en_dup):
             print(f"   - {k}")
         ok = False
