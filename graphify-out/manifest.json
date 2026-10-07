@@ -12,9 +12,9 @@
     "semantic_hash": "371e4c54d16c3bb386d95557d38ed527"
   },
   "src/main.cpp": {
-    "mtime": 1790923966.626863,
-    "seen": 1790924201.3292394,
-    "ast_hash": "c40007d6e9e400724a465f7f0a4a3fd6",
+    "mtime": 1791340213.8305173,
+    "seen": 1791340504.4362948,
+    "ast_hash": "aa009c9f70373183c297f02a4fe13a8f",
     "semantic_hash": ""
   },
   "src/v001/E10_EliteAirMouse_006.h": {
@@ -2964,15 +2964,15 @@
     "semantic_hash": ""
   },
   "src/v0412/C20_BtnDispatcher_0412.cpp": {
-    "mtime": 1791246996.400506,
-    "seen": 1791264488.9790962,
-    "ast_hash": "bbf932ee279589e255cf2f3a494c2392",
+    "mtime": 1791340029.5308132,
+    "seen": 1791340504.4362948,
+    "ast_hash": "397bd00cd4414c21c43a852990414a04",
     "semantic_hash": ""
   },
   "src/v0412/C20_BtnDispatcher_0412.h": {
-    "mtime": 1791246951.4279113,
-    "seen": 1791264488.9790962,
-    "ast_hash": "efa5e00b203e7f579a35bac89bc779bb",
+    "mtime": 1791339938.731169,
+    "seen": 1791340504.4362948,
+    "ast_hash": "d9ccd4a0b6bfc55bab0928de61900d49",
     "semantic_hash": ""
   },
   "src/v0412/D10_Logger_0412.h": {
@@ -2988,21 +2988,21 @@
     "semantic_hash": ""
   },
   "src/v0412/E10_AirMouse_Action_0412.cpp": {
-    "mtime": 1790923850.3425977,
-    "seen": 1790924201.3292394,
-    "ast_hash": "31cf3d683a7b46749d4336a20fd41bd5",
+    "mtime": 1791340135.094861,
+    "seen": 1791340504.4362948,
+    "ast_hash": "6b58fdc077090fd9a5345de874e6ae6c",
     "semantic_hash": ""
   },
   "src/v0412/E10_AirMouse_Core_0412.cpp": {
-    "mtime": 1790923850.3491006,
-    "seen": 1790924201.3292394,
-    "ast_hash": "6e65d2e0225ca511edac11ebe9210ca5",
+    "mtime": 1791340085.186083,
+    "seen": 1791340504.4362948,
+    "ast_hash": "539c07041e89e8ef46f7d2c840884c37",
     "semantic_hash": ""
   },
   "src/v0412/E10_AirMouse_Diag_0412.cpp": {
-    "mtime": 1790923850.3491006,
-    "seen": 1790924201.3292394,
-    "ast_hash": "7a90af3ceef7e9a60025ad469814b44b",
+    "mtime": 1791340103.089464,
+    "seen": 1791340504.4362948,
+    "ast_hash": "1869a6aa39c7d7a08427e0094580a664",
     "semantic_hash": ""
   },
   "src/v0412/E10_AirMouse_Hid_0412.cpp": {
@@ -3024,9 +3024,9 @@
     "semantic_hash": ""
   },
   "src/v0412/E10_Def_0412.h": {
-    "mtime": 1791247091.9574687,
-    "seen": 1791264488.9790962,
-    "ast_hash": "3f5278c854d7ec42f992f41546d121a0",
+    "mtime": 1791340057.0685782,
+    "seen": 1791340504.4362948,
+    "ast_hash": "d840dc16e7b1f45b4546e7493f387c55",
     "semantic_hash": ""
   },
   "src/v0412/L10_Led_0412.cpp": {
@@ -3036,9 +3036,9 @@
     "semantic_hash": ""
   },
   "src/v0412/L10_Led_0412.h": {
-    "mtime": 1790923850.3523335,
-    "seen": 1790924201.3292394,
-    "ast_hash": "be63d587bede15359683c5d5fc5fdb36",
+    "mtime": 1791340194.321364,
+    "seen": 1791340504.4362948,
+    "ast_hash": "9704d46ddfee58926f41289a1f73836c",
     "semantic_hash": ""
   },
   "src/v0412/M10_MotionProc_0412.h": {
@@ -3066,9 +3066,9 @@
     "semantic_hash": ""
   },
   "src/v0412/P20_Power_0412.cpp": {
-    "mtime": 1790923850.3587134,
-    "seen": 1790924201.3292394,
-    "ast_hash": "ab3dbd46383aca4d3108888698acc4fb",
+    "mtime": 1791340179.2311623,
+    "seen": 1791340504.4362948,
+    "ast_hash": "d59205a9e12c758304fa8db3ffafdacd",
     "semantic_hash": ""
   },
   "src/v0412/P20_Power_0412.h": {
@@ -3354,45 +3354,45 @@
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/BUDGET_0412.md": {
-    "mtime": 1790924289.7800567,
-    "seen": 1790924360.182954,
-    "ast_hash": "d7e7c31bb72ca3b613697aa8156e0d08",
+    "mtime": 1791340446.720022,
+    "seen": 1791340504.4362948,
+    "ast_hash": "f1d633e1ea8010578db7ea2b1c3e5672",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/CONTRACT_0412.md": {
-    "mtime": 1791338222.121624,
-    "seen": 1791338327.727615,
-    "ast_hash": "8206ea500d03b25c9fc105305e743a4c",
+    "mtime": 1791340854.7801995,
+    "seen": 1791341829.1932187,
+    "ast_hash": "bf7dab267c7f41dd6d174c8e0cf316bb",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/FLOW_0412.md": {
-    "mtime": 1791338208.4534512,
-    "seen": 1791338327.727615,
-    "ast_hash": "089ccb3485416d1623082cca01ea6222",
+    "mtime": 1791340912.2322638,
+    "seen": 1791341829.1932187,
+    "ast_hash": "39da351302f331aaee0390a3d55b8054",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/SPEC_0412.md": {
-    "mtime": 1791338148.5480754,
-    "seen": 1791338327.727615,
-    "ast_hash": "f15d86b859cd0e00034a584426b93dc3",
+    "mtime": 1791340386.9821215,
+    "seen": 1791340504.4362948,
+    "ast_hash": "845dad3801a8d4625417ee9318c42a87",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/contract_doc/STATE_0412.md": {
-    "mtime": 1790924289.7876647,
-    "seen": 1790924360.182954,
-    "ast_hash": "7ee2dfe61206ca90e7c4bbe18b7adac1",
+    "mtime": 1791340953.2780232,
+    "seen": 1791341829.1932187,
+    "ast_hash": "8ad0f1d4a204c1e723faa058f7badc8e",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/SPEC_Manual/00.SPEC_0412_002.md": {
-    "mtime": 1791338192.2012331,
-    "seen": 1791338327.727615,
-    "ast_hash": "fb326e9f0107d25fd10da5133ddb3ebe",
+    "mtime": 1791341107.580492,
+    "seen": 1791341829.1932187,
+    "ast_hash": "1135bef77f058ca4c37732eb033279eb",
     "semantic_hash": ""
   },
   "src/v0412/docs_v0412/SPEC_Manual/00.UserManual_0412_003.md": {
-    "mtime": 1791332683.909758,
-    "seen": 1791337870.4397912,
-    "ast_hash": "02194b6fc6b7607bae3c6e4c8a37d498",
+    "mtime": 1791341192.1051185,
+    "seen": 1791341829.1932187,
+    "ast_hash": "a81846136a6ca112724f21abcc7bb6bd",
     "semantic_hash": ""
   },
   "lib/LD2420/library.json": {
@@ -3594,9 +3594,9 @@
     "semantic_hash": ""
   },
   "README_0412_001.md": {
-    "mtime": 1791279923.1675448,
-    "seen": 1791280151.7907228,
-    "ast_hash": "38fff5682a9b8f63cce4c7a53d29eac5",
+    "mtime": 1791341264.0598886,
+    "seen": 1791341829.1932187,
+    "ast_hash": "7248ec99368c989adaed4a195db0e284",
     "semantic_hash": ""
   },
   "src/v0412/data_v0414_www/index_0414.html": {
@@ -3669,6 +3669,12 @@
     "mtime": 1791332683.9057572,
     "seen": 1791337870.4397912,
     "ast_hash": "514178212342ba204ca76df7c48a68d7",
+    "semantic_hash": ""
+  },
+  "src/v0412/HW_Def_0412.h": {
+    "mtime": 1791339802.0804484,
+    "seen": 1791340504.4362948,
+    "ast_hash": "77c6c0309f15f1d120a815958ff45eb7",
     "semantic_hash": ""
   }
 }

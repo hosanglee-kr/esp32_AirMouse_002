@@ -1,5 +1,5 @@
 // =======================================================
-// File: src/v010/E10_Def_0412.h
+// File: src/v0412/E10_Def_0412.h
 // =======================================================
 #pragma once
 
@@ -11,7 +11,7 @@
  * ------------------------------------------------------
  * 기능 요약
  *  - EliteAirMouse(E10) 공통 상수/enum/struct 정의
- *  - E10_EliteAirMouse_0301.h 등에서 include 하여 사용
+ *  - HW GPIO 핀은 HW_Def_0412.h(SSOT)로 이관됨
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -45,26 +45,18 @@
 #include <Arduino.h>
 #include <string.h>
 
-// -------- 시스템 상수 --------
+// -------- 시스템 상수 (로직 전용) --------
 namespace E10_CONST {
-static constexpr int PIN_BTN_L = 12;
-static constexpr int PIN_BTN_R = 15;
-static constexpr int PIN_BTN_M = 16;
 
-static constexpr int PIN_BTN_MODE   = 13;
-static constexpr int PIN_BTN_SCROLL = 14;
-
-// class-static fixed pins (board wiring)
-static constexpr int PIN_I2C_SDA = 4;
-static constexpr int PIN_I2C_SCL = 5;
-
+// 센서 캘리브레이션
 static constexpr uint32_t CALIB_MS       = 1000;
 static constexpr float    CALIB_STILL_TH = 3.0f;
 
+// 이상치 감지
 static constexpr float SPIKE_TH_DEG = 650.0f;
 
+// 오류 이력 링버퍼
 static constexpr uint8_t ERR_HIST_CAP = 16;
-static constexpr uint8_t SPIKE_CAP    = 32;
 } // namespace E10_CONST
 
 enum EN_C10_KEYPAGE_t : uint8_t { EN_C10_KEYPAGE_KB = 0, EN_C10_KEYPAGE_CONSUMER = 1 };

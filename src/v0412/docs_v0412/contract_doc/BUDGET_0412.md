@@ -31,7 +31,7 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | `vTaskDelay` (키 스트로크 딜레이) | `commTask` (`_actExec`) | 최대 12~28 ms | 커서 프레임 전달 지연 | 매크로의 경우 `_tickMacro` 비동기 상태머신으로 완전 분리 (Zero Blocking) |
 | 프로파일 I/O (`LittleFS`) | `webTask` | ~35 ms | Web API 응답 지연 | Core 0 백그라운드 처리, sensorTask와 독립 |
 | Mutex 획득 (`_lock`) | `sensorTask` (`_state`) | 2 ms 제한 (`pdMS_TO_TICKS(2)`) | 초과 시 `_errMutexMiss` 증가 | 락 대기 시간 엄격 제한으로 센서 주기(8ms) 보장 |
-| `_holdAtBoot(E10_CONST::PIN_BTN_MODE, 6000)` | `setup()` (부팅 1회) | 최대 6000 ms | 부팅 지연 (런타임 무관) | Factory Reset 트리거. 조기 릴리즈 시 즉시 탈출 (`digitalRead != LOW` → return false) |
+| `_holdAtBoot(HW_DEF::PIN_BTN_SIDE_C, 6000)` | `setup()` (부팅 1회) | 최대 6000 ms | 부팅 지연 (런타임 무관) | Factory Reset 트리거. 조기 릴리즈 시 즉시 탈출 (`digitalRead != LOW` → return false) |
 | `_led.suspend(snap)` | `sensorTask` (sleep 진입) | 최대 ~700 ms (`led_fadeout_ms + 200ms`) | 센서 루프 지연, 이어서 즉시 sleep 진입 | LED RED fadeout 완료 대기. deadline 초과 시 강제 OFF. `_ledTask`(Core 0) 병렬 tick |
 | `_applyClickFreeze` / `_applySnapToAxis` (`_lock`) | `sensorTask` | ≤ 10 μs (락 짧음) | 없음 | config 스냅샷 read. switchProfile과의 race 방지 [R2-C-1]. recursive mutex 재진입 안전 |
 | `_prepareMpuWom` (I2C write 8회) | `sensorTask` | ~1 ms (`Wire` 400kHz + delay 2+5ms) | sleep 직전 1회 | 각 write 검증 실패 시 false 반환 → sleep 금지 [R2-M-2] |

@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0412` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0412/docs_v0412/contract_doc/CONTRACT_0412.md`
-> 최종 갱신: 2026-10-07 (rev6 — 웹 API 부분 패치 무결성 계약 및 enqueue 실패 안전망 현행화)
+> 최종 갱신: 2026-10-07 (rev7 — HW_Def SSOT, Momentary 액션 단발화 보정, Host Cycle 페어링 취소 연동 계약 반영)
 
 ---
 
@@ -26,7 +26,7 @@
 | `_tickMacro()` | `commTask` only | 매 프레임 논블로킹 호출 | 딜레이 경과 시 액션 실행, 스텝 전진 | 토큰 불일치(`_macroAbortToken`) 시 즉시 중단 + WARN 로그 |
 | `_resolveSlot(mode, trig)` | `sensorTask`, `commTask`, `webTask` | Read-only | 없음 (Global + Mode Override O(1) 해석) | 비정상 인덱스 시 `EN_C20_ACT_NONE` 반환 |
 | `switchProfile(idx)` | `webTask` only | 진행 중 재진입 차단 (`_cfgProfileValid`) | `_macroAbortToken++`, 큐 드레인, 리셋 위임, HID release | 전환 중이면 `false` 반환 및 조기 종료 |
-| `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링 시작, 캘리브레이션 요청 등 | 알 수 없는 코드 시 무시 |
+| `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링 시작, 캘리브레이션 요청, 호스트 순환 등 | 알 수 없는 코드 시 무시. **HOST_CYCLE 시 반드시 `_ble.exitPairing()` 선행 호출** [BB-2] |
 | `forceReleaseButtons()` | `any` (web, sensor, comm) | 논블로킹 | `_macroAbortToken++` + 상태 리셋 + `_qHidCmd`에 `RELEASE_ALL` 인큐 | **큐 Full 시 `_reqCommReleaseAll = true` 위임 + false 반환** (commTask 진입부에서 release 100% 보장) [R3-H-2/3] |
 | `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_lock()` 하 config 스냅샷 read + `_freezeState` 전이 | `motion_adv.click_freeze` 로컬 복사 (switchProfile과 race 방지) [R2-C-1] |
 | `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | `_lock()` 하 config 스냅샷 read + 활성 축 감쇠 | `motion_adv.snap` 로컬 복사 [R2-C-1] |
@@ -44,6 +44,18 @@
 | `_led.resume(snap)` | `sensorTask` only | **async** (즉시 리턴) | FADEIN 상태 진입 → `_ledTask`가 IDLE 전이 | sleep 복귀 직후. 원본 지속 상태(FLASH/BLINK)는 IDLE로 단순화 |
 | `_led.setFadeTimings(fo, fi)` | `webTask` (`_applyE10ToRuntime`) | 논블로킹 | fade 타이밍 주입 (0 → 1ms 방어) | – |
 
+> **하드웨어 핀 및 RTC 웨이크 마스크 SSOT 계약 (`HW_Def_0412.h`, rev7)**:
+> - 모든 GPIO 핀 번호(`PIN_BTN_*`, `PIN_I2C_*`, `PIN_LED_*`, `PIN_BATTERY_ADC`) 및 EXT1 RTC Deep Sleep Wakeup 마스크는 `HW_Def_0412.h`의 `HW_DEF` 네임스페이스를 **단일 진실 공급원(SSOT)**으로 삼는다.
+> - 타 모듈(`C20`, `L10`, `E10`, `P20`, `main.cpp`)에서 GPIO 핀 번호를 로컬 매크로나 독립 상수로 중복 정의하는 행위는 엄격히 금지된다.
+> - RTC Deep Sleep 웨이크업 마스크는 `HW_DEF::buildWakeMaskNormal()`(센서+버튼) 및 `HW_DEF::buildWakeMaskSafe()`(Side C 버튼 전용) constexpr 함수를 통해서만 획득해야 한다.
+
+> **순간(Momentary) 트리거 지속성 액션 단발화 계약 (rev7, BB-1)**:
+> - 순간 이벤트(`EVT_CLICK`, `EVT_DBLCLICK`, `EVT_LONGPRESS`)에 할당된 지속성 액션(`MOUSE_HOLD`, `KB_REPEAT`, `CONSUMER_REPEAT`)은 `_handleSlotButton()` 진입 시 단발 탭/클릭 액션(`MOUSE_CLICK`, `KB_TAP`, `CONSUMER_TAP`)으로 인플레이스(in-place) 정제(sanitization)된다.
+> - 정제된 액션은 `isDown = true`로 1회만 `_enqueueAction()`되며, 짝 맞춤 UP 이벤트가 발생하지 않는 순간 이벤트 특성상 키/버튼이 영구 홀드(Stuck) 상태에 빠지는 현상을 원천 방지한다.
+
+> **Side F 이벤트 소비 및 Front Hold 스크롤 계약 (rev7, BB-6)**:
+> - `BTN_SIDE_F`의 `EVT_DOWN` 및 `EVT_UP` 이벤트는 `_frontHoldActive` 플래그를 토글한 후 즉시 `return true`로 이벤트를 완전 소비한다.
+> - 이를 통해 Front Hold 조작 중 의도치 않은 슬롯 액션 디스패치를 방지하며, Side F의 `CLICK` 및 `LONGPRESS`만 등록된 슬롯 매핑으로 정상 전달된다.
 
 > **W10 → E10 호출 경로 (rev3)**:
 > - `W10.begin(cfg, e10if)`의 유일한 E10 진입은 **`_e10if` (`ST_W10_E10If_t` 함수 포인터 테이블)**.
@@ -257,3 +269,5 @@ commTask 매 루프 후반
 | rev3 | 2026-10-01 | **레거시 Hook 제거**: `E10_W10Apply` / `_applyFn` / `_applyCtx` 삭제. `W10.begin(cfg, e10if)` 2인자 시그니처. `_e10if` 경유 유일 원칙 명시 |
 | rev4 | 2026-10-02 | Dead Code 정리(A 카테고리), LED suspend blocking + resume async 계약 명시(B), `_whitelistActive` volatile(C-1) |
 | rev5 | 2026-10-02 | Round 2/3 조치: `forceReleaseButtons` enqueue 실패 안전망, `motion_adv` config 스냅샷 락, `_qFrame` gate 드레인, 캘리브 6버튼, `testMouseClick` 삭제, health_score 클램프 |
+| rev6 | 2026-10-07 | 웹 API (`/api/profiles/active`) 부분 패치 무결성 계약 및 enqueue 실패 안전망 현행화 |
+| rev7 | 2026-10-07 | 하드웨어 핀 SSOT (`HW_Def_0412.h`), Momentary 액션 단발화 보정(BB-1), Host Cycle 시 페어링 자동 취소(BB-2), Side F DOWN/UP 소비(BB-6) 계약 반영 |

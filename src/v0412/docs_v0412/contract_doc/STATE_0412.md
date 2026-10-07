@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0412` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0412/docs_v0412/contract_doc/STATE_0412.md`
-> 최종 갱신: 2026-10-02 (rev5 — Round 2/3 조치 반영)
+> 최종 갱신: 2026-10-07 (rev6 — Button Dispatcher resetButton 타임스탬프 리셋 규약 및 HW_Def SSOT 반영)
 
 ---
 
@@ -138,7 +138,7 @@
 
 ---
 
-### 2.7 Button Dispatcher Phase 전이 (rev5)
+### 2.7 Button Dispatcher Phase 전이 및 리셋 규약 (rev5, rev6)
 `PHASE_DOUBLE`은 Long/Hold 타이머 검사에서 **제외** [R2-M-1]. 이유: Side C Double(Mode Cycle) 후 계속 hold 시 Pairing/Host Cycle이 뒤이어 오발화하는 UX 문제 방지.
 | Phase | Long/Hold 검사 | Double 대기 | CLICK 발화 |
 |---|:---:|:---:|:---:|
@@ -146,6 +146,9 @@
 | `PHASE_PRESSED` | ✓ (`longFired`/`hold2sFired`/`hold3sFired`) | – | – |
 | `PHASE_WAIT_CLICK` | – | ✓ (`double_delay_ms`) | ✓ (타임아웃 시) |
 | `PHASE_DOUBLE` | **✗ (제외)** | – | – |
+
+> **`resetButton()` 타임스탬프 초기화 규약 (rev6, BB-3)**:
+> `_btnDisp.resetButton(idx)` 및 `resetAll()` 호출 시 상태 Phase(`PHASE_IDLE`) 및 발화 플래그(`longFired`, `hold2sFired`, `hold3sFired`, `downSent`)뿐만 아니라, **시간 계측 타임스탬프(`downMs = 0`, `upMs = 0`, `waitClickStartMs = 0`, `rawDownMs = 0`)를 전수 0으로 완전 초기화**한다. 이전 잔여 타임스탬프가 남아있을 경우 모드/프로파일 전환 직후 버튼 재조작 시 유령 더블클릭이나 의도치 않은 클릭 타임아웃이 발생하는 문제를 원천 방지한다.
 
 ---
 
@@ -177,3 +180,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev1 | 2026-10-01 | §2.5 Macro 대체/취소 정책 신설, §2.4 Macro FSM 개념적 서술 경고, `_topMDownMs` Dead Code 표기 |
 | rev4 | 2026-10-02 | LED suspend/resume FSM 상세화 (blocking/async 구분), Dead Code 정리 반영 |
 | rev5 | 2026-10-02 | motion_adv config 스냅샷 락 [R2-C-1], `_reqCommReleaseAll` 확장 소비자 [R3-H-2/3], PHASE_DOUBLE hold 제외 [R2-M-1] |
+| rev6 | 2026-10-07 | §2.7 `resetButton()` 타임스탬프(`downMs`, `upMs`, `waitClickStartMs`) 완전 초기화(BB-3) 및 HW_Def SSOT 반영 |

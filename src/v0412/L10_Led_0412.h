@@ -34,11 +34,12 @@
 #include <string.h>
 #include <new>
 #include <Adafruit_NeoPixel.h>
+#include "HW_Def_0412.h"
 
 // -------------------------------------------------------
-// GPIO
+// GPIO (HW_DEF 참조)
 // -------------------------------------------------------
-static constexpr int G_L10_PIN = 21;
+static constexpr int G_L10_PIN = HW_DEF::PIN_LED_WS2812;
 
 // -------------------------------------------------------
 // 논리 색상

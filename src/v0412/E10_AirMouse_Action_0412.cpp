@@ -127,11 +127,11 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
     if (p_btnId == EN_C20_BTN_SIDE_F) {
         if (p_evt == EN_C20_EVT_DOWN) {
             _frontHoldActive = true;
-            return false;   // CLICK/LONG 슬롯 정상 처리
+            return true;   // [BB-6 fix] 조기 소비 (슬롯 탐색 차단)
         }
         if (p_evt == EN_C20_EVT_UP) {
             _frontHoldActive = false;
-            return false;
+            return true;   // [BB-6 fix] 조기 소비
         }
         return false;
     }
@@ -149,7 +149,7 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
         if (e.evt   != p_evt)   continue;
 
         // [v0412] Global + Mode Override 기반 조회
-        const ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, e.trig);
+        ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, e.trig);
 
         if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
 
@@ -159,10 +159,20 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
             return;
         }
 
-        bool v_isDown = true;
-        if (p_evt == EN_C20_EVT_UP) v_isDown = false;
+        // [BB-1 fix] Momentary(CLICK, DOUBLE, LONG) 트리거에서 Hold/Repeat 액션은 단발 Tap으로 변환하여 stuck 방지
+        if (v_slot.kind == (uint8_t)EN_C20_ACT_MOUSE_HOLD) {
+            v_slot.kind     = (uint8_t)EN_C20_ACT_MOUSE_CLICK;
+            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+        } else if (v_slot.kind == (uint8_t)EN_C20_ACT_KB_REPEAT) {
+            v_slot.kind     = (uint8_t)EN_C20_ACT_KB_TAP;
+            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+        } else if (v_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
+            v_slot.kind     = (uint8_t)EN_C20_ACT_CONSUMER_TAP;
+            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+        }
 
-        (void)_enqueueAction(v_slot, v_isDown);
+        // [BB-5 cleanup] G_SLOT_MAP 이벤트는 모두 단발성이므로 isDown=true 전달
+        (void)_enqueueAction(v_slot, true);
         return;
     }
 }
@@ -216,6 +226,9 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
         }
         
         case EN_C20_SP_HOST_CYCLE: {
+            // [BB-2 안전망] 2초 시점에 진입한 Pairing 모드 해제
+            _ble.exitPairing();
+
             // [Phase 9] Multi-Host 순환 + 실제 재연결 (disconnect + 재광고)
             const uint8_t v_idx = _ble.cycleActivePeer();
             

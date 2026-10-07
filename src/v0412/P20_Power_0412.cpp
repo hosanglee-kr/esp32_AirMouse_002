@@ -7,6 +7,7 @@
 
 #include "D10_Logger_0412.h"
 #include "E10_Def_0412.h"
+#include "HW_Def_0412.h"
 
 // -------------------------------------------------------
 // MPU6050 register (raw I2C, driver 미경유)
@@ -37,19 +38,6 @@ static inline uint8_t mpuRd(uint8_t reg) {
 }
 
 // =======================================================
-// EXT1 wake mask (MPU INT + 6 버튼)
-//   모든 소스가 LOW active
-// =======================================================
-static constexpr uint64_t G_EXT1_MASK =
-    (1ULL << 6)  |   // MPU INT1
-    (1ULL << 7)  |   // Side R
-    (1ULL << 12) |   // Top L
-    (1ULL << 13) |   // Side C
-    (1ULL << 14) |   // Side F
-    (1ULL << 15) |   // Top R
-    (1ULL << 16);    // Top M
-
-// =======================================================
 // ctor / begin
 // =======================================================
 CL_P20_Power::CL_P20_Power() {
@@ -71,17 +59,13 @@ void CL_P20_Power::begin() {
     _idle           = false;
     _ext1Armed      = false;
 
-    // MPU INT / 버튼 모두 RTC 도메인 풀업 (light-sleep 중 유지)
-    rtc_gpio_pullup_en((gpio_num_t)6);
-    rtc_gpio_pulldown_dis((gpio_num_t)6);
+    // MPU INT / 버튼 모두 RTC 도메인 풀업 (light-sleep 중 유지, HW_DEF 참조)
+    rtc_gpio_pullup_en((gpio_num_t)HW_DEF::PIN_MPU_INT);
+    rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::PIN_MPU_INT);
 
-    const gpio_num_t v_btns[] = {
-        (gpio_num_t)7, (gpio_num_t)12, (gpio_num_t)13,
-        (gpio_num_t)14, (gpio_num_t)15, (gpio_num_t)16
-    };
-    for (auto p : v_btns) {
-        rtc_gpio_pullup_en(p);
-        rtc_gpio_pulldown_dis(p);
+    for (uint8_t i = 0; i < HW_DEF::BTN_COUNT; i++) {
+        rtc_gpio_pullup_en((gpio_num_t)HW_DEF::BTN_PINS[i]);
+        rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::BTN_PINS[i]);
     }
 
     D10_LOGI("[P20] begin: idle_timeout_m1=%ums", (unsigned)_cfg.idle_timeout_ms[0]);
@@ -181,7 +165,7 @@ void CL_P20_Power::_restoreMpuAfterWake() {
 // EXT1 wake arm
 // =======================================================
 void CL_P20_Power::_armExt1() {
-    esp_sleep_enable_ext1_wakeup(G_EXT1_MASK, ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_sleep_enable_ext1_wakeup(HW_DEF::buildWakeMaskAll(), ESP_EXT1_WAKEUP_ANY_LOW);
     _ext1Armed = true;
 }
 
@@ -217,7 +201,7 @@ bool CL_P20_Power::sleepNow(uint32_t p_nowMs) {
     _wakeCount++;
 
     if (v_cause == ESP_SLEEP_WAKEUP_EXT1) {
-        if (v_status & (1ULL << 6)) {
+        if (v_status & (1ULL << HW_DEF::PIN_MPU_INT)) {
             _lastWakeReason = EN_WAKE_MPU_MOTION;
         } else {
             _lastWakeReason = EN_WAKE_BUTTON;
@@ -248,11 +232,7 @@ bool CL_P20_Power::deepSleepNow(uint32_t p_nowMs, bool p_hidConnected, bool p_pa
     D10_LOGI("[P20] entering deep-sleep (idle=%ums)", (unsigned)(p_nowMs - _lastActivityMs));
 
     // 버튼 wake 만 유지 (MPU INT 제외, 6개 버튼)
-    const uint64_t v_btnMask =
-        (1ULL << 7)  | (1ULL << 12) | (1ULL << 13) |
-        (1ULL << 14) | (1ULL << 15) | (1ULL << 16);
-
-    esp_sleep_enable_ext1_wakeup(v_btnMask, ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_sleep_enable_ext1_wakeup(HW_DEF::buildWakeMaskButtons(), ESP_EXT1_WAKEUP_ANY_LOW);
     esp_deep_sleep_start();
     return true;
 }

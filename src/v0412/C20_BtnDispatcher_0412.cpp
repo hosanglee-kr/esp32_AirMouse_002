@@ -159,10 +159,13 @@ void CL_C20_BtnDispatcher::_emit(uint8_t p_btnId, uint8_t p_evt) {
 void CL_C20_BtnDispatcher::resetButton(uint8_t p_btnId) {
     if (p_btnId >= EN_C20_BTN_MAX) return;
     ST_BtnState_t& b = _btn[p_btnId];
-    b.phase          = PHASE_IDLE;
-    b.longFired      = false;
-    b.hold2sFired    = false;
-    b.hold3sFired    = false;
+    b.phase            = PHASE_IDLE;
+    b.downMs           = 0;    // [BB-3] 잔존 타임스탬프 방어 초기화
+    b.upMs             = 0;    // [BB-3]
+    b.waitClickStartMs = 0;    // [BB-3]
+    b.longFired        = false;
+    b.hold2sFired      = false;
+    b.hold3sFired      = false;
 
     // [I-4] Debounce 상태 초기화
     b.lastRawChangeMs = (uint32_t)millis();

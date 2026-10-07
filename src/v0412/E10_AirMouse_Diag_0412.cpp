@@ -2,6 +2,7 @@
 // File: E10_AirMouse_Diag_0412.cpp
 // =======================================================
 #include "E10_AirMouse_0412.h"
+#include "HW_Def_0412.h"
 
 // =======================================================
 // [C-2] errHist/spike 락 보호
@@ -35,22 +36,22 @@ void CL_E10_EliteAirMouse::_pushSpike(uint32_t p_tsMs) {
 // I2C recover
 // =======================================================
 bool CL_E10_EliteAirMouse::_recoverI2C() {
-    pinMode(E10_CONST::PIN_I2C_SDA, INPUT_PULLUP);
-    pinMode(E10_CONST::PIN_I2C_SCL, OUTPUT_OPEN_DRAIN);
+    pinMode(HW_DEF::PIN_I2C_SDA, INPUT_PULLUP);
+    pinMode(HW_DEF::PIN_I2C_SCL, OUTPUT_OPEN_DRAIN);
 
     for (int v_i = 0; v_i < 9; v_i++) {
-        digitalWrite(E10_CONST::PIN_I2C_SCL, HIGH);
+        digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
         delayMicroseconds(6);
-        digitalWrite(E10_CONST::PIN_I2C_SCL, LOW);
+        digitalWrite(HW_DEF::PIN_I2C_SCL, LOW);
         delayMicroseconds(6);
     }
-    digitalWrite(E10_CONST::PIN_I2C_SCL, HIGH);
+    digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
     delayMicroseconds(6);
 
     Wire.end();
     delay(5);
 
-    Wire.begin(E10_CONST::PIN_I2C_SDA, E10_CONST::PIN_I2C_SCL);
+    Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
     Wire.setClock(400000);
     delay(5);
 

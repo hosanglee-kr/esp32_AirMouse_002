@@ -32,20 +32,21 @@
 #include <string.h>
 
 #include "C20_Action_0412.h"
+#include "HW_Def_0412.h"
 
 class CL_C20_BtnDispatcher {
   public:
     // 이벤트 콜백: (ctx, btnId, evt)
     using EventCallback = void (*)(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
 
-    // GPIO 핀 (EN_C20_BtnId_t 순서와 1:1)
+    // GPIO 핀 (EN_C20_BtnId_t 순서와 1:1, HW_DEF SSOT 참조)
     static constexpr int G_PINS[EN_C20_BTN_MAX] = {
-        12, // TOP_L
-        16, // TOP_M
-        15, // TOP_R
-        14, // SIDE_F
-        13, // SIDE_C
-        7   // SIDE_R
+        HW_DEF::PIN_BTN_TOP_L,
+        HW_DEF::PIN_BTN_TOP_M,
+        HW_DEF::PIN_BTN_TOP_R,
+        HW_DEF::PIN_BTN_SIDE_F,
+        HW_DEF::PIN_BTN_SIDE_C,
+        HW_DEF::PIN_BTN_SIDE_R
     };
 
   private:

@@ -2,6 +2,7 @@
 // File: E10_AirMouse_Core_0412.cpp
 // =======================================================
 #include "E10_AirMouse_0412.h"
+#include "HW_Def_0412.h"
 
 // =======================================================
 // ctor / begin
@@ -19,7 +20,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _cfg     = p_cfg;
     _uptime0 = millis();
 
-    Wire.begin(E10_CONST::PIN_I2C_SDA, E10_CONST::PIN_I2C_SCL);
+    Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
     Wire.setClock(400000);
 
     if (!_mpu.begin()) {
@@ -29,13 +30,6 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
     _mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
     _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-
-    pinMode(E10_CONST::PIN_BTN_L,      INPUT_PULLUP);
-    pinMode(E10_CONST::PIN_BTN_R,      INPUT_PULLUP);
-    pinMode(E10_CONST::PIN_BTN_M,      INPUT_PULLUP);
-
-    pinMode(E10_CONST::PIN_BTN_MODE,   INPUT_PULLUP);
-    pinMode(E10_CONST::PIN_BTN_SCROLL, INPUT_PULLUP);
 
     // [C-2] recursive mutex (setSafeMode/setOtaGuard가 락 보유 중 _pushErr 재진입)
     _mutex = xSemaphoreCreateRecursiveMutex();
