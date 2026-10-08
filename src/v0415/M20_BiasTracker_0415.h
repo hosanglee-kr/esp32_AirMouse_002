@@ -10,27 +10,11 @@
  *  - 부팅 초기 캘리브레이션 결과를 seed로 받음
  *  - 상시 백그라운드 실행 (sensorTask)
  *
- * [알고리즘]
- *   1. raw gyro 합 벡터가 still_th 미만이면 "정지" 상태
- *   2. still_win_ms 연속 정지 유지 시 → bias 추종 시작
- *   3. bias ← bias + α × (raw - bias)
- *      - α 매우 작음 (0.001) → 드리프트만 서서히 흡수
- *      - 사용자 움직임은 반영 안 됨
- *
- * [튜닝 가이드]
- *   - still_th: 2.0 deg/s (사용자 손 안정도 감안)
- *   - still_win_ms: 250ms (순간 정지 오탐 방지)
- *   - α: 0.001 (매우 느림. 30초 정지 시 ~18% 수렴)
- * ------------------------------------------------------
- * [구현 규칙]
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - memset + strlcpy 기반 안전 초기화
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - 클래스명              : CL_모듈약어_ 접두사
- *   - 클래스 private 멤버   : _ 접두사
- *   - 함수 로컬 변수        : v_ 접두사
- *   - 함수 인자             : p_ 접두사
+ * [v0415 주요 변경]
+ *  - reset()이 fast recalib 상태까지 초기화 (Phase 4 L4-A3-08)
+ *    · wake 후 fast recalib 진행 중 사용자가 캘리브 요청 시
+ *      300ms 뒤 평균값이 bias를 덮어쓰는 문제 방지
+ *  - 매직 넘버 상수화 (15 샘플, 1.5 배수)
  * ------------------------------------------------------
  */
 
@@ -39,27 +23,25 @@
 
 class CL_M20_BiasTracker {
   private:
-    // Bias 값 (deg/s)
     float _biasX = 0.0f;
     float _biasY = 0.0f;
     float _biasZ = 0.0f;
 
-    // Config
-    float    _stillTh    = 2.0f;      // deg/s (합 벡터)
-    uint16_t _stillWinMs = 250;       // 연속 정지 시간
-    float    _alpha      = 0.001f;    // 추종 계수
+    float    _stillTh    = 2.0f;
+    uint16_t _stillWinMs = 250;
+    float    _alpha      = 0.001f;
 
-    // 런타임 상태
     uint32_t _stillStartMs = 0;
     bool     _stillActive  = false;
     bool     _seedSet      = false;
 
+    // [v0415] Fast recalib 상수
+    static constexpr uint16_t G_M20_FAST_RECALIB_MIN_SAMPLES = 15;   // ~120ms @8ms
+    static constexpr float    G_M20_FAST_RECALIB_STILL_MULT  = 1.5f; // stillTh × 1.5
+
   public:
     CL_M20_BiasTracker() {}
 
-    // ================================================
-    // Config
-    // ================================================
     void setConfig(float p_stillTh, uint16_t p_stillWinMs, float p_alpha) {
         _stillTh    = p_stillTh;
         _stillWinMs = p_stillWinMs;
@@ -70,9 +52,6 @@ class CL_M20_BiasTracker {
     uint16_t getStillWinMs() const { return _stillWinMs; }
     float    getAlpha()      const { return _alpha; }
 
-    // ================================================
-    // Bias 시드 (부팅 초기 캘리브 결과)
-    // ================================================
     void setBias(float p_x, float p_y, float p_z) {
         _biasX = p_x;
         _biasY = p_y;
@@ -82,31 +61,33 @@ class CL_M20_BiasTracker {
 
     bool hasSeed() const { return _seedSet; }
 
-    // 재캘리브레이션 (사용자 요청)
+    // --------------------------------------------------
+    // [v0415 L4-A3-08] reset — bias + still + fast recalib 전부 초기화
+    // --------------------------------------------------
     void reset() {
         _biasX = _biasY = _biasZ = 0.0f;
         _stillStartMs = 0;
         _stillActive  = false;
         _seedSet      = false;
+
+        // fast recalib 상태 초기화
+        _fastRecalibActive     = false;
+        _fastRecalibStartMs    = 0;
+        _fastRecalibDurationMs = 300;
+        _fastRecalibSumX = _fastRecalibSumY = _fastRecalibSumZ = 0.0f;
+        _fastRecalibCount      = 0;
     }
 
-    // ================================================
-    // Getter (bias-corrected 값 얻기)
-    // ================================================
     float x() const { return _biasX; }
     float y() const { return _biasY; }
     float z() const { return _biasZ; }
 
-    // 원시값 → 보정값
     float correctX(float p_raw) const { return p_raw - _biasX; }
     float correctY(float p_raw) const { return p_raw - _biasY; }
     float correctZ(float p_raw) const { return p_raw - _biasZ; }
 
     bool isStill() const { return _stillActive; }
 
-    // ================================================
-    // [Phase 11.6 / I-3] Sleep 후 Fast Recalibrate
-    // ================================================
     void startFastRecalibrate(uint16_t p_durationMs) {
         _fastRecalibActive     = true;
         _fastRecalibStartMs    = (uint32_t)millis();
@@ -117,16 +98,10 @@ class CL_M20_BiasTracker {
 
     bool isFastRecalibrating() const { return _fastRecalibActive; }
 
-    // ================================================
-    // 런타임 update (매 프레임)
-    //   p_rawX/p_rawY/p_rawZ: raw gyro (deg/s)
-    //   p_nowMs: millis()
-    // ================================================
     void update(float p_rawX, float p_rawY, float p_rawZ, uint32_t p_nowMs) {
-        // [I-3] Fast recalib 모드 (Sleep 복귀 후 단시간 집중 재수집)
         if (_fastRecalibActive) {
             const float v_mag = fabsf(p_rawX) + fabsf(p_rawY) + fabsf(p_rawZ);
-            if (v_mag < _stillTh * 1.5f) {
+            if (v_mag < _stillTh * G_M20_FAST_RECALIB_STILL_MULT) {
                 _fastRecalibSumX += p_rawX;
                 _fastRecalibSumY += p_rawY;
                 _fastRecalibSumZ += p_rawZ;
@@ -134,7 +109,7 @@ class CL_M20_BiasTracker {
             }
 
             if ((p_nowMs - _fastRecalibStartMs) >= _fastRecalibDurationMs) {
-                if (_fastRecalibCount >= 15) {  // 최소 15 샘플 (약 120ms)
+                if (_fastRecalibCount >= G_M20_FAST_RECALIB_MIN_SAMPLES) {
                     _biasX   = _fastRecalibSumX / _fastRecalibCount;
                     _biasY   = _fastRecalibSumY / _fastRecalibCount;
                     _biasZ   = _fastRecalibSumZ / _fastRecalibCount;
@@ -142,10 +117,9 @@ class CL_M20_BiasTracker {
                 }
                 _fastRecalibActive = false;
             }
-            return;   // 정규 bias 추종 skip
+            return;
         }
 
-        // 1) 정지 판정 (합 벡터 vs still_th)
         const float v_mag = fabsf(p_rawX) + fabsf(p_rawY) + fabsf(p_rawZ);
 
         if (v_mag < _stillTh) {
@@ -155,7 +129,7 @@ class CL_M20_BiasTracker {
                 return;
             }
             if ((p_nowMs - _stillStartMs) < _stillWinMs) return;
-            // 2) 추종 (정지 유지 중)
+
             _biasX += _alpha * (p_rawX - _biasX);
             _biasY += _alpha * (p_rawY - _biasY);
             _biasZ += _alpha * (p_rawZ - _biasZ);

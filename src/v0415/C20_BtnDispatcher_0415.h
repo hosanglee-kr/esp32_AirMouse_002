@@ -1,4 +1,3 @@
-// =======================================================
 // File: src/v0415/C20_BtnDispatcher_0415.h
 // =======================================================
 #pragma once
@@ -9,22 +8,16 @@
  * 모듈명 : Button Event Dispatcher (v0415)
  * ------------------------------------------------------
  * 기능 요약
- * - 6개 물리 버튼의 상태머신
- * - 이벤트 발생: DOWN / UP / CLICK / DOUBLE / LONG / HOLD_2S / HOLD_3S
- * - 디바운스 (20ms)
- * - Long 임계(800ms), Double 윈도우(300ms), Hold2s(2000ms), Hold3s(3000ms)
- * - 콜백 기반 (HID 없음; 순수 상태머신)
- * ------------------------------------------------------
- * [구현 규칙]
- * - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- * - memset + strlcpy 기반 안전 초기화
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- * - 클래스명 : CL_모듈약어_ 접두사
- * - 클래스 private 멤버 : _ 접두사
- * - 클래스 정적 멤버 : s_ 접두사
- * - 함수 로컬 변수 : v_ 접두사
- * - 함수 인자 : p_ 접두사
+ *  - 6개 물리 버튼의 상태머신
+ *  - 이벤트: DOWN / UP / CLICK / DOUBLE / LONG / HOLD_2S / HOLD_3S
+ *  - 비대칭 디바운스 (Press 32ms / Release 16ms)
+ *  - 2-Stage 하이브리드 판정 (시간 + 카운터)
+ *  - 콜백 기반 (HID 없음; 순수 상태머신)
+ *
+ * [v0415 주요 변경]
+ *  - setTimings 구버전 5-param 오버로드 삭제 (Phase 5 Q6-a)
+ *    · 사용처 없음 확인 (E10 Core만 8-param 사용)
+ *  - resetButton stableState/lastRaw 유지 정책 주석 강화 (Phase 5 Q4-b)
  * ------------------------------------------------------
  */
 
@@ -36,7 +29,6 @@
 
 class CL_C20_BtnDispatcher {
   public:
-    // 이벤트 콜백: (ctx, btnId, evt)
     using EventCallback = void (*)(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
 
     // GPIO 핀 (EN_C20_BtnId_t 순서와 1:1, HW_DEF SSOT 참조)
@@ -64,44 +56,51 @@ class CL_C20_BtnDispatcher {
         bool       stableState;
         bool       lastRaw;
         uint32_t   lastRawChangeMs;
-        uint8_t    stableCount; // [C-3] 연속 동일 raw 카운트
-        uint32_t   rawDownMs;   // [I-1, I-3] 최초 물리적 DOWN 시점
+        uint8_t    stableCount;
+        uint32_t   rawDownMs;
     };
 
     ST_BtnState_t _btn[EN_C20_BTN_MAX];
     EventCallback _cb  = nullptr;
     void*         _ctx = nullptr;
 
-    // 타이밍 (ms / ticks)
-    uint16_t _debouncePressMs   = 32;  // [C-1, C-4]
-    uint16_t _debounceReleaseMs = 16;  // [C-4]
-    uint16_t _longDelayMs       = 800; // [I-1]
-    uint16_t _doubleDelayMs     = 320; // [I-2]
+    // 타이밍 (config 연동)
+    uint16_t _debouncePressMs   = 32;
+    uint16_t _debounceReleaseMs = 16;
+    uint16_t _longDelayMs       = 800;
+    uint16_t _doubleDelayMs     = 320;
     uint16_t _hold2sMs          = 2000;
     uint16_t _hold3sMs          = 3000;
-    uint16_t _minClickMs        = 16; // [I-3]
-    uint8_t  _debounceMinTicks  = 3;  // [C-3]
+    uint16_t _minClickMs        = 16;
+    uint8_t  _debounceMinTicks  = 3;
 
   public:
     CL_C20_BtnDispatcher();
 
-    // 초기화: pinMode + state 초기화
     void begin();
 
-    // 콜백 등록
     void setCallback(EventCallback p_cb, void* p_ctx) {
         _cb  = p_cb;
         _ctx = p_ctx;
     }
 
-    // 매 프레임 호출 (sensorTask)
     void update();
 
-    // Mode 전환 등에서 상태 리셋 (진행 중 hold 정리)
+    // --------------------------------------------------
+    // [v0415] resetButton 정책 (Phase 5 Q4-b)
+    // --------------------------------------------------
+    //  - phase/downMs/upMs/waitClickStartMs/longFired/hold2sFired/hold3sFired
+    //    /stableCount/rawDownMs 초기화
+    //  - stableState/lastRaw는 물리 상태 반영을 위해 유지
+    //    (프로파일 전환 중 버튼 눌림 상태가 이어지면 debounce 정상 동작)
+    //  - lastRawChangeMs는 현재 시각으로 갱신 (타임아웃 즉시 발화 방지)
     void resetButton(uint8_t p_btnId);
     void resetAll();
 
-    // [Phase 11.7] 타이밍 조정 (config 연동)
+    // --------------------------------------------------
+    // [v0415] 타이밍 조정 (8-param 단일)
+    //   구버전 5-param 오버로드 삭제 (Phase 5 Q6-a)
+    // --------------------------------------------------
     void setTimings(uint16_t p_press,
                     uint16_t p_release,
                     uint16_t p_long,
@@ -118,11 +117,6 @@ class CL_C20_BtnDispatcher {
         _hold3sMs          = p_hold3s;
         _minClickMs        = p_minClick;
         _debounceMinTicks  = (p_minTicks < 1) ? 1 : p_minTicks;
-    }
-
-    // 구버전 오버로드 (호환성 유지)
-    void setTimings(uint16_t p_debounce, uint16_t p_long, uint16_t p_dbl, uint16_t p_hold2s, uint16_t p_hold3s) {
-        setTimings(p_debounce, p_debounce / 2, p_long, p_dbl, p_hold2s, p_hold3s, 16, 3);
     }
 
   private:

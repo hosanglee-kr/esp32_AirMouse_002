@@ -20,9 +20,8 @@ struct ST_SlotMapEntry_t {
 //   - Top L DOWN/UP/CLICK (Mouse Hold로 소비)
 //   - Top M DOWN/UP (Move Gate)
 //   - Side C DOUBLE/HOLD_2S/HOLD_3S
+//   - Side C LONG → 하드코딩 미처리 + 슬롯 미등록 → 무시 (Phase 6 L6g-A1-01)
 //   - Side F DOWN/UP (Front Hold)
-//
-// slotIdx → trig 로 재설계 (v0412)
 constexpr ST_SlotMapEntry_t G_SLOT_MAP[] = {
     // Top L (DOUBLE/LONG만)
     { EN_C20_BTN_TOP_L,  EN_C20_EVT_DOUBLE, EN_C10_TRIG_TOP_L_DOUBLE },
@@ -40,7 +39,7 @@ constexpr ST_SlotMapEntry_t G_SLOT_MAP[] = {
     { EN_C20_BTN_SIDE_F, EN_C20_EVT_CLICK,  EN_C10_TRIG_SIDE_F_CLICK },
     { EN_C20_BTN_SIDE_F, EN_C20_EVT_LONG,   EN_C10_TRIG_SIDE_F_LONG  },
 
-    // Side C (CLICK만)
+    // Side C (CLICK만 — DOUBLE/HOLD2S/HOLD3S는 하드코딩)
     { EN_C20_BTN_SIDE_C, EN_C20_EVT_CLICK,  EN_C10_TRIG_SIDE_C_CLICK },
 
     // Side R
@@ -56,6 +55,26 @@ constexpr ST_C20_ActionSlot_t G_SLOT_MOUSE_L_HOLD_CONST = {
     0
 };
 
+// =======================================================
+// [v0415] Momentary 액션 sanitization (BB-1)
+// -------------------------------------------------------
+//  순간 이벤트(CLICK/DOUBLE/LONG)에 매핑된 지속 액션을 단발로 변환.
+//  _handleSlotButton / _handleGesture 양쪽에서 사용.
+//  isDown=true 1회만 인큐되므로 UP 짝이 없어도 stuck 발생 안 함.
+// =======================================================
+void _sanitizeMomentarySlot(ST_C20_ActionSlot_t& p_slot) {
+    if (p_slot.kind == (uint8_t)EN_C20_ACT_MOUSE_HOLD) {
+        p_slot.kind     = (uint8_t)EN_C20_ACT_MOUSE_CLICK;
+        p_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+    } else if (p_slot.kind == (uint8_t)EN_C20_ACT_KB_REPEAT) {
+        p_slot.kind     = (uint8_t)EN_C20_ACT_KB_TAP;
+        p_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+    } else if (p_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
+        p_slot.kind     = (uint8_t)EN_C20_ACT_CONSUMER_TAP;
+        p_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
+    }
+}
+
 }  // namespace
 
 // =======================================================
@@ -70,6 +89,12 @@ const ST_C20_ActionSlot_t CL_E10_EliteAirMouse::G_SLOT_MOUSE_L_HOLD =
 bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt) {
 
     // ---------- Side C: 모드 전환 / 페어링 / 호스트 순환 ----------
+    //   DOUBLE   → Mode Cycle
+    //   HOLD_2S  → Pairing
+    //   HOLD_3S  → Host Cycle (BB-2: Pairing 자동 취소)
+    //   CLICK    → 슬롯 위임 (S11)
+    //   LONG     → 하드코딩 미처리 + 슬롯 미등록 → 무시 (Phase 6 L6g-A1-01)
+    //              (800ms EVT_LONG은 2000ms HOLD_2S 진입 과정에서 자연 발생)
     if (p_btnId == EN_C20_BTN_SIDE_C) {
         if (p_evt == EN_C20_EVT_DOUBLE) {
             const uint8_t v_next = (_activeMode % 3) + 1;
@@ -84,59 +109,59 @@ bool CL_E10_EliteAirMouse::_handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt
             _handleSpecial(EN_C20_SP_HOST_CYCLE);
             return true;
         }
-        // CLICK은 슬롯 매핑으로 위임
+        if (p_evt == EN_C20_EVT_LONG) {
+            // Phase 6 L6g-A1-01: 무시 (의도적)
+            return true;
+        }
+        // CLICK → 슬롯 매핑 위임
         return false;
     }
 
     // ---------- Top M: Move Gate (Hold) ----------
-    // [C-1 fix] CLICK/LONG은 슬롯 매핑(S4)에 위임. Mode 3 Enter는 S4의 Mode 3
-    //           기본값({k:4,p16:40})이 처리하므로 하드코딩 제거.
+    // [C-1 fix] CLICK/LONG은 슬롯 매핑(S4)에 위임
     if (p_btnId == EN_C20_BTN_TOP_M) {
         if (p_evt == EN_C20_EVT_DOWN) {
             _moveGateHeld = true;
-
             return true;
         }
         if (p_evt == EN_C20_EVT_UP) {
             _moveGateHeld = false;
             return true;
         }
-        // CLICK / LONG 등 나머지 이벤트 → 슬롯 매핑
+        // CLICK / LONG → 슬롯 매핑
         return false;
     }
-
 
     // ---------- Top L: 항상 마우스 좌클릭 (고정) ----------
     if (p_btnId == EN_C20_BTN_TOP_L) {
         if (p_evt == EN_C20_EVT_DOWN) {
-            _btnLDown = true;   // [Phase 1] Click-Freeze 판정용
+            _btnLDown = true;
             (void)_enqueueAction(G_SLOT_MOUSE_L_HOLD, true);
             return true;
         }
         if (p_evt == EN_C20_EVT_UP) {
-            _btnLDown = false;  // [Phase 1]
+            _btnLDown = false;
             (void)_enqueueAction(G_SLOT_MOUSE_L_HOLD, false);
             return true;
         }
         if (p_evt == EN_C20_EVT_CLICK) return true;
         return false;
     }
-    
+
     // ---------- Side F: Front Hold (스크롤 모드) ----------
-    // [Front Hold] DOWN/UP만 처리. CLICK/LONG은 슬롯 매핑(S9/S10)으로 위임.
+    // [BB-6] DOWN/UP만 처리 후 조기 소비. CLICK/LONG은 슬롯 매핑(S9/S10).
     if (p_btnId == EN_C20_BTN_SIDE_F) {
         if (p_evt == EN_C20_EVT_DOWN) {
             _frontHoldActive = true;
-            return true;   // [BB-6 fix] 조기 소비 (슬롯 탐색 차단)
+            return true;
         }
         if (p_evt == EN_C20_EVT_UP) {
             _frontHoldActive = false;
-            return true;   // [BB-6 fix] 조기 소비
+            return true;
         }
         return false;
     }
 
-    // 그 외는 슬롯 매핑
     return false;
 }
 
@@ -148,7 +173,6 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
         if (e.btnId != p_btnId) continue;
         if (e.evt   != p_evt)   continue;
 
-        // [v0412] Global + Mode Override 기반 조회
         ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, e.trig);
 
         if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
@@ -159,24 +183,14 @@ void CL_E10_EliteAirMouse::_handleSlotButton(uint8_t p_btnId, uint8_t p_evt) {
             return;
         }
 
-        // [BB-1 fix] Momentary(CLICK, DOUBLE, LONG) 트리거에서 Hold/Repeat 액션은 단발 Tap으로 변환하여 stuck 방지
-        if (v_slot.kind == (uint8_t)EN_C20_ACT_MOUSE_HOLD) {
-            v_slot.kind     = (uint8_t)EN_C20_ACT_MOUSE_CLICK;
-            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
-        } else if (v_slot.kind == (uint8_t)EN_C20_ACT_KB_REPEAT) {
-            v_slot.kind     = (uint8_t)EN_C20_ACT_KB_TAP;
-            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
-        } else if (v_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
-            v_slot.kind     = (uint8_t)EN_C20_ACT_CONSUMER_TAP;
-            v_slot.holdMode = (uint8_t)EN_C20_HOLD_NONE;
-        }
+        // [BB-1] Momentary sanitization (공통 헬퍼)
+        _sanitizeMomentarySlot(v_slot);
 
-        // [BB-5 cleanup] G_SLOT_MAP 이벤트는 모두 단발성이므로 isDown=true 전달
+        // G_SLOT_MAP 이벤트는 모두 단발성이므로 isDown=true 전달
         (void)_enqueueAction(v_slot, true);
         return;
     }
 }
-
 
 // =======================================================
 // 통합 콜백
@@ -204,39 +218,56 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             requestGyroCalibration();
             break;
 
-        case EN_C20_SP_SLEEP_NOW:
-            // Phase 8에서 실제 sleep 진입. 지금은 LED만 정리.
-            _led.off();
-            D10_LOGI("[E10] SP_SLEEP_NOW requested");
+        // ============================================================
+        // [v0415 Q4-a] SLEEP_NOW 즉시 진입
+        // ------------------------------------------------------------
+        //  이전 (v0412): _led.off() + 로그만 (실제 sleep 미진입 → idle 대기)
+        //  이후 (v0415): LED suspend → sleepNow 직접 호출 → LED resume + Fast Recalib
+        //
+        //  컨텍스트: sensorTask 단독 (_handleSlotButton/_handleGesture에서만 진입)
+        //  blocking: LED suspend ~700ms + sleepNow (wake까지 blocking)
+        //  wake 후: biasTracker Fast Recalib (온도 드리프트 흡수)
+        // ============================================================
+        case EN_C20_SP_SLEEP_NOW: {
+            CL_L10_Led::ST_LedSnapshot_t v_snap;
+            _led.suspend(v_snap);   // blocking fadeout RED
+
+            const bool v_safeOrPairing = (_safeMode || _ble.isPairing());
+            const bool v_didSleep = _power.sleepNow((uint32_t)millis(), v_safeOrPairing);
+
+            // wake 복귀 또는 실패 시 LED 원복
+            _led.resume(v_snap);
+
+            if (v_didSleep && _cfgProfileValid) {
+                _biasTracker.startFastRecalibrate(
+                    _cfgProfile.e10.power.fast_recalib_ms);
+            }
+
+            D10_LOGI("[E10] SP_SLEEP_NOW: didSleep=%d safeOrPair=%d",
+                     (int)v_didSleep, (int)v_safeOrPairing);
             break;
-    
+        }
 
         case EN_C20_SP_MODE_CYCLE:
             _setActiveMode((_activeMode % 3) + 1);
             break;
 
         case EN_C20_SP_PAIRING: {
-            // [Phase 10] Pairing Mode 진입
-            //  - 최대 3 peer까지 자동 추가 (NimBLE FIFO)
-            //  - 30초 타임아웃, 연결 시 자동 종료
             _ble.enterPairing(30000);
-            _led.blink(_led.getBaseColor(), 1000, 0);   // 현재 Mode 색 1Hz
+            _led.blink(_led.getBaseColor(), 1000, 0);
             D10_LOGI("[E10] SP_PAIRING → pairing mode");
             break;
         }
-        
+
         case EN_C20_SP_HOST_CYCLE: {
-            // [BB-2 안전망] 2초 시점에 진입한 Pairing 모드 해제
+            // [BB-2] 2초 시점에 진입한 Pairing 모드 해제
             _ble.exitPairing();
 
-            // [Phase 9] Multi-Host 순환 + 실제 재연결 (disconnect + 재광고)
             const uint8_t v_idx = _ble.cycleActivePeer();
-            
-            // 10초 재연결 윈도우
             const bool v_reconn = _ble.reconnectToActivePeer(10000);
 
             _led.flash(EN_L10_COLOR_WHITE, 500);
-        
+
             D10_LOGI("[E10] SP_HOST_CYCLE → peer=%u bond=%u reconnect=%d",
                      (unsigned)v_idx,
                      (unsigned)_ble.getBondCount(),
@@ -257,16 +288,15 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     // [Phase 8] Mode 전환은 활동
     _power.notifyActivity((uint32_t)millis());
-    
-    // [H-1] 매크로 취소 토큰 증가 + 상태머신 즉시 종료
+
+    // [H-1] 매크로 취소 토큰 + 상태머신 즉시 종료 (lock 하 원자화)
+    _lock();
     _macroAbortToken++;
     _macroState.active = false;
 
-    _lock();
     const uint8_t v_old = _activeMode;
     _activeMode = p_newMode;
 
-    // 프로파일 스냅샷에도 반영 (다음 저장 시 함께 저장됨)
     if (_cfgProfileValid) {
         _cfgProfile.e10.active_mode = p_newMode;
     }
@@ -274,50 +304,40 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     if (v_old == p_newMode) return;
 
-    // [R2-C-2] HID release는 큐 경유 (CONTRACT.md §4: _actExec는 commTask 단독 소유)
-    //   - 이전: _actExec.releaseAll() 직접 호출 → sensorTask에서 _mouse.mouseRelease 실행
-    //   - 이후: 아래 forceReleaseButtons()가 RELEASE_ALL enqueue → commTask가 실제 release 수행
-    //   - 순서: 매크로 토큰 abort(위) → 큐 드레인 없이 enqueue → 다음 commTask 루프에서 처리
-    
-    // 디스패처 상태 리셋 (클릭 대기 등)
+    // [R2-C-2] HID release는 큐 경유
     _btnDisp.resetAll();
-
-    
-    // [Phase 7] 제스처 상태 리셋
     _gesture.reset();
-    
+
     // [Front Hold] Mode 전환 시 스크롤 상태 리셋
     _frontHoldActive = false;
-    
+
     // [Phase 10] Mode 전환 시 pairing mode 취소
     if (_ble.isPairing()) {
         _ble.exitPairing();
-        _led.setModeColor(p_newMode);   // blink 종료 → base solid 복귀
+        _led.setModeColor(p_newMode);
     }
 
-
-    // FSM 리셋 (다음 프레임부터 새 모드로)
+    // FSM 리셋
     _precSub = EN_PREC_OFF;
-    
+
     // [Phase 3] Snap 상태 리셋
     _resetSnapState();
-    
+
     _precSmX = 0.0f;
     _precSmY = 0.0f;
 
-    // HID 상태 강제 초기화 (안전)
+    // HID 상태 강제 초기화
     (void)forceReleaseButtons();
 
     D10_LOGI("[E10] Mode changed: %u -> %u", (unsigned)v_old, (unsigned)p_newMode);
 
-    // LED: 새 모드 색 + 0.5초 흰색 flash
+    // LED: 새 모드 색 + 흰색 0.5초 flash
     _led.setModeColor(p_newMode);
     _led.flash(EN_L10_COLOR_WHITE, 500);
-
 }
 
 // =======================================================
-// Action 큐 enqueue (sensorTask → commTask)
+// Action 큐 enqueue
 // =======================================================
 bool CL_E10_EliteAirMouse::_enqueueAction(const ST_C20_ActionSlot_t& p_slot, bool p_isDown) {
     if (!_qActionExec) return false;
@@ -326,27 +346,21 @@ bool CL_E10_EliteAirMouse::_enqueueAction(const ST_C20_ActionSlot_t& p_slot, boo
     v_cmd.slot   = p_slot;
     v_cmd.isDown = p_isDown;
 
-    // timeout=0: sensorTask 블로킹 금지
     return (xQueueSend(_qActionExec, &v_cmd, 0) == pdTRUE);
 }
 
-
 // =======================================================
 // [Phase 7] 제스처 슬롯 발동
-//   group: 0=flick, 1=linear, 2=tilt
-//   dir  : EN_M30_Dir_t (0=LEFT, 1=RIGHT, 2=UP, 3=DOWN)
+// -------------------------------------------------------
+//  [v0415 Critical Fix — BB-1 확장 (Phase 6 L6g-A3-01)]
+//   - _handleSlotButton과 동일한 sanitization 적용
+//   - Tilt Hold를 KB_REPEAT로 매핑 시 키 stuck 방지
 // =======================================================
-
 void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
     if (p_dir > 3) return;
 
-    // [Phase 8] 제스처 = 활동
     _power.notifyActivity((uint32_t)millis());
 
-    // [v0412] group + dir → trigger 변환
-    //   group 0: FLICK  (15~18)
-    //   group 1: LINEAR (19~22)
-    //   group 2: TILT   (23~26)
     uint8_t v_trig = EN_C10_TRIG_MAX;
     switch (p_group) {
         case 0: v_trig = (uint8_t)(EN_C10_TRIG_FLICK_LEFT  + p_dir); break;
@@ -355,7 +369,7 @@ void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
         default: return;
     }
 
-    const ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, v_trig);
+    ST_C20_ActionSlot_t v_slot = _resolveSlot(_activeMode, v_trig);
 
     if (v_slot.kind == (uint8_t)EN_C20_ACT_NONE) return;
 
@@ -365,43 +379,65 @@ void CL_E10_EliteAirMouse::_handleGesture(uint8_t p_group, uint8_t p_dir) {
         return;
     }
 
-    // 제스처는 단발 (tap)
+    // [BB-1 확장] Momentary sanitization (제스처도 단발)
+    _sanitizeMomentarySlot(v_slot);
+
     (void)_enqueueAction(v_slot, true);
 }
 
 // =======================================================
 // [C-3/H-1/H-4] 매크로 서브시스템
-//  - commTask는 매 루프마다 _tickMacro()만 호출 (블로킹 없음)
-//  - delay는 상태머신으로 분리, 커서 프레임 처리 시간 확보
+// -------------------------------------------------------
+//  [v0415 정책]
+//   - _startMacro: _lock() 하 snapshot + state 초기화
+//     · active=true를 마지막에 write (다른 태스크가 snapshot을
+//       완전히 본 후 active를 관측하도록 순서 보장)
+//     · 컴파일러 재정렬 방지 (lock 경계)
+//   - _tickMacro: lock 없이 진행 (성능)
+//     · active/startToken read는 volatile로 원자
+//     · stepIdx/macroIdx/stepStartMs는 commTask 단독 write
+//     · 다른 태스크는 active만 read → 재정렬 영향 없음
+//   - switchProfile/_setActiveMode/forceReleaseButtons:
+//     _lock() 하 token++ + active=false
 // =======================================================
 
 void CL_E10_EliteAirMouse::_startMacro(uint8_t p_idx) {
-    // [a-2] 실행 중 매크로가 있으면 로그 (비동기 방식에서 조용히 대체되는 것 방지)
     if (_macroState.active) {
         D10_LOGW("[E10] macro replace: prev idx=%u step=%u",
                  (unsigned)_macroState.macroIdx,
                  (unsigned)_macroState.stepIdx);
     }
 
-    // H-4: 락 하에 검증 + 스냅샷 (실행 중 프로파일 변경에 안전)
+    // H-4: 락 하에 검증 + 스냅샷 + 상태 초기화 (재정렬 방지)
     _lock();
-    if (!_cfgProfileValid) { _unlock(); return; }
+
+    if (!_cfgProfileValid) {
+        _unlock();
+        D10_LOGW("[E10] macro start: profile not valid");
+        return;
+    }
     if (p_idx >= _cfgProfile.macros.count) {
         _unlock();
         D10_LOGW("[E10] macro index out of range: %u", (unsigned)p_idx);
         return;
     }
+
     _macroSnapshot = _cfgProfile.macros.macros[p_idx];
+
+    // state 초기화 (active는 마지막)
+    _macroState.macroIdx    = p_idx;
+    _macroState.stepIdx     = 0;
+    _macroState.stepStartMs = (uint32_t)millis();
+    _macroState.startToken  = _macroAbortToken;
+    _macroState.active      = true;   // ← 마지막 write
+
+    const uint8_t v_stepCount = _macroSnapshot.stepCount;
+    const char*   v_name      = _macroSnapshot.name;
+
     _unlock();
 
-    _macroState.active       = true;
-    _macroState.macroIdx     = p_idx;
-    _macroState.stepIdx      = 0;
-    _macroState.stepStartMs  = (uint32_t)millis();
-    _macroState.startToken   = _macroAbortToken;
-
     D10_LOGI("[E10] macro start: idx=%u name=%s steps=%u",
-             (unsigned)p_idx, _macroSnapshot.name, (unsigned)_macroSnapshot.stepCount);
+             (unsigned)p_idx, v_name, (unsigned)v_stepCount);
 }
 
 void CL_E10_EliteAirMouse::_tickMacro() {

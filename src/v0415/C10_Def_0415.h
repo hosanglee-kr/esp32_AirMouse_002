@@ -8,12 +8,24 @@
  * 모듈명 : Config Definitions (v0415 프로파일 + 매크로 + Global/Override)
  * ------------------------------------------------------
  * 기능 요약
- *  - 스키마 v5 (프로파일 × 매크로 × Global+Override 슬롯)
+ *  - 스키마 v411 (프로파일 × 매크로 × Global+Override 슬롯)
  *  - 트리거 라이브러리 (27개) + 잠금 플래그 (4개)
  *  - 매크로 자료구조 (8×8, delay ≤ 2000ms)
  *  - Profile 슬롯 매트릭스 (Global + Mode별 Override)
  *  - E10 파라미터 (modes 제외, 프로파일 단위 관리)
  *  - [Phase 1~3] Motion Advanced (Click-Freeze / EMA / Snap)
+ *
+ * [v0415 주요 변경]
+ *  - G_C10_CFG_VER: 410 → 411
+ *    · Consumer mask Descriptor 정합 (EN_C20_Consumer_t 전면 재정의)
+ *    · C10_Config_0415.cpp::_migrateProfileV410ToV411()에서 마이그레이션
+ *  - G_C10_CFG_VER_V410 상수 추가 (마이그레이션 감지용)
+ *  - TRIG_COUNT 상수 삭제 → EN_C10_TRIG_MAX 단독 사용 (SSOT)
+ *  - G_C10_FULL_OVERRIDE_MASK 상수 추가
+ *  - ST_C10_MacroStep_t 정렬 최적화 (_pad 제거, 16B → 12B)
+ *  - BOOT_PATH 경로: _0412 → _0415 bump
+ *  - PROFILES_DIR / PROFILE_ACTIVE: 버전-프리 유지
+ *    (스키마 버전은 JSON 내부 "ver" 필드로 관리)
  * ------------------------------------------------------
  */
 
@@ -23,10 +35,21 @@
 
 #include "C20_Action_0415.h"
 
-static constexpr uint16_t G_C10_CFG_VER = 415;
+// ======================================================
+// [v0415] 스키마 버전
+// ------------------------------------------------------
+//  - G_C10_CFG_VER       : 현재 스키마 (저장 시 이 값 기록)
+//  - G_C10_CFG_VER_V410  : legacy (로드 시 마이그레이션 트리거)
+// ------------------------------------------------------
+static constexpr uint16_t G_C10_CFG_VER      = 411;
+static constexpr uint16_t G_C10_CFG_VER_V410 = 410;
 
 namespace C10_DEF {
-    static constexpr uint8_t TRIG_COUNT  = 27;
+    // --------------------------------------------------
+    // 구조 크기 상수 (SSOT: EN_C10_TRIG_MAX)
+    //   - v0412의 C10_DEF::TRIG_COUNT는 삭제됨
+    //   - 실제 크기는 EN_C10_TRIG_MAX 사용
+    // --------------------------------------------------
     static constexpr uint8_t MODE_COUNT  = 3;
     static constexpr uint8_t PROFILE_MAX = 5;
 
@@ -36,6 +59,11 @@ namespace C10_DEF {
     static constexpr uint8_t  MACRO_NAME_LEN     = 16;
     static constexpr uint8_t  PROFILE_NAME_LEN   = 16;
 
+    // --------------------------------------------------
+    // 파일 경로
+    //   - PROFILES_DIR / PROFILE_ACTIVE: 버전-프리 (스키마는 JSON 내부 "ver")
+    //   - BOOT_PATH: v0415 신규 경로 (_0415 suffix)
+    // --------------------------------------------------
     static constexpr const char* PROFILES_DIR       = "/json/profiles";
     static constexpr const char* PROFILE_ACTIVE     = "/json/active_profile.json";
     static constexpr const char* PROFILE_ACTIVE_TMP = "/json/active_profile.json.tmp";
@@ -104,6 +132,13 @@ static constexpr bool G_C10_TRIG_LOCKED[EN_C10_TRIG_MAX] = {
     false, false, false, false,
     false, false, false, false
 };
+
+// ------------------------------------------------------
+// [v0415] Mode Override 완전 활성화 마스크
+//   - 27비트 전부 1 (Mode 1/2/3 기본값에서 사용)
+//   - 이전 v0412에서 0x07FFFFFFu 매직 넘버로 사용되던 값
+// ------------------------------------------------------
+static constexpr uint32_t G_C10_FULL_OVERRIDE_MASK = (1u << EN_C10_TRIG_MAX) - 1u;
 
 static inline const char* C10_TriggerName(uint8_t p_trig) {
     switch ((EN_C10_Trigger_t)p_trig) {
@@ -330,17 +365,25 @@ struct ST_C10_E10Config_t {
     ST_C10_ButtonConfig_t button;       // [Phase 11.7]
 };
 
-// 매크로 Step (16 Bytes)
+// =====================================================
+// [v0415] 매크로 Step (12 Bytes, 이전 16 Bytes)
+// ------------------------------------------------------
+//  v0412: kind(1) holdMode(1) delayMs(2) param16(2) _pad(2) param32(4) = 16B
+//  v0415: kind(1) holdMode(1) delayMs(2) param16(2) param32(4)         = 12B
+//         (_pad 제거, 구조체 정렬 최적화)
+//
+//  영향: 매크로 라이브러리 1개당 32B 절감 → 총 256B 절감
+//  JSON 직렬화는 필드별로 이루어지므로 무영향
+// =====================================================
 struct ST_C10_MacroStep_t {
     uint8_t  kind;       // 1~8 (Primitive만 허용)
     uint8_t  holdMode;   // 0=NONE, 1=PRESS, 2=REPEAT
     uint16_t delayMs;    // 0~2000 ms
     uint16_t param16;
-    uint16_t _pad;
     uint32_t param32;
 };
 
-// 매크로 개별 정의 (148 Bytes)
+// 매크로 개별 정의 (12 + 3 + 8*12 = 111B, alignment 4 → 112B)
 struct ST_C10_Macro_t {
     char     name[C10_DEF::MACRO_NAME_LEN];
     uint8_t  stepCount;
@@ -348,7 +391,7 @@ struct ST_C10_Macro_t {
     ST_C10_MacroStep_t steps[C10_DEF::MACRO_STEP_MAX];
 };
 
-// 프로파일 매크로 라이브러리 (1188 Bytes)
+// 프로파일 매크로 라이브러리 (4 + 8*112 = 900B)
 struct ST_C10_MacroLib_t {
     uint8_t  count;
     uint8_t  _pad[3];

@@ -1,39 +1,52 @@
 // =======================================================
-// File: E10_AirMouse_0415.h
+// File: src/v0415/E10_AirMouse_0415.h
 // =======================================================
 #pragma once
 /*
- * (022 구조 유지 가정)
- * v0272~0301:
- *  - Motion FSM 강화(Scroll/PPT/Precision)
- *  - Precision FSM: entry/track/exit + profile(joystick-like)
- *  - HID modifier 정책 확정: mod mask == HID modifier byte (W10와 1:1)
- *  - status: gyro/cursor RMS + spike + consecutive fail + err hist + i2c recover
+ * ------------------------------------------------------
+ * 소스명 : E10_AirMouse_0415.h
+ * 모듈약어 : E10
+ * 모듈명 : Elite AirMouse - 통합 클래스 선언
+ * ------------------------------------------------------
+ * 기능 요약
+ *  - 3-Mode AirMouse + 다중 프로파일 + 매크로 라이브러리
+ *  - BLE HID Composite (Mouse + Keyboard + Consumer)
+ *  - Motion Advanced (Click-Freeze / Adaptive EMA / Snap-to-Axis)
+ *  - P20 전원 관리 연동 (Safe/Pairing Wake Mask)
+ *  - C20 버튼 타이밍 + Special Action 라우팅
  *
- * [Phase 1]
- *  - C-1: sensorTask 정상 경로에서 _pushFrame() 호출 (HID 전달 큐 활성화)
- *  - C-2: _pushErr/_pushSpike 락 보호 + recursive mutex
- *  - C-5: 캘리브 중 프레임 유지(강제 릴리즈 + 버튼 샘플링)
+ * [v0415 주요 변경]
+ *  - 파일명/심볼 접미사: _0412 → _0415
+ *  - A40_ComFunc 삭제 반영 → D10_Logger_0415.h 직접 include
+ *  - forceReleaseAllButtons() 삭제 (Phase 6 Q7-a)
+ *    · 단일 API(forceReleaseButtons)로 통합
+ *  - _thLed 멤버 추가 (Phase 6 L6a-A1-02) — LED 태스크 스택 관측
+ *  - EN_E10_HidCmd_t::holdMs 삭제 (Phase 8 L8c-04, Dead)
+ *    · TEST_CLICK 삭제(rev5) 이후 미사용
+ *  - _modeToggleCooldownMs / _lastModeToggleMs 삭제 (Phase 6 L6a-A4-03)
+ *    · _fsmUpdate의 p_btnModeLongToggle 분기가 Dead (Phase 6 L6d-A1-01)
+ *  - _macroState 정책 주석 강화 (Round I/J에서 lock 적용)
+ *  - HW_Def_0415.h SSOT 참조
  *
- * [Phase 2]
- *  - C-3: HID 실행을 commTask 단독으로 (웹/sensor는 _qHidCmd enqueue)
- *  - H-2: forceReleaseButtons/forceReleaseAllButtons 통일
- *  - H-4: testPptKey2/testMouseClick 논블로킹
- *
- * [Phase 3]
- *  - H-3: setDpiLevel/setPrecisionMode/setHardClickLock RMW 원자화
- *  - C-4: sensorTask loop 시작에 motion-critical config 스냅샷
- *
- * [Phase 4]
- *  - M-2: _recoverI2C 카운터 락 통일
- *  - M-4: SAFE/OTA gate 진입·이탈 전용 에러코드 (E10_Def_0415.h)
- *
- * [분할]
- *  - E10_AirMouse_Core_0415.cpp   : 초기화/런타임 적용
- *  - E10_AirMouse_Hid_0415.cpp    : HID 출력/테스트/강제 릴리즈
- *  - E10_AirMouse_Motion_0415.cpp : precision/FSM
- *  - E10_AirMouse_Diag_0415.cpp   : 진단/캘리브/status
- *  - E10_AirMouse_Task_0415.cpp   : sensorTask / commTask
+ * [참고]
+ *  - E10 7파일 분할 (Core/Hid/Motion/Diag/Task/Action + .h)
+ *  - 태스크 소유권/큐 계약은 CONTRACT_0415.md 준수
+ * ------------------------------------------------------
+ * [구현 규칙]
+ *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
+ *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
+ *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - JsonDocument 단일 타입만 사용
+ *  - createNestedArray/Object/containsKey 사용 금지
+ *  - memset + strlcpy 기반 안전 초기화
+ * ------------------------------------------------------
+ * [코드 네이밍 규칙]
+ *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
+ *   - 클래스 private 멤버   : _ 접두사
+ *   - 클래스 정적 멤버      : s_ 접두사
+ *   - 함수 로컬 변수        : v_ 접두사
+ *   - 함수 인자             : p_ 접두사
+ * ------------------------------------------------------
  */
 
 #include <Arduino.h>
@@ -47,23 +60,21 @@
 #include <KeyboardDevice.h>
 #include <MouseDevice.h>
 
-#include "A40_ComFunc_0415.h"
+// [v0415] A40_ComFunc_0412.h 삭제 → D10_Logger_0415.h 직접 include
+#include "D10_Logger_0415.h"
 #include "C10_Config_0415.h"
-#include "M10_MotionProc_0415.h"
-
 #include "E10_Def_0415.h"
+#include "HW_Def_0415.h"
 
+#include "M10_MotionProc_0415.h"
 #include "M20_BiasTracker_0415.h"
+#include "M30_Gesture_0415.h"
 
 #include "C20_BtnDispatcher_0415.h"
 #include "C20_ActionExec_0415.h"
 
-#include "M30_Gesture_0415.h"
-
 #include "B20_Ble_0415.h"
-
 #include "P20_Power_0415.h"
-
 #include "L10_Led_0415.h"
 
 
@@ -80,13 +91,13 @@ class CL_E10_EliteAirMouse {
 
     ST_E10_State_t _state;
 
-    // safe mode gate
+    // Safe mode gate
     volatile bool _safeMode = false;
 
     SemaphoreHandle_t _mutex = nullptr;
 
     // ----------------------------------------------------
-    // Frame Queue (sensor -> comm)
+    // Frame Queue (sensor → comm)
     // ----------------------------------------------------
     typedef struct ST_E10_Frame_t {
         int16_t x;
@@ -100,9 +111,12 @@ class CL_E10_EliteAirMouse {
     QueueHandle_t _qFrame = nullptr;
 
     // ----------------------------------------------------
-    // HID Command Queue (Phase 2: C-3 / H-2 / H-4)
-    // - 웹/sensor 태스크가 _mouse/_keyboard를 직접 만지지 않는다
-    // - commTask가 유일한 HID 실행자
+    // HID Command Queue
+    //  - 웹/sensor 태스크가 _mouse/_keyboard를 직접 만지지 않는다
+    //  - commTask가 유일한 HID 실행자
+    //
+    // [v0415] holdMs 필드 삭제 (Phase 8 L8c-04)
+    //   - TEST_CLICK 삭제(rev5) 이후 미사용
     // ----------------------------------------------------
     enum EN_E10_HidCmd_t : uint8_t {
         EN_E10_HIDCMD_NONE        = 0,
@@ -114,16 +128,16 @@ class CL_E10_EliteAirMouse {
         uint8_t  cmd;
         uint8_t  arg0;    // mouse mask or key page
         uint8_t  arg1;    // key mod
-        uint16_t holdMs;  // TEST_CLICK hold
         uint32_t code;    // TEST_PPT code
+        // [v0415 삭제] uint16_t holdMs; — TEST_CLICK 삭제 이후 Dead
     } ST_E10_HidCmd_t;
 
     QueueHandle_t _qHidCmd = nullptr;
 
-    // gyro calib
-    bool  _gyroCalibDone = false;
+    // Gyro calib
+    bool _gyroCalibDone = false;
 
-    // runtime config (applied)
+    // Runtime config (applied)
     volatile bool _isPptMode = false;
     int           _dpiLevel  = 2;
     bool          _hardClickLock = true;
@@ -140,16 +154,16 @@ class CL_E10_EliteAirMouse {
 
     float _scrollCursorDamp = 0.25f;
 
-    // precision config + fsm knobs
+    // Precision config + FSM knobs
     uint8_t _precision_mode = (uint8_t)EN_C10_E10_PREC_OFF;
 
-    float   _precDeadzone    = 1.2f;
-    float   _precGain        = 0.65f;
-    float   _precAccel       = 0.25f;
-    uint8_t _precMaxStep     = 18;
-    float   _precSmooth      = 0.85f;
-    float   _precSmX         = 0.0f;
-    float   _precSmY         = 0.0f;
+    float    _precDeadzone    = 1.2f;
+    float    _precGain        = 0.65f;
+    float    _precAccel       = 0.25f;
+    uint8_t  _precMaxStep     = 18;
+    float    _precSmooth      = 0.85f;
+    float    _precSmX         = 0.0f;
+    float    _precSmY         = 0.0f;
     uint16_t _precEntryMs       = 180;
     uint16_t _precExitMs        = 160;
     float    _precEntryStillDeg = 2.2f;
@@ -158,36 +172,40 @@ class CL_E10_EliteAirMouse {
 
     // ====================================================
     // 활성 프로파일 스냅샷
-    //   _cfgProfile.e10    : E10 파라미터 (기존 _cfgE10Runtime에 해당)
+    //   _cfgProfile.e10    : E10 파라미터
     //   _cfgProfile.slots  : Global + Mode Override 슬롯 매트릭스
     //   _cfgProfile.macros : 매크로 라이브러리 (최대 8×8)
     // ====================================================
     ST_C10_ProfileConfig_t _cfgProfile;
     bool                   _cfgProfileValid = false;
 
-    // [C-3/H-1] 매크로 상태머신 + 취소 토큰
-    //  - _macroAbort(bool) → _macroAbortToken(uint32)로 변경 (재실행 초기화 경합 제거)
-    //  - commTask 블로킹 제거: 스텝 단위 상태머신
+    // ====================================================
+    // [H-1] 매크로 상태머신 + 취소 토큰
+    // ----------------------------------------------------
+    // [v0415 정책 강화 — Round I/J에서 lock 적용]
+    //   - active는 writer 3 태스크(sensor/comm/web) → volatile 필요
+    //   - 나머지 필드는 commTask(단일 writer)이지만, 컴파일러 재정렬 방어 및
+    //     sensor/web 태스크의 관측(active 여부)과의 일관성을 위해
+    //     Round I/J에서 _lock() 하에 전체 갱신하도록 리팩터 예정
+    //   - 현재 헤더는 선언만 유지 (사용부에서 정책 적용)
+    // ====================================================
     volatile uint32_t _macroAbortToken = 0;
-    
+
     struct ST_MacroState_t {
-        // [a-1] 다중 태스크(sensor/comm/web)에서 write됨 → volatile 명시
-        //       (실제 취소 판정은 _macroAbortToken 카운터가 담당)
-        volatile bool active;
-        uint8_t  macroIdx;
-        uint8_t  stepIdx;
-        uint32_t stepStartMs;
-        uint32_t startToken;
+        volatile bool active;      // 다중 태스크 접근
+        uint8_t  macroIdx;          // commTask 단일 write (lock 예정)
+        uint8_t  stepIdx;           // commTask 단일 write (lock 예정)
+        uint32_t stepStartMs;       // commTask 단일 write (lock 예정)
+        uint32_t startToken;        // commTask 단일 write (lock 예정)
     };
     ST_MacroState_t _macroState = {};
 
     // [H-4] 실행 시점 매크로 스냅샷 (락 유지 시간 최소화 + OOB 방지)
     ST_C10_Macro_t _macroSnapshot = {};
-    
+
     // [H-3] 리셋 위임 플래그
     volatile bool _reqResetBtnDisp = false;
     volatile bool _reqResetGesture = false;
-    
 
     float    _tempC   = 0.0f;
     uint32_t _uptime0 = 0;
@@ -195,6 +213,8 @@ class CL_E10_EliteAirMouse {
 
     TaskHandle_t _thSensor = nullptr;
     TaskHandle_t _thComm   = nullptr;
+    // [v0415] LED 태스크 핸들 추가 (Phase 6 L6a-A1-02)
+    TaskHandle_t _thLed    = nullptr;
 
     uint32_t _stackSensorMinWords = 0;
     uint32_t _stackCommMinWords   = 0;
@@ -208,11 +228,11 @@ class CL_E10_EliteAirMouse {
 
     uint32_t _failsafeReleaseCount = 0;
 
-    // mode toggle cooldown
-    uint32_t _lastModeToggleMs = 0;
-    uint16_t _modeToggleCooldownMs = 1500;
+    // [v0415 삭제] _lastModeToggleMs / _modeToggleCooldownMs
+    //   - _fsmUpdate의 p_btnModeLongToggle 분기가 Dead (Phase 6 L6d-A1-01)
+    //   - Round K에서 _fsmUpdate 정리와 함께 완전 삭제
 
-    // errors
+    // Errors
     uint32_t _errMpuNan      = 0;
     uint32_t _errMutexMiss   = 0;
     uint32_t _errTaskOverrun = 0;
@@ -226,16 +246,16 @@ class CL_E10_EliteAirMouse {
     double   _curMean = 0.0;
     double   _curM2   = 0.0;
 
-    // i2c recover
+    // I2C recover
     uint32_t _i2cRecoverCount  = 0;
     bool     _i2cRecoverLastOk = true;
 
-    // history ring
+    // History ring
     ST_E10_ErrEvt_t _errHist[E10_CONST::ERR_HIST_CAP];
     uint8_t         _errHistHead  = 0;
     uint8_t         _errHistCount = 0;
 
-    // anomaly ring
+    // Anomaly ring
     ST_E10_SpikeEvt_t _spikes[32];
     uint8_t           _spikeHead  = 0;
     uint8_t           _spikeCount = 0;
@@ -253,14 +273,14 @@ class CL_E10_EliteAirMouse {
     uint32_t      _otaGuardCount = 0;
     uint32_t      _otaGuardT0Ms  = 0;
 
-    // async requests
+    // Async requests
     volatile bool    _reqGyroCalib      = false;
     volatile bool    _reqI2CRecover     = false;
     volatile bool    _reqClearDiag      = false;
-    volatile uint8_t _reqSpecialAction  = 0;      // [REQ-FIX-02] Special action delegation (Web -> sensorTask)
-    volatile bool    _reqCommReleaseAll = false;  // [REQ-FIX-03] HID release delegation (Profile switch -> commTask)
-    
-    // [Phase 10] config 저장 필요 플래그 (main loop에서 처리)
+    volatile uint8_t _reqSpecialAction  = 0;
+    volatile bool    _reqCommReleaseAll = false;
+
+    // config 저장 필요 플래그
     //   - set: tickConfigSave() 내부에서 _ble.consumeDirty() 결과로만 true
     //   - clear: tickConfigSave() 저장 완료 시 false
     //   - 외부에서 직접 set 금지 (single-writer 원칙)
@@ -270,27 +290,27 @@ class CL_E10_EliteAirMouse {
     // [Phase 6-J] LED 컨트롤러
     // ====================================================
     CL_L10_Led _led;
-    
+
     // ====================================================
-    // [Phase 10] BLE Manager (Pairing / Bonds)
+    // [Phase 10] BLE Manager
     // ====================================================
-    CL_B20_Ble           _ble;
-    
+    CL_B20_Ble _ble;
+
     // ====================================================
-    // [Phase 8 / 11.6] Power Manager (Light-sleep + WoM)
+    // [Phase 8 / 11.6] Power Manager
     // ====================================================
-    CL_P20_Power         _power;
-    volatile bool        _powerNotifyPending = false;   // [C-1] 커서 이동 deferred activity
+    CL_P20_Power  _power;
+    volatile bool _powerNotifyPending = false;
 
     // ====================================================
     // [Phase 4] Zero-rate Bias Tracker
     // ====================================================
-    CL_M20_BiasTracker   _biasTracker;
-    
+    CL_M20_BiasTracker _biasTracker;
+
     // ====================================================
-    // [Phase 7] 제스처 감지기 (Flick / Linear / Tilt)
+    // [Phase 7] 제스처 감지기
     // ====================================================
-    CL_M30_Gesture       _gesture;
+    CL_M30_Gesture _gesture;
 
     // ====================================================
     // [Phase 5] 버튼 디스패처 + 액션 실행기
@@ -310,10 +330,10 @@ class CL_E10_EliteAirMouse {
 
     // Move Gate 상태 (Top M Hold 중 true)
     volatile bool _moveGateHeld = false;
-    
+
     // [Front Hold] Side F 누름 중 true → 스크롤 모드
     volatile bool _frontHoldActive = false;
-    
+
     // ====================================================
     // [Phase 1] Click-Freeze FSM
     // ====================================================
@@ -349,8 +369,6 @@ class CL_E10_EliteAirMouse {
     // 하드코딩 액션 (자주 쓰는 슬롯)
     static const ST_C20_ActionSlot_t G_SLOT_MOUSE_L_HOLD;
 
-
-
   public:
     CL_E10_EliteAirMouse();
 
@@ -374,9 +392,10 @@ class CL_E10_EliteAirMouse {
     bool requestI2CRecover();
     bool clearDiagnostics();
 
-    // [H-2] 공개 API는 동일 동작(호환용 alias). 모두 enqueue.
+    // -------- HID 안전 Release (W10/switchProfile 등에서 호출) --------
+    // [v0415] forceReleaseAllButtons() 삭제 (Phase 6 Q7-a 확정)
+    //   - 호출처 없음 확인 → 단일 API로 통합
     bool forceReleaseButtons();
-    bool forceReleaseAllButtons();
 
     // -------- test --------
     bool testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
@@ -384,8 +403,8 @@ class CL_E10_EliteAirMouse {
     // ====================================================
     // Profile 관리
     // ====================================================
-    bool reloadActiveProfile();          // LittleFS → _cfgProfile 재로드 + 런타임 반영
-    bool saveActiveProfile();            // 런타임 → _cfgProfile → LittleFS 저장
+    bool reloadActiveProfile();
+    bool saveActiveProfile();
 
     bool getActiveProfileInfo(uint8_t& p_outIdx, uint8_t& p_outCount,
                               char* p_outName, size_t p_outNameSize);
@@ -393,23 +412,21 @@ class CL_E10_EliteAirMouse {
     // 프로파일 전환 (안전 처리: 매크로 abort, 액션/repeat 해제, HID release)
     bool switchProfile(uint8_t p_idx);
 
-    // [v0412] 매크로 개수 (status 노출용, 읽기 전용)
     uint8_t getMacroCount() const;
 
     // ====================================================
-    // [v0412] Live Test (단일 액션 즉시 실행)
+    // Live Test (단일 액션 즉시 실행)
     //   - SPECIAL: sensorTask 즉시 (동기)
     //   - MACRO / 기타: 큐 경유 (비동기)
     // ====================================================
     bool execLiveTest(uint8_t p_kind, uint8_t p_hMode,
                       uint16_t p_p16, uint32_t p_p32);
-    
+
     // ====================================================
-    // [Phase 10] main loop에서 호출 (200ms cadence)
+    // main loop에서 호출 (200ms cadence)
     //   - BLE dirty 플래그 → config 저장
     // ====================================================
     void tickConfigSave();
-
 
   private:
     // -----------------------
@@ -419,19 +436,15 @@ class CL_E10_EliteAirMouse {
     void _snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out);
     void _applyE10ToRuntime(const ST_C10_E10Config_t& p_e);
 
-    // [v0412] 활성 프로파일 로드/저장 (LittleFS)
     bool _reloadActiveProfile();
     bool _saveActiveProfile();
 
-    // [v0412] Global + Mode Override 슬롯 조회 (O(1))
-    //   p_mode: 1~3, p_trig: EN_C10_Trigger_t (0~26)
     ST_C20_ActionSlot_t _resolveSlot(uint8_t p_mode, uint8_t p_trig) const;
 
-    // 매크로 실행기 
-    // C-3: 매크로 상태머신
+    // 매크로 실행기 (commTask, 스텝 단위 상태머신)
     void _startMacro(uint8_t p_idx);
     void _tickMacro();
-    
+
     // [H-3] 락 보유 상태에서 실행. caller가 _lock() 잡고 호출.
     void _applyRuntimeLocked(const ST_C10_E10Config_t& p_e);
 
@@ -442,7 +455,7 @@ class CL_E10_EliteAirMouse {
     void _tapUsageKb(uint8_t p_usage, uint16_t p_ms = 12);
     void _tapConsumerMask(uint32_t p_mask, uint16_t p_ms = 28);
     void _sendPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code);
-    
+
     // ---- HID cmd queue (producer: any task) ----
     bool _enqueueHidCmd(const ST_E10_HidCmd_t& p_cmd);
 
@@ -454,19 +467,27 @@ class CL_E10_EliteAirMouse {
     // Motion helpers
     // -----------------------
     void _applyPrecision(float& p_fx, float& p_fy);
-    void _fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle, float p_gyroAbs);
+    
+
+    // [v0415] FSM Dead 분기 정리 (Phase 6 L6d-A1-01)
+    //   - p_btnScroll / p_btnModeLongToggle 인자 삭제
+    //   - FSM 판정은 _activeMode == 2 (PPT) 로 일원화
+    //   - SCROLL 상태는 폐기 (제스처 Phase 7에서 재설계됨)
+    void _fsmUpdate(float p_gyroAbs);
+
+    
     void _applyClickFreeze(float& p_fx, float& p_fy,
                            float p_rawDx, float p_rawDy,
                            float p_gyroAbs,
-                           bool  p_btnDown);       // [Phase 1]
-    void _applySnapToAxis(float& p_fx, float& p_fy);   // [Phase 3]
+                           bool  p_btnDown);
+    void _applySnapToAxis(float& p_fx, float& p_fy);
 
     void _resetSnapState() {
         _snapActiveAxis      = E10_SNAP_NONE;
         _snapCandidate       = E10_SNAP_NONE;
         _snapCandidateFrames = 0;
     }
-    
+
     // -----------------------
     // Diagnostics helpers
     // -----------------------
@@ -489,7 +510,6 @@ class CL_E10_EliteAirMouse {
     }
 
     void _lock() {
-        // [C-2] recursive mutex
         if (_mutex) (void)xSemaphoreTakeRecursive(_mutex, portMAX_DELAY);
     }
 
@@ -517,30 +537,30 @@ class CL_E10_EliteAirMouse {
         if (v_var < 0.0) v_var = 0.0;
         return (float)sqrt(v_var);
     }
-    
+
     static void _ledTask(void* p_pv);
-    
+
     // ====================================================
     // [Phase 5 / 11.6] Action & Power 콜백
     // ====================================================
     static void _onBtnEvent(void* p_ctx, uint8_t p_btnId, uint8_t p_evt);
-    static void _onPowerWake(void* p_ctx);   // [Phase 11.6 / C-3]
-    
+    static void _onPowerWake(void* p_ctx);
+
     bool _enqueueAction(const ST_C20_ActionSlot_t& p_slot, bool p_isDown);
-    
+
     // 하드코딩 처리 (모드 전환/페어링/Move Gate/Top L Hold/Top M Enter)
     //  - true 반환 시 슬롯 매핑 진행 안 함
     bool _handleHardcodedButton(uint8_t p_btnId, uint8_t p_evt);
-    
+
     // 슬롯 매핑 처리 (config)
     void _handleSlotButton(uint8_t p_btnId, uint8_t p_evt);
-    
+
     // [Phase 7] 제스처 슬롯 발동 (group: 0=flick, 1=linear, 2=tilt)
     void _handleGesture(uint8_t p_group, uint8_t p_dir);
-    
+
     // Mode 전환
     void _setActiveMode(uint8_t p_newMode);
-    
+
     // 특수 액션 처리
     void _handleSpecial(uint8_t p_special);
 

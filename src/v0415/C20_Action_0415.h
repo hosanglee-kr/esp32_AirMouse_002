@@ -12,6 +12,55 @@
  *  - Action Kind / Special / Button Event / Button ID enum
  *  - ST_ActionSlot_t (8 bytes) 정의
  *  - Action 파라미터 인코딩/디코딩 helper
+ *
+ * [v0415 Critical Fix — Consumer Mask Descriptor 정합]
+ *  - EN_C20_Consumer_t 전면 재정의
+ *  - ESP32-BLE-CompositeHID의 _mediakeysHIDReportDescriptor의
+ *    Report ID 0x43 (24-bit Consumer Report) 비트 순서와 1:1 매핑
+ *  - 이전 0412 정의는 16개 중 14개가 잘못된 비트 위치
+ *    (예: EN_C20_CON_VOL_UP=0x0001 → Descriptor의 Bit 0은 "Play")
+ *  - 실제 영향: 기본 프로파일 5개 중 3개, TV 모드 대부분 오작동
+ *
+ * [v0415 명칭 정정]
+ *  - AC_BACK  → WWW_BACK  (HID Usage 0x0224)
+ *  - AC_HOME  → WWW_HOME  (HID Usage 0x0223)
+ *  - AC_SEARCH→ WWW_SEARCH(HID Usage 0x0221)
+ *  - POWER/TV_INPUT/CH_UP/CH_DOWN 삭제 (Descriptor 대응 없음)
+ *  - EN_C20_KB_POWER (0x66) 추가: TV Power 대체 (Q1-b 확정)
+ *
+ * [Descriptor SSOT]
+ *  Bit  0: 0xB0 Play
+ *  Bit  1: 0xB1 Pause
+ *  Bit  2: 0xB2 Record
+ *  Bit  3: 0xB3 Fast Forward
+ *  Bit  4: 0xB4 Rewind
+ *  Bit  5: 0xB5 Scan Next Track
+ *  Bit  6: 0xB6 Scan Previous Track
+ *  Bit  7: 0xB7 Stop
+ *  Bit  8: 0xB8 Eject
+ *  Bit  9: 0xB9 Random Play
+ *  Bit 10: 0xBC Repeat
+ *  Bit 11: 0xCD Play/Pause
+ *  Bit 12: 0xE2 Mute
+ *  Bit 13: 0xE9 Volume Increment
+ *  Bit 14: 0xEA Volume Decrement
+ *  Bit 15: 0x0223 WWW Home (AC Home)
+ *  Bit 16: 0x0194 My Computer
+ *  Bit 17: 0x0192 Calculator
+ *  Bit 18: 0x022A WWW Favorites
+ *  Bit 19: 0x0221 WWW Search (AC Search)
+ *  Bit 20: 0x0226 WWW Stop
+ *  Bit 21: 0x0224 WWW Back (AC Back)
+ *  Bit 22: 0x0183 Media Select
+ *  Bit 23: 0x018A Mail
+ *
+ *  [주의] Report Count = 24 → Bit 24~31은 전송되지 않음.
+ *         validateSlot()에서 상한(0x00FFFFFF) 검증 필수.
+ *
+ * [마이그레이션]
+ *  - 스키마 410 → 411
+ *  - 매핑 테이블: C10_Config_0415.cpp의 _migrateConsumerFromV410()
+ *  - POWER/TV_INPUT/CH_UP/CH_DOWN은 NONE으로 이관 (Descriptor 미지원)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
@@ -53,7 +102,7 @@ enum EN_C20_ActionKind_t : uint8_t {
     // 특수
     EN_C20_ACT_SPECIAL = 9, // p16 = EN_C20_Special_t
 
-    // 매크로 [v0415 신규]
+    // 매크로 [v0412 신규]
     EN_C20_ACT_MACRO = 10, // param32 = 매크로 인덱스 (0~7)
 
     EN_C20_ACT_MAX
@@ -196,7 +245,7 @@ static inline ST_C20_ActionSlot_t C20_MakeMacro(uint8_t p_macroIdx) {
 }
 
 // ======================================================
-// 9) KB usage / modifier 상수 (자주 쓰는 것)
+// 9) KB usage / modifier 상수
 // ======================================================
 enum EN_C20_Mod_t : uint8_t {
     EN_C20_MOD_NONE   = 0x00,
@@ -217,6 +266,8 @@ enum EN_C20_KbUsage_t : uint16_t {
     EN_C20_KB_BACKSPACE = 0x2A,
     EN_C20_KB_TAB       = 0x2B,
     EN_C20_KB_SPACE     = 0x2C,
+    // [v0415 신규] HID Keyboard Page Power (TV 전원 대체, Q1-b 확정)
+    EN_C20_KB_POWER     = 0x66,
     EN_C20_KB_F5        = 0x3E,
     EN_C20_KB_F11       = 0x44,
     EN_C20_KB_F12       = 0x45,
@@ -256,26 +307,93 @@ enum EN_C20_KbUsage_t : uint16_t {
 };
 
 // ======================================================
-// 10) Consumer mask (HID Consumer page, 16-bit)
+// 10) Consumer mask (HID Consumer Page, 24-bit)
+//     ★ [v0415 Critical Fix] Descriptor SSOT 정합 ★
+// ------------------------------------------------------
+//  - ESP32-BLE-CompositeHID의 _mediakeysHIDReportDescriptor
+//    (Report ID 0x43, Report Size 1bit, Report Count 24)의
+//    USAGE 순서와 1:1 매핑.
+//  - 비트 위치 = Descriptor의 USAGE 등록 순서.
+//  - Report Count = 24 → Bit 24 이상은 전송되지 않음.
+//    (validateSlot에서 상한 검증 필수)
+//
+//  [이전 0412 정의와의 관계]
+//  - 0412: 자체 16-bit 압축 (16개 중 14개가 Descriptor와 불일치)
+//  - 0415: Descriptor 24-bit 순서 정합 (100% 일치)
+//  - 마이그레이션: C10_Config_0415.cpp::_migrateConsumerFromV410()
 // ======================================================
 enum EN_C20_Consumer_t : uint32_t {
     EN_C20_CON_NONE       = 0x00000000,
-    EN_C20_CON_VOL_UP     = 0x00000001,
-    EN_C20_CON_VOL_DOWN   = 0x00000002,
-    EN_C20_CON_MUTE       = 0x00000004,
-    EN_C20_CON_PLAY_PAUSE = 0x00000008,
-    EN_C20_CON_STOP       = 0x00000010,
-    EN_C20_CON_NEXT_TRACK = 0x00000020,
-    EN_C20_CON_PREV_TRACK = 0x00000040,
-    EN_C20_CON_FF         = 0x00000080,
-    EN_C20_CON_REWIND     = 0x00000100,
-    EN_C20_CON_AC_BACK    = 0x00000200,
-    EN_C20_CON_AC_HOME    = 0x00000400,
-    EN_C20_CON_AC_SEARCH  = 0x00000800,
-    EN_C20_CON_POWER      = 0x00001000,
-    EN_C20_CON_TV_INPUT   = 0x00002000,
-    EN_C20_CON_CH_UP      = 0x00004000,
-    EN_C20_CON_CH_DOWN    = 0x00008000
+
+    // ---- 표준 미디어 제어 (Bit 0~14) ----
+    EN_C20_CON_PLAY       = 0x00000001,   // Bit 0 : 0xB0 Play
+    EN_C20_CON_PAUSE      = 0x00000002,   // Bit 1 : 0xB1 Pause
+    EN_C20_CON_RECORD     = 0x00000004,   // Bit 2 : 0xB2 Record
+    EN_C20_CON_FF         = 0x00000008,   // Bit 3 : 0xB3 Fast Forward
+    EN_C20_CON_REWIND     = 0x00000010,   // Bit 4 : 0xB4 Rewind
+    EN_C20_CON_NEXT_TRACK = 0x00000020,   // Bit 5 : 0xB5 Scan Next Track
+    EN_C20_CON_PREV_TRACK = 0x00000040,   // Bit 6 : 0xB6 Scan Previous Track
+    EN_C20_CON_STOP       = 0x00000080,   // Bit 7 : 0xB7 Stop
+    EN_C20_CON_EJECT      = 0x00000100,   // Bit 8 : 0xB8 Eject
+    EN_C20_CON_RANDOM     = 0x00000200,   // Bit 9 : 0xB9 Random Play
+    EN_C20_CON_REPEAT     = 0x00000400,   // Bit 10: 0xBC Repeat
+    EN_C20_CON_PLAY_PAUSE = 0x00000800,   // Bit 11: 0xCD Play/Pause
+    EN_C20_CON_MUTE       = 0x00001000,   // Bit 12: 0xE2 Mute
+    EN_C20_CON_VOL_UP     = 0x00002000,   // Bit 13: 0xE9 Volume Increment
+    EN_C20_CON_VOL_DOWN   = 0x00004000,   // Bit 14: 0xEA Volume Decrement
+
+    // ---- 애플리케이션 제어 (Bit 15~23) ----
+    EN_C20_CON_WWW_HOME   = 0x00008000,   // Bit 15: 0x0223 (AC Home)
+    EN_C20_CON_MY_COMP    = 0x00010000,   // Bit 16: 0x0194
+    EN_C20_CON_CALC       = 0x00020000,   // Bit 17: 0x0192
+    EN_C20_CON_WWW_FAV    = 0x00040000,   // Bit 18: 0x022A
+    EN_C20_CON_WWW_SEARCH = 0x00080000,   // Bit 19: 0x0221 (AC Search)
+    EN_C20_CON_WWW_STOP   = 0x00100000,   // Bit 20: 0x0226
+    EN_C20_CON_WWW_BACK   = 0x00200000,   // Bit 21: 0x0224 (AC Back)
+    EN_C20_CON_MEDIA_SEL  = 0x00400000,   // Bit 22: 0x0183
+    EN_C20_CON_MAIL       = 0x00800000,   // Bit 23: 0x018A
+
+    // =====================================================
+    // [삭제됨 - Descriptor 대응 없음]
+    //   EN_C20_CON_POWER    → EN_C20_KB_POWER (Keyboard Page 0x66) 사용
+    //   EN_C20_CON_TV_INPUT → NONE (또는 WWW_HOME 대체)
+    //   EN_C20_CON_CH_UP    → NONE
+    //   EN_C20_CON_CH_DOWN  → NONE
+    //   EN_C20_CON_AC_BACK  → EN_C20_CON_WWW_BACK (rename)
+    //   EN_C20_CON_AC_HOME  → EN_C20_CON_WWW_HOME (rename)
+    //   EN_C20_CON_AC_SEARCH→ EN_C20_CON_WWW_SEARCH (rename)
+    // =====================================================
+};
+
+// ------------------------------------------------------
+// [v0415] Consumer Report 상한 (24-bit)
+//   - validateSlot() / validateMacroStep() 에서 검증
+// ------------------------------------------------------
+static constexpr uint32_t G_C20_CONSUMER_MASK_MAX = 0x00FFFFFFu;
+
+// ------------------------------------------------------
+// [v0415] Legacy 0412 Consumer 값 → 0415 값 매핑 테이블
+//   - C10_Config_0415.cpp의 마이그레이션에서 사용
+//   - 배열 index = 0412 값의 비트 위치 (0~15)
+//   - 값 0은 매핑 없음(NONE)
+// ------------------------------------------------------
+static constexpr uint32_t G_C20_LEGACY_410_TO_415[16] = {
+    /* idx 0 : 0x0001 (old VOL_UP)     */ (uint32_t)EN_C20_CON_VOL_UP,
+    /* idx 1 : 0x0002 (old VOL_DOWN)   */ (uint32_t)EN_C20_CON_VOL_DOWN,
+    /* idx 2 : 0x0004 (old MUTE)       */ (uint32_t)EN_C20_CON_MUTE,
+    /* idx 3 : 0x0008 (old PLAY_PAUSE) */ (uint32_t)EN_C20_CON_PLAY_PAUSE,
+    /* idx 4 : 0x0010 (old STOP)       */ (uint32_t)EN_C20_CON_STOP,
+    /* idx 5 : 0x0020 (old NEXT_TRACK) */ (uint32_t)EN_C20_CON_NEXT_TRACK,
+    /* idx 6 : 0x0040 (old PREV_TRACK) */ (uint32_t)EN_C20_CON_PREV_TRACK,
+    /* idx 7 : 0x0080 (old FF)         */ (uint32_t)EN_C20_CON_FF,
+    /* idx 8 : 0x0100 (old REWIND)     */ (uint32_t)EN_C20_CON_REWIND,
+    /* idx 9 : 0x0200 (old AC_BACK)    */ (uint32_t)EN_C20_CON_WWW_BACK,
+    /* idx 10: 0x0400 (old AC_HOME)    */ (uint32_t)EN_C20_CON_WWW_HOME,
+    /* idx 11: 0x0800 (old AC_SEARCH)  */ (uint32_t)EN_C20_CON_WWW_SEARCH,
+    /* idx 12: 0x1000 (old POWER)      */ 0u,   // Descriptor 미지원 → NONE
+    /* idx 13: 0x2000 (old TV_INPUT)   */ 0u,   // Descriptor 미지원 → NONE
+    /* idx 14: 0x4000 (old CH_UP)      */ 0u,   // Descriptor 미지원 → NONE
+    /* idx 15: 0x8000 (old CH_DOWN)    */ 0u,   // Descriptor 미지원 → NONE
 };
 
 // ======================================================

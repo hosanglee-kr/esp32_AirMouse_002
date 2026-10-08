@@ -9,8 +9,24 @@
  *  - 상보 필터: Roll + Pitch 2축 자세 추정
  *  - [Phase 2] Adaptive Variable EMA (Smoothstep + Reversal Reset)
  *  - Sigmoid 가속 + Zero Snap
- *  - Click Lock (Hard / Soft)
  *  - 자세 기반 커서 보정 (기울기 보상)
+ *
+ * [v0415 주요 변경 — Click-Lock 전체 삭제]
+ *  - Phase 11.5에서 Click-Freeze가 도입되며 Click-Lock이 실질 대체됨.
+ *  - Phase 5 Q1-a 확정: 코드/API 전체 삭제.
+ *    · notifyClick()              삭제
+ *    · _isClickStabilizing        삭제
+ *    · _lastClickTime             삭제
+ *    · _hardClickLock             삭제
+ *    · setHardClickLock()         삭제
+ *    · G_CLICK_LOCK_MS            삭제
+ *    · process() 내 Click-Lock 분기 삭제
+ *  - E10 config의 hard_click_lock 필드는 잔존 (스키마 호환) 하나
+ *    M10이 더 이상 사용하지 않음 → 향후 v0416에서 제거 예정.
+ *
+ * [매직 넘버 상수화]
+ *  - G_M10_DPI_BASE = 15.0f
+ *  - G_M10_DPI_STEP = 7.0f
  * ------------------------------------------------------
  */
 
@@ -41,22 +57,19 @@ class CL_M10_AdvancedMotionProcessor {
 
     float _dpiGain = 22.0f;
 
-    unsigned long _lastClickTime      = 0;
-    bool          _isClickStabilizing = false;
-
-    bool  _hardClickLock = false;
-    float _zeroSnapTh    = 0.6f;
+    float _zeroSnapTh = 0.6f;
 
     // 상보 필터 계수
     static constexpr float G_COMP_ALPHA = 0.98f;
-
-    // 클릭 안정화 시간
-    static constexpr uint32_t G_CLICK_LOCK_MS = 150;
 
     // 시그모이드 파라미터
     static constexpr float G_SIG_SLOPE    = 0.8f;
     static constexpr float G_SIG_OFFSET   = 2.0f;
     static constexpr float G_SIG_DEADBAND = 0.4f;
+
+    // [v0415] DPI gain 상수화
+    static constexpr float G_M10_DPI_BASE = 15.0f;
+    static constexpr float G_M10_DPI_STEP = 7.0f;
 
     // ==================================================
     // [Phase 2] Adaptive Variable EMA
@@ -73,8 +86,9 @@ class CL_M10_AdvancedMotionProcessor {
   public:
     CL_M10_AdvancedMotionProcessor() {}
 
-    void setDPI(int p_level) { _dpiGain = 15.0f + (p_level * 7.0f); }
-    void setHardClickLock(bool p_enable) { _hardClickLock = p_enable; }
+    void setDPI(int p_level) {
+        _dpiGain = G_M10_DPI_BASE + ((float)p_level * G_M10_DPI_STEP);
+    }
     void setZeroSnapTh(float p_th) { _zeroSnapTh = p_th; }
 
     // ==================================================
@@ -91,7 +105,6 @@ class CL_M10_AdvancedMotionProcessor {
         _emaInitDone   = false;
     }
 
-    // 자세 초기화
     void resetOrientation() {
         _roll  = 0.0f;
         _pitch = 0.0f;
@@ -99,11 +112,6 @@ class CL_M10_AdvancedMotionProcessor {
 
     float getRoll()  const { return _roll; }
     float getPitch() const { return _pitch; }
-
-    void notifyClick() {
-        _lastClickTime      = millis();
-        _isClickStabilizing = true;
-    }
 
     // ================================================
     // 상보 필터 (Roll + Pitch)
@@ -120,9 +128,9 @@ class CL_M10_AdvancedMotionProcessor {
                + (1.0f - G_COMP_ALPHA) * v_accelPitch;
     }
 
- 
     // ================================================
     // 커서 좌표 계산 (Roll 보상 + Adaptive EMA + Sigmoid + Zero Snap)
+    //   [v0415] Click-Lock 분기 삭제
     // ================================================
     void process(float p_rawX, float p_rawY, int& p_outX, int& p_outY) {
         // Roll 보상
@@ -132,26 +140,9 @@ class CL_M10_AdvancedMotionProcessor {
         float v_compX = p_rawX * v_cosR - p_rawY * v_sinR;
         float v_compY = p_rawX * v_sinR + p_rawY * v_cosR;
 
-        // 클릭 안정화
-        if (_isClickStabilizing) {
-            if (millis() - _lastClickTime < G_CLICK_LOCK_MS) {
-                if (_hardClickLock) {
-                    p_outX = 0;
-                    p_outY = 0;
-                    return;
-                }
-                v_compX *= 0.05f;
-                v_compY *= 0.05f;
-            } else {
-                _isClickStabilizing = false;
-            }
-        }
-
         // ====================================================
         // [Phase 2] Adaptive Variable EMA
-        //   - Smoothstep α + Reversal Reset
         // ====================================================
-        // 첫 프레임 초기화
         if (!_emaInitDone) {
             _prevSignX_neg = (v_compX < 0.0f);
             _prevSignY_neg = (v_compY < 0.0f);

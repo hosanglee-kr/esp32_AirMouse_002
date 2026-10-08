@@ -1,7 +1,20 @@
 // =======================================================
-// File: E10_AirMouse_Motion_0415.cpp
+// File: src/v0415/E10_AirMouse_Motion_0415.cpp
 // =======================================================
 #include "E10_AirMouse_0415.h"
+
+// =======================================================
+// [v0415] Precision/FSM 매직 넘버 상수화 (L5-A2-01, L6d-A2-01)
+// =======================================================
+namespace {
+
+// Precision FSM
+static constexpr uint8_t G_PREC_ALPHA_MAX  = 255;   // ST_E10_PrecProfile_t.alpha 상한
+static constexpr float   G_PREC_SMOOTH_MIN = 0.60f; // profile=1 클램프 하한
+static constexpr float   G_PREC_SMOOTH_MAX = 0.95f; // profile=1 클램프 상한
+static constexpr uint8_t G_PREC_PROFILE_JOYSTICK = 1;  // profile 1 = 조이스틱 스타일
+
+}  // namespace
 
 // =======================================================
 // Precision shaping (joystick-like)
@@ -31,12 +44,12 @@ void CL_E10_EliteAirMouse::_applyPrecision(float& p_fx, float& p_fy) {
     float v_tx = constrain(v_shape(p_fx), -(float)_precMaxStep, (float)_precMaxStep);
     float v_ty = constrain(v_shape(p_fy), -(float)_precMaxStep, (float)_precMaxStep);
 
-    const float v_pfSmooth = (float)v_pf.alpha / 255.0f;
+    const float v_pfSmooth = (float)v_pf.alpha / (float)G_PREC_ALPHA_MAX;
     float v_sm = _precSmooth;
     if (v_pfSmooth > v_sm) v_sm = v_pfSmooth;
 
-    if (_precProfile == 1) {
-        v_sm = min(0.95f, max(0.60f, v_sm));
+    if (_precProfile == G_PREC_PROFILE_JOYSTICK) {
+        v_sm = min(G_PREC_SMOOTH_MAX, max(G_PREC_SMOOTH_MIN, v_sm));
     }
 
     if (v_pf.accel_limit > 0.0f) {
@@ -56,41 +69,25 @@ void CL_E10_EliteAirMouse::_applyPrecision(float& p_fx, float& p_fy) {
 }
 
 // =======================================================
-// FSM update
+// [v0415 L6d-A1-01] FSM update — Dead 분기 정리
+// -------------------------------------------------------
+// 이전 (v0412):
+//   _fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle, float p_gyroAbs)
+//   - 호출부에서 항상 (false, false, v_gyroAbs) 전달 → 두 분기 Dead
+//   - p_btnScroll: EN_FSM_SCROLL 상태 진입 (미사용)
+//   - p_btnModeLongToggle: _isPptMode 토글 + releaseAll (미사용)
+//
+// v0415:
+//   _fsmUpdate(float p_gyroAbs)
+//   - FSM 판정: _activeMode == 2 → EN_FSM_PPT, 그 외 → EN_FSM_AIR
+//   - Precision sub 상태머신만 유지 (ENTRY/TRACK/EXIT)
+//   - _isPptMode 필드 삭제됨 (Round G)
 // =======================================================
-void CL_E10_EliteAirMouse::_fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle, float p_gyroAbs) {
-    if (p_btnModeLongToggle) {
-        const uint32_t v_nowMs = (uint32_t)millis();
-        if ((v_nowMs - _lastModeToggleMs) >= _modeToggleCooldownMs) {
-            // [C-4] 웹(setPptMode / applyRuntimeE10)과 공유하는 필드는 락 안에서 갱신
-            _lock();
-            _isPptMode = !_isPptMode;
-            _precSub   = EN_PREC_OFF;
-            _precSmX   = 0.0f;
-            _precSmY   = 0.0f;
-            _unlock();
+void CL_E10_EliteAirMouse::_fsmUpdate(float p_gyroAbs) {
+    // 1) base fsm (active_mode 기반)
+    _fsm = (_activeMode == 2) ? EN_FSM_PPT : EN_FSM_AIR;
 
-            _lastModeToggleMs = v_nowMs;
-
-            // forceReleaseButtons()는 내부에서 자체적으로 lock/unlock + enqueue
-            (void)forceReleaseButtons();
-            _failsafeReleaseCount++;
-        }
-    }
-
-    // 1) scroll 최우선
-    if (p_btnScroll) {
-        _fsm = EN_FSM_SCROLL;
-        _precSub = EN_PREC_OFF;
-        _precSmX = 0.0f;
-        _precSmY = 0.0f;
-        return;
-    }
-
-    // 2) base fsm
-    _fsm = _isPptMode ? EN_FSM_PPT : EN_FSM_AIR;
-
-    // 3) precision overlay
+    // 2) precision overlay
     if (_precision_mode == (uint8_t)EN_C10_E10_PREC_OFF) {
         _precSub = EN_PREC_OFF;
         return;
@@ -134,14 +131,11 @@ void CL_E10_EliteAirMouse::_fsmUpdate(bool p_btnScroll, bool p_btnModeLongToggle
     _precT0  = v_now;
 }
 
-
 // =======================================================
 // [Phase 3] Snap-to-Axis
 // =======================================================
 void CL_E10_EliteAirMouse::_applySnapToAxis(float& p_fx, float& p_fy) {
-    // [R2-C-1] config 스냅샷 (락 하 read, 함수 로컬 복사)
-    //   - switchProfile이 _cfgProfile 전체를 교체하는 동안 부분 read 방지
-    //   - recursive mutex이므로 재진입 안전
+    // [R2-C-1] config 스냅샷 (락 하 read)
     ST_C10_MotionAdv_Snap_t cfg;
     _lock();
     cfg = _cfgProfile.e10.motion_adv.snap;
@@ -150,7 +144,7 @@ void CL_E10_EliteAirMouse::_applySnapToAxis(float& p_fx, float& p_fy) {
     const bool v_active =
         cfg.enable &&
         (cfg.mode_mask & (1 << (_activeMode - 1))) != 0;
-        
+
     if (!v_active) {
         _snapActiveAxis      = E10_SNAP_NONE;
         _snapCandidate       = E10_SNAP_NONE;
@@ -223,8 +217,8 @@ void CL_E10_EliteAirMouse::_applyClickFreeze(float& p_fx, float& p_fy,
     _lock();
     cfg = _cfgProfile.e10.motion_adv.click_freeze;
     _unlock();
-    
-    // Move Gate가 활성 상태일 때만 커서가 이동하므로, Move Gate가 풀리면 Click-Freeze도 IDLE 리셋
+
+    // Move Gate가 활성 상태일 때만 커서 이동 → Move Gate 풀리면 IDLE 리셋
     if (!cfg.enable || !_moveGateHeld) {
         _freezeState = E10_FREEZE_IDLE;
         return;

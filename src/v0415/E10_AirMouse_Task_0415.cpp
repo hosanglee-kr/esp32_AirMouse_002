@@ -5,6 +5,15 @@
 
 // =======================================================
 // sensorTask
+// -------------------------------------------------------
+// [v0415 주요 변경]
+//  - Safe/Pairing Wake Mask 분기 (Round E)
+//    · sleepNow(now, safeOrPairing)
+//    · deepSleepNow(now, hid, pairing, safe)
+//  - Fast Recalib 파라미터는 E10 config 직접 참조
+//    (P20의 fast_recalib_ms 삭제됨)
+//  - _thLed 반영 (Round G, xTaskCreatePinnedToCore에서 처리)
+//  - _fsmUpdate(false, false, v_gyroAbs) 유지 (Round K에서 정리)
 // =======================================================
 void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
     CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
@@ -20,7 +29,6 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
     for (;;) {
         // ------------------------------------------------------------
         // [C-4] motion-critical config 스냅샷
-        //   - 그룹으로 읽히는 필드만 스냅샷 (dpi+scale+accel, wheel)
         // ------------------------------------------------------------
         struct {
             int   dpiLevel;
@@ -45,29 +53,28 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         v_m->_unlock();
 
         // ============================================================
-        // [Phase 11.6] Power Management (절전 판정 및 제어)
-        //   - C-1: 커서 이동 기반 idle 갱신 (deferred flag)
-        //   - C-2: BLE 연결 중 sleep 허용
-        //   - I-6: Pairing 중 sleep 허용
-        //   - I-7: Mode별 idle timeout
-        //   - I-8: 매크로 실행 중 체크
-        //   - N-1: Deep-sleep 옵션
+        // [Phase 11.6 + v0415] Power Management
+        //   - Safe/Pairing Wake Mask 분기 (Round E)
+        //   - Fast Recalib: E10 config.power.fast_recalib_ms 직접
         // ============================================================
         {
             const uint32_t v_nowP = (uint32_t)millis();
 
-            // [C-1] deferred notifyActivity (파이프라인 이전 프레임의 판정)
+            // [C-1] deferred notifyActivity
             if (v_m->_powerNotifyPending) {
                 v_m->_powerNotifyPending = false;
                 v_m->_power.notifyActivity(v_nowP);
             }
 
-            // [C-2, I-6] Sleep 조건 판정
-            const bool v_bleConn = v_m->_hid.isConnected();
-            const bool v_pairing = v_m->_ble.isPairing();
+            // Sleep 조건 판정
+            const bool v_bleConn  = v_m->_hid.isConnected();
+            const bool v_pairing  = v_m->_ble.isPairing();
+            const bool v_safe     = v_m->_safeMode;
+            const bool v_safeOrPairing = (v_safe || v_pairing);
+
             const bool v_qActBusy =
                 (uxQueueMessagesWaiting(v_m->_qActionExec) > 0) ||
-                (v_m->_macroState.active);   // [I-8] 매크로 실행 중
+                (v_m->_macroState.active);
 
             const bool v_canSleep =
                 !v_m->_moveGateHeld && !v_m->_frontHoldActive && !v_qActBusy &&
@@ -88,33 +95,33 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
                                            ? (v_nowP - v_idleSince) : 0;
 
                 if (v_elapsed >= v_timeout) {
-                    // [N-1] Deep-sleep 우선 판정
+                    // [N-1] Deep-sleep 우선 판정 (Safe 분기 포함)
                     const bool v_didDeepSleep =
-                        v_m->_power.deepSleepNow(v_nowP, v_bleConn, v_pairing);
+                        v_m->_power.deepSleepNow(v_nowP, v_bleConn, v_pairing, v_safe);
 
                     if (!v_didDeepSleep) {
-                        // [I-2] LED 상태 저장
+                        // LED 상태 저장 (blocking fadeout)
                         CL_L10_Led::ST_LedSnapshot_t v_snap;
                         v_m->_led.suspend(v_snap);
 
-                        const bool v_didSleep = v_m->_power.sleepNow(v_nowP);
+                        // [v0415] Safe/Pairing Wake Mask 분기
+                        const bool v_didSleep =
+                            v_m->_power.sleepNow(v_nowP, v_safeOrPairing);
+
+                        // wake 복귀 또는 실패 시 LED 원복
+                        v_m->_led.resume(v_snap);
 
                         if (v_didSleep) {
-                            // [I-2] LED 상태 복귀
-                            v_m->_led.resume(v_snap);
-
-                            // [I-3] BiasTracker Fast Recalibrate
+                            // [v0415] Fast Recalib — E10 config 직접 참조
+                            //   (P20의 fast_recalib_ms 필드 삭제됨)
                             v_m->_biasTracker.startFastRecalibrate(
                                 v_m->_cfgProfile.e10.power.fast_recalib_ms);
-                        } else {
-                            // [안전 보완] 슬립 조건 미충족/실패 시에도 원래 LED 복원
-                            v_m->_led.resume(v_snap);
                         }
                     }
                 }
             }
         }
-        
+
         // ---- H-3: 웹 태스크가 위임한 리셋 플래그 처리 ----
         if (v_m->_reqResetBtnDisp) {
             v_m->_reqResetBtnDisp = false;
@@ -124,7 +131,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_reqResetGesture = false;
             v_m->_gesture.reset();
         }
-        
+
         // ---- async requests ----
         if (v_m->_reqClearDiag) {
             v_m->_reqClearDiag = false;
@@ -164,13 +171,13 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_reqGyroCalib  = false;
             v_m->_gyroCalibDone = false;
             // [D-1] _biasTracker.reset()을 sensorTask 컨텍스트로 이동
-            //       (SPEC §상태 소유권: biasTracker는 sensorTask 단독 소유)
             v_m->_biasTracker.reset();
             v_m->_runGyroCalibration();
             v_m->_gyroCalibDone = true;
         }
 
-        // [REQ-FIX-02] Special action 위임 처리 (sensorTask 단독 컨텍스트 동기 실행)
+        // [REQ-FIX-02] Special action 위임 처리 (sensorTask 단독 컨텍스트)
+        //   - SLEEP_NOW가 이 경로로 진입 시 _handleSpecial 내부에서 직접 sleep
         if (v_m->_reqSpecialAction != 0) {
             const uint8_t v_sp = v_m->_reqSpecialAction;
             v_m->_reqSpecialAction = 0;
@@ -202,18 +209,15 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
         // ============================================================
         // [Phase 5] 버튼 디스패처 갱신 (콜백 → 액션 큐 enqueue)
-        //   - 물리 버튼 처리는 전부 디스패처가 담당
-        //   - sensorTask는 여기서 상태만 얻음
         // ============================================================
         v_m->_btnDisp.update();
 
-        // Move Gate 상태 읽기 (Top M Hold 중 true)
+        // Move Gate 상태 읽기
         const bool v_moveGateHeld = v_m->_moveGateHeld;
-        
-        // ====================================================
+
+        // ============================================================
         // [Phase 10] BLE tick (pairing timeout / auto-exit)
-        //   - 연결 판정은 _hid.isConnected() 재사용 (B20 중복 조회 회피)
-        // ====================================================
+        // ============================================================
         v_m->_ble.tick(v_m->_hid.isConnected());
 
         // ---- gyro raw + Zero-rate Bias Tracking ----
@@ -250,7 +254,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
         // ---- fsm ----
         //  [Phase 5] SCROLL/MODE 토글 폐기 → 2·3번째 인자는 항상 false
-        //            (SCROLL은 제스처 Phase 7에서 재설계)
+        //  [Round K] _fsmUpdate 정리 예정 (현재 파라미터 유지)
         v_m->_fsmUpdate(false, false, v_gyroAbs);
 
         // ---- stats + motion engine ----
@@ -268,14 +272,12 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         int v_tx = 0;
         int v_ty = 0;
         v_m->_engine.process(-v_gz, -v_gx, v_tx, v_ty);
-        
+
         // ============================================================
         // [Phase 7] 제스처 감지 (Flick / Linear / Tilt)
-        //   - roll/pitch 자세 확정 후 호출
-        //   - 결과를 _handleGesture로 위임 (액션 큐 경유)
         // ============================================================
         {
-            auto v_g = v_m->_gesture.update(
+            auto v_g_out = v_m->_gesture.update(
                 v_gx, v_gy, v_gz,
                 v_a.acceleration.x,
                 v_a.acceleration.y,
@@ -285,10 +287,10 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
                 v_moveGateHeld,
                 v_m->_activeMode,
                 (uint32_t)millis());
-        
-            if (v_g.flick  != EN_M30_DIR_NONE) v_m->_handleGesture(0, (uint8_t)v_g.flick);
-            if (v_g.linear != EN_M30_DIR_NONE) v_m->_handleGesture(1, (uint8_t)v_g.linear);
-            if (v_g.tilt   != EN_M30_DIR_NONE) v_m->_handleGesture(2, (uint8_t)v_g.tilt);
+
+            if (v_g_out.flick  != EN_M30_DIR_NONE) v_m->_handleGesture(0, (uint8_t)v_g_out.flick);
+            if (v_g_out.linear != EN_M30_DIR_NONE) v_m->_handleGesture(1, (uint8_t)v_g_out.linear);
+            if (v_g_out.tilt   != EN_M30_DIR_NONE) v_m->_handleGesture(2, (uint8_t)v_g_out.tilt);
         }
 
         // ---- accel shaping ----
@@ -307,29 +309,19 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         float v_fy = (float)v_ty * v_base * v_acc;
 
         // ============================================================
-        // [Phase 5] Move Gate → Precision → 상태/프레임 push
-        //   - SCROLL 분기 폐기 (제스처 Phase 7에서 재설계)
-        //   - btn_mask는 액션 큐가 담당 → _qFrame에선 0 고정
-        // ============================================================
-
-        // ============================================================
         // [Front Hold] 스크롤 모드
         //   - Side F 누름 중: 커서 감쇠 + 수직 휠 + 수평 팬
-        //   - 모든 Mode 일관 (D4-A)
-        //   - 커서 감쇠: scroll_cursor_damp (기본 0.25)
-        //   - 수직 휠: gy (pitch, 앞뒤 기울기)
-        //   - 수평 팬: gx (roll, 좌우 기울기)
         // ============================================================
         const bool v_frontHold = v_m->_frontHoldActive;
-        
+
         int16_t v_wheelY = 0;
         int16_t v_panX   = 0;
-        
+
         if (v_frontHold) {
             // 커서 감쇠
             v_fx *= v_cfg.scrollCursorDamp;
             v_fy *= v_cfg.scrollCursorDamp;
-        
+
             // 수직 휠 (gy)
             if (v_gy > v_cfg.wheelThDeg) {
                 float v_n = (v_gy - v_cfg.wheelThDeg) / 120.0f;
@@ -340,7 +332,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
                 if (v_n > 1.0f) v_n = 1.0f;
                 v_wheelY = -(int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
             }
-        
+
             // 수평 팬 (gx)
             if (v_gx > v_cfg.wheelThDeg) {
                 float v_n = (v_gx - v_cfg.wheelThDeg) / 120.0f;
@@ -352,14 +344,13 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
                 v_panX = -(int16_t)(1 + (v_n * (v_cfg.wheelStepMax - 1)));
             }
         }
-        
+
         // Move Gate: Middle Hold 중에만 커서 이동
-        // (Front Hold와 독립 — wheel/pan은 Move Gate 무관)
         if (!v_moveGateHeld) {
             v_fx = 0.0f;
             v_fy = 0.0f;
         }
-        
+
         // Precision overlay
         if (v_m->_precSub != EN_PREC_OFF) {
             v_m->_applyPrecision(v_fx, v_fy);
@@ -379,17 +370,16 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_applyClickFreeze(v_fx, v_fy, v_rawDx, v_rawDy,
                                    v_gyroAbs, v_m->_btnLDown);
         }
-        
-        
+
         // 커서 통계
         v_m->_welfordAdd(v_m->_curN, v_m->_curMean, v_m->_curM2,
                          (double)sqrtf(v_fx * v_fx + v_fy * v_fy));
-        
+
         const int16_t v_xo = (int16_t)constrain((int)v_fx, -32767, 32767);
         const int16_t v_yo = (int16_t)constrain((int)v_fy, -32767, 32767);
         const bool v_updated = (v_xo != 0) || (v_yo != 0) ||
                                (v_wheelY != 0) || (v_panX != 0);
-        
+
         // (1) 관측용 _state
         if (xSemaphoreTakeRecursive(v_m->_mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
             v_m->_state.x        = v_xo;
@@ -402,7 +392,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_errMutexMiss++;
             v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
         }
-        
+
         // (2) HID 전달 프레임
         {
             ST_E10_Frame_t v_fr;
@@ -434,12 +424,14 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
 // =======================================================
 // [Phase 11.6 / C-3] Power Wake 콜백
+// -------------------------------------------------------
+//  commTask 즉시 활성 신호 송출.
+//  _thLed는 별도 참조 없음 (Round G에서 xTaskCreatePinnedToCore 저장).
 // =======================================================
 void CL_E10_EliteAirMouse::_onPowerWake(void* p_ctx) {
     auto* v_m = (CL_E10_EliteAirMouse*)p_ctx;
     if (!v_m) return;
 
-    // [C-3] commTask 즉시 활성 신호 송출
     if (v_m->_thComm) {
         xTaskNotifyGive(v_m->_thComm);
     }
@@ -447,6 +439,12 @@ void CL_E10_EliteAirMouse::_onPowerWake(void* p_ctx) {
 
 // =======================================================
 // commTask
+// -------------------------------------------------------
+// [v0415 주요 변경]
+//  - 매크로 abort 원자화 (disconnect edge / gate 진입)
+//    · _macroAbortToken++ + active=false 를 _lock() 하
+//  - gate 진입 시 _reqCommReleaseAll 처리 유지
+//  - 큐 드레인 상한 유지 (4)
 // =======================================================
 void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
     CL_E10_EliteAirMouse* v_m = (CL_E10_EliteAirMouse*)p_pv;
@@ -477,13 +475,14 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
 
         // ---- disconnect edge ----
         if (!v_conn && v_prevConn) {
-            // [H-1] 매크로 취소 토큰 + 상태머신 종료
+            // [v0415] 매크로 abort 원자화
+            v_m->_lock();
             v_m->_macroAbortToken++;
             v_m->_macroState.active = false;
-        
+            v_m->_unlock();
+
             // HID + 액션 상태 전부 해제
             v_m->_actExec.releaseAll();
-    
             v_m->_doForceReleaseNow();
             v_m->_failsafeReleaseCount++;
 
@@ -504,35 +503,33 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         }
 
         // ---- connect edge ----
-        if (v_conn && !v_prevConn) {
-            // (Phase 5) 버튼 상태는 액션 큐가 담당 → 별도 동기화 불필요
-        }
         v_prevConn = true;
 
         // ---- Gate (SafeMode / OTA Guard) ----
         const bool v_gate = (v_m->_safeMode || v_m->_otaGuard);
 
         if (v_gate) {
-            // [H-1] 매크로 취소 토큰 + 상태머신 종료
+            // [v0415] 매크로 abort 원자화
+            v_m->_lock();
             v_m->_macroAbortToken++;
             v_m->_macroState.active = false;
-        
+            v_m->_unlock();
+
             // 큐 드레인 (overflow 방지)
             ST_E10_HidCmd_t v_drop;
             while (v_m->_qHidCmd &&
                    xQueueReceive(v_m->_qHidCmd, &v_drop, 0) == pdTRUE) { }
-        
+
             ST_ActionCmd_t v_adrop;
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_adrop, 0) == pdTRUE) { }
-        
+
             // [R2-H-2] _qFrame(overwrite, size=1) 최신 프레임 폐기
-            //   - 미드레인 시 gate 해제 후 1회 커서 점프
             {
                 ST_E10_Frame_t v_fdrop;
                 (void)xQueueReceive(v_m->_qFrame, &v_fdrop, 0);
             }
-            
+
             if (!v_releasedOnSafe) {
                 v_m->_actExec.releaseAll();
                 v_m->_doForceReleaseNow();
@@ -546,63 +543,58 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
             v_releasedOnSafe = false;
         }
 
-        // [REQ-FIX-03] 프로파일 스위치 등에서 요청된 안전 Release 위임 처리 (Stuck Key 방지)
+        // [REQ-FIX-03] 프로파일 스위치 등에서 요청된 안전 Release 위임 처리
         if (v_m->_reqCommReleaseAll) {
             v_m->_reqCommReleaseAll = false;
             v_m->_actExec.releaseAll();
             v_m->_doReleaseAllButtons();
         }
 
-        // ---- [Phase2] HID commands 우선 처리 (테스트/강제 릴리즈) ----
+        // ---- HID commands 우선 처리 ----
         {
             ST_E10_HidCmd_t v_cmd;
             while (v_m->_qHidCmd && xQueueReceive(v_m->_qHidCmd, &v_cmd, 0) == pdTRUE) {
                 switch (v_cmd.cmd) {
                     case EN_E10_HIDCMD_RELEASE_ALL:
-                        // [C-2] HID 직접 호출 제거: commTask가 actExec 런타임까지 정리
                         v_m->_actExec.releaseAll();
                         v_m->_doReleaseAllButtons();
                         break;
-                
+
                     case EN_E10_HIDCMD_TEST_PPT:
                         v_m->_sendPptKey2(v_cmd.arg0, v_cmd.arg1, v_cmd.code);
                         break;
-                
+
                     default:
                         break;
                 }
-
             }
         }
 
         // ============================================================
-        // [Phase 5/v0412] Action 큐 드레인
-        //   - MACRO kind는 _runMacro로 위임 (블로킹 주의)
-        //   - 프레임당 상한 4 (커서 지연 방지)
+        // Action 큐 드레인 (프레임당 상한 4)
         // ============================================================
         {
             ST_ActionCmd_t v_acmd;
             uint8_t v_drainCount = 0;
             while (v_m->_qActionExec &&
                    xQueueReceive(v_m->_qActionExec, &v_acmd, 0) == pdTRUE) {
-        
+
                 if (v_acmd.slot.kind == (uint8_t)EN_C20_ACT_MACRO) {
-                    // [C-3] 블로킹 제거: 스냅샷 후 상태머신 시작
                     v_m->_startMacro((uint8_t)v_acmd.slot.param32);
                 } else {
                     v_m->_actExec.exec(v_acmd.slot, v_acmd.isDown);
                 }
-        
+
                 if (++v_drainCount >= 4) break;
             }
         }
-        
-        // [C-3] 매크로 상태머신 전진 (블로킹 없음)
+
+        // 매크로 상태머신 전진 (블로킹 없음)
         v_m->_tickMacro();
-        
+
         // 반복 액션 tick (KB_REPEAT / CONSUMER_REPEAT)
         v_m->_actExec.tickRepeat();
-        
+
         // ---- normal path: 커서 프레임 ----
         ST_E10_Frame_t v_fr;
         memset(&v_fr, 0, sizeof(v_fr));
@@ -611,20 +603,20 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         if (v_m->_qFrame) {
             if (xQueueReceive(v_m->_qFrame, &v_fr, 0) == pdTRUE) v_hasFrame = true;
         }
-        
+
         if (v_hasFrame) {
             const bool    v_upd   = v_fr.updated;
             const int16_t v_x     = v_fr.x;
             const int16_t v_y     = v_fr.y;
             const int16_t v_wheel = v_fr.wheel;
             const int16_t v_pan   = v_fr.pan;
-        
+
             if (v_upd) {
                 const int8_t v_dx = (int8_t)constrain((int)v_x,     -127, 127);
                 const int8_t v_dy = (int8_t)constrain((int)v_y,     -127, 127);
                 const int8_t v_wh = (int8_t)constrain((int)v_wheel, -127, 127);
                 const int8_t v_pn = (int8_t)constrain((int)v_pan,   -127, 127);
-        
+
                 _mouseSend(v_m->_mouse, v_dx, v_dy, v_wh, v_pn);
             }
         }
@@ -633,7 +625,6 @@ void CL_E10_EliteAirMouse::_commTask(void* p_pv) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(7));
     }
 }
-
 
 // =======================================================
 // [Phase 6-J] LED 상태머신 태스크 (50ms tick)

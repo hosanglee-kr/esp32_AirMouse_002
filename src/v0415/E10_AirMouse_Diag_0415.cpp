@@ -1,8 +1,19 @@
 // =======================================================
-// File: E10_AirMouse_Diag_0415.cpp
+// File: src/v0415/E10_AirMouse_Diag_0415.cpp
 // =======================================================
 #include "E10_AirMouse_0415.h"
 #include "HW_Def_0415.h"
+
+// =======================================================
+// [v0415] I2C 복구 매직 넘버 상수화 (L6e-A2-01)
+// =======================================================
+namespace {
+static constexpr int      G_DIAG_I2C_UNLOCK_PULSES   = 9;
+static constexpr uint32_t G_DIAG_I2C_HALF_PERIOD_US  = 6;
+static constexpr uint32_t G_DIAG_I2C_SETTLE_SHORT_MS = 5;
+static constexpr uint32_t G_DIAG_CALIB_TICK_MS       = 5;
+static constexpr uint32_t G_DIAG_CALIB_MIN_SAMPLES   = 1;  // v_cnt > 0 조건
+}  // namespace
 
 // =======================================================
 // [C-2] errHist/spike 락 보호
@@ -39,21 +50,22 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
     pinMode(HW_DEF::PIN_I2C_SDA, INPUT_PULLUP);
     pinMode(HW_DEF::PIN_I2C_SCL, OUTPUT_OPEN_DRAIN);
 
-    for (int v_i = 0; v_i < 9; v_i++) {
+    // 표준 I2C bus unlock: 9 clock pulses
+    for (int v_i = 0; v_i < G_DIAG_I2C_UNLOCK_PULSES; v_i++) {
         digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
-        delayMicroseconds(6);
+        delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
         digitalWrite(HW_DEF::PIN_I2C_SCL, LOW);
-        delayMicroseconds(6);
+        delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
     }
     digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
-    delayMicroseconds(6);
+    delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
 
     Wire.end();
-    delay(5);
+    delay(G_DIAG_I2C_SETTLE_SHORT_MS);
 
     Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
     Wire.setClock(400000);
-    delay(5);
+    delay(G_DIAG_I2C_SETTLE_SHORT_MS);
 
     bool v_ok = _mpu.begin();
     if (v_ok) {
@@ -62,7 +74,6 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
         _mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
     }
 
-    // [M-2] getStatus/clearDiagnostics와 공유하는 카운터는 락 안에서 갱신
     _lock();
     _i2cRecoverCount++;
     _i2cRecoverLastOk = v_ok;
@@ -75,15 +86,12 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
     }
     _unlock();
 
-    // [R2-L-2] _pushErr는 자체 _lock() 재진입 (recursive mutex) — 안전
-    //          희귀 경로이므로 락 사이클 최적화는 스킵
     _pushErr(v_ok ? EN_E10_ERR_I2C_RECOVER_OK : EN_E10_ERR_I2C_RECOVER_FAIL, 0);
     return v_ok;
 }
 
-
 // =======================================================
-// [C-5] 캘리브: 강제 릴리즈 + 버튼 샘플링
+// 캘리브: 강제 릴리즈 + 버튼 샘플링
 // =======================================================
 void CL_E10_EliteAirMouse::_runGyroCalibration() {
     // 시작 시 강제 릴리즈 프레임
@@ -117,24 +125,20 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
             v_cnt++;
         }
 
-        // [R3-D-1/D-2] 캘리브 중 버튼 상태 반영 (6버튼 전량, C20 G_PINS와 1:1)
-        //   - 이전: E10_CONST::PIN_BTN_* 3버튼 하드코딩 → 매핑 드리프트 위험
-        //   - 이후: C20_BtnDispatcher::G_PINS 순서로 6버튼 read
+        // 캘리브 중 버튼 상태 반영 (6버튼 전량, C20 G_PINS 1:1)
         {
             uint8_t v_btn = 0;
             for (uint8_t v_i = 0; v_i < EN_C20_BTN_MAX; v_i++) {
                 if (digitalRead(CL_C20_BtnDispatcher::G_PINS[v_i]) == LOW) {
-                    // EN_C20_BtnId_t → 물리 버튼 마스크 매핑
                     switch ((EN_C20_BtnId_t)v_i) {
                         case EN_C20_BTN_TOP_L:  v_btn |= (uint8_t)EN_E10_BTN_LEFT;   break;
                         case EN_C20_BTN_TOP_M:  v_btn |= (uint8_t)EN_E10_BTN_MIDDLE; break;
                         case EN_C20_BTN_TOP_R:  v_btn |= (uint8_t)EN_E10_BTN_RIGHT;  break;
-                        // Side F/C/R은 마우스 버튼 마스크와 무관 (E10 상태에 반영 안 함)
                         default: break;
                     }
                 }
             }
-        
+
             ST_E10_Frame_t v_fr;
             memset(&v_fr, 0, sizeof(v_fr));
             v_fr.btn_mask = v_btn;
@@ -145,14 +149,18 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
         // [D-2] 캘리브 1초 블로킹 중 BLE pairing 타임아웃 검사 유지
         _ble.tick(_hid.isConnected());
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(G_DIAG_CALIB_TICK_MS));
     }
 
+    // [v0415 L6e-A3-02] v_cnt==0 시 로그 (실패 피드백)
     if (v_cnt > 0) {
         _biasTracker.setBias(
             (float)(v_sx / v_cnt),
             (float)(v_sy / v_cnt),
             (float)(v_sz / v_cnt));
+    } else {
+        D10_LOGW("[E10] gyro calib: no still samples (motion during 1s)");
+        _pushErr(EN_E10_ERR_NONE, 0);   // 히스토리 이벤트 마커
     }
 
     _gyroCalibDone = true;
@@ -160,17 +168,18 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
 
 // =======================================================
 // Status
+// -------------------------------------------------------
+// [v0415] ppt_mode 필드 노출 제거 (Round G/K)
+//   - active_mode는 /api/status의 config.profile_idx + 별도 W10 status 확장으로 대체
+//   - 본 함수에서 E10_Status_t.ppt_mode 미설정 (구조체에서 삭제됨)
 // =======================================================
 void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     _lock();
 
-    // [R3-D-5] _hid는 commTask 소유이나 isConnected() read는 예외 허용 (STATE.md §1)
-    //   - _lock 보유 중 read: BLE 스택 내부 락 취득 가능성 → 잠재적 lock ordering 이슈
-    //   - 실무 영향 없음 (NimBLE read는 lock-free atomic 수준)
-    //   - 필요 시 _lock 이전으로 이동 가능 (상태 일관성 trade-off)
+    // [R3-D-5] _hid read 예외 (STATE §1)
     p_out.ble_connected = _hid.isConnected();
-    p_out.ppt_mode      = _isPptMode;
+    // [v0415 삭제] p_out.ppt_mode = _isPptMode; — 필드 삭제
     p_out.dpi_level     = (uint8_t)_dpiLevel;
 
     p_out.btn_mask = _state.btn_mask;
@@ -208,6 +217,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 
     p_out.task_stack_sensor_min_words = _stackSensorMinWords;
     p_out.task_stack_comm_min_words   = _stackCommMinWords;
+    // [v0415] LED 태스크 스택 (0 초기값, Round L/N에서 관측 훅 추가)
+    p_out.task_stack_led_min_words    = 0;
 
     p_out.i2c_recover_count   = _i2cRecoverCount;
     p_out.i2c_recover_last_ok = _i2cRecoverLastOk;
@@ -236,10 +247,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     p_out.consecutive_fail         = _consecutiveFail;
     p_out.consecutive_recover_fail = _consecutiveRecoverFail;
 
-    // health score
-    // [R3-D-4] 클램프 헬퍼로 곱셈 오버플로 방어 (카운터 × 승수 → cap 이전 uint32 승격)
+    // health score (클램프 헬퍼)
     auto v_deduce = [](int p_score, uint32_t p_count, uint32_t p_mult, uint32_t p_cap) -> int {
-        // p_count > UINT32_MAX / p_mult 인 경우 안전 처리
         uint32_t v_penalty;
         if (p_mult == 0 || p_count > (0xFFFFFFFFu / p_mult)) {
             v_penalty = p_cap;
@@ -250,7 +259,7 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
         int v_ret = p_score - (int)v_penalty;
         return (v_ret < 0) ? 0 : v_ret;
     };
-    
+
     int v_scoreI = 1000;
     v_scoreI -= (int)(p_out.gyro_rms * 25.0f);          if (v_scoreI < 0) v_scoreI = 0;
     v_scoreI -= (int)(p_out.cursor_rms * 18.0f);        if (v_scoreI < 0) v_scoreI = 0;
@@ -278,20 +287,14 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 // Async requests / clear
 // =======================================================
 bool CL_E10_EliteAirMouse::requestGyroCalibration() {
-    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
-    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
     _lock();
     _reqGyroCalib = true;
-    // [D-1] _biasTracker.reset()은 sensorTask로 위임 (SPEC §상태 소유권)
-    //       실제 reset은 sensorTask가 _reqGyroCalib 플래그 처리 시 실행.
+    // [D-1] _biasTracker.reset()은 sensorTask로 위임
     _unlock();
     return true;
 }
 
 bool CL_E10_EliteAirMouse::requestI2CRecover() {
-    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
-    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
-    
     _lock();
     _reqI2CRecover = true;
     _unlock();
@@ -299,14 +302,9 @@ bool CL_E10_EliteAirMouse::requestI2CRecover() {
 }
 
 bool CL_E10_EliteAirMouse::clearDiagnostics() {
-    // [R3-D-3] _reqGyroCalib는 volatile single-bit write. 락은 불필요하나
-    //           "위임 플래그 접근 시 락 사용" 일관성 정책에 따라 유지.
-    
-    // [D-3] 웹 태스크는 플래그만 설정. 실 클리어는 sensorTask가 담당
-    //       (SPEC §상태 소유권: errHist/spikes/RMS 카운터는 sensorTask 소유)
+    // [D-3] 웹 태스크는 플래그만 설정
     _lock();
     _reqClearDiag = true;
     _unlock();
     return true;
 }
-
