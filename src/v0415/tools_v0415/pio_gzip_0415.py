@@ -68,10 +68,7 @@ COPY_ONLY_EXTS = {".svg", ".png", ".webp", ".ico", ".txt", ".json"}
 COPY_ONLY_NAMES = {"robots.txt", "favicon.ico"}
 
 EXCLUDE_NAMES = {
-    "app_0415_0001.js", "app_0415_0001_1.js",
-    "index_0415.html", "index_0415_1.html", "index_0415_2.html",
-    "index_0415_standalone.html", "index_0415_standalone2.html", "index_0415_standalone3.html",
-    "style_0415.css", "style_0415_1.css", "style_0415_2.css"
+    "index_0415_standalone.html", "index_0415_standalone2.html", "index_0415_standalone3.html"
 }
 
 
