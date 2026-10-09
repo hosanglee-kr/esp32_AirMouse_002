@@ -1,7 +1,11 @@
 /* =======================================================
-   File: /www/lib/am_remote_0414.js
-   Elite AirMouse WebConfig v0414 — Virtual Controller & Joystick
+   File: /www/lib/am_remote_0415.js
+   Elite AirMouse WebConfig v0415 — Virtual Controller & Joystick
    - 로드 순서: 8
+   - [v0415 Critical] Consumer mask Descriptor 정합 (24-bit)
+     · 모든 keyTest("consumer", 0, X) 값 재매핑
+     · TV Power → Keyboard Page 0x66
+     · CH_UP/DOWN/TV_INPUT → NONE/대체 (Descriptor 미지원)
    - Phase 3.3 M-7 : ring 배경 드래그 지원
    - Phase 3.5 M-8 : 모드 변경 저장
    - Phase 4.3 L-3 : forced reflow → requestAnimationFrame
@@ -10,6 +14,23 @@
 
 /* =======================================================
    1. Mode Tools
+   -------------------------------------------------------
+   [v0415 Consumer 값 재매핑]
+     MUTE        : 0x0004 → 0x001000 (Bit 12)
+     VOL_UP      : 0x0001 → 0x002000 (Bit 13)
+     VOL_DOWN    : 0x0002 → 0x004000 (Bit 14)
+     PLAY_PAUSE  : 0x0008 → 0x000800 (Bit 11)
+     STOP        : 0x0010 → 0x000080 (Bit 7)
+     NEXT_TRACK  : 0x0020 → 0x0020 (동일)
+     PREV_TRACK  : 0x0040 → 0x0040 (동일)
+     FF          : 0x0080 → 0x000008 (Bit 3)
+     REWIND      : 0x0100 → 0x000010 (Bit 4)
+     AC_HOME     : 0x0400 → 0x008000 (Bit 15, WWW_HOME)
+     AC_BACK     : 0x0200 → 0x200000 (Bit 21, WWW_BACK)
+     AC_SEARCH   : 0x0800 → 0x080000 (Bit 19, WWW_SEARCH)
+     POWER       : 0x1000 → KB_TAP(0, 0x66)  (Descriptor 미지원)
+     TV_INPUT    : 0x2000 → WWW_SEARCH 대체
+     CH_UP/DOWN  : 0x4000/0x8000 → NONE (삭제)
    ======================================================= */
 const MODE_TOOLS = {
   1: {
@@ -68,33 +89,28 @@ const MODE_TOOLS = {
   },
   3: {
     badge: "TV", ico: "📺", groups: [
-      {
-        labelKey: "tools.tv.channel", items: [
-          { labelKey: "tools.tv.ch_up", page: "consumer", mod: 0, code: 0x4000, ico: "📶" },
-          { labelKey: "tools.tv.ch_down", page: "consumer", mod: 0, code: 0x8000, ico: "📶" }
-        ]
-      },
+      // [v0415] tools.tv.channel 그룹 삭제 (CH_UP/DOWN Descriptor 미지원)
       {
         labelKey: "tools.tv.media", items: [
-          { labelKey: "tools.tv.play", page: "consumer", mod: 0, code: 0x0008, ico: "▶️" },
-          { labelKey: "tools.tv.stop", page: "consumer", mod: 0, code: 0x0010, ico: "⏹️" },
-          { labelKey: "tools.tv.next", page: "consumer", mod: 0, code: 0x0020, ico: "⏭️" },
-          { labelKey: "tools.tv.prev", page: "consumer", mod: 0, code: 0x0040, ico: "⏮️" }
+          { labelKey: "tools.tv.play", page: "consumer", mod: 0, code: 0x000800, ico: "▶️" },   // PLAY_PAUSE
+          { labelKey: "tools.tv.stop", page: "consumer", mod: 0, code: 0x000080, ico: "⏹️" },   // STOP
+          { labelKey: "tools.tv.next", page: "consumer", mod: 0, code: 0x000020, ico: "⏭️" },   // NEXT_TRACK
+          { labelKey: "tools.tv.prev", page: "consumer", mod: 0, code: 0x000040, ico: "⏮️" }    // PREV_TRACK
         ]
       },
       {
         labelKey: "tools.tv.nav", items: [
-          { labelKey: "tools.tv.home", page: "consumer", mod: 0, code: 0x0400, ico: "🏠" },
-          { labelKey: "tools.tv.back", page: "consumer", mod: 0, code: 0x0200, ico: "↩️" },
-          { labelKey: "tools.tv.input", page: "consumer", mod: 0, code: 0x2000, ico: "🔀" },
-          { labelKey: "tools.tv.search", page: "consumer", mod: 0, code: 0x0800, ico: "🔍" }
+          { labelKey: "tools.tv.home",   page: "consumer", mod: 0, code: 0x008000, ico: "🏠" },   // WWW_HOME
+          { labelKey: "tools.tv.back",   page: "consumer", mod: 0, code: 0x200000, ico: "↩️" },   // WWW_BACK
+          { labelKey: "tools.tv.search", page: "consumer", mod: 0, code: 0x080000, ico: "🔍" }    // WWW_SEARCH
+          // [v0415] input 삭제 (WWW_SEARCH와 중복, TV_INPUT 미지원)
         ]
       },
       {
         labelKey: "tools.tv.vol", items: [
-          { labelKey: "tools.tv.vol_up", page: "consumer", mod: 0, code: 0x0001, ico: "🔊" },
-          { labelKey: "tools.tv.vol_down", page: "consumer", mod: 0, code: 0x0002, ico: "🔉" },
-          { labelKey: "tools.tv.mute", page: "consumer", mod: 0, code: 0x0004, ico: "🔇" }
+          { labelKey: "tools.tv.vol_up",   page: "consumer", mod: 0, code: 0x002000, ico: "🔊" },  // VOL_UP
+          { labelKey: "tools.tv.vol_down", page: "consumer", mod: 0, code: 0x004000, ico: "🔉" },  // VOL_DOWN
+          { labelKey: "tools.tv.mute",     page: "consumer", mod: 0, code: 0x001000, ico: "🔇" }   // MUTE
         ]
       }
     ]
@@ -134,12 +150,33 @@ function renderModeTools() {
 
 /* =======================================================
    2. Virtual Remote Configuration by Mode
+   -------------------------------------------------------
+   [v0415 Consumer 값 재매핑]
+     Mode 1: 
+       - top2 (Mute)  : 0x0004 → 0x001000
+       - pad1U (Vol+) : 0x0001 → 0x002000
+       - pad1D (Vol-) : 0x0002 → 0x004000
+       - pad2U (Play) : 0x0008 → 0x000800
+       - pad2D (Stop) : 0x0010 → 0x000080
+     Mode 2:
+       - pad3U/D (Vol±): 0x0001/0x0002 → 0x002000/0x004000
+     Mode 3:
+       - top1 (Power) : 0x1000 (Consumer) → KB_TAP(0, 0x66)
+       - top2 (Mute)  : 0x0004 → 0x001000
+       - sub1 (Back)  : 0x0200 → 0x200000 (WWW_BACK)
+       - sub2 (Home)  : 0x0400 → 0x008000 (WWW_HOME)
+       - pad1U (Vol+) : 0x0001 → 0x002000
+       - pad1D (Vol-) : 0x0002 → 0x004000
+       - pad2U (P/P)  : 0x0008 → 0x000800
+       - pad2D (Input): 0x2000 → 0x080000 (WWW_SEARCH 대체)
+       - pad3U (CH+)  : 0x4000 → NONE (삭제, 미지원)
+       - pad3D (CH-)  : 0x8000 → NONE (삭제, 미지원)
    ======================================================= */
 const REMOTE_CONFIG_BY_MODE = {
   1: {
     themeClass: "mode-pc", guideKey: "remote.guide_pc",
     top1: { label: "Win", subKey: "remote.sub_start", action: () => keyTest("kb", 8, 0) },
-    top2: { label: "🔇", subKey: "remote.sub_mute", action: () => keyTest("consumer", 0, 0x0004) },
+    top2: { label: "🔇", subKey: "remote.sub_mute", action: () => keyTest("consumer", 0, 0x001000) },
     ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
     ringDown: { label: "▼", action: () => keyTest("kb", 0, 81) },
     ringLeft: { label: "◀", action: () => keyTest("kb", 0, 80) },
@@ -147,10 +184,10 @@ const REMOTE_CONFIG_BY_MODE = {
     knobText: "Enter", knobTap: () => keyTest("kb", 0, 40),
     sub1: { label: "ESC", subKey: "remote.sub_cancel", action: () => keyTest("kb", 0, 41) },
     sub2: { labelKey: "remote.capture", subKey: "remote.sub_screenshot", action: () => keyTest("kb", 10, 22) },
-    pad1U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x0001) },
-    pad1D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x0002) },
-    pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x0008) },
-    pad2D: { labelKey: "remote.stop", action: () => keyTest("consumer", 0, 0x0010) },
+    pad1U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x002000) },
+    pad1D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x004000) },
+    pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x000800) },
+    pad2D: { labelKey: "remote.stop", action: () => keyTest("consumer", 0, 0x000080) },
     pad3U: { label: "PgUp", action: () => keyTest("kb", 0, 75) },
     pad3D: { label: "PgDn", action: () => keyTest("kb", 0, 78) },
     pad3LblKey: "remote.pad_doc"
@@ -170,27 +207,31 @@ const REMOTE_CONFIG_BY_MODE = {
     pad1D: { labelKey: "remote.ppt_next", action: () => keyTest("kb", 0, 78) },
     pad2U: { labelKey: "remote.ppt_pen", action: () => keyTest("kb", 1, 19) },
     pad2D: { labelKey: "remote.ppt_arrow", action: () => keyTest("kb", 1, 4) },
-    pad3U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x0001) },
-    pad3D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x0002) },
+    pad3U: { label: "Vol +", action: () => keyTest("consumer", 0, 0x002000) },
+    pad3D: { label: "Vol -", action: () => keyTest("consumer", 0, 0x004000) },
     pad3LblKey: "remote.pad_ppt_vol"
   },
   3: {
     themeClass: "mode-tv", guideKey: "remote.guide_tv",
-    top1: { labelKey: "remote.tv_power", action: () => keyTest("consumer", 0, 0x1000) },
-    top2: { label: "🔇", action: () => keyTest("consumer", 0, 0x0004) },
+    // [v0415] Power: Consumer 0x1000 → Keyboard Page 0x66
+    top1: { labelKey: "remote.tv_power", action: () => keyTest("kb", 0, 0x66) },
+    top2: { label: "🔇", action: () => keyTest("consumer", 0, 0x001000) },
     ringUp: { label: "▲", action: () => keyTest("kb", 0, 82) },
     ringDown: { label: "▼", action: () => keyTest("kb", 0, 81) },
     ringLeft: { label: "◀", action: () => keyTest("kb", 0, 80) },
     ringRight: { label: "▶", action: () => keyTest("kb", 0, 79) },
     knobTextKey: "remote.tv_ok", knobTap: () => keyTest("kb", 0, 40),
-    sub1: { labelKey: "remote.tv_back", action: () => keyTest("consumer", 0, 0x0200) },
-    sub2: { labelKey: "remote.tv_home", action: () => keyTest("consumer", 0, 0x0400) },
-    pad1U: { label: "VOL +", action: () => keyTest("consumer", 0, 0x0001) },
-    pad1D: { label: "VOL -", action: () => keyTest("consumer", 0, 0x0002) },
-    pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x0008) },
-    pad2D: { labelKey: "remote.tv_input", action: () => keyTest("consumer", 0, 0x2000) },
-    pad3U: { labelKey: "remote.tv_ch_up", action: () => keyTest("consumer", 0, 0x4000) },
-    pad3D: { labelKey: "remote.tv_ch_down", action: () => keyTest("consumer", 0, 0x8000) },
+    // [v0415] Back: 0x0200 → 0x200000 (WWW_BACK), Home: 0x0400 → 0x008000 (WWW_HOME)
+    sub1: { labelKey: "remote.tv_back", action: () => keyTest("consumer", 0, 0x200000) },
+    sub2: { labelKey: "remote.tv_home", action: () => keyTest("consumer", 0, 0x008000) },
+    pad1U: { label: "VOL +", action: () => keyTest("consumer", 0, 0x002000) },
+    pad1D: { label: "VOL -", action: () => keyTest("consumer", 0, 0x004000) },
+    pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x000800) },
+    // [v0415] Input: 0x2000 → WWW_SEARCH 0x080000 (Descriptor 미지원 → 대체)
+    pad2D: { labelKey: "remote.tv_input", action: () => keyTest("consumer", 0, 0x080000) },
+    // [v0415] CH_UP/DOWN: Descriptor 미지원 → 비활성 (label만 유지, action no-op)
+    pad3U: { labelKey: "remote.tv_ch_up", action: () => keyTest("consumer", 0, 0x000000) },
+    pad3D: { labelKey: "remote.tv_ch_down", action: () => keyTest("consumer", 0, 0x000000) },
     pad3LblKey: "remote.pad_ch"
   }
 };
@@ -210,7 +251,6 @@ function _renderController(mode) {
     });
   }
 
-  // [Layout O-2] 배지 = "PC"/"PPT"/"TV" 축약 (탭과 정보 중복 회피)
   const badge = qs("remoteActiveModeBadge");
   if (badge) {
     badge.textContent = REMOTE_BADGE_SHORT[mode] || `M${mode}`;
@@ -278,10 +318,9 @@ async function ctlSetMode(target) {
     if (g_appMode === APP_MODE_ONLINE) {
       const steps = ((target - cur) + 3) % 3;
       for (let i = 0; i < steps; i++) {
-        // [G-2] 서버 응답 검증 (BLE 미연결 등 실패 시 로컬만 갱신되는 문제 방지)
         const u = unwrapApi(await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 3, p32: 0 }));
         if (!u.ok) {
-          if (cfg && cfg.e10) cfg.e10.active_mode = cur; // 실패 시 로컬 active_mode 롤백 방어
+          if (cfg && cfg.e10) cfg.e10.active_mode = cur;
           alert(`${t("pop.mode_switch_fail") || "Mode switch failed:"} ${u.msg || u.code}`);
           return false;
         }
@@ -295,7 +334,6 @@ async function ctlSetMode(target) {
     setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
     if (typeof pushRecentLog === "function") pushRecentLog(`MODE → ${target}`, true);
 
-    // [Phase 3.5 M-8, D-4=(A)] 프로파일에 active_mode 저장
     if (g_appMode === APP_MODE_ONLINE) {
       const u2 = unwrapApi(await apiPostJson("/api/profiles/active", {
         e10: { active_mode: target }
@@ -434,7 +472,6 @@ function initHybridJoystick() {
     setTimeout(() => { knob.style.transition = ""; }, 150);
   }
 
-  // [M-7] ring 배경 드래그: ring에 바인딩 (knob은 자식이므로 버블링으로 커버)
   ring.addEventListener("mousedown", handleStart);
   ring.addEventListener("touchstart", handleStart, { passive: false });
 

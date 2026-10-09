@@ -1,14 +1,16 @@
 /* =======================================================
-   File: /www/lib/am_status_0414.js
-   Elite AirMouse WebConfig v0414 — Status / Diag / OTA
+   File: /www/lib/am_status_0415.js
+   Elite AirMouse WebConfig v0415 — Status / Diag / OTA
    - 로드 순서: 7
-   - [Phase 2.1 C-3/H-5] keyTest 통합 (am_base 버전 흡수)
+   - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
+   - [Phase 2.1 C-3/H-5] keyTest 통합
    - [Phase 3.1 H-4] 배너 dismiss 세션 플래그
    - [Phase 3.4 M-10] 캘리브 피드백 통일
    - [Phase 3.7 L-7] 배터리 N/A 처리
    - [Phase 4.2 M-9] reboot/check 폴링 중복 제거
    ======================================================= */
-
+   
+   
 /* =======================================================
    [Phase 3.1 H-4] 배너 dismiss 세션 플래그
    ======================================================= */

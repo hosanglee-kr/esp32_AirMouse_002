@@ -1,12 +1,15 @@
 /* =======================================================
-   File: /www/lib/am_config_0414.js
-   Elite AirMouse WebConfig v0414 — E10 Config / Control / SafeBoot
+   File: /www/lib/am_config_0415.js
+   Elite AirMouse WebConfig v0415 — E10 Config / Control / SafeBoot
    - 로드 순서: 6
+   - [v0415 Critical] ctlSetPpt() 삭제 (set_ppt cmd 삭제, Round G/M)
+   - [v0415] 파일명/헤더만 _0415로 갱신
    - [Phase 2.0.1 N-1] deep_idle_timeout_ms 클램프
    - [Phase 3.2 H-8] 프리셋 19필드 전체화
    - [Phase 3.6 L-5] bindConfigDirtyTracker + clearDirty
    ======================================================= */
-
+   
+   
 /* =======================================================
    Config → UI 반영
    ======================================================= */
@@ -375,13 +378,6 @@ async function cfgImport(file) {
 /* =======================================================
    Quick Control
    ======================================================= */
-async function ctlSetPpt(enable) {
-  const u = unwrapApi(await apiPostJson("/api/control", {
-    cmd: "set_ppt", enable: !!enable, snapshot: false
-  }));
-  if (!u.ok) alert("set_ppt failed: " + (u.msg || u.code));
-  await refreshStatus();
-}
 
 async function ctlForceRelease() {
   const u = unwrapApi(await apiPostJson("/api/control", {

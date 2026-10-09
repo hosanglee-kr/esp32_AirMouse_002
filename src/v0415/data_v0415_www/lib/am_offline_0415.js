@@ -1,11 +1,14 @@
 /* =======================================================
-   File: /www/lib/am_offline_0414.js
-   Elite AirMouse WebConfig v0414 — Offline Simulator
+   File: /www/lib/am_offline_0415.js
+   Elite AirMouse WebConfig v0415 — Offline Simulator
    - 로드 순서: 3
-   - [Phase 2.0.2 N-2] boot 객체 SPEC 정합
-   - [Phase 2.3 M-1/L-1] saveOfflineStore 가드
-   - [Phase 2.4 M-11] 참조 반환 방지 (deep clone)
-   - [Phase 2.5 H-3] 재귀 병합
+   - [v0415 Critical Fix] Consumer mask Descriptor 정합 (24-bit)
+     · 이전 0412: 16-bit 자체 압축 (Descriptor 불일치 14/16)
+     · v0415: 24-bit HID Report Descriptor 정합 (100%)
+   - [v0415] 스키마 411 / api_ver 411
+   - [v0415] ppt_mode → active_mode 일원화
+   - [v0415] Mode 3 슬롯 p32 재매핑 (WWW_*, KB_POWER)
+   - [v0415] OFFLINE_STORAGE_KEY 스키마 자동 초기화
    ======================================================= */
 
 const G_OFFLINE_START_TIME = Date.now();
@@ -44,7 +47,12 @@ const G_OFFLINE_TRIGGERS = [
 ];
 
 /* =======================================================
-   오프라인 키코드
+   오프라인 키코드 (v0415: Consumer mask Descriptor 24-bit 정합)
+   -------------------------------------------------------
+   - 비트 순서는 HID Report Descriptor (Report ID 0x43) SSOT
+   - C20_Action_0415.h의 EN_C20_Consumer_t와 값 체계 동일
+   - W10_Def_0415.h의 G_W10_CONSUMER[]와도 값 체계 동일
+     (라벨만 W10은 CamelCase, C20/offline은 UPPER_SNAKE_CASE)
    ======================================================= */
 const G_OFFLINE_KEYCODES = {
   action_kinds: [
@@ -71,23 +79,32 @@ const G_OFFLINE_KEYCODES = {
     { name: "R_ALT", mask: 64 },
     { name: "R_GUI", mask: 128 }
   ],
+  // [v0415] 24-bit Descriptor 정합 (Bit 0 ~ Bit 23, 총 24개 + None)
   consumer: [
-    { name: "VOL_UP", mask: 0x00000001 },
-    { name: "VOL_DOWN", mask: 0x00000002 },
-    { name: "MUTE", mask: 0x00000004 },
-    { name: "PLAY_PAUSE", mask: 0x00000008 },
-    { name: "STOP", mask: 0x00000010 },
-    { name: "NEXT_TRACK", mask: 0x00000020 },
-    { name: "PREV_TRACK", mask: 0x00000040 },
-    { name: "FF", mask: 0x00000080 },
-    { name: "REWIND", mask: 0x00000100 },
-    { name: "AC_BACK", mask: 0x00000200 },
-    { name: "AC_HOME", mask: 0x00000400 },
-    { name: "AC_SEARCH", mask: 0x00000800 },
-    { name: "POWER", mask: 0x00001000 },
-    { name: "TV_INPUT", mask: 0x00002000 },
-    { name: "CH_UP", mask: 0x00004000 },
-    { name: "CH_DOWN", mask: 0x00008000 }
+    { name: "PLAY",       mask: 0x00000001 },  // Bit 0  : 0xB0
+    { name: "PAUSE",      mask: 0x00000002 },  // Bit 1  : 0xB1
+    { name: "RECORD",     mask: 0x00000004 },  // Bit 2  : 0xB2
+    { name: "FF",         mask: 0x00000008 },  // Bit 3  : 0xB3
+    { name: "REWIND",     mask: 0x00000010 },  // Bit 4  : 0xB4
+    { name: "NEXT_TRACK", mask: 0x00000020 },  // Bit 5  : 0xB5
+    { name: "PREV_TRACK", mask: 0x00000040 },  // Bit 6  : 0xB6
+    { name: "STOP",       mask: 0x00000080 },  // Bit 7  : 0xB7
+    { name: "EJECT",      mask: 0x00000100 },  // Bit 8  : 0xB8
+    { name: "RANDOM",     mask: 0x00000200 },  // Bit 9  : 0xB9
+    { name: "REPEAT",     mask: 0x00000400 },  // Bit 10 : 0xBC
+    { name: "PLAY_PAUSE", mask: 0x00000800 },  // Bit 11 : 0xCD
+    { name: "MUTE",       mask: 0x00001000 },  // Bit 12 : 0xE2
+    { name: "VOL_UP",     mask: 0x00002000 },  // Bit 13 : 0xE9
+    { name: "VOL_DOWN",   mask: 0x00004000 },  // Bit 14 : 0xEA
+    { name: "WWW_HOME",   mask: 0x00008000 },  // Bit 15 : 0x0223 (AC Home)
+    { name: "MY_COMP",    mask: 0x00010000 },  // Bit 16 : 0x0194
+    { name: "CALC",       mask: 0x00020000 },  // Bit 17 : 0x0192
+    { name: "WWW_FAV",    mask: 0x00040000 },  // Bit 18 : 0x022A
+    { name: "WWW_SEARCH", mask: 0x00080000 },  // Bit 19 : 0x0221 (AC Search)
+    { name: "WWW_STOP",   mask: 0x00100000 },  // Bit 20 : 0x0226
+    { name: "WWW_BACK",   mask: 0x00200000 },  // Bit 21 : 0x0224 (AC Back)
+    { name: "MEDIA_SEL",  mask: 0x00400000 },  // Bit 22 : 0x0183
+    { name: "MAIL",       mask: 0x00800000 }   // Bit 23 : 0x018A
   ],
   precision_modes: [
     { name: "OFF", value: 0 },
@@ -104,6 +121,7 @@ const G_OFFLINE_KEYCODES = {
     { value: 4, name: "PAIRING" },
     { value: 5, name: "HOST_CYCLE" }
   ],
+  // [v0415] Keyboard Page Power (0x66) — TV 전원 대체
   kb: (function () {
     const arr = [];
     const names = {
@@ -112,7 +130,8 @@ const G_OFFLINE_KEYCODES = {
       30: "1", 31: "2", 32: "3", 33: "4", 34: "5", 35: "6", 36: "7", 37: "8", 38: "9", 39: "0",
       40: "Enter", 41: "Esc", 42: "Backspace", 43: "Tab", 44: "Space",
       58: "F1", 59: "F2", 60: "F3", 61: "F4", 62: "F5", 63: "F6", 64: "F7", 65: "F8", 66: "F9", 67: "F10", 68: "F11", 69: "F12",
-      75: "PageUp", 78: "PageDown", 79: "Right", 80: "Left", 81: "Down", 82: "Up"
+      75: "PageUp", 78: "PageDown", 79: "Right", 80: "Left", 81: "Down", 82: "Up",
+      0x66: "Power"  // [v0415] HID Keyboard Page Power
     };
     for (let c = 0; c <= 0xE7; c++) {
       arr.push({ code: c, name: names[c] || ("0x" + c.toString(16).toUpperCase().padStart(2, "0")) });
@@ -149,19 +168,23 @@ const G_OFFLINE_KEYCODES = {
 
   triggers: G_OFFLINE_TRIGGERS,
   trigger_count: G_OFFLINE_TRIGGERS.length,
-  api_ver: 410,
-  note: "v0412: profile-based slots (Global + Mode Override). " +
+  api_ver: 411,  // [v0415]
+  note: "v0415: Descriptor SSOT consumer mask (24-bit). " +
     "action_kinds + specials + triggers for UI. " +
     "mods mask == HID modifier byte. " +
-    "kb=usage-id(0x07), consumer=32-bit mask. " +
+    "kb=usage-id(0x07) + Power(0x66). consumer=24-bit mask. " +
     "MACRO kind(10) references macro index via p32."
 };
 
 /* =======================================================
-   오프라인 기본 프로파일 (SPEC rev6 정합)
+   오프라인 기본 프로파일 (v0415 Schema 411)
+   -------------------------------------------------------
+   - Consumer 슬롯 값: 24-bit Descriptor 정합
+   - Mode 3: TV Power → KB_POWER(0x66), CH_UP/DOWN → NONE
+   - active_mode로 PPT 판정 (ppt_mode 필드 삭제)
    ======================================================= */
 const G_OFFLINE_DEFAULT_PROFILE_0 = {
-  ver: 410,
+  ver: 411,  // [v0415]
   name: "Default",
   wifi: {
     mode: 0,
@@ -171,7 +194,7 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
   },
   e10: {
     dpi_level: 2,
-    hard_click_lock: true,
+    hard_click_lock: true,  // v0415: M10 삭제, 스키마 잔존 (no-op)
     scale_base: [0.55, 0.75, 1.0],
     accel_gain: [0.35, 0.55, 0.85],
     accel_threshold: 8.0,
@@ -190,10 +213,10 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
     flick: { p2p_th: 400.0, window_ms: 200, cooldown_ms: 600 },
     tilt_hold: { angle_deg: 15.0, hold_ms: 300, repeat_hz: 3 },
     sleep_idle_timeout_ms: 60000,
-    active_mode: 1,
+    active_mode: 1,           // [v0415] ppt_mode 삭제 → active_mode 일원화
     active_peer_index: 0,
 
-    // [Phase 1~3] Motion Advanced
+    // Motion Advanced
     motion_adv: {
       click_freeze: {
         enable: true,
@@ -222,7 +245,6 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
       }
     },
 
-    // [Phase 11.6] Power (SPEC rev6)
     power: {
       idle_timeout_ms: [60000, 120000, 300000],
       idle_timeout_ble_ms: 300000,
@@ -236,7 +258,6 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
       led_fadein_ms: 300
     },
 
-    // [Phase 11.7] Button (SPEC rev6)
     button: {
       debounce_press_ms: 32,
       debounce_release_ms: 16,
@@ -250,59 +271,68 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
   },
 
   slots: {
+    // Global 슬롯 (Mode 1 base)
+    // [v0415] Consumer p32 값 → 24-bit 정합
+    //   idx 8 : VOL_UP      (0x2000)
+    //   idx 9 : NEXT_TRACK  (0x0020, 동일)
+    //   idx 10: PLAY_PAUSE  (0x0800)
+    //   idx 13: VOL_DOWN    (0x4000)
+    //   idx 14: PREV_TRACK  (0x0040, 동일)
     global: [
-      { k: 2, h: 1, p16: 1, p32: 0 },
-      { k: 1, h: 0, p16: 1, p32: 0 },
-      { k: 4, h: 0, p16: 43, p32: 4 },
-      { k: 1, h: 0, p16: 4, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 1, h: 0, p16: 2, p32: 0 },
-      { k: 4, h: 0, p16: 41, p32: 0 },
-      { k: 4, h: 0, p16: 22, p32: 10 },
-      { k: 7, h: 0, p16: 0, p32: 1 },
-      { k: 7, h: 0, p16: 0, p32: 32 },
-      { k: 7, h: 0, p16: 0, p32: 8 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 7, h: 0, p16: 0, p32: 2 },
-      { k: 7, h: 0, p16: 0, p32: 64 },
-      { k: 5, h: 0, p16: 0, p32: 20489 },
-      { k: 5, h: 0, p16: 0, p32: 20233 },
-      { k: 4, h: 0, p16: 7, p32: 8 },
-      { k: 4, h: 0, p16: 43, p32: 4 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 },
-      { k: 0, h: 0, p16: 0, p32: 0 }
+      { k: 2, h: 1, p16: 1, p32: 0 },        // S1  Top L Click    (locked: MouseHold L)
+      { k: 1, h: 0, p16: 1, p32: 0 },        // S2  Top L Double
+      { k: 4, h: 0, p16: 43, p32: 4 },       // S3  Top L Long     (Alt+Tab)
+      { k: 1, h: 0, p16: 4, p32: 0 },        // S4  Top M Click    (Mouse Middle)
+      { k: 0, h: 0, p16: 0, p32: 0 },        // S5  Top M Hold     (locked: MoveGate)
+      { k: 1, h: 0, p16: 2, p32: 0 },        // S6  Top R Click
+      { k: 4, h: 0, p16: 41, p32: 0 },       // S7  Top R Double   (ESC)
+      { k: 4, h: 0, p16: 22, p32: 10 },      // S8  Top R Long     (Win+Shift+S)
+      { k: 7, h: 0, p16: 0, p32: 0x00002000 }, // S9  Side F Click   VOL_UP
+      { k: 7, h: 0, p16: 0, p32: 0x00000020 }, // S10 Side F Long    NEXT_TRACK
+      { k: 7, h: 0, p16: 0, p32: 0x00000800 }, // S11 Side C Click   PLAY_PAUSE
+      { k: 0, h: 0, p16: 0, p32: 0 },        // S12 Side C Double  (locked)
+      { k: 0, h: 0, p16: 0, p32: 0 },        // S13 Side C 2s Hold (locked)
+      { k: 7, h: 0, p16: 0, p32: 0x00004000 }, // S14 Side R Click   VOL_DOWN
+      { k: 7, h: 0, p16: 0, p32: 0x00000040 }, // S15 Side R Long    PREV_TRACK
+      { k: 5, h: 0, p16: 0, p32: 20489 },    // F1  Flick Left     (Ctrl+Win+Left)
+      { k: 5, h: 0, p16: 0, p32: 20233 },    // F2  Flick Right    (Ctrl+Win+Right)
+      { k: 4, h: 0, p16: 7, p32: 8 },        // F3  Flick Up       (Win+D)
+      { k: 4, h: 0, p16: 43, p32: 4 },       // F4  Flick Down     (Alt+Tab)
+      { k: 0, h: 0, p16: 0, p32: 0 },        // L1  Linear Left
+      { k: 0, h: 0, p16: 0, p32: 0 },        // L2  Linear Right
+      { k: 0, h: 0, p16: 0, p32: 0 },        // L3  Linear Up
+      { k: 0, h: 0, p16: 0, p32: 0 },        // L4  Linear Down
+      { k: 0, h: 0, p16: 0, p32: 0 },        // T1  Tilt Left
+      { k: 0, h: 0, p16: 0, p32: 0 },        // T2  Tilt Right
+      { k: 0, h: 0, p16: 0, p32: 0 },        // T3  Tilt Up
+      { k: 0, h: 0, p16: 0, p32: 0 }         // T4  Tilt Down
     ],
     modes: [
+      // Mode 1: 완전 상속 (mask=0)
       { mask: 0, slots: [] },
+      // Mode 2: 완전 오버라이드 (mask = 0x07FFFFFF)
       {
-        mask: 134217727,
+        mask: 0x07FFFFFF,
         slots: [
-          { k: 4, h: 0, p16: 78, p32: 0 },
-          { k: 4, h: 0, p16: 75, p32: 0 },
-          { k: 4, h: 0, p16: 62, p32: 2 },
-          { k: 4, h: 0, p16: 15, p32: 1 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 4, h: 0, p16: 41, p32: 0 },
-          { k: 4, h: 0, p16: 5, p32: 0 },
-          { k: 4, h: 0, p16: 26, p32: 0 },
-          { k: 4, h: 0, p16: 78, p32: 0 },
-          { k: 4, h: 0, p16: 62, p32: 2 },
-          { k: 4, h: 0, p16: 19, p32: 1 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 4, h: 0, p16: 75, p32: 0 },
-          { k: 4, h: 0, p16: 41, p32: 0 },
-          { k: 4, h: 0, p16: 78, p32: 0 },
-          { k: 4, h: 0, p16: 75, p32: 0 },
-          { k: 4, h: 0, p16: 5, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
+          { k: 4, h: 0, p16: 78, p32: 0 },     // S1  PageDown
+          { k: 4, h: 0, p16: 75, p32: 0 },     // S2  PageUp
+          { k: 4, h: 0, p16: 62, p32: 2 },     // S3  Shift+F5
+          { k: 4, h: 0, p16: 15, p32: 1 },     // S4  Ctrl+L (laser)
+          { k: 0, h: 0, p16: 0, p32: 0 },      // S5
+          { k: 4, h: 0, p16: 41, p32: 0 },     // S6  ESC
+          { k: 4, h: 0, p16: 5, p32: 0 },      // S7  B
+          { k: 4, h: 0, p16: 26, p32: 0 },     // S8  W
+          { k: 4, h: 0, p16: 78, p32: 0 },     // S9  PageDown
+          { k: 4, h: 0, p16: 62, p32: 2 },     // S10 Shift+F5
+          { k: 4, h: 0, p16: 19, p32: 1 },     // S11 Ctrl+P
+          { k: 0, h: 0, p16: 0, p32: 0 },      // S12
+          { k: 0, h: 0, p16: 0, p32: 0 },      // S13
+          { k: 4, h: 0, p16: 75, p32: 0 },     // S14 PageUp
+          { k: 4, h: 0, p16: 41, p32: 0 },     // S15 ESC
+          { k: 4, h: 0, p16: 78, p32: 0 },     // F1  PageDown
+          { k: 4, h: 0, p16: 75, p32: 0 },     // F2  PageUp
+          { k: 4, h: 0, p16: 5, p32: 0 },      // F3  B
+          { k: 0, h: 0, p16: 0, p32: 0 },      // F4
           { k: 0, h: 0, p16: 0, p32: 0 },
           { k: 0, h: 0, p16: 0, p32: 0 },
           { k: 0, h: 0, p16: 0, p32: 0 },
@@ -313,36 +343,43 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
           { k: 0, h: 0, p16: 0, p32: 0 }
         ]
       },
+      // Mode 3: 완전 오버라이드 (mask = 0x07FFFFFF)
+      // [v0415] 재매핑:
+      //   AC_* → WWW_*
+      //   POWER → KB_TAP(0, 0x66)
+      //   CH_UP/DOWN → NONE
+      //   TV_INPUT → WWW_SEARCH
+      //   FF/REWIND/MUTE/VOL_*/PLAY_PAUSE → 신 24-bit 값
       {
-        mask: 134217727,
+        mask: 0x07FFFFFF,
         slots: [
-          { k: 7, h: 0, p16: 0, p32: 512 },
-          { k: 7, h: 0, p16: 0, p32: 1024 },
-          { k: 7, h: 0, p16: 0, p32: 4096 },
-          { k: 4, h: 0, p16: 40, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 7, h: 0, p16: 0, p32: 1024 },
-          { k: 7, h: 0, p16: 0, p32: 8192 },
-          { k: 7, h: 0, p16: 0, p32: 4096 },
-          { k: 7, h: 0, p16: 0, p32: 1 },
-          { k: 7, h: 0, p16: 0, p32: 16384 },
-          { k: 7, h: 0, p16: 0, p32: 8 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 7, h: 0, p16: 0, p32: 2 },
-          { k: 7, h: 0, p16: 0, p32: 32768 },
-          { k: 7, h: 0, p16: 0, p32: 256 },
-          { k: 7, h: 0, p16: 0, p32: 128 },
-          { k: 7, h: 0, p16: 0, p32: 4 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 0, h: 0, p16: 0, p32: 0 },
+          { k: 7, h: 0, p16: 0, p32: 0x00200000 },  // S1  Top L Click   WWW_BACK
+          { k: 7, h: 0, p16: 0, p32: 0x00008000 },  // S2  Top L Double  WWW_HOME
+          { k: 4, h: 0, p16: 0x66, p32: 0 },        // S3  Top L Long    KB_TAP(POWER 0x66)
+          { k: 4, h: 0, p16: 40, p32: 0 },          // S4  Top M Click   Enter
+          { k: 0, h: 0, p16: 0, p32: 0 },           // S5  Top M Hold
+          { k: 7, h: 0, p16: 0, p32: 0x00008000 },  // S6  Top R Click   WWW_HOME
+          { k: 7, h: 0, p16: 0, p32: 0x00080000 },  // S7  Top R Double  WWW_SEARCH
+          { k: 4, h: 0, p16: 0x66, p32: 0 },        // S8  Top R Long    KB_TAP(POWER 0x66)
+          { k: 7, h: 0, p16: 0, p32: 0x00002000 },  // S9  Side F Click  VOL_UP
+          { k: 0, h: 0, p16: 0, p32: 0 },           // S10 Side F Long   (CH_UP 삭제 → NONE)
+          { k: 7, h: 0, p16: 0, p32: 0x00000800 },  // S11 Side C Click  PLAY_PAUSE
+          { k: 0, h: 0, p16: 0, p32: 0 },           // S12
+          { k: 0, h: 0, p16: 0, p32: 0 },           // S13
+          { k: 7, h: 0, p16: 0, p32: 0x00004000 },  // S14 Side R Click  VOL_DOWN
+          { k: 0, h: 0, p16: 0, p32: 0 },           // S15 Side R Long   (CH_DOWN 삭제 → NONE)
+          { k: 7, h: 0, p16: 0, p32: 0x00000010 },  // F1  Flick Left    REWIND
+          { k: 7, h: 0, p16: 0, p32: 0x00000008 },  // F2  Flick Right   FF
+          { k: 7, h: 0, p16: 0, p32: 0x00001000 },  // F3  Flick Up      MUTE
+          { k: 0, h: 0, p16: 0, p32: 0 },           // F4  Flick Down
           { k: 0, h: 0, p16: 0, p32: 0 },
           { k: 0, h: 0, p16: 0, p32: 0 },
-          { k: 4, h: 0, p16: 80, p32: 0 },
-          { k: 4, h: 0, p16: 79, p32: 0 },
-          { k: 4, h: 0, p16: 82, p32: 0 },
-          { k: 4, h: 0, p16: 81, p32: 0 }
+          { k: 0, h: 0, p16: 0, p32: 0 },
+          { k: 0, h: 0, p16: 0, p32: 0 },
+          { k: 4, h: 0, p16: 80, p32: 0 },          // T1  Tilt Left     Left
+          { k: 4, h: 0, p16: 79, p32: 0 },          // T2  Tilt Right    Right
+          { k: 4, h: 0, p16: 82, p32: 0 },          // T3  Tilt Up       Up
+          { k: 4, h: 0, p16: 81, p32: 0 }           // T4  Tilt Down     Down
         ]
       }
     ]
@@ -352,9 +389,12 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
 
 /* =======================================================
    오프라인 로컬 저장소
+   - [v0415] STORAGE_KEY 갱신: airmouse_v0412 → airmouse_v0415
+     · 스키마 변경(v410→v411)으로 이전 스토어 자동 초기화 유도
    ======================================================= */
-const OFFLINE_STORAGE_KEY = "airmouse_v0412_offline_store";
-const OFFLINE_STORE_SCHEMA = 6;   // [Phase 2.0] power/button SPEC rev6 동기화
+const OFFLINE_STORAGE_KEY = "airmouse_v0415_offline_store";
+const OFFLINE_STORE_SCHEMA = 6;   // v0415 유지 (내부 스키마 별도)
+
 let g_offlineStore = null;
 
 function loadOfflineStore() {
@@ -386,7 +426,6 @@ function loadOfflineStore() {
 }
 
 function saveOfflineStore() {
-  // [Phase 2.3 M-1, L-1] 온라인 모드에서는 오프라인 스토어를 조작하지 않음
   if (g_appMode !== APP_MODE_OFFLINE) return;
 
   try {
@@ -399,13 +438,11 @@ function saveOfflineStore() {
 /* =======================================================
    오프라인 모킹 라우터
    ======================================================= */
-
 function handleOfflineApi(url, method, body) {
   if (!g_offlineStore) loadOfflineStore();
 
   const u = new URL(url, "http://localhost");
   const path = u.pathname;
-  // [H-7] 쿼리 파라미터 파싱 (온라인 서버와 정합)
   const compact = (u.searchParams.get("compact") === "1");
   const flat    = (u.searchParams.get("flat") !== "0");
 
@@ -423,7 +460,6 @@ function handleOfflineApi(url, method, body) {
   else if (path === "/api/profiles/active") {
     if (method === "GET") {
       const activeIdx = g_offlineStore.active;
-      // [Phase 2.4 M-11] 상수 참조 반환 금지 → 반드시 deep clone
       if (!g_offlineStore.profileData[activeIdx]) {
         g_offlineStore.profileData[activeIdx] =
           JSON.parse(JSON.stringify(G_OFFLINE_DEFAULT_PROFILE_0));
@@ -434,7 +470,6 @@ function handleOfflineApi(url, method, body) {
         config: g_offlineStore.profileData[activeIdx]
       };
     } else if (method === "POST") {
-      // [Phase 2.5 H-3] 재귀적 병합
       const activeIdx = g_offlineStore.active;
       if (!g_offlineStore.profileData[activeIdx]) {
         g_offlineStore.profileData[activeIdx] =
@@ -539,23 +574,33 @@ function handleOfflineApi(url, method, body) {
   else if (path === "/api/keycodes") {
     resObj.data = G_OFFLINE_KEYCODES;
   }
-  
+
   else if (path === "/api/status") {
-    // [H-7] compact/flat 반영: 온라인 서버(_apiStatus)와 100% 동일하게 top-level 필드 구성 및 선택적 제거
     const act = g_offlineStore.active;
     const actP = g_offlineStore.profiles.find(p => p.idx === act) || { idx: 0, name: "Default" };
 
-    const gSys = { uptime_ms: Date.now() - G_OFFLINE_START_TIME, api_ver: 410 };
+    const gSys = { uptime_ms: Date.now() - G_OFFLINE_START_TIME, api_ver: 411 };
     const gMem = { heap_free: 245760, heap_min_free: 220000, heap_max_alloc: 245760 };
     const gNet = { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0, mdns: "elite-airmouse.local" };
     const gDiag = { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 };
-    const gE10 = { ble_connected: false, ppt_mode: false, active_mode: 1, dpi_level: 2, precision_mode: 0,
-                   gate: { ota_guard: false } };
+    // [v0415] ppt_mode → active_mode
+    const gE10 = {
+      ble_connected: false,
+      active_mode: 1,
+      dpi_level: 2,
+      precision_mode: 0,
+      gate: { ota_guard: false }
+    };
     const gBoot = { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 };
-    const gConfig = { ver: 410, etag_ok: false, etag: 0, size: 0,
-                      profile_idx: act, profile_count: g_offlineStore.profiles.length, profile_name: actP.name,
-                      last_apply_ok: true, last_apply_ms: 0, last_apply_age_ms: 0,
-                      last_apply_code: "", last_apply_src: "" };
+    const gConfig = {
+      ver: 411,
+      etag_ok: false, etag: 0, size: 0,
+      profile_idx: act,
+      profile_count: g_offlineStore.profiles.length,
+      profile_name: actP.name,
+      last_apply_ok: true, last_apply_ms: 0, last_apply_age_ms: 0,
+      last_apply_code: "", last_apply_src: ""
+    };
     const gFeatures = { etag_config: true, reboot_api: true, safe_mode_policy: true, ota_guard: true, e10_observability: true };
     const gOta = { in_progress: false, total: 0, written: 0, ok: false, err: "none" };
     const gPolicy = {
@@ -569,7 +614,7 @@ function handleOfflineApi(url, method, body) {
       heap_free: gMem.heap_free,
       heap_min_free: gMem.heap_min_free,
       heap_max_alloc: gMem.heap_max_alloc,
-      api_ver: 410,
+      api_ver: 411,
       sys: { ...gSys },
       mem: { ...gMem },
       net: { ...gNet },
@@ -586,7 +631,6 @@ function handleOfflineApi(url, method, body) {
       }
     };
 
-    // flat=0 또는 compact=1이면 top-level 메트릭 제거
     if (compact || !flat) {
       delete topData.uptime_ms;
       delete topData.heap_free;
@@ -594,7 +638,6 @@ function handleOfflineApi(url, method, body) {
       delete topData.heap_max_alloc;
       delete topData.api_ver;
     }
-    // compact=1이면 top-level 하위 그룹 객체 제거 (groups와 policy만 유지)
     if (compact) {
       delete topData.sys;
       delete topData.mem;
@@ -608,7 +651,7 @@ function handleOfflineApi(url, method, body) {
     }
     resObj.data = topData;
   }
-  
+
   else if (path === "/api/diag") {
     resObj.data = {
       diag: { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 },
@@ -657,7 +700,6 @@ function handleOfflineApi(url, method, body) {
   }
   else if (path === "/api/safeboot") {
     if (method === "POST" && body && body.exit === true) {
-      // 오프라인: 재부팅 시뮬레이션 없이 캐시 초기화
       resObj.data = { exit: true, offline: true, note: "Offline: no actual reboot." };
     } else {
       resObj.data = { safe_mode: false, fail_count: 0, pending: false, offline: true };
@@ -665,7 +707,6 @@ function handleOfflineApi(url, method, body) {
   }
   else if (path === "/api/factory_reset") {
     if (method === "POST") {
-      // [H-7] 언어/UI 상태는 유지, 오프라인 스토어만 리셋
       try { localStorage.removeItem(OFFLINE_STORAGE_KEY); } catch (e) { }
       g_offlineStore = null;
       loadOfflineStore();

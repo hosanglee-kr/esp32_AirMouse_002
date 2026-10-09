@@ -1,11 +1,14 @@
+
 /* =======================================================
-   File: /www/lib/am_profile_0414.js
-   Elite AirMouse WebConfig v0414 — Profile / Slots / ActionEditor
+   File: /www/lib/am_profile_0415.js
+   Elite AirMouse WebConfig v0415 — Profile / Slots / ActionEditor
    - 로드 순서: 3
+   - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
    - [Phase 2.2 H-1] getActiveProfile() 정식 정의
    - [Phase 3.6 L-5] saveProfile 성공 시 clearDirty, emit에 markSlotDirty
-   ======================================================= */
-
+   =======================================================
+*/
+   
 /* =======================================================
    [Phase 2.2 H-1] 활성 프로파일 config 접근자
    ======================================================= */

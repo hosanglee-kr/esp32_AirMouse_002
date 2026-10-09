@@ -1,21 +1,20 @@
 /* =======================================================
-   File: /www/lib/am_i18n_0414.js
-   Elite AirMouse WebConfig v0414 — i18n Core (Full)
+   File: /www/lib/am_i18n_0415.js
+   Elite AirMouse WebConfig v0415 — i18n Core (Full, 371 keys)
    - 다국어(KO / EN) 사전 및 DOM/런타임 번역 코어
    - 표준 용어 체계(Windows, 마우스, 프레젠테이션, TV 리모컨) 전수 준수
-   - [Phase 2.0.3 N-3] 미사용 키 4쌍 삭제
-   - [Phase 3.2 H-8] 프리셋 확인 문구 강화
-   - [Phase 3.6 L-5] pop.unsaved_changes_confirm 추가
-   - [Phase 3.7 L-7] dash.batt_na_tip 추가
-   - [Phase 4.4 L-6] _setI18nText 자식 노드 보존
-   - [Phase 4.5 M-3] 미사용 키 11쌍 삭제
+   - [v0415] Consumer mask Descriptor 정합 (AC_* → WWW_*, POWER/CH/TV_INPUT 안내)
+   - [v0415] Consumer 신규 라벨 12종 추가 (Play/Pause/Record/Eject/Random/Repeat 등)
+   - [v0415] 스키마 411 마이그레이션 안내 키 추가
+   - [v0415] I18N_STORAGE_KEY = am_lang_0415 (언어 설정 리셋)
    ======================================================= */
 
-const I18N_STORAGE_KEY = "am_lang_0413";
+const I18N_STORAGE_KEY = "am_lang_0415";
 let g_currLang = "ko";
 
 const I18N_DICT = {
   ko: {
+    /* ============ 상단 / 네비게이션 ============ */
     "top.refresh": "새로 고침",
     "top.reboot": "다시 시작",
     "top.reboot_now": "지금 다시 시작",
@@ -27,6 +26,7 @@ const I18N_DICT = {
     "prof.rename": "이름 변경",
     "prof.delete": "삭제",
 
+    /* ============ 탭 ============ */
     "tab.dash": "홈",
     "tab.slots": "버튼 및 동작 할당",
     "tab.macros": "매크로 관리",
@@ -34,6 +34,7 @@ const I18N_DICT = {
     "tab.diag": "진단 및 입력 테스트",
     "tab.ota": "무선 업데이트 (OTA)",
 
+    /* ============ 대시보드 ============ */
     "dash.mode_tab_1": "모드 1",
     "dash.mode_tab_2": "모드 2",
     "dash.mode_tab_3": "모드 3",
@@ -58,8 +59,9 @@ const I18N_DICT = {
     "dash.wifi": "와이파이",
     "dash.cur_prof": "현재 프로필",
     "dash.factory_reset": "공장 초기화",
-    "dash.batt_na_tip": "배터리 ADC 미구현 (v0412)",
+    "dash.batt_na_tip": "배터리 ADC 미구현 (v0415)",
 
+    /* ============ 가상 컨트롤러 ============ */
     "remote.title": "가상 컨트롤러",
     "remote.fold": "접기 ▲",
     "remote.unfold": "펼치기 ▼",
@@ -93,13 +95,17 @@ const I18N_DICT = {
     "remote.ppt_pen": "펜",
     "remote.ppt_arrow": "화살표 포인터",
     "remote.tv_power": "⏻ 전원",
+    "remote.tv_power_tip": "일부 TV 미지원 (HID Keyboard 0x66)",
     "remote.tv_back": "↩ 뒤로 가기",
     "remote.tv_home": "🏠 홈",
     "remote.tv_ok": "확인",
     "remote.tv_input": "외부 입력",
+    "remote.tv_input_tip": "HID Descriptor 미지원 (사용 불가)",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
+    "remote.tv_ch_tip": "HID Descriptor 미지원 (사용 불가)",
 
+    /* ============ 모드별 추가 도구 ============ */
     "tools.title": "모드별 추가 도구",
     "tools.pc.window": "창 및 화면 제어",
     "tools.pc.win_max": "창 최대화",
@@ -147,6 +153,7 @@ const I18N_DICT = {
     "tools.tv.vol_down": "볼륨 -",
     "tools.tv.mute": "음소거",
 
+    /* ============ 문제 해결 도구 ============ */
     "trouble.title": "문제 해결 도구",
     "trouble.pointer": "포인터",
     "trouble.conn": "무선 연결",
@@ -168,6 +175,7 @@ const I18N_DICT = {
     "trouble.i2c_sent": "센서 I2C 복구 요청 전송됨",
     "trouble.invalid_code": "유효하지 않은 키 코드입니다.",
 
+    /* ============ 슬롯 할당 ============ */
     "slots.title": "버튼 및 동작 맞춤 할당",
     "slots.hint": "27가지 조작 동작에 원하는 키나 기능을 지정합니다. [기본 공통]은 모든 모드의 기본값이며, 모드별로 개별 재정의할 수 있습니다.",
     "slots.view_global": "기본 공통",
@@ -189,6 +197,7 @@ const I18N_DICT = {
     "slots.opt_none_action": "할당 안 함 (선택 안 함)",
     "slots.opt_no_macro": "(등록된 매크로 없음)",
 
+    /* ============ 매크로 ============ */
     "macros.title": "연속 동작 매크로 관리",
     "macros.hint": "버튼 한 번으로 복잡한 단축키나 연속 입력을 자동으로 실행합니다.",
     "macros.add": "+ 새 매크로",
@@ -203,6 +212,7 @@ const I18N_DICT = {
     "macro.save_ok": "매크로 저장 완료",
     "macro.opt_no_action": "동작 없음 (None)",
 
+    /* ============ 상세 설정 (Config) ============ */
     "cfg.title": "포인터 및 센서 세부 설정",
     "cfg.hint": "현재 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정합니다.",
     "cfg.save": "설정 저장",
@@ -225,10 +235,11 @@ const I18N_DICT = {
     "cfg.preset_precision": "정밀 작업",
     "cfg.factory_title": "기기 공장 초기화",
     "cfg.factory_hint": "모든 프로필과 설정이 영구적으로 삭제됩니다.",
-    "cfg.foot": "v0414 · Elite AirMouse WebConfig · 독립 실행형",
+    "cfg.foot": "v0415 · Elite AirMouse WebConfig · 독립 실행형",
 
     "cfg.lbl_dpi": "기본 포인터 속도",
     "cfg.lbl_hard_click": "하드 클릭 방지 (클릭 중 잠금)",
+    "cfg.hard_click_deprecated": "(v0415에서 삭제됨 — Click-Freeze로 대체)",
     "cfg.lbl_led_bright": "LED 밝기",
     "cfg.lbl_accel_th": "가속 시작 속도",
     "cfg.lbl_scroll_damp": "스크롤 중 감속 비율",
@@ -294,7 +305,7 @@ const I18N_DICT = {
     "cfg.snap_axis_h": "가로 전용 (X축)",
     "cfg.snap_axis_v": "세로 전용 (Y축)",
     "cfg.save_ok": "설정 저장 완료 (시뮬레이터)",
-    
+
     "cfg.load_ok": "설정 로드 완료",
     "cfg.load_fail": "설정 로드 실패",
     "cfg.save_fail": "설정 저장 실패",
@@ -303,6 +314,11 @@ const I18N_DICT = {
     "cfg.import_err": "가져오기 JSON 오류: {msg}",
     "cfg.import_fail": "가져오기 실패",
 
+    /* ============ [v0415] 스키마 마이그레이션 안내 ============ */
+    "cfg.schema_migrated": "프로파일이 스키마 411로 자동 마이그레이션되었습니다.",
+    "cfg.schema_migrate_note": "v0412 → v0415: Consumer 키 매핑이 HID Descriptor 정합으로 갱신됨.",
+
+    /* ============ 진단 ============ */
     "diag.title": "진단 및 입력 테스트",
     "diag.clear": "카운터 초기화",
     "diag.recent_events": "최근 이벤트 기록",
@@ -316,22 +332,24 @@ const I18N_DICT = {
     "diag.mod_none": "조합 키 없음",
     "diag.reset_ok": "진단 카운터 초기화 완료",
 
+    /* ============ OTA ============ */
     "ota.title": "무선 펌웨어 업데이트 (OTA)",
     "ota.guard_label": "업데이트 보안 잠금 (OTA Guard)",
     "ota.guard_desc": "잠금 시 마우스/키보드 입력이 일시 중단되며 비인가 펌웨어 플래시가 차단됩니다.",
     "ota.btn_upload": "펌웨어 업로드",
     "ota.btn_status": "상태 확인",
 
+    /* ============ 버튼 ============ */
     "btn.apply": "적용",
     "btn.save": "저장",
     "btn.cancel": "취소",
     "btn.close": "닫기",
     "btn.test": "테스트",
 
+    /* ============ 팝업 ============ */
     "pop.mode_switch_confirm": "모드를 {cur} → {tgt}(으)로 전환하시겠습니까?",
     "pop.mode_switch_ok": "모드 {tgt} 전환 완료",
     "pop.mode_switch_fail": "모드 전환 실패:",
-    
     "pop.calib_ok": "자이로 영점 조절 요청 완료",
     "pop.force_release_ok": "눌린 키 강제 해제 완료",
     "pop.host_cycle_ok": "호스트 기기 전환 요청 완료",
@@ -400,15 +418,30 @@ const I18N_DICT = {
     "pop.prof_switching": "프로필 #{idx} 전환 중…",
     "pop.unsaved_changes_confirm": "저장하지 않은 변경사항이 있습니다. 계속 진행하면 변경 내용이 사라집니다. 계속하시겠습니까?",
 
+    /* ============ 네비 / 로그 ============ */
     "nav.menu": "메뉴",
     "nav.close": "닫기",
     "nav.status_tooltip": "프로필 · 배터리 · BLE",
-
     "log.none": "명령 기록 없음",
-    "slot.save_ok": "동작 할당 저장 완료 (시뮬레이터)"
+    "slot.save_ok": "동작 할당 저장 완료 (시뮬레이터)",
+
+    /* ============ [v0415] Consumer 신규 라벨 12종 ============ */
+    "consumer.play": "재생",
+    "consumer.pause": "일시 중지",
+    "consumer.record": "녹음",
+    "consumer.eject": "꺼내기",
+    "consumer.random": "무작위 재생",
+    "consumer.repeat": "반복 재생",
+    "consumer.my_computer": "내 컴퓨터",
+    "consumer.calculator": "계산기",
+    "consumer.www_favorites": "즐겨찾기",
+    "consumer.www_stop": "페이지 중지",
+    "consumer.media_select": "미디어 선택",
+    "consumer.mail": "메일"
   },
 
   en: {
+    /* ============ Header / Navigation ============ */
     "top.refresh": "Refresh",
     "top.reboot": "Restart",
     "top.reboot_now": "Restart Now",
@@ -420,6 +453,7 @@ const I18N_DICT = {
     "prof.rename": "Rename",
     "prof.delete": "Delete",
 
+    /* ============ Tabs ============ */
     "tab.dash": "Home",
     "tab.slots": "Button Assignments",
     "tab.macros": "Macro Manager",
@@ -427,6 +461,7 @@ const I18N_DICT = {
     "tab.diag": "Diagnostics & Input Test",
     "tab.ota": "Firmware Update (OTA)",
 
+    /* ============ Dashboard ============ */
     "dash.mode_tab_1": "Mode 1",
     "dash.mode_tab_2": "Mode 2",
     "dash.mode_tab_3": "Mode 3",
@@ -451,8 +486,9 @@ const I18N_DICT = {
     "dash.wifi": "Wi-Fi",
     "dash.cur_prof": "Active Profile",
     "dash.factory_reset": "Factory Reset",
-    "dash.batt_na_tip": "Battery ADC not implemented (v0412)",
+    "dash.batt_na_tip": "Battery ADC not implemented (v0415)",
 
+    /* ============ Virtual Remote ============ */
     "remote.title": "Virtual Controller",
     "remote.fold": "Collapse ▲",
     "remote.unfold": "Expand ▼",
@@ -486,13 +522,17 @@ const I18N_DICT = {
     "remote.ppt_pen": "Pen",
     "remote.ppt_arrow": "Arrow Pointer",
     "remote.tv_power": "⏻ Power",
+    "remote.tv_power_tip": "Not supported on some TVs (HID Keyboard 0x66)",
     "remote.tv_back": "↩ Back",
     "remote.tv_home": "🏠 Home",
     "remote.tv_ok": "OK",
     "remote.tv_input": "Input Source",
+    "remote.tv_input_tip": "HID Descriptor not supported",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
+    "remote.tv_ch_tip": "HID Descriptor not supported",
 
+    /* ============ Mode Tools ============ */
     "tools.title": "Mode-Specific Tools",
     "tools.pc.window": "Window & Screen",
     "tools.pc.win_max": "Maximize Window",
@@ -540,6 +580,7 @@ const I18N_DICT = {
     "tools.tv.vol_down": "Vol -",
     "tools.tv.mute": "Mute",
 
+    /* ============ Troubleshooting ============ */
     "trouble.title": "Troubleshooting Tools",
     "trouble.pointer": "Pointer",
     "trouble.conn": "Connection",
@@ -561,6 +602,7 @@ const I18N_DICT = {
     "trouble.i2c_sent": "Sensor I2C recovery requested",
     "trouble.invalid_code": "Invalid key code.",
 
+    /* ============ Slots ============ */
     "slots.title": "Button & Action Assignment",
     "slots.hint": "Assign keys or functions to 27 trigger actions. [Global Default] applies across all modes and can be overridden per mode.",
     "slots.view_global": "Global Default",
@@ -582,6 +624,7 @@ const I18N_DICT = {
     "slots.opt_none_action": "Unassigned (None)",
     "slots.opt_no_macro": "(No Macros Registered)",
 
+    /* ============ Macros ============ */
     "macros.title": "Sequential Macro Manager",
     "macros.hint": "Automate sequential keystrokes or media controls with a single click.",
     "macros.add": "+ New Macro",
@@ -596,6 +639,7 @@ const I18N_DICT = {
     "macro.save_ok": "Macro saved",
     "macro.opt_no_action": "No Action (None)",
 
+    /* ============ Config ============ */
     "cfg.title": "Pointer & Sensor Settings",
     "cfg.hint": "Configure pointer speed, acceleration, gestures, and precision for the active profile.",
     "cfg.save": "Save Settings",
@@ -618,10 +662,11 @@ const I18N_DICT = {
     "cfg.preset_precision": "Precision",
     "cfg.factory_title": "Factory Reset",
     "cfg.factory_hint": "All profiles and settings will be permanently erased.",
-    "cfg.foot": "v0414 · Elite AirMouse WebConfig · Standalone",
+    "cfg.foot": "v0415 · Elite AirMouse WebConfig · Standalone",
 
     "cfg.lbl_dpi": "Base Pointer Speed",
     "cfg.lbl_hard_click": "Hard Click Lock (Lock on Click)",
+    "cfg.hard_click_deprecated": "(Removed in v0415 — replaced by Click-Freeze)",
     "cfg.lbl_led_bright": "LED Brightness",
     "cfg.lbl_accel_th": "Acceleration Start Speed",
     "cfg.lbl_scroll_damp": "Scroll Dampening Ratio",
@@ -687,7 +732,7 @@ const I18N_DICT = {
     "cfg.snap_axis_h": "Horizontal Only (X)",
     "cfg.snap_axis_v": "Vertical Only (Y)",
     "cfg.save_ok": "Settings saved (Simulator)",
-    
+
     "cfg.load_ok": "Config loaded",
     "cfg.load_fail": "Config load failed",
     "cfg.save_fail": "Config save failed",
@@ -696,6 +741,11 @@ const I18N_DICT = {
     "cfg.import_err": "Import JSON error: {msg}",
     "cfg.import_fail": "Import failed",
 
+    /* ============ [v0415] Schema Migration ============ */
+    "cfg.schema_migrated": "Profile auto-migrated to schema 411.",
+    "cfg.schema_migrate_note": "v0412 → v0415: Consumer key mapping updated to HID Descriptor SSOT.",
+
+    /* ============ Diagnostics ============ */
     "diag.title": "Diagnostics & Input Test",
     "diag.clear": "Reset Counters",
     "diag.recent_events": "Recent Event Log",
@@ -709,22 +759,24 @@ const I18N_DICT = {
     "diag.mod_none": "None",
     "diag.reset_ok": "Diagnostic counters cleared",
 
+    /* ============ OTA ============ */
     "ota.title": "Firmware Update (OTA)",
     "ota.guard_label": "OTA Security Guard",
     "ota.guard_desc": "When enabled, inputs are suspended and unauthorized flashes are rejected.",
     "ota.btn_upload": "Upload Firmware",
     "ota.btn_status": "Check Status",
 
+    /* ============ Buttons ============ */
     "btn.apply": "Apply",
     "btn.save": "Save",
     "btn.cancel": "Cancel",
     "btn.close": "Close",
     "btn.test": "Test",
 
+    /* ============ Popups ============ */
     "pop.mode_switch_confirm": "Switch mode from {cur} to {tgt}?",
     "pop.mode_switch_ok": "Switched to Mode {tgt}",
     "pop.mode_switch_fail": "Mode switch failed:",
-
     "pop.calib_ok": "Gyro calibration requested",
     "pop.force_release_ok": "All held keys released",
     "pop.host_cycle_ok": "Host device switch requested",
@@ -793,15 +845,32 @@ const I18N_DICT = {
     "pop.prof_switching": "Switching to Profile #{idx}…",
     "pop.unsaved_changes_confirm": "There are unsaved changes. Continuing will discard them. Continue?",
 
+    /* ============ Nav / Log ============ */
     "nav.menu": "Menu",
     "nav.close": "Close",
     "nav.status_tooltip": "Profile · Battery · BLE",
-
     "log.none": "No command log",
-    "slot.save_ok": "Slots saved (Simulator)"
+    "slot.save_ok": "Slots saved (Simulator)",
+
+    /* ============ [v0415] New Consumer Labels (12) ============ */
+    "consumer.play": "Play",
+    "consumer.pause": "Pause",
+    "consumer.record": "Record",
+    "consumer.eject": "Eject",
+    "consumer.random": "Random Play",
+    "consumer.repeat": "Repeat",
+    "consumer.my_computer": "My Computer",
+    "consumer.calculator": "Calculator",
+    "consumer.www_favorites": "WWW Favorites",
+    "consumer.www_stop": "WWW Stop",
+    "consumer.media_select": "Media Select",
+    "consumer.mail": "Mail"
   }
 };
 
+/* =======================================================
+   번역 런타임 (t, _setI18nText, applyI18nToDom, setLanguage, initI18n)
+   ======================================================= */
 function t(key, params) {
   const dict = I18N_DICT[g_currLang] || I18N_DICT.ko;
   let s = dict[key] || (I18N_DICT.ko[key]) || key;
@@ -811,23 +880,16 @@ function t(key, params) {
   return s;
 }
 
-/* =======================================================
-   [Phase 4.4 L-6] 자식 노드 보존 i18n 갱신 헬퍼
-   ======================================================= */
 function _setI18nText(el, text) {
   if (!el || text === undefined || text === null) return;
-
   const v_hasChildElement = Array.from(el.childNodes)
     .some(n => n.nodeType === Node.ELEMENT_NODE);
-
   if (!v_hasChildElement) {
     el.textContent = text;
     return;
   }
-
   const v_firstText = Array.from(el.childNodes)
     .find(n => n.nodeType === Node.TEXT_NODE);
-
   if (v_firstText) {
     v_firstText.nodeValue = text;
   } else {
@@ -849,7 +911,6 @@ function applyI18nToDom() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
     const s = t(el.getAttribute("data-i18n-placeholder")); if (s) el.placeholder = s;
   });
-  // [G-13] aria-label i18n 지원
   document.querySelectorAll("[data-i18n-aria-label]").forEach(el => {
     const s = t(el.getAttribute("data-i18n-aria-label")); if (s) el.setAttribute("aria-label", s);
   });
@@ -861,8 +922,7 @@ function setLanguage(lang) {
   try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch (e) { }
   document.documentElement.lang = lang;
   applyI18nToDom();
-  
-  // [G-9] 언어 버튼 active 상태 반영
+
   qsa(".lang-btn").forEach(b => {
     b.classList.toggle("on", b.dataset.lang === g_currLang);
   });

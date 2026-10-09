@@ -1,9 +1,9 @@
 /* =======================================================
-   File: /www/lib/am_base_0414.js
-   Elite AirMouse WebConfig v0414 — Base Utilities
+   File: /www/lib/am_base_0415.js
+   Elite AirMouse WebConfig v0415 — Base Utilities
    - 로드 순서: 1
-   - [Phase 2.1] keyTest 정의 삭제 (am_status로 통합)
-   - [Phase 3.6 L-5] dirty 추적 플래그/API 추가
+   - [v0415] Consumer mask Descriptor 정합 (AC_* → WWW_*, POWER/CH/TV_INPUT 삭제)
+   - [v0415] Keyboard Page Power (0x66) 그룹 추가
    ======================================================= */
 
 /* ---------------- 모드 상수 ---------------- */
@@ -25,7 +25,7 @@ let g_lastStatus = null;
 let g_diagTypingUntilMs = 0;
 let g_currentActiveMode = 1;
 let g_isRemoteFolded = false;
-const REMOTE_FOLD_KEY = "am_remote_folded_0414";
+const REMOTE_FOLD_KEY = "am_remote_folded_0415";
 
 /* ---------------- [L-5] Unsaved changes 추적 ---------------- */
 let g_cfgDirty  = false;
@@ -36,7 +36,7 @@ function markSlotDirty()     { g_slotDirty = true; }
 
 function clearCfgDirty()     { g_cfgDirty  = false; }
 function clearSlotDirty()    { g_slotDirty = false; }
-function clearDirty()        { g_cfgDirty = false; g_slotDirty = false; }  // 호환용(전체 초기화)
+function clearDirty()        { g_cfgDirty = false; g_slotDirty = false; }
 
 function hasUnsavedChanges() { return g_cfgDirty || g_slotDirty; }
 
@@ -47,11 +47,6 @@ function pretty(o) {
   try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); }
 }
 
-/**
- * [G-14] 정수 파싱 유틸.
- * - "0x" 접두어(양수만) 인식. negative hex("-0x10")는 미지원 (실사용 없음).
- * - 정규식 실패 시 Number() 폴백, 실패 시 def 반환.
- */
 function parseIntFlex(v, def = 0) {
   if (v === null || v === undefined) return def;
   const s = String(v).trim();
@@ -66,12 +61,6 @@ function parseNum(v, def = 0) {
   return Number.isFinite(n) ? n : def;
 }
 
-/**
- * [H-5] 관대한 bool 파싱.
- * - true 반환: true, "true"/"TRUE"/"True", "1", "on"/"ON"
- * - false 반환: false, 그 외 모든 값(빈 문자열/undefined/null 포함)
- * - 서버는 <option value="true|false">만 사용하므로 이 수준으로 충분.
- */
 function parseBool(v) {
   if (v === true || v === false) return v;
   const s = String(v).toLowerCase().trim();
@@ -94,7 +83,6 @@ function setPill(el, text, good) {
 
 /* ---------------- API Envelope ---------------- */
 function unwrapApi(resp) {
-  // [H-2] resp null/undefined 방어 (fetch 실패, mock 예외 등)
   if (!resp) {
     return { ok: false, code: "no_response", msg: "", data: null };
   }
@@ -105,12 +93,10 @@ function unwrapApi(resp) {
   return { ok: !!resp.ok, code: resp.ok ? "ok" : `http_${resp.status}`, msg: "", data: j };
 }
 
-
 /* ---------------- 모드 전환 ---------------- */
 function setAppMode(mode) {
   g_appMode = mode;
   updateAppModeUi();
-  // [F-9] 드로어 라벨도 함께 동기 (온라인 fallback 경로에서 갱신 누락 방지)
   if (typeof _updateNetLabel === "function") _updateNetLabel();
 }
 
@@ -189,6 +175,8 @@ function _kbUsageGroup(code, name) {
   if (code === 0x4B || code === 0x4E || (code >= 0x4F && code <= 0x52)) {
     return isEn ? "Navigation & Arrow Keys" : "탐색 및 방향 키";
   }
+  // [v0415] Keyboard Page Power (HID 0x66) 그룹
+  if (code === 0x66) return isEn ? "Power / System" : "전원 및 시스템";
   return isEn ? "Special & Symbol Keys" : "기타 특수 및 기호 키";
 }
 
@@ -196,6 +184,7 @@ function _kbUsageLabel(code, name) {
   const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
   const hex = "0x" + code.toString(16).toUpperCase().padStart(2, "0");
   if (name === "None") return isEn ? "None (Unassigned)" : "선택 안 함 (None)";
+  if (name === "Power") return isEn ? "Power (Keyboard 0x66)" : "전원 (Keyboard 0x66)";
   if (name && !/^0x/i.test(name)) return `${name} (${hex})`;
   return hex;
 }
@@ -292,43 +281,65 @@ function getModifierFriendlyName(name) {
   return (isEn ? MAP_EN[name] : MAP_KO[name]) || name;
 }
 
+/* -------------------------------------------------------
+   [v0415] Consumer 친화 라벨 매핑 (Descriptor SSOT 정합)
+   - AC_BACK/HOME/SEARCH → WWW_BACK/HOME/SEARCH (라벨 유지)
+   - POWER/TV_INPUT/CH_UP/CH_DOWN 삭제 (Descriptor 미지원)
+   - 신규: PLAY/PAUSE/RECORD/EJECT/RANDOM/REPEAT/MY_COMP/CALC/FAV/STOP/MEDIA_SEL/MAIL
+   ------------------------------------------------------- */
 function getConsumerFriendlyName(name) {
   const isEn = (typeof g_currLang !== "undefined" && g_currLang === "en");
   const MAP_KO = {
-    "VOL_UP": "볼륨 올리기",
-    "VOL_DOWN": "볼륨 내리기",
-    "MUTE": "음소거",
-    "PLAY_PAUSE": "재생 / 일시 중지",
-    "STOP": "정지",
-    "NEXT_TRACK": "다음 트랙 (다음 곡)",
-    "PREV_TRACK": "이전 트랙 (이전 곡)",
+    "PLAY": "재생",
+    "PAUSE": "일시 중지",
+    "RECORD": "녹음",
     "FF": "빨리 감기",
     "REWIND": "되감기",
-    "AC_BACK": "뒤로 가기",
-    "AC_HOME": "홈 화면",
-    "AC_SEARCH": "검색 창 열기",
-    "POWER": "전원 (켜기 / 끄기)",
-    "TV_INPUT": "외부 입력 전환",
-    "CH_UP": "채널 올리기",
-    "CH_DOWN": "채널 내리기"
+    "NEXT_TRACK": "다음 트랙 (다음 곡)",
+    "PREV_TRACK": "이전 트랙 (이전 곡)",
+    "STOP": "정지",
+    "EJECT": "꺼내기",
+    "RANDOM": "무작위 재생",
+    "REPEAT": "반복 재생",
+    "PLAY_PAUSE": "재생 / 일시 중지",
+    "MUTE": "음소거",
+    "VOL_UP": "볼륨 올리기",
+    "VOL_DOWN": "볼륨 내리기",
+    "WWW_HOME": "홈 화면",
+    "MY_COMP": "내 컴퓨터",
+    "CALC": "계산기",
+    "WWW_FAV": "즐겨찾기",
+    "WWW_SEARCH": "검색 창 열기",
+    "WWW_STOP": "페이지 로딩 중지",
+    "WWW_BACK": "뒤로 가기",
+    "MEDIA_SEL": "미디어 선택",
+    "MAIL": "메일"
   };
   const MAP_EN = {
-    "VOL_UP": "Volume Up",
-    "VOL_DOWN": "Volume Down",
-    "MUTE": "Mute",
-    "PLAY_PAUSE": "Play / Pause",
-    "STOP": "Stop",
-    "NEXT_TRACK": "Next Track",
-    "PREV_TRACK": "Previous Track",
+    "PLAY": "Play",
+    "PAUSE": "Pause",
+    "RECORD": "Record",
     "FF": "Fast Forward",
     "REWIND": "Rewind",
-    "AC_BACK": "Back",
-    "AC_HOME": "Home Screen",
-    "AC_SEARCH": "Open Search",
-    "POWER": "Power (On / Off)",
-    "TV_INPUT": "Input Source Toggle",
-    "CH_UP": "Channel Up",
-    "CH_DOWN": "Channel Down"
+    "NEXT_TRACK": "Next Track",
+    "PREV_TRACK": "Previous Track",
+    "STOP": "Stop",
+    "EJECT": "Eject",
+    "RANDOM": "Random Play",
+    "REPEAT": "Repeat",
+    "PLAY_PAUSE": "Play / Pause",
+    "MUTE": "Mute",
+    "VOL_UP": "Volume Up",
+    "VOL_DOWN": "Volume Down",
+    "WWW_HOME": "Home Screen",
+    "MY_COMP": "My Computer",
+    "CALC": "Calculator",
+    "WWW_FAV": "WWW Favorites",
+    "WWW_SEARCH": "Open Search",
+    "WWW_STOP": "WWW Stop",
+    "WWW_BACK": "Back",
+    "MEDIA_SEL": "Media Select",
+    "MAIL": "Mail"
   };
   const desc = isEn ? MAP_EN[name] : MAP_KO[name];
   return desc ? `${name} — ${desc}` : name;
@@ -394,6 +405,7 @@ function populateKbUsageSelect(p_selectEl, p_currentCode) {
     "기본 편집 키 (Enter/Space 등)",
     "기능 키 (F1~F12)",
     "탐색 및 방향 키",
+    "전원 및 시스템",
     "기타 특수 및 기호 키"
   ];
   const ORDER_EN = [
@@ -403,6 +415,7 @@ function populateKbUsageSelect(p_selectEl, p_currentCode) {
     "Basic Keys (Enter/Space)",
     "Function Keys (F1~F12)",
     "Navigation & Arrow Keys",
+    "Power / System",
     "Special & Symbol Keys"
   ];
   const ORDER = isEn ? ORDER_EN : ORDER_KO;
@@ -439,7 +452,6 @@ function populateKbUsageSelect(p_selectEl, p_currentCode) {
 
 /* =======================================================
    전역 로딩 오버레이 제어
-   - [Phase 2.1] keyTest 함수는 am_status_0414.js로 통합 이관됨
    ======================================================= */
 function showLoading(text) {
   const ov = qs("loadingOverlay");

@@ -1,13 +1,16 @@
 /* =======================================================
-   File: /www/app_0414_0001.js
-   Elite AirMouse WebConfig v0414 — UI Binding + Main Entry
+   File: /www/app_0415_0001.js
+   Elite AirMouse WebConfig v0415 — UI Binding + Main Entry
    - 로드 순서: 9 (최종)
+   - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
    - [Phase 3.1] 배너 dismiss 플래그 연동
    - [Phase 3.6] bindConfigDirtyTracker 호출
    ======================================================= */
+   
 
-const MODE_TOOLS_FOLD_KEY = "am_tools_folded_0413";
-const TROUBLE_FOLD_KEY = "am_trouble_folded_0413";
+const MODE_TOOLS_FOLD_KEY = "am_tools_folded_0415";
+const TROUBLE_FOLD_KEY = "am_trouble_folded_0415";
+
 
 /* =======================================================
    1. Drawer

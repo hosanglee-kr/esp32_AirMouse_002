@@ -1,10 +1,14 @@
+// 파일 상단 주석만 교체 (본문 전체 유지)
+
 /* =======================================================
-   File: /www/lib/am_macro_0414.js
-   Elite AirMouse WebConfig v0414 — Macro Editor
+   File: /www/lib/am_macro_0415.js
+   Elite AirMouse WebConfig v0415 — Macro Editor
    - 로드 순서: 5
+   - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
    - [Phase 2.6 L-4] silent fail 로그
    - [Phase 3.6 L-5] 저장 성공 시 clearDirty
    ======================================================= */
+   
 
 function getMacrosArray() {
   if (!g_profile || !g_profile.config) return [];

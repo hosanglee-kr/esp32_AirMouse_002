@@ -345,13 +345,16 @@
             <option value="3" data-i18n="cfg.dpi_opt_3">3단계 (빠름)</option>
           </select>
         </div>
+    
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_hard_click">클릭 중 포인터 잠금</label>
           <select id="e10HardClick" class="select">
             <option value="true" data-i18n="cfg.hard_click_on">사용</option>
             <option value="false" data-i18n="cfg.hard_click_off">사용 안 함</option>
           </select>
+          <div class="fhelp" data-i18n="cfg.hard_click_deprecated">(v0415에서 삭제됨 — Click-Freeze로 대체)</div>
         </div>
+
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_led_bright">LED 밝기</label><input id="ledBrightness" class="inp" type="number" min="0" max="255" step="5" /></div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold" class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp" class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
