@@ -270,29 +270,24 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
 
 // =====================================================
 // SafeMode Gate (공통)
-//  - SafeMode + 비허용 API면 표준 에러 응답 후 true 반환
-// - SafeMode이고 허용 목록이 아니면:
-//   * 카운터/진단 기록
-//   * 표준 에러 응답
-//   * true 반환(호출부에서 return 처리)
+// -------------------------------------------------------
+// [v0415 L7d-A1-02] req->url() 임시 String의 c_str() dangling 방지
+//   - 지역 String(v_uri_str)으로 복사 후 c_str() 사용
+//   - req 수명 동안 유효한 String 복사본 확보
 // =====================================================
-
 bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
+    // [v0415] url dangling 방지: 지역 String으로 복사
     String v_uri_str;
     WebRequestMethodComposite v_method = HTTP_ANY;
+
     if (req) {
-        v_uri_str = req->url();          // ← 지역 String으로 복사 (수명 보장)
+        v_uri_str = req->url();       // ← String 복사 (수명 보장)
         v_method  = req->method();
     }
-    
-    const char*                v_uri    = nullptr;
-    WebRequestMethodComposite  v_method = HTTP_ANY;   // ← 타입 통일
-    if (req) {
-        v_uri    = req->url().c_str();
-        v_method = req->method();                      // 반환 타입과 일치
-    }
+
+    const char* v_uri = v_uri_str.c_str();
 
     // [M-2] method-aware 검사
     if (_isApiAllowedInSafeMode(v_uri, v_method)) return false;
@@ -302,7 +297,6 @@ bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     _sendErr(req, "safe_mode_blocked", "Blocked in safe mode.");
     return true;
 }
-
 
 // =====================================================
 // reboot reason helpers

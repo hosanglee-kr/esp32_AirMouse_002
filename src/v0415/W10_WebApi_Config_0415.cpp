@@ -137,7 +137,6 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
 
     // ---- W10 로컬 캐시 갱신 ----
     _wifi = v_p.wifi;
-    _e10  = v_p.e10;
 
     // ---- WiFi diff → reboot 필요 여부 ----
     // 매 저장 시 boot 스냅샷과 비교 → 되돌림 시 마스크 자동 클리어
