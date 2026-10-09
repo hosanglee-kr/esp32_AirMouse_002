@@ -145,3 +145,20 @@ inline const char* _D10_callerOrUnknown(const char* p_caller) {
 #define D10_LOGI(_fmt, ...) CL_D10_Logger::log(EN_D10_LOG_INFO,  "[%s] " _fmt, __func__, ##__VA_ARGS__)
 #define D10_LOGD(_fmt, ...) CL_D10_Logger::log(EN_D10_LOG_DEBUG, "[%s] " _fmt, __func__, ##__VA_ARGS__)
 
+// ------------------------------------------------------
+// [v0415 fix] 호출자 명시 변형 (_C)
+// ------------------------------------------------------
+//  - A40 삭제 시 우발적으로 함께 제거됨 (Round L 오판정)
+//  - C10_Config_0415 / B20_Ble_0415 등 모듈에서 사용 중
+//  - __func__ 대신 명시적 caller 문자열을 로그 prefix로 사용
+//  - 예: D10_LOGW_C("C10::loadProfile", "patch failed: idx=%u", idx)
+// ------------------------------------------------------
+#define D10_LOGE_C(_caller, _fmt, ...) \
+    CL_D10_Logger::log(EN_D10_LOG_ERROR, "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
+#define D10_LOGW_C(_caller, _fmt, ...) \
+    CL_D10_Logger::log(EN_D10_LOG_WARN,  "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
+#define D10_LOGI_C(_caller, _fmt, ...) \
+    CL_D10_Logger::log(EN_D10_LOG_INFO,  "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
+#define D10_LOGD_C(_caller, _fmt, ...) \
+    CL_D10_Logger::log(EN_D10_LOG_DEBUG, "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
+    
