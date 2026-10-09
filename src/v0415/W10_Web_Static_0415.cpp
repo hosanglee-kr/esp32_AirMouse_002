@@ -1,5 +1,5 @@
 // =======================================================
-// File: W10_Web_Static_0415.cpp
+// File: src/v0415/W10_Web_Static_0415.cpp
 // =======================================================
 
 /*
@@ -9,7 +9,19 @@
  * 모듈명 : Web Config/Status/UI/OTA Server (Split: static/body/diag helpers)
  * ------------------------------------------------------
  * 기능 요약
- *  - (0314) 0313 분할: 정적서빙 + body slot + collectBody + staticErr + diagPush
+ *  - 정적서빙 + body slot + collectBody + staticErr + diagPush
+ *  - 파일 ETag(CRC32+FNV1a+size+mtime mix) / 304 / gzip 분기
+ *  - 화이트리스트 기반 동적 정적 서빙(/www/*, /json/public/*)
+ *
+ * [v0415 주요 변경]
+ *  - 파일명/심볼 _0415
+ *  - include W10_Web_0415.h
+ *  - 본문 로직 유지 (버전업만)
+ *  - G_W10_DEFAULT_INDEX_PATH는 W10_Def_0415.h에서 index_0415.html
+ *
+ * [주의]
+ *  - W10_WebApi_Status_0415.cpp(Status/Diag/Keycodes API)와는 별도 파일
+ *  - 본 파일은 정적서빙/body slot/ETag/diag helper 전용
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -40,584 +52,502 @@
  * ------------------------------------------------------
  */
 
-// =======================================================
 #include "W10_Web_0415.h"
 
 // =====================================================
-// E10 status fill
-// -----------------------------------------------------
-// [v0415] ppt_mode → active_mode (Round G/K/M 소급)
-//        task_stack_led_min_words 노출 (Round G)
+// internal: CRC32 (IEEE 802.3) - small tableless
 // =====================================================
-void CL_W10_WebConfig::_fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
-    e["ble_connected"] = s.ble_connected;
-    e["active_mode"]   = s.active_mode;           // [v0415] 신규
-    e["dpi_level"]     = s.dpi_level;
-    e["precision_mode"] = s.precision_mode;
-
-    e["fsm_state"] = s.fsm_state;
-    e["fsm_sub"] = s.fsm_sub;
-    e["btn_mask"] = s.btn_mask;
-
-    e["safe_mode"] = s.safe_mode;
-
-    JsonObject gate = e["gate"].to<JsonObject>();
-    gate["ota_guard"] = s.ota_guard;
-    gate["ota_guard_count"] = (uint32_t)s.ota_guard_count;
-    gate["ota_guard_uptime_ms"] = (uint32_t)s.ota_guard_uptime_ms;
-
-    JsonObject h = e["health"].to<JsonObject>();
-    h["state"] = s.health;
-    h["score"] = s.health_score;
-
-    JsonObject gyro = e["gyro"].to<JsonObject>();
-    gyro["bias_x"] = s.gyro_bias_x;
-    gyro["bias_y"] = s.gyro_bias_y;
-    gyro["bias_z"] = s.gyro_bias_z;
-    gyro["rms"] = s.gyro_rms;
-
-    e["cursor_rms"] = s.cursor_rms;
-    e["temp_c"] = s.temp_c;
-
-    JsonObject samp = e["sampling"].to<JsonObject>();
-    samp["ms_target"] = (uint32_t)s.sampling_ms_target;
-    samp["ms_avg"] = s.sampling_ms_avg;
-
-    JsonObject i2c = e["i2c"].to<JsonObject>();
-    i2c["recover_count"] = (uint32_t)s.i2c_recover_count;
-    i2c["recover_last_ok"] = s.i2c_recover_last_ok;
-
-    JsonObject err = e["err"].to<JsonObject>();
-    err["mpu_nan"] = (uint32_t)s.err_mpu_nan;
-    err["mutex_miss"] = (uint32_t)s.err_mutex_miss;
-    err["task_overrun"] = (uint32_t)s.err_task_overrun;
-
-    JsonObject an = e["anomaly"].to<JsonObject>();
-    an["spike_count_10s"] = (uint32_t)s.spike_count_10s;
-    an["consecutive_fail"] = (uint32_t)s.consecutive_fail;
-    an["consecutive_recover_fail"] = (uint32_t)s.consecutive_recover_fail;
-
-    JsonObject obs = e["obs"].to<JsonObject>();
-    obs["task_stack_sensor_min_words"] = (uint32_t)s.task_stack_sensor_min_words;
-    obs["task_stack_comm_min_words"]   = (uint32_t)s.task_stack_comm_min_words;
-    obs["task_stack_led_min_words"]    = (uint32_t)s.task_stack_led_min_words;   // [v0415] 신규
-    obs["sensor_dt_max_ms"] = s.sensor_dt_max_ms;
-    obs["sensor_overrun_count"] = (uint32_t)s.sensor_overrun_count;
-    obs["comm_dt_avg_ms"] = s.comm_dt_avg_ms;
-    obs["comm_dt_max_ms"] = s.comm_dt_max_ms;
-    obs["comm_overrun_count"] = (uint32_t)s.comm_overrun_count;
-    obs["failsafe_release_count"] = (uint32_t)s.failsafe_release_count;
-
-    JsonArray hist = e["err_hist"].to<JsonArray>();
-    for (uint8_t i = 0; i < s.err_hist_n; i++) {
-        JsonObject o = hist.add<JsonObject>();
-        o["ts_ms"] = (uint32_t)s.err_hist[i].ts_ms;
-        o["code"] = (uint32_t)s.err_hist[i].code;
-        o["value"] = (uint32_t)s.err_hist[i].value;
+static uint32_t W10_crc32_update(uint32_t crc, const uint8_t* data, size_t len) {
+    uint32_t c = crc;
+    for (size_t i = 0; i < len; i++) {
+        c ^= (uint32_t)data[i];
+        for (uint8_t k = 0; k < 8; k++) {
+            if (c & 1U) c = (c >> 1) ^ 0xEDB88320UL;
+            else        c = (c >> 1);
+        }
     }
+    return c;
 }
 
-void CL_W10_WebConfig::_fillE10Status(JsonObject e, ST_W10_E10If_t* e10if) {
-    if (!e10if) return;
-    ST_E10_Status_t s;
-    if (!e10if->getStatus || !e10if->getStatus(e10if->ctx, &s)) return;
-    _fillE10StatusFromSnapshot(e, s);
+static uint32_t W10_fnv1a32(const char* s) {
+    uint32_t h = 2166136261UL;
+    if (!s) return h;
+    while (*s) {
+        h ^= (uint8_t)(*s++);
+        h *= 16777619UL;
+    }
+    return h;
+}
+
+static uint32_t W10_rotl32(uint32_t x, uint8_t r) {
+    return (x << r) | (x >> (32 - r));
 }
 
 // =====================================================
-// /api/status
+// Static용: 파일 ETag 계산 (32-bit) + 파일 크기(optional)
+// - mix: size + (mtime if available) + crc32(sample) + path hash
 // =====================================================
-void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
-    JsonDocument v_doc;
-    const uint32_t v_uptime = (uint32_t)millis();
-    const uint32_t v_heapFree = (uint32_t)ESP.getFreeHeap();
-    const uint32_t v_heapMin = (uint32_t)ESP.getMinFreeHeap();
-    const uint32_t v_heapMaxA = (uint32_t)ESP.getMaxAllocHeap();
+bool CL_W10_WebConfig::_calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize) {
+    p_outEtag = 0;
+    if (p_outSize) *p_outSize = 0;
+    if (!p_path) return false;
 
-    bool v_flat = true;
-    bool v_compact = false;
-    if (req && req->hasParam("flat")) {
-        const String v = req->getParam("flat")->value();
-        if (v == "0" || v == "false") v_flat = false;
-    }
-    if (req && req->hasParam("compact")) {
-        const String v = req->getParam("compact")->value();
-        if (v == "1" || v == "true") v_compact = true;
-    }
+    File f = LittleFS.open(p_path, "r");
+    if (!f) return false;
 
-    v_doc["uptime_ms"] = v_uptime;
-    v_doc["heap_free"] = v_heapFree;
-    v_doc["heap_min_free"] = v_heapMin;
-    v_doc["heap_max_alloc"] = v_heapMaxA;
-    v_doc["api_ver"] = (uint16_t)G_W10_API_VER;
+    const size_t v_size = (size_t)f.size();
+    if (p_outSize) *p_outSize = v_size;
 
-    JsonObject sys = v_doc["sys"].to<JsonObject>();
-    sys["uptime_ms"] = v_uptime;
-    sys["api_ver"] = (uint16_t)G_W10_API_VER;
+    // mtime(가능하면) - 코어 버전에 따라 없을 수 있어 조건부
+    uint32_t v_mtime = 0;
 
-    JsonObject mem = v_doc["mem"].to<JsonObject>();
-    mem["heap_free"] = v_heapFree;
-    mem["heap_min_free"] = v_heapMin;
-    mem["heap_max_alloc"] = v_heapMaxA;
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+    v_mtime = (uint32_t)f.getLastWrite();
+#endif
 
-    JsonObject feat = v_doc["features"].to<JsonObject>();
-    feat["etag_config"] = true;
-    feat["reboot_api"] = true;
-    feat["safe_mode_policy"] = true;
-    feat["ota_guard"] = true;
-    feat["e10_observability"] = true;
+    uint32_t v_crc = 0xFFFFFFFFUL;
 
-    JsonObject diag = v_doc["diag"].to<JsonObject>();
-    diag["body_too_large"] = (uint32_t)_cnt_body_too_large;
-    diag["body_no_slot"] = (uint32_t)_cnt_body_no_slot;
-    diag["json_bad"] = (uint32_t)_cnt_json_bad;
-    diag["safe_blocked"] = (uint32_t)_cnt_safe_blocked;
-    diag["ota_blocked"] = (uint32_t)_cnt_ota_blocked;
+    // 샘플 읽기: head/mid/tail 각 256B(파일이 작으면 가능한 범위 내)
+    uint8_t buf[256];
+    memset(buf, 0, sizeof(buf));
 
-    JsonObject net = v_doc["net"].to<JsonObject>();
-    net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
-    net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-    net["ssid"] = (WiFi.getMode() == WIFI_AP) ? String(_wifi.ap_ssid) : WiFi.SSID();
-    net["mdns"] = String(_wifi.mdns_host) + ".local";
+    auto readAt = [&](size_t off, size_t want) {
+        if (want == 0) return;
+        if (off > v_size) return;
+        if (off + want > v_size) want = (v_size - off);
+        if (want == 0) return;
 
-    bool v_otaGuard = false;
-    ST_W10_E10If_t* e10if = _e10if;
-    if (e10if) {
-        ST_E10_Status_t s;
-        if (e10if->getStatus && e10if->getStatus(e10if->ctx, &s)) {
-            JsonObject e = v_doc["e10"].to<JsonObject>();
-            _fillE10StatusFromSnapshot(e, s);
-            v_otaGuard = s.ota_guard;
+        f.seek(off, SeekSet);
+        size_t got = f.read(buf, want);
+        if (got > 0) {
+            v_crc = W10_crc32_update(v_crc, buf, got);
         }
+    };
+
+    const size_t S = 256;
+    readAt(0, (v_size >= S ? S : v_size));
+    if (v_size > S) {
+        size_t mid = (v_size / 2);
+        if (mid >= (S / 2)) mid -= (S / 2);
+        readAt(mid, (v_size >= S ? S : v_size));
+    }
+    if (v_size > (2 * S)) {
+        readAt(v_size - S, S);
     }
 
-    JsonObject ota = v_doc["ota"].to<JsonObject>();
-    ota["in_progress"] = _otaInProgress;
-    ota["total"] = (uint32_t)_otaTotal;
-    ota["written"] = (uint32_t)_otaWritten;
-    ota["ok"] = _otaOk;
-    ota["err"] = _otaErr;
+    v_crc ^= 0xFFFFFFFFUL;
 
-    if (_cfg) {
-        ST_C10_BootState_t bs;
-        _cfg->getBootState(bs);
-        JsonObject b = v_doc["boot"].to<JsonObject>();
-        b["safe_mode"] = bs.safe_mode;
-        b["fail_count"] = bs.fail_count;
-        b["pending"] = bs.pending;
-        b["last_reset_reason"] = bs.last_reset_reason;
+    // path hash
+    uint32_t v_ph = W10_fnv1a32(p_path);
 
-        JsonObject pol = v_doc["policy"].to<JsonObject>();
-        pol["reboot_required"] = _needReboot;
-        pol["reboot_reason_mask"] = (uint32_t)_needRebootMask;
-        pol["reboot_reasons"] = _rebootReasonsString(_needRebootMask);
-        pol["safe_mode_api_limited"] = bs.safe_mode;
-        pol["ota_upload_blocked"] = v_otaGuard;
+    // 최종 mix
+    uint32_t h = 0;
+    h ^= (uint32_t)(v_size & 0xFFFFFFFFUL);
+    h = W10_rotl32(h, 5) ^ v_crc;
+    h = W10_rotl32(h, 7) ^ v_ph;
+    h = W10_rotl32(h, 11) ^ v_mtime;
 
-        uint32_t v_etag = 0;
-        size_t v_cfgSize = 0;
-        char v_profPath[64];
-        C10_DEF::makeProfilePath(v_profPath, sizeof(v_profPath), _cfg->getActiveIndex());
-        bool v_etagOk = _calcFileEtag32(v_profPath, v_etag, &v_cfgSize);
+    // 마지막 확산
+    h ^= (h >> 16);
+    h *= 0x7FEB352DUL;
+    h ^= (h >> 15);
+    h *= 0x846CA68BUL;
+    h ^= (h >> 16);
 
-        char v_profName[C10_DEF::PROFILE_NAME_LEN] = {0};
-        {
-            ST_C10_ProfileConfig_t v_p;
-            _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
-            if (_cfg->loadActiveProfile(v_p)) {
-                strlcpy(v_profName, v_p.name, sizeof(v_profName));
-            }
-        }
-
-        JsonObject cfg = v_doc["config"].to<JsonObject>();
-        cfg["ver"] = (uint16_t)G_C10_CFG_VER;
-        cfg["etag_ok"] = v_etagOk;
-        cfg["etag"] = (uint32_t)v_etag;
-        cfg["size"] = (uint32_t)v_cfgSize;
-
-        cfg["profile_idx"]   = (uint8_t)_cfg->getActiveIndex();
-        cfg["profile_count"] = (uint8_t)_cfg->getProfileCount();
-        cfg["profile_name"]  = v_profName;
-
-        cfg["last_apply_ok"] = _lastApplyOk;
-        cfg["last_apply_ms"] = _lastApplyMs;
-        cfg["last_apply_age_ms"] = (_lastApplyMs == 0) ? 0 : (uint32_t)(v_uptime - _lastApplyMs);
-        cfg["last_apply_code"] = _lastApplyCode;
-        cfg["last_apply_src"] = _lastApplySrc;
-    }
-
-    JsonObject groups = v_doc["groups"].to<JsonObject>();
-    {
-        JsonObject gSys = groups["sys"].to<JsonObject>();
-        gSys["uptime_ms"] = v_uptime;
-        gSys["api_ver"] = (uint16_t)G_W10_API_VER;
-
-        JsonObject gMem = groups["mem"].to<JsonObject>();
-        gMem["heap_free"] = v_heapFree;
-        gMem["heap_min_free"] = v_heapMin;
-        gMem["heap_max_alloc"] = v_heapMaxA;
-
-        JsonObject gNet = groups["net"].to<JsonObject>();
-        gNet["mode"] = net["mode"];
-        gNet["ip"] = net["ip"];
-        gNet["ssid"] = net["ssid"];
-        gNet["mdns"] = net["mdns"];
-
-        JsonObject gDiag = groups["diag"].to<JsonObject>();
-        gDiag["body_too_large"] = diag["body_too_large"];
-        gDiag["body_no_slot"] = diag["body_no_slot"];
-        gDiag["json_bad"] = diag["json_bad"];
-        gDiag["safe_blocked"] = diag["safe_blocked"];
-        gDiag["ota_blocked"] = diag["ota_blocked"];
-
-        JsonObject gFeat = groups["features"].to<JsonObject>();
-        gFeat["etag_config"] = feat["etag_config"];
-        gFeat["reboot_api"] = feat["reboot_api"];
-        gFeat["safe_mode_policy"] = feat["safe_mode_policy"];
-        gFeat["ota_guard"] = feat["ota_guard"];
-        gFeat["e10_observability"] = feat["e10_observability"];
-
-        if (_cfg) {
-            groups["policy_ref"] = "/policy";
-
-            JsonObject gBoot = groups["boot"].to<JsonObject>();
-            JsonObject boot = v_doc["boot"].as<JsonObject>();
-            gBoot["safe_mode"] = boot["safe_mode"];
-            gBoot["fail_count"] = boot["fail_count"];
-            gBoot["pending"] = boot["pending"];
-            gBoot["last_reset_reason"] = boot["last_reset_reason"];
-
-            JsonObject gCfg = groups["config"].to<JsonObject>();
-            JsonObject cfg = v_doc["config"].as<JsonObject>();
-            gCfg["ver"] = cfg["ver"];
-            gCfg["etag_ok"] = cfg["etag_ok"];
-            gCfg["etag"] = cfg["etag"];
-            gCfg["size"] = cfg["size"];
-            gCfg["profile_idx"]   = cfg["profile_idx"];
-            gCfg["profile_count"] = cfg["profile_count"];
-            gCfg["profile_name"]  = cfg["profile_name"];
-            gCfg["last_apply_ok"] = cfg["last_apply_ok"];
-            gCfg["last_apply_ms"] = cfg["last_apply_ms"];
-            gCfg["last_apply_age_ms"] = cfg["last_apply_age_ms"];
-            gCfg["last_apply_code"] = cfg["last_apply_code"];
-            gCfg["last_apply_src"] = cfg["last_apply_src"];
-        }
-
-        JsonObject gOta = groups["ota"].to<JsonObject>();
-        gOta["in_progress"] = ota["in_progress"];
-        gOta["total"] = ota["total"];
-        gOta["written"] = ota["written"];
-        gOta["ok"] = ota["ok"];
-        gOta["err"] = ota["err"];
-
-        JsonVariant e10v = v_doc["e10"];
-        if (!e10v.isNull()) {
-            JsonObject gE10 = groups["e10"].to<JsonObject>();
-            JsonObject e10 = e10v.as<JsonObject>();
-            for (JsonPair kv : e10) {
-                gE10[kv.key()] = kv.value();
-            }
-        }
-    }
-
-    if (!v_flat || v_compact) {
-        v_doc.remove("uptime_ms");
-        v_doc.remove("heap_free");
-        v_doc.remove("heap_min_free");
-        v_doc.remove("heap_max_alloc");
-        v_doc.remove("api_ver");
-    }
-    if (v_compact) {
-        v_doc.remove("sys");
-        v_doc.remove("mem");
-        v_doc.remove("net");
-        v_doc.remove("diag");
-        v_doc.remove("ota");
-        v_doc.remove("boot");
-        v_doc.remove("config");
-        v_doc.remove("e10");
-        v_doc.remove("features");
-    }
-
-    _sendOk(req, "status", "", &v_doc, 200);
+    p_outEtag = h;
+    f.close();
+    return true;
 }
 
 // =====================================================
-// /api/diag
+// 304 공통 (정적): Cache-Control 지정 + (선택) Vary:Accept-Encoding
+// - Cache-Control은 200과 "동일 값"으로 넣어 일관성 유지
+// - Vary는 "실제로 gzip variant를 사용한 경우에만" 넣기 위한 옵션
 // =====================================================
-void CL_W10_WebConfig::_apiDiag(AsyncWebServerRequest* req) {
-    JsonDocument v_doc;
+void CL_W10_WebConfig::_send304StaticWithCacheControl(AsyncWebServerRequest* req,
+                                                     uint32_t p_etag,
+                                                     const char* p_cacheControl,
+                                                     bool p_varyAcceptEncoding) {
+    if (!req) return;
 
-    JsonObject diag = v_doc["diag"].to<JsonObject>();
-    diag["body_too_large"] = (uint32_t)_cnt_body_too_large;
-    diag["body_no_slot"] = (uint32_t)_cnt_body_no_slot;
-    diag["json_bad"] = (uint32_t)_cnt_json_bad;
-    diag["safe_blocked"] = (uint32_t)_cnt_safe_blocked;
-    diag["ota_blocked"] = (uint32_t)_cnt_ota_blocked;
+    AsyncWebServerResponse* res304 = req->beginResponse(304);
 
-    JsonObject apply = v_doc["last_apply"].to<JsonObject>();
-    const uint32_t v_uptime = (uint32_t)millis();
-    apply["ok"] = _lastApplyOk;
-    apply["ms"] = (uint32_t)_lastApplyMs;
-    apply["age_ms"] = (_lastApplyMs == 0) ? (uint32_t)0 : (uint32_t)((uint32_t)v_uptime - (uint32_t)_lastApplyMs);
-    apply["code"] = _lastApplyCode;
-    apply["src"] = _lastApplySrc;
+    char v_tag[16];
+    memset(v_tag, 0, sizeof(v_tag));
+    _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
 
-    JsonArray ev = v_doc["events"].to<JsonArray>();
-    if (_diagEvtCount > 0) {
-        const uint8_t start = (uint8_t)((_diagEvtHead + G_W10_DIAG_EVT_MAX - _diagEvtCount) % G_W10_DIAG_EVT_MAX);
-        for (uint8_t i = 0; i < _diagEvtCount; i++) {
-            const uint8_t pos = (uint8_t)((start + i) % G_W10_DIAG_EVT_MAX);
-            JsonObject e = ev.add<JsonObject>();
-            e["ms"] = (uint32_t)_diagEvt[pos].ms;
-            e["code"] = _diagEvt[pos].code;
-        }
+    res304->addHeader("Cache-Control", (p_cacheControl ? p_cacheControl : G_W10_CACHE_NOSTORE));
+    res304->addHeader("ETag", v_tag);
+
+    if (p_varyAcceptEncoding) {
+        res304->addHeader("Vary", "Accept-Encoding");
     }
-    _sendOk(req, "diag", "", &v_doc, 200);
-}
-
-void CL_W10_WebConfig::_apiDiagClear(AsyncWebServerRequest* req) {
-    (void)req;
-
-    _cnt_body_too_large = 0;
-    _cnt_body_no_slot = 0;
-    _cnt_json_bad = 0;
-    _cnt_safe_blocked = 0;
-    _cnt_ota_blocked = 0;
-
-    _diagEvtHead = 0;
-    _diagEvtCount = 0;
-    memset(_diagEvt, 0, sizeof(_diagEvt));
-
-    JsonDocument v_doc;
-    v_doc["cleared"] = true;
-    _sendOk(req, "diag_clear", "", &v_doc, 200);
+    req->send(res304);
 }
 
 // =====================================================
-// /api/keycodes
-// -----------------------------------------------------
-// [v0415] G_W10_CONSUMER[] 값은 Descriptor SSOT 그대로 (변경 없음)
+// 200 공통 (정적): Cache-Control + (선택) gzip + (선택) Vary + ETag(+size)
 // =====================================================
-const char* CL_W10_WebConfig::_kbName(uint16_t p_code) {
-    switch (p_code) {
-        case 0x00: return "None";
-        case 0x04: return "A";
-        case 0x05: return "B";
-        case 0x06: return "C";
-        case 0x07: return "D";
-        case 0x08: return "E";
-        case 0x09: return "F";
-        case 0x0A: return "G";
-        case 0x0B: return "H";
-        case 0x0C: return "I";
-        case 0x0D: return "J";
-        case 0x0E: return "K";
-        case 0x0F: return "L";
-        case 0x10: return "M";
-        case 0x11: return "N";
-        case 0x12: return "O";
-        case 0x13: return "P";
-        case 0x14: return "Q";
-        case 0x15: return "R";
-        case 0x16: return "S";
-        case 0x17: return "T";
-        case 0x18: return "U";
-        case 0x19: return "V";
-        case 0x1A: return "W";
-        case 0x1B: return "X";
-        case 0x1C: return "Y";
-        case 0x1D: return "Z";
-        case 0x1E: return "1";
-        case 0x1F: return "2";
-        case 0x20: return "3";
-        case 0x21: return "4";
-        case 0x22: return "5";
-        case 0x23: return "6";
-        case 0x24: return "7";
-        case 0x25: return "8";
-        case 0x26: return "9";
-        case 0x27: return "0";
-        case 0x28: return "Enter";
-        case 0x29: return "Esc";
-        case 0x2A: return "Backspace";
-        case 0x2B: return "Tab";
-        case 0x2C: return "Space";
-        case 0x3A: return "F1";
-        case 0x3B: return "F2";
-        case 0x3C: return "F3";
-        case 0x3D: return "F4";
-        case 0x3E: return "F5";
-        case 0x3F: return "F6";
-        case 0x40: return "F7";
-        case 0x41: return "F8";
-        case 0x42: return "F9";
-        case 0x43: return "F10";
-        case 0x44: return "F11";
-        case 0x45: return "F12";
-        case 0x4B: return "PageUp";
-        case 0x4E: return "PageDown";
-        case 0x4F: return "Right";
-        case 0x50: return "Left";
-        case 0x51: return "Down";
-        case 0x52: return "Up";
-        case 0x66: return "Power";   // [v0415] HID Keyboard Page Power
-        default: return nullptr;
+void CL_W10_WebConfig::_sendStaticWithCacheControlEtag(AsyncWebServerRequest* req,
+                                                      const char* p_sendPath,
+                                                      const char* p_contentType,
+                                                      const char* p_cacheControl,
+                                                      bool p_useGz,
+                                                      bool p_varyAcceptEncoding,
+                                                      bool p_hasEtag,
+                                                      uint32_t p_etag,
+                                                      size_t p_size) {
+    if (!req || !p_sendPath || !p_contentType) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
+
+    AsyncWebServerResponse* res = req->beginResponse(LittleFS, p_sendPath, p_contentType);
+
+    if (p_useGz) {
+        res->addHeader("Content-Encoding", "gzip");
+        // Vary는 "실제로 gzip을 사용한 경우"에만(더 엄격)
+        if (p_varyAcceptEncoding) res->addHeader("Vary", "Accept-Encoding");
+    }
+
+    res->addHeader("Cache-Control", (p_cacheControl ? p_cacheControl : G_W10_CACHE_NOSTORE));
+
+    if (p_hasEtag) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(p_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+        res->addHeader("X-File-Size", String((unsigned int)p_size));
+    }
+
+    req->send(res);
+}
+
+// =====================================================
+// POST body slots
+// =====================================================
+ST_W10_BodySlot* CL_W10_WebConfig::_bodySlotAlloc(AsyncWebServerRequest* req) {
+    // 1) 이미 같은 요청에 할당된 슬롯 재사용
+    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+        if (s_bodySlots[i].req == req) return &s_bodySlots[i];
+    }
+
+    // 2) 빈 슬롯 우선 할당
+    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+        if (s_bodySlots[i].req == nullptr) {
+            s_bodySlots[i].req = req;
+            s_bodySlots[i].len = 0;
+            s_bodySlots[i].lastMs = millis();
+            memset(s_bodySlots[i].buf, 0, sizeof(s_bodySlots[i].buf));
+            return &s_bodySlots[i];
+        }
+    }
+
+    // 3) 빈 슬롯 없음 → 가장 오래된 슬롯이 stale 임계 초과면 회수
+    uint8_t v_oldIdx = 0;
+    uint32_t v_oldMs = s_bodySlots[0].lastMs;
+    for (uint8_t i = 1; i < G_W10_BODY_SLOTS; i++) {
+        if (s_bodySlots[i].lastMs < v_oldMs) {
+            v_oldMs = s_bodySlots[i].lastMs;
+            v_oldIdx = i;
+        }
+    }
+
+    const uint32_t v_now = millis();
+    if ((v_now - v_oldMs) < G_W10_BODY_SLOT_STALE_MS) {
+        return nullptr;
+    }
+
+    s_bodySlots[v_oldIdx].req = req;
+    s_bodySlots[v_oldIdx].len = 0;
+    s_bodySlots[v_oldIdx].lastMs = v_now;
+    memset(s_bodySlots[v_oldIdx].buf, 0, sizeof(s_bodySlots[v_oldIdx].buf));
+    return &s_bodySlots[v_oldIdx];
+}
+
+ST_W10_BodySlot* CL_W10_WebConfig::_bodyGetSlot(AsyncWebServerRequest* req, size_t index) {
+    if (index == 0) {
+        return _bodySlotAlloc(req);
+    }
+    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+        if (s_bodySlots[i].req == req) return &s_bodySlots[i];
+    }
+    return _bodySlotAlloc(req);
+}
+
+void CL_W10_WebConfig::_bodyFree(AsyncWebServerRequest* req) {
+    for (uint8_t i = 0; i < G_W10_BODY_SLOTS; i++) {
+        if (s_bodySlots[i].req == req) {
+            s_bodySlots[i].req = nullptr;
+            s_bodySlots[i].len = 0;
+            s_bodySlots[i].lastMs = 0;
+            memset(s_bodySlots[i].buf, 0, sizeof(s_bodySlots[i].buf));
+            return;
+        }
     }
 }
 
-const char* CL_W10_WebConfig::_precModeName(uint8_t p_mode) {
-    switch (p_mode) {
-        case (uint8_t)EN_C10_E10_PREC_OFF:  return "OFF";
-        case (uint8_t)EN_C10_E10_PREC_LOW:  return "LOW";
-        case (uint8_t)EN_C10_E10_PREC_MED:  return "MED";
-        case (uint8_t)EN_C10_E10_PREC_HIGH: return "HIGH";
-        case (uint8_t)EN_C10_E10_PREC_PPT:  return "PPT";
-        default: return "UNKNOWN";
-    }
+// =====================================================
+// gzip Accept
+// =====================================================
+bool CL_W10_WebConfig::_acceptsGzip(AsyncWebServerRequest* req) {
+    if (!req->hasHeader("Accept-Encoding")) return false;
+    const String v_ae = req->header("Accept-Encoding");
+    return (v_ae.indexOf("gzip") >= 0);
 }
 
-void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
-    JsonDocument d;
+// =====================================================
+// wants JSON?
+// =====================================================
+bool CL_W10_WebConfig::_wantsJson(AsyncWebServerRequest* req) const {
+    if (!req) return false;
+    if (!req->hasHeader("Accept")) return false;
+    const AsyncWebHeader* h = req->getHeader("Accept");
+    if (!h) return false;
+    const String v = h->value();
+    return (v.indexOf("application/json") >= 0);
+}
 
-    JsonArray mods = d["mods"].to<JsonArray>();
-    for (size_t i = 0; i < sizeof(G_W10_MODS) / sizeof(G_W10_MODS[0]); i++) {
-        JsonObject o = mods.add<JsonObject>();
-        o["name"] = G_W10_MODS[i].name;
-        o["mask"] = G_W10_MODS[i].mask;
+// =====================================================
+// Static error helper (JSON도 stream)
+// =====================================================
+void CL_W10_WebConfig::_sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg) {
+    if (!req) return;
+
+    if (_wantsJson(req)) {
+        JsonDocument doc;
+        doc["ok"] = false;
+        doc["code"] = (p_code ? p_code : "error");
+        doc["msg"] = (p_msg ? p_msg : "error");
+
+        JsonObject data = doc["data"].to<JsonObject>();
+        data["http"] = (int)p_http;
+        data["uri"] = req->url();
+
+        // static도 cache-control은 no-store로 통일(요구: stream 통일)
+        AsyncResponseStream* res = req->beginResponseStream("application/json");
+        res->setCode(p_http);
+        res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+        serializeJson(doc, *res);
+        req->send(res);
+        return;
     }
 
-    JsonArray kb = d["kb"].to<JsonArray>();
-    char nameBuf[8];
-    for (uint16_t code = 0; code <= 0xE7; code++) {
-        const char* n = _kbName(code);
-        if (!n) {
-            snprintf(nameBuf, sizeof(nameBuf), "0x%02X", (unsigned)code);
-            n = nameBuf;
+    req->send(p_http, "text/plain", (p_msg ? p_msg : "error"));
+}
+
+// =====================================================
+// diag ring push
+// =====================================================
+void CL_W10_WebConfig::_diagPush(const char* p_code) {
+    if (!p_code) return;
+
+    const uint32_t v_now = (uint32_t)millis();
+
+    _diagEvt[_diagEvtHead].ms = v_now;
+    strlcpy(_diagEvt[_diagEvtHead].code, p_code, sizeof(_diagEvt[_diagEvtHead].code));
+
+    _diagEvtHead = (uint8_t)((_diagEvtHead + 1) % G_W10_DIAG_EVT_MAX);
+    if (_diagEvtCount < G_W10_DIAG_EVT_MAX) _diagEvtCount++;
+}
+
+// =====================================================
+// Body Collector (fixed slots)
+// =====================================================
+bool CL_W10_WebConfig::_collectBodyOrReply(AsyncWebServerRequest* req,
+    uint8_t* data, size_t len,
+    size_t index, size_t total,
+    String& p_outBody) {
+
+    if (total > G_W10_BODY_MAX) {
+        _cnt_body_too_large++;
+        _diagPush("body_too_large");
+        JsonDocument v_doc;
+        v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
+        v_doc["total"] = (uint32_t)total;
+        _sendErr(req, "body_too_large", "Request body too large.", &v_doc);
+        return false;
+    }
+
+    ST_W10_BodySlot* v_slot = _bodyGetSlot(req, index);
+    if (!v_slot) {
+        _cnt_body_no_slot++;
+        _diagPush("no_body_slot");
+
+        JsonDocument v_doc;
+        v_doc["slots"] = (uint8_t)G_W10_BODY_SLOTS;
+        v_doc["stale_ms"] = (uint32_t)G_W10_BODY_SLOT_STALE_MS;
+        v_doc["hint"] = "too many concurrent POST; retry";
+
+        _sendErr(req, "no_body_slot", "Server is busy. Try again.", &v_doc);
+        return false;
+    }
+
+    if ((v_slot->len + len) > G_W10_BODY_MAX) {
+        _cnt_body_too_large++;
+        _diagPush("body_too_large");
+        JsonDocument v_doc;
+        v_doc["max"] = (uint32_t)G_W10_BODY_MAX;
+        v_doc["total"] = (uint32_t)total;
+        _bodyFree(req);
+        _sendErr(req, "body_too_large", "Request body too large.", &v_doc);
+        return false;
+    }
+
+    memcpy((void*)(v_slot->buf + v_slot->len), (const void*)data, len);
+    v_slot->len += len;
+    v_slot->lastMs = millis();
+    v_slot->buf[v_slot->len] = '\0';
+
+    if (index + len < total) return false;
+
+    p_outBody = String(v_slot->buf);
+    _bodyFree(req);
+    return true;
+}
+
+// =====================================================
+// Dynamic static serving (화이트리스트 + 확장자 제한)
+// =====================================================
+void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
+    const String v_uri = req->url();
+
+    if (v_uri.startsWith("/api/")) {
+        _sendErr(req, "api_not_found", "API endpoint not found.");
+        return;
+    }
+
+    if (v_uri == "/favicon.ico") {
+        _serveWwwStatic(req, "/www/favicon.ico");
+        return;
+    }
+    if (v_uri == "/robots.txt") {
+        _serveWwwStatic(req, "/www/robots.txt");
+        return;
+    }
+
+    if (v_uri.startsWith(G_W10_URI_WWW_PREFIX)) {
+        if (!W10_isPathSafe(v_uri.c_str())) {
+            _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+            return;
         }
-        JsonObject o = kb.add<JsonObject>();
-        o["name"] = n;
-        o["code"] = code;
+        _serveWwwStatic(req, v_uri.c_str());
+        return;
     }
 
-    JsonArray con = d["consumer"].to<JsonArray>();
-    for (size_t i = 0; i < sizeof(G_W10_CONSUMER) / sizeof(G_W10_CONSUMER[0]); i++) {
-        JsonObject o = con.add<JsonObject>();
-        o["name"] = G_W10_CONSUMER[i].name;
-        o["mask"] = (uint32_t)G_W10_CONSUMER[i].mask;
+    if (v_uri.startsWith(G_W10_URI_JSON_PUBLIC_PREFIX)) {
+        if (!W10_isPathSafe(v_uri.c_str())) {
+            _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+            return;
+        }
+        _servePublicJson(req, v_uri.c_str());
+        return;
     }
 
-    JsonArray pm = d["precision_modes"].to<JsonArray>();
-    for (uint8_t m = 0; m < (uint8_t)EN_C10_E10_PREC_MAX; m++) {
-        JsonObject o = pm.add<JsonObject>();
-        const char* n = _precModeName(m);
-        if (!n) n = "unknown";
-        o["name"] = n;
-        o["value"] = m;
+    _sendStaticErr(req, 404, "static_not_found", "not found");
+}
+
+void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p_path) {
+    if (!req || !p_path) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
     }
 
-    JsonArray kinds = d["action_kinds"].to<JsonArray>();
-    {
-        struct ST_K { uint8_t v; const char* n; bool p16; bool p32; const char* h16; const char* h32; };
-        static const ST_K G_KINDS[] = {
-            { 0, "NONE",             false, false, nullptr,  nullptr },
-            { 1, "MOUSE_CLICK",      true,  false, "mask",   nullptr },
-            { 2, "MOUSE_HOLD",       true,  false, "mask",   nullptr },
-            { 3, "MOUSE_WHEEL",      true,  false, "axis|dir", nullptr },
-            { 4, "KB_TAP",           true,  true,  "usage",  "mod" },
-            { 5, "KB_COMBO",         false, true,  nullptr,  "mod|u1|u2|u3" },
-            { 6, "KB_REPEAT",        true,  true,  "usage",  "mod" },
-            { 7, "CONSUMER_TAP",     false, true,  nullptr,  "mask32" },
-            { 8, "CONSUMER_REPEAT",  false, true,  nullptr,  "mask32" },
-            { 9, "SPECIAL",          true,  false, "special", nullptr },
-            { 10, "MACRO",           false, true,  nullptr,  "macroIdx" },
-        };
-        for (size_t i = 0; i < sizeof(G_KINDS)/sizeof(G_KINDS[0]); i++) {
-            JsonObject o = kinds.add<JsonObject>();
-            o["value"]   = G_KINDS[i].v;
-            o["name"]    = G_KINDS[i].n;
-            o["hasP16"]  = G_KINDS[i].p16;
-            o["hasP32"]  = G_KINDS[i].p32;
-            if (G_KINDS[i].h16) o["p16hint"] = G_KINDS[i].h16;
-            if (G_KINDS[i].h32) o["p32hint"] = G_KINDS[i].h32;
+    char v_ext[12];
+    memset(v_ext, 0, sizeof(v_ext));
+    const char* v_extLower = W10_getLowerExt(p_path, v_ext, sizeof(v_ext));
+
+    if (!v_extLower || !W10_isAllowedWwwExt(v_extLower)) {
+        _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+        return;
+    }
+
+    bool v_useGz = false;
+    String v_gzPath;
+
+    if (W10_isGzipTargetExt(v_extLower)) {
+        v_gzPath = String(p_path) + ".gz";
+        if (LittleFS.exists(v_gzPath) && _acceptsGzip(req)) {
+            v_useGz = true;
         }
     }
 
-    JsonArray sp = d["specials"].to<JsonArray>();
-    {
-        struct ST_S { uint8_t v; const char* n; };
-        static const ST_S G_SP[] = {
-            { 0, "NONE" }, { 1, "GYRO_RECALIB" }, { 2, "SLEEP_NOW" },
-            { 3, "MODE_CYCLE" }, { 4, "PAIRING" }, { 5, "HOST_CYCLE" },
-        };
-        for (size_t i = 0; i < sizeof(G_SP)/sizeof(G_SP[0]); i++) {
-            JsonObject o = sp.add<JsonObject>();
-            o["value"] = G_SP[i].v;
-            o["name"]  = G_SP[i].n;
-        }
+    const char* v_sendPath = p_path;
+    if (v_useGz) v_sendPath = v_gzPath.c_str();
+
+    if (!LittleFS.exists(v_sendPath)) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
     }
 
-    JsonArray dirs = d["directions"].to<JsonArray>();
-    { const char* G_D[] = { "LEFT", "RIGHT", "UP", "DOWN" };
-      for (auto n : G_D) { JsonObject o = dirs.add<JsonObject>(); o["name"] = n; } }
+    // Cache-Control: 정책 함수 그대로 사용(요구: 304도 동일값)
+    const char* v_cc = W10_cacheControlForStatic(p_path, v_extLower, false);
 
-    JsonArray groups = d["groups"].to<JsonArray>();
-    {
-        struct ST_G { const char* n; uint8_t count; };
-        static const ST_G G_GR[] = {
-            { "slots",  15 }, { "flick",  4 }, { "linear", 4 }, { "tilt",   4 },
-        };
-        for (size_t i = 0; i < sizeof(G_GR)/sizeof(G_GR[0]); i++) {
-            JsonObject o = groups.add<JsonObject>();
-            o["name"]  = G_GR[i].n;
-            o["count"] = G_GR[i].count;
-        }
+    // ETag 계산(실제 전송 파일 기준)
+    uint32_t v_etag = 0;
+    size_t v_size = 0;
+    bool v_etagOk = _calcFileEtag32(v_sendPath, v_etag, &v_size);
+
+    // 304 처리
+    if (v_etagOk && _ifNoneMatchHit(req, v_etag)) {
+        // Vary는 gzip을 "실제로 사용"할 때만
+        _send304StaticWithCacheControl(req, v_etag, v_cc, v_useGz);
+        return;
     }
 
-    JsonArray slotMeta = d["slots_meta"].to<JsonArray>();
-    {
-        struct ST_SM { const char* id; const char* label; const char* btn; const char* evt; };
-        static const ST_SM G_SM[] = {
-            { "S1",  "Top L Click",      "TOP_L",  "CLICK"  },
-            { "S2",  "Top L Double",     "TOP_L",  "DOUBLE" },
-            { "S3",  "Top L Long",       "TOP_L",  "LONG"   },
-            { "S4",  "Top M Click",      "TOP_M",  "CLICK"  },
-            { "S5",  "Top M Hold",       "TOP_M",  "HOLD"   },
-            { "S6",  "Top R Click",      "TOP_R",  "CLICK"  },
-            { "S7",  "Top R Double",     "TOP_R",  "DOUBLE" },
-            { "S8",  "Top R Long",       "TOP_R",  "LONG"   },
-            { "S9",  "Side F Click",     "SIDE_F", "CLICK"  },
-            { "S10", "Side F Long",      "SIDE_F", "LONG"   },
-            { "S11", "Side C Click",     "SIDE_C", "CLICK"  },
-            { "S12", "Side C Double",    "SIDE_C", "DOUBLE" },
-            { "S13", "Side C 2s Hold",   "SIDE_C", "HOLD_2S"},
-            { "S14", "Side R Click",     "SIDE_R", "CLICK"  },
-            { "S15", "Side R Long",      "SIDE_R", "LONG"   },
-        };
-        for (size_t i = 0; i < sizeof(G_SM)/sizeof(G_SM[0]); i++) {
-            JsonObject o = slotMeta.add<JsonObject>();
-            o["id"]    = G_SM[i].id;
-            o["label"] = G_SM[i].label;
-            o["btn"]   = G_SM[i].btn;
-            o["evt"]   = G_SM[i].evt;
-        }
+    // 200 전송
+    const char* v_ct = W10_contentTypeFromExt(v_extLower);
+    _sendStaticWithCacheControlEtag(req,
+                                    v_sendPath,
+                                    v_ct,
+                                    v_cc,
+                                    v_useGz,
+                                    v_useGz,        // 엄격: 실제 gzip 사용 시에만 Vary
+                                    v_etagOk,
+                                    v_etag,
+                                    v_size);
+}
+
+void CL_W10_WebConfig::_servePublicJson(AsyncWebServerRequest* req, const char* p_path) {
+    if (!req || !p_path) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
     }
 
-    JsonArray trigs = d["triggers"].to<JsonArray>();
-    for (uint8_t i = 0; i < (uint8_t)EN_C10_TRIG_MAX; i++) {
-        JsonObject o = trigs.add<JsonObject>();
-        o["idx"]    = i;
-        o["name"]   = C10_TriggerName(i);
-        o["group"]  = C10_TriggerGroup(i);
-        o["locked"] = G_C10_TRIG_LOCKED[i];
+    char v_ext[12];
+    memset(v_ext, 0, sizeof(v_ext));
+    const char* v_extLower = W10_getLowerExt(p_path, v_ext, sizeof(v_ext));
+
+    if (!v_extLower || !W10_isAllowedPublicJsonExt(v_extLower)) {
+        _sendStaticErr(req, 403, "static_forbidden", "forbidden");
+        return;
     }
-    d["trigger_count"] = (uint8_t)EN_C10_TRIG_MAX;
 
-    d["api_ver"] = G_W10_API_VER;
-    d["note"] = "v0415: Descriptor SSOT Consumer mask (24-bit). "
-                "mods mask == HID modifier byte. "
-                "kb=usage-id(0x07), consumer=24-bit mask. "
-                "MACRO kind(10) references macro index via p32.";
+    if (!LittleFS.exists(p_path)) {
+        _sendStaticErr(req, 404, "static_not_found", "not found");
+        return;
+    }
 
-    _sendOk(req, "keycodes", "", &d, 200);
+    // ETag 계산
+    uint32_t v_etag = 0;
+    size_t v_size = 0;
+    bool v_etagOk = _calcFileEtag32(p_path, v_etag, &v_size);
+
+    // 304 (요구: 한 줄)
+    if (v_etagOk && _ifNoneMatchHit(req, v_etag)) {
+        _send304NoStoreEtag(req, v_etag);
+        return;
+    }
+
+    // 200 (public json은 no-store + ETag, Vary 없음)
+    AsyncWebServerResponse* res = req->beginResponse(LittleFS, p_path, "application/json");
+    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
+    if (v_etagOk) {
+        char v_tag[16];
+        memset(v_tag, 0, sizeof(v_tag));
+        _formatEtagQuoted(v_etag, v_tag, sizeof(v_tag));
+        res->addHeader("ETag", v_tag);
+        res->addHeader("X-File-Size", String((unsigned int)v_size));
+    }
+    req->send(res);
 }
