@@ -276,9 +276,17 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
 //   * 표준 에러 응답
 //   * true 반환(호출부에서 return 처리)
 // =====================================================
+
 bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
+    String v_uri_str;
+    WebRequestMethodComposite v_method = HTTP_ANY;
+    if (req) {
+        v_uri_str = req->url();          // ← 지역 String으로 복사 (수명 보장)
+        v_method  = req->method();
+    }
+    
     const char*                v_uri    = nullptr;
     WebRequestMethodComposite  v_method = HTTP_ANY;   // ← 타입 통일
     if (req) {

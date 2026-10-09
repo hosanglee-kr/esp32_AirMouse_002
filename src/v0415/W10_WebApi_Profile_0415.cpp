@@ -11,20 +11,20 @@
  *  - /api/profiles                (GET)  목록 + active
  *  - /api/profiles/switch         (POST) 활성 전환
  *  - /api/profiles/create         (POST) 새 프로파일
- *  - /api/profiles/delete         (POST) 삭제
+ *  - /api/profiles/delete         (POST) 삭제 (swap-with-last)
  *  - /api/profiles/rename         (POST) 이름 변경
  *  - /api/profiles/active         (GET)  활성 프로파일 전체 config
  *  - /api/profiles/active         (POST) 활성 프로파일 patch + 저장
  *  - /api/triggers                (GET)  트리거 라이브러리 (27)
  *  - /api/action/test             (POST) Live Test (단일 액션)
  *
- * [설계]
- *  - Profile CRUD는 _cfg 직접 사용 (C10_Config_0415)
- *  - 실제 전환/재로드는 _e10if 경유 (E10 내부 상태 안전 처리)
- *  - Live Test: SPECIAL → sensorTask 동기, 그 외 → 큐 비동기
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *  - 함수 인자 p_, 로컬 v_
+ * [v0415 주요 변경]
+ *  - 파일명/심볼 _0415
+ *  - include W10_Web_0415.h
+ *  - deleteProfile swap-with-last 정책 반영 (C10_Config_0415)
+ *    · 응답에 삭제된 idx를 lastIdx 정보로 노출 (클라이언트 안내용)
+ *  - ST_W10_E10If_t::setPptMode 삭제 (Round M) — 본 파일에서 미사용
+ *  - apiProfilesActiveGet 수동 스트리밍 유지 (R2-M-3)
  * ------------------------------------------------------
  */
 
@@ -32,7 +32,6 @@
 
 // =====================================================
 // GET /api/profiles
-//   → { ok, data:{ active, count, profiles:[{idx, name}] } }
 // =====================================================
 void CL_W10_WebConfig::apiProfilesList(AsyncWebServerRequest* req) {
     if (!_cfg) {
@@ -96,13 +95,12 @@ void CL_W10_WebConfig::apiProfilesSwitch(AsyncWebServerRequest* req,
         return;
     }
 
-    // 로컬 _wifi/_e10 캐시 재로드
+    // 로컬 캐시 재로드
     if (_cfg) {
         ST_C10_ProfileConfig_t v_p;
         _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
         if (_cfg->loadActiveProfile(v_p)) {
             _wifi = v_p.wifi;
-            _e10  = v_p.e10;
         }
     }
 
@@ -161,6 +159,10 @@ void CL_W10_WebConfig::apiProfilesCreate(AsyncWebServerRequest* req,
 
 // =====================================================
 // POST /api/profiles/delete  { idx }
+// -----------------------------------------------------
+// [v0415] deleteProfile은 swap-with-last (C10_Config_0415)
+//   - 중간 삭제 시 마지막 프로파일이 삭제 슬롯으로 이동
+//   - 응답에 swapped_from 정보 노출 (클라이언트가 이름 재조회 가능)
 // =====================================================
 void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
@@ -191,6 +193,11 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
 
     const uint8_t v_idx = (uint8_t)v_d["idx"];
 
+    // swap 여부 판정 (삭제 전 count/idx 비교)
+    const uint8_t v_prevCount = _cfg->getProfileCount();
+    const bool v_wasSwap = (v_idx < (v_prevCount - 1)) && (v_prevCount > 1);
+    const uint8_t v_swappedFrom = (uint8_t)(v_prevCount - 1);
+
     if (!_cfg->deleteProfile(v_idx)) {
         _sendErr(req, "profile_delete_failed", "Delete failed (min 1 profile).");
         return;
@@ -202,20 +209,24 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
     }
 
-    // W10 로컬 캐시 재로드
+    // 로컬 캐시 재로드
     if (_cfg) {
         ST_C10_ProfileConfig_t v_p;
         _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
         if (_cfg->loadActiveProfile(v_p)) {
             _wifi = v_p.wifi;
-            _e10  = v_p.e10;
         }
     }
 
     JsonDocument v_out;
-    v_out["count"]    = (uint8_t)_cfg->getProfileCount();
-    v_out["active"]   = (uint8_t)_cfg->getActiveIndex();
-    v_out["reloaded"] = v_reloaded;
+    v_out["count"]       = (uint8_t)_cfg->getProfileCount();
+    v_out["active"]      = (uint8_t)_cfg->getActiveIndex();
+    v_out["reloaded"]    = v_reloaded;
+    v_out["swap"]        = v_wasSwap;
+    if (v_wasSwap) {
+        v_out["swapped_from"] = v_swappedFrom;   // 마지막 idx가 삭제 슬롯으로 이동
+        v_out["swapped_to"]   = v_idx;
+    }
 
     _sendOk(req, "profile_delete", "", &v_out, 200);
 }
@@ -263,7 +274,6 @@ void CL_W10_WebConfig::apiProfilesRename(AsyncWebServerRequest* req,
         return;
     }
 
-    // active 프로파일 rename이면 E10 반영
     bool v_reloaded = false;
     if (v_idx == _cfg->getActiveIndex() && _e10if && _e10if->reloadProfile) {
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
@@ -279,7 +289,6 @@ void CL_W10_WebConfig::apiProfilesRename(AsyncWebServerRequest* req,
 
 // =====================================================
 // GET /api/profiles/active
-//   → { ok, data:{ idx, count, config:{ ...full profile... } } }
 // =====================================================
 void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
     if (!_cfg) {
@@ -301,9 +310,7 @@ void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
         return;
     }
 
-    // [R2-M-3] envelope 수동 스트리밍 (JSON triple-copy → single streaming)
-    //   - 기존: v_inner → v_out(복사) → _sendOk 내부 d(복사) → serialize → 3회 복사
-    //   - 변경: v_inner → 직접 serialize (1회 스트리밍)
+    // [R2-M-3] envelope 수동 스트리밍 (triple-copy 회피)
     AsyncResponseStream* res = req->beginResponseStream("application/json");
     res->setCode(200);
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
@@ -319,11 +326,8 @@ void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
     req->send(res);
 }
 
-
 // =====================================================
 // POST /api/profiles/active  { ...partial profile... }
-//   - 현재 활성 프로파일 위에 patch
-//   - 검증 → 저장 → E10 재로드
 // =====================================================
 void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
                                              uint8_t* data, size_t len,
@@ -338,12 +342,12 @@ void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    // ---- 현재 활성 프로파일 로드 ----
+    // 현재 활성 프로파일 로드
     ST_C10_ProfileConfig_t v_p;
     _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
     (void)_cfg->loadActiveProfile(v_p);
 
-    // ---- patch ----
+    // patch
     if (!_cfg->patchProfileFromJson(v_body, v_p)) {
         _cnt_json_bad++;
         _diagPush("bad_json");
@@ -351,24 +355,23 @@ void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
         return;
     }
 
-    // ---- 검증 ----
+    // 검증
     if (!_cfg->validateProfile(v_p)) {
         _sendErr(req, "validation_failed", "Profile validation failed.");
         return;
     }
 
-    // ---- 저장 ----
+    // 저장
     const uint8_t v_idx = _cfg->getActiveIndex();
     if (!_cfg->saveProfile(v_idx, v_p)) {
         _sendErr(req, "profile_save_failed", "Failed to save profile.");
         return;
     }
 
-    // ---- W10 로컬 캐시 ----
+    // W10 로컬 캐시
     _wifi = v_p.wifi;
-    _e10  = v_p.e10;
 
-    // ---- E10 재로드 (런타임 반영) ----
+    // E10 재로드
     bool v_reloaded = false;
     if (_e10if && _e10if->reloadProfile) {
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
@@ -384,7 +387,6 @@ void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
 
 // =====================================================
 // GET /api/triggers
-//   → { ok, data:{ count, triggers:[{idx, name, group, locked}] } }
 // =====================================================
 void CL_W10_WebConfig::apiTriggers(AsyncWebServerRequest* req) {
     JsonDocument v_doc;
@@ -404,9 +406,6 @@ void CL_W10_WebConfig::apiTriggers(AsyncWebServerRequest* req) {
 
 // =====================================================
 // POST /api/action/test  { k, h, p16, p32 }
-//   - Live Test (BLE 연결 시)
-//   - SPECIAL: sensorTask 즉시
-//   - MACRO / 기타: 큐 경유 (비동기)
 // =====================================================
 void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
                                      uint8_t* data, size_t len,
@@ -452,9 +451,6 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
 
 // =====================================================
 // POST /api/action/test_macro  { idx }
-//   - 매크로 인덱스 직접 실행
-//   - 내부적으로 /api/action/test와 동일 경로 (kind=MACRO)
-//   - 실제 실행은 commTask에서 (비동기). 응답은 즉시 200.
 // =====================================================
 void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
                                           uint8_t* data, size_t len,
@@ -485,12 +481,12 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
         return;
     }
 
-    // kind=MACRO(10), p32=macro idx
+    // [v0415] kind=MACRO 명시 상수 사용 (Round M-2 개선)
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx,
-                                           /*kind*/ 10,
-                                           /*hMode*/ 0,
-                                           /*p16*/ 0,
-                                           /*p32*/ (uint32_t)v_idx);
+                                           (uint8_t)EN_C20_ACT_MACRO,
+                                           (uint8_t)EN_C20_HOLD_NONE,
+                                           0,
+                                           (uint32_t)v_idx);
     if (!v_ok) {
         _sendErr(req, "ppt_test_failed", "Macro test failed (BLE disconnected?).");
         return;
@@ -501,4 +497,3 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
 
     _sendOk(req, "action_test_macro", "", &v_out, 200);
 }
-

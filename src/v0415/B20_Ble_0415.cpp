@@ -104,7 +104,7 @@ bool CL_B20_Ble::_restartAdvertising() {
     }
 
     v_adv->stop();
-    delay(30); // NimBLE 스택 반영 대기
+    delay(B20_BLE::ADV_RESTART_DELAY_MS); // NimBLE 스택 반영 대기
     v_adv->start();
 
     D10_LOGI("[B20] advertising restarted");
@@ -120,7 +120,7 @@ bool CL_B20_Ble::reconnectToActivePeer(uint32_t p_whitelistMs) {
             D10_LOGI("[B20] disconnect connId=%u", (unsigned)v_connId);
             v_srv->disconnect(v_connId);
         }
-        delay(80); // disconnect 반영 대기
+        delay(B20_BLE::DISCONN_SETTLE_MS); // disconnect 반영 대기
     }
 
     // 2) 재광고 (whitelist 없음 — 모든 bond 허용)

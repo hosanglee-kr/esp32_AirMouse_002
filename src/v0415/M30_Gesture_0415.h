@@ -61,6 +61,11 @@ enum EN_M30_Dir_t : uint8_t {
     EN_M30_DIR_NONE  = 0xFF
 };
 
+// ======================================================
+// [v0415] 상수 추가
+// ======================================================
+static constexpr float G_M30_GRAVITY = 9.80665f;
+
 class CL_M30_Gesture {
   public:
     // ==================================================
@@ -98,10 +103,6 @@ class CL_M30_Gesture {
 
     // ---- Linear: 임펄스 적분 ----
     struct {
-        // 중력 성분 제거용 자세 스냅샷 (roll/pitch in rad)
-        float    roll  = 0.0f;
-        float    pitch = 0.0f;
-
         // 축별 임펄스 (m/s)
         float    accumRoll = 0.0f;    // gx축 임펄스
         float    accumPitch = 0.0f;   // gy축 임펄스 (커서 X?)
@@ -113,9 +114,6 @@ class CL_M30_Gesture {
 
     // ---- Tilt Hold ----
     struct {
-        float    lastRoll  = 0.0f;
-        float    lastPitch = 0.0f;
-
         EN_M30_Dir_t activeDir = EN_M30_DIR_NONE;
         uint32_t     dirStartMs = 0;
         uint32_t     lastRepeatMs = 0;

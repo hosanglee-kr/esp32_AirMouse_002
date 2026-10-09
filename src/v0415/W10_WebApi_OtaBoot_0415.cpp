@@ -55,44 +55,42 @@
 // OTA
 // =====================================================
 
-void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
-    if (!_isSafeMode()) {
-        ST_W10_E10If_t* e10if = _e10if;
-        if (e10if && e10if->getStatus) {
-            ST_E10_Status_t s;
-            memset(&s, 0, sizeof(s));
-            if (e10if->getStatus(e10if->ctx, &s)) {
-                if (s.ota_guard) {
+void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& filename,
+                                    size_t index, uint8_t* data, size_t len, bool final) {
+    (void)filename;
+
+    // [v0415 L7g-A3-01] Guard 체크를 index==0으로 국한 (성능 개선)
+    //   - 매 청크마다 getStatus() 호출 → 락/CPU 부담 제거
+    //   - 이미 시작된 업로드는 정책 변경 대상 아님 (진행 중지 원함)
+    if (index == 0) {
+        if (!_isSafeMode()) {
+            ST_W10_E10If_t* e10if = _e10if;
+            if (e10if && e10if->getStatus) {
+                ST_E10_Status_t s;
+                memset(&s, 0, sizeof(s));
+                if (e10if->getStatus(e10if->ctx, &s) && s.ota_guard) {
                     _cnt_ota_blocked++;
                     _diagPush("ota_guard_blocked");
 
-                    // 업로드 콜백에서는 send 금지. 상태만 기록.
-                    if (index == 0) {
-                        _otaInProgress = false;
-                        _otaOk = false;
-                        _otaWritten = 0;
-                        _otaTotal = (uint32_t)req->contentLength();
-                        strlcpy(_otaErr, "ota_guard", sizeof(_otaErr));
-                    }
+                    _otaInProgress = false;
+                    _otaOk = false;
+                    _otaWritten = 0;
+                    _otaTotal = (uint32_t)req->contentLength();
+                    strlcpy(_otaErr, "ota_guard", sizeof(_otaErr));
                     return;
                 }
             }
         }
-    }
 
-    (void)filename;
-
-    if (index == 0) {
+        // Guard 통과 → 초기화
         const uint32_t v_now = (uint32_t)millis();
-        
-        // [H-W2] in-progress여도 마지막 진행 후 30초 넘었으면 stale로 간주
+
         if (_otaInProgress) {
             if ((v_now - _otaStartedMs) < 30000u) {
                 _otaOk = false;
                 strlcpy(_otaErr, "busy", sizeof(_otaErr));
                 return;
             }
-            // stale 회수
             Update.abort();
             _otaInProgress = false;
             _otaWritten = 0;
@@ -121,6 +119,7 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
         }
     }
 
+    // Guard 체크 없이 이후 청크는 바로 write
     if (len) {
         size_t w = Update.write(data, len);
         _otaWritten += (uint32_t)w;
@@ -141,6 +140,7 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
         _otaInProgress = false;
     }
 }
+
 
 void CL_W10_WebConfig::apiOtaStatus(AsyncWebServerRequest* req) {
     JsonDocument v_doc;

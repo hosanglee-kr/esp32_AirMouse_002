@@ -215,21 +215,11 @@ bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
 }
 
 bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
-    _lock();
-    if (!_cfgProfileValid) {
-        if (_cfg) {
-            _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), _cfgProfile);
-        } else {
-            memset(&_cfgProfile, 0, sizeof(_cfgProfile));
-        }
-        _cfgProfileValid = true;
-    }
-    ST_C10_E10Config_t v_e = _cfgProfile.e10;
-    v_e.hard_click_lock = p_enable;
-    _applyRuntimeLocked(v_e);
-    _unlock();
+    (void)p_enable;
+    D10_LOGD("[E10] setHardClickLock() no-op (Click-Lock removed in v0415)");
     return true;
 }
+
 
 bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     _lock();
@@ -552,7 +542,6 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
         p_e.button.min_click_ms,
         p_e.button.debounce_min_ticks);
 
-    _engine.setHardClickLock(_hardClickLock);
     _engine.setDPI(_dpiLevel);
 
     // ====================================================
@@ -708,6 +697,9 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     _led.flash(EN_L10_COLOR_WHITE, 500);
 
     _cfg->setProfileSwitchInProgress(false);
+    
+    // [v0415 Phase 5 Q2-a] 프로파일 전환 시 EMA 상태 리셋
+    _engine.resetEmaState();
 
     D10_LOGI("[E10] switchProfile: idx=%u reload=%d",
              (unsigned)p_idx, (int)v_reloadOk);

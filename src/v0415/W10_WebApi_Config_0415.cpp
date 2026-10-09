@@ -52,6 +52,13 @@
 
 #include "W10_Web_0415.h"
 
+
+void CL_W10_WebConfig::_bumpRebootMaskFromBoot() {
+    const uint32_t v_m = _wifiDiffMask(_bootWifi, _wifi);
+    _needRebootMask = v_m;
+    _needReboot     = (v_m != 0);
+}
+
 // =====================================================
 // GET /api/config — 활성 프로파일 조회 (raw JSON)
 //   반환: { ver, name, wifi, e10, slots, macros }
@@ -133,8 +140,9 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
     _e10  = v_p.e10;
 
     // ---- WiFi diff → reboot 필요 여부 ----
-    const uint32_t v_m = _wifiDiffMask(v_prevWifi, _wifi);
-    if (v_m) _markNeedReboot(v_m);
+    // 매 저장 시 boot 스냅샷과 비교 → 되돌림 시 마스크 자동 클리어
+    (void)v_prevWifi;  // 참조는 유지 (디버그 목적)
+    _bumpRebootMaskFromBoot();
 
     // ---- E10 재로드 (런타임 반영) ----
     bool v_reloaded = false;

@@ -20,10 +20,15 @@
  * ------------------------------------------------------
  */
 
+// =======================================================
 #include "W10_Web_0415.h"
 
 // =====================================================
 // /api/control
+// -----------------------------------------------------
+// [v0415 변경] set_ppt cmd / ppt_mode legacy 필드 삭제
+//   - E10 _isPptMode 필드 삭제 (Round G)
+//   - PPT 판정은 active_mode == 2 로 일원화
 // =====================================================
 void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
@@ -52,12 +57,8 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
     if (!e10if) ok = false;
 
     if (ok && v_cmd && v_cmd[0] != '\0') {
-        if (strcmp(v_cmd, "set_ppt") == 0) {
-            bool v_en = false;
-            if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
-            ok = ok && (e10if && e10if->setPptMode ? e10if->setPptMode(e10if->ctx, v_en) : false);
-
-        } else if (strcmp(v_cmd, "set_dpi") == 0) {
+        // [v0415] set_ppt cmd 삭제
+        if (strcmp(v_cmd, "set_dpi") == 0) {
             uint8_t v_lv = 2;
             if (!v_jsonDoc["level"].isNull()) v_lv = (uint8_t)v_jsonDoc["level"];
             ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, v_lv) : false);
@@ -94,20 +95,29 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
             if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setOtaGuard ? e10if->setOtaGuard(e10if->ctx, v_en) : false);
 
+        } else if (strcmp(v_cmd, "set_hard_click_lock") == 0) {
+            // [v0415] M10 Click-Lock 삭제. E10의 setHardClickLock은 no-op 스텁.
+            bool v_en = false;
+            if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
+            ok = ok && (e10if && e10if->setHardClickLock ? e10if->setHardClickLock(e10if->ctx, v_en) : false);
+
         } else {
             ok = false;
         }
 
     } else if (ok) {
-        if (!v_jsonDoc["ppt_mode"].isNull()) ok = ok && (e10if && e10if->setPptMode ? e10if->setPptMode(e10if->ctx, (bool)v_jsonDoc["ppt_mode"]) : false);
-        if (!v_jsonDoc["dpi_level"].isNull()) ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, (uint8_t)v_jsonDoc["dpi_level"]) : false);
-
+        // [v0415] legacy 필드: ppt_mode 삭제. dpi_level / precision_mode / safe_mode 유지
+        if (!v_jsonDoc["dpi_level"].isNull()) {
+            ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, (uint8_t)v_jsonDoc["dpi_level"]) : false);
+        }
         if (!v_jsonDoc["precision_mode"].isNull()) {
             uint8_t v_mode = (uint8_t)v_jsonDoc["precision_mode"];
             if (v_mode >= (uint8_t)EN_C10_E10_PREC_MAX) ok = false;
             else ok = ok && (e10if && e10if->setPrecisionMode ? e10if->setPrecisionMode(e10if->ctx, v_mode) : false);
         }
-        if (!v_jsonDoc["safe_mode"].isNull()) ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, (bool)v_jsonDoc["safe_mode"]) : false);
+        if (!v_jsonDoc["safe_mode"].isNull()) {
+            ok = ok && (e10if && e10if->setSafeMode ? e10if->setSafeMode(e10if->ctx, (bool)v_jsonDoc["safe_mode"]) : false);
+        }
     }
 
     JsonDocument v_doc;
@@ -117,11 +127,11 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
         _fillE10Status(e, e10if);
     }
     if (ok) _sendOk(req, "control", "", &v_doc, 200);
-    else _sendErr(req, "control_failed", "Control failed.", &v_doc);
+    else    _sendErr(req, "control_failed", "Control failed.", &v_doc);
 }
 
 // =====================================================
-// /api/ppt/test — 기존 유지 (단일 키 테스트)
+// /api/ppt/test (유지)
 // =====================================================
 void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
 
@@ -143,8 +153,10 @@ void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, siz
     uint8_t  mod  = 0;
     uint32_t code = 0;
 
-    if (!v_jsonDoc["page"].isNull()) {
-        const char* s = (const char*)v_jsonDoc["page"];
+    // [v0415 L7f-A3-02] page 타입 검사 추가
+    JsonVariant v_page = v_jsonDoc["page"];
+    if (!v_page.isNull() && v_page.is<const char*>()) {
+        const char* s = v_page.as<const char*>();
         if (s && strcasecmp(s, "consumer") == 0) page = (uint8_t)EN_C10_KEYPAGE_CONSUMER;
     }
     if (!v_jsonDoc["mod"].isNull())  mod  = (uint8_t)v_jsonDoc["mod"];

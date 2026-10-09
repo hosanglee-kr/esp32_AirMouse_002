@@ -40,6 +40,7 @@
  * ------------------------------------------------------
  */
 
+// =======================================================
 #include "W10_Web_0415.h"
 
 void CL_W10_WebConfig::s_wifiEvent(WiFiEvent_t p_e, WiFiEventInfo_t p_info) {
@@ -49,12 +50,13 @@ void CL_W10_WebConfig::s_wifiEvent(WiFiEvent_t p_e, WiFiEventInfo_t p_info) {
 
 CL_W10_WebConfig::CL_W10_WebConfig() : _svr(80) {
     s_instance = this;
-    memset(&_wifi, 0, sizeof(_wifi));
-    memset(&_e10, 0, sizeof(_e10));
+    memset(&_wifi,     0, sizeof(_wifi));
+    memset(&_bootWifi, 0, sizeof(_bootWifi));
     memset(_otaErr, 0, sizeof(_otaErr));
     strlcpy(_otaErr, "none", sizeof(_otaErr));
 }
 
+// [v0415] 2-arg begin() 단일 — 4-arg 오버로드 삭제 (Phase 7 L7a-A1-01)
 void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
                             ST_W10_E10If_t* p_e10if) {
     _cfg   = p_cfg;
@@ -63,19 +65,20 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
     WiFi.onEvent(s_wifiEvent);
 
     if (_cfg) {
-        // [v0412] 활성 프로파일 로드
         ST_C10_ProfileConfig_t v_p;
         _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
         if (_cfg->loadActiveProfile(v_p)) {
             _wifi = v_p.wifi;
-            _e10  = v_p.e10;
         }
     }
+
+    // [v0415] 부팅 시 WiFi 스냅샷 저장 — 되돌림 감지용
+    _bootWifi = _wifi;
 
     _setupWiFi();
 
     // ==============================
-    // API 라우팅 (전부 no-store)
+    // API 라우팅
     // ==============================
     _svr.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest* req) { _apiStatus(req); });
     _svr.on("/api/diag", HTTP_GET, [this](AsyncWebServerRequest* req) { _apiDiag(req); });
@@ -124,9 +127,7 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             apiControl(req, data, len, index, total);
         });
 
-    // ==============================
-    // [v0412] Profile API
-    // ==============================
+    // Profile API
     _svr.on("/api/profiles", HTTP_GET,
         [this](AsyncWebServerRequest* req) { apiProfilesList(req); });
 
@@ -168,9 +169,7 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             apiProfilesActivePost(req, data, len, index, total);
         });
 
-    // ==============================
-    // [v0412] Triggers / Live Test
-    // ==============================
+    // Triggers / Live Test
     _svr.on("/api/triggers", HTTP_GET,
         [this](AsyncWebServerRequest* req) { apiTriggers(req); });
 
@@ -204,10 +203,8 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             v_doc["written"] = (uint32_t)_otaWritten;
             v_doc["total"]   = (uint32_t)_otaTotal;
 
-            if (_otaOk) {
-                _sendOk(req, "ota", "ok", &v_doc, 200);
-            } else {
-                // _otaErr가 "ota_guard"면 코드/HTTP를 정책대로
+            if (_otaOk) _sendOk(req, "ota", "ok", &v_doc, 200);
+            else {
                 if (!strcmp(_otaErr, "ota_guard")) {
                     _sendErr(req, "ota_guard_blocked", "OTA upload is blocked by guard.", &v_doc);
                 } else if (!strcmp(_otaErr, "busy")) {
@@ -226,7 +223,7 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             apiOtaUpload(req, filename, index, data, len, final);
         });
 
-    // SafeBoot / FactoryReset
+    // SafeBoot / FactoryReset / Reboot
     _svr.on("/api/safeboot", HTTP_GET, [this](AsyncWebServerRequest* req) { apiSafeBootGet(req); });
     _svr.on("/api/safeboot", HTTP_POST,
         [this](AsyncWebServerRequest* req) { (void)req; },
@@ -252,9 +249,7 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
 
     _svr.on("/api/reboot/check", HTTP_GET, [this](AsyncWebServerRequest* req) { apiRebootCheck(req); });
 
-    // ==============================
-    // 정적 라우팅(동적 서빙)
-    // ==============================
+    // Static routing
     _svr.on("/", HTTP_GET, [this](AsyncWebServerRequest* req) {
         req->redirect(G_W10_DEFAULT_INDEX_PATH);
     });
@@ -272,12 +267,11 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
 void CL_W10_WebConfig::_setupWiFi() {
     WiFi.mode(WIFI_MODE_NULL);
 
-    const bool v_hasSta 	= (_wifi.sta_ssid[0] != '\0');
-    const bool v_autoMode 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
-    const bool v_forceAp 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
-    const bool v_forceSta 	= (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
+    const bool v_hasSta  = (_wifi.sta_ssid[0] != '\0');
+    const bool v_autoMode = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
+    const bool v_forceAp  = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
+    const bool v_forceSta = (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
 
-    // SafeBoot: 무조건 AP
     if (_cfg && _cfg->isSafeMode()) {
         char v_ssid[33];
         memset(v_ssid, 0, sizeof(v_ssid));
@@ -285,10 +279,8 @@ void CL_W10_WebConfig::_setupWiFi() {
         if (strlen(v_ssid) <= 28) strlcat(v_ssid, "-SAFE", sizeof(v_ssid));
 
         WiFi.mode(WIFI_AP);
-        if (_wifi.ap_pass[0] != '\0')
-            WiFi.softAP(v_ssid, _wifi.ap_pass);
-        else
-            WiFi.softAP(v_ssid);
+        if (_wifi.ap_pass[0] != '\0') WiFi.softAP(v_ssid, _wifi.ap_pass);
+        else                          WiFi.softAP(v_ssid);
         return;
     }
 
@@ -297,7 +289,6 @@ void CL_W10_WebConfig::_setupWiFi() {
         return;
     }
 
-    // STA try
     WiFi.mode(WIFI_STA);
     WiFi.begin(_wifi.sta_ssid, _wifi.sta_pass);
 
@@ -316,13 +307,11 @@ void CL_W10_WebConfig::_setupWiFi() {
         return;
     }
 
-    // STA 실패 시 AUTO면 AP fallback
     if (v_autoMode) {
         _startAp();
         return;
     }
 
-    // forceSta 실패 → AP fallback (브릭 방지)
     D10_LOGW("[W10] STA failed, fallback to AP");
     _startAp();
     return;
@@ -330,14 +319,12 @@ void CL_W10_WebConfig::_setupWiFi() {
 
 void CL_W10_WebConfig::_startAp() {
     WiFi.mode(WIFI_AP);
-    if (_wifi.ap_pass[0] != '\0')
-        WiFi.softAP(_wifi.ap_ssid, _wifi.ap_pass);
-    else
-        WiFi.softAP(_wifi.ap_ssid);
+    if (_wifi.ap_pass[0] != '\0') WiFi.softAP(_wifi.ap_ssid, _wifi.ap_pass);
+    else                          WiFi.softAP(_wifi.ap_ssid);
 }
 
 void CL_W10_WebConfig::_onWifiEvent(WiFiEvent_t p_e) {
-    if (p_e == ARDUINO_EVENT_WIFI_STA_GOT_IP) _startMdns();
+    if (p_e == ARDUINO_EVENT_WIFI_STA_GOT_IP)       _startMdns();
     if (p_e == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) _stopMdns();
 }
 

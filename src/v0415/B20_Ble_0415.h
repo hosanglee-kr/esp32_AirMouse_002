@@ -29,6 +29,13 @@
 #include <Arduino.h>
 #include <string.h>
 
+namespace B20_BLE {
+    static constexpr uint32_t PAIRING_TIMEOUT_MS  = 30000;
+    static constexpr uint32_t ADV_RESTART_DELAY_MS = 30;
+    static constexpr uint32_t DISCONN_SETTLE_MS    = 80;
+}
+
+
 class CL_B20_Ble {
   public:
     static constexpr uint8_t MAX_PEERS = 3;
@@ -61,7 +68,7 @@ class CL_B20_Ble {
     void clearWhitelist();
 
     // ---- Pairing Mode ----
-    bool enterPairing(uint32_t p_timeoutMs = 30000);
+    bool enterPairing(uint32_t p_timeoutMs = B20_BLE::PAIRING_TIMEOUT_MS);
     void exitPairing();
     bool isPairing() const { return _pairing; }
 
@@ -76,6 +83,7 @@ class CL_B20_Ble {
     void tick(bool p_connected);
 
   private:
+
     uint8_t _activePeerIndex = 0;
 
     // [M-1, R2-L-1] sensorTask(web/sensor 혼용 접근) — volatile로 재정렬/캐시 방지

@@ -124,12 +124,15 @@ struct ST_E10_State_t {
 
 struct ST_E10_Status_t {
     bool    ble_connected;
-    // [v0415 삭제] bool ppt_mode; → active_mode 기반 판정 (config.profile_idx + active_mode)
+    // [v0415 Round M-1] ppt_mode 삭제 → active_mode 일원화
+    //   · E10 _isPptMode 필드 삭제 (Round G)
+    //   · W10 status 노출은 active_mode (1=PC, 2=PPT, 3=TV)
+    uint8_t active_mode;        // ← 신규 추가
     uint8_t dpi_level;
 
     uint8_t btn_mask;
 
-    // ---- (C) gate 상태 노출 ----
+    // ---- gate 상태 ----
     bool     safe_mode;
     bool     ota_guard;
     uint32_t ota_guard_count;
@@ -168,16 +171,13 @@ struct ST_E10_Status_t {
 
     uint32_t uptime_ms;
 
-    // (0301) 고급 안정화 진단
     float gyro_bias_dyn_x, gyro_bias_dyn_y, gyro_bias_dyn_z;
     bool  drift_still_active;
     float out_smooth;
 
-    // (AB) Task stack / loop timing diagnostics
     uint32_t task_stack_sensor_min_words;
     uint32_t task_stack_comm_min_words;
-    // [v0415] LED 태스크 스택 관측 (Round G 반영, 지연 노출)
-    uint32_t task_stack_led_min_words;
+    uint32_t task_stack_led_min_words;    // Round K에서 추가됨
 
     float    sensor_dt_max_ms;
     uint32_t sensor_overrun_count;

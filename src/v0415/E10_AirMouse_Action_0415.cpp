@@ -328,6 +328,9 @@ void CL_E10_EliteAirMouse::_setActiveMode(uint8_t p_newMode) {
 
     // HID 상태 강제 초기화
     (void)forceReleaseButtons();
+    
+    // [v0415 Phase 5 Q2-a] Mode 전환 시 EMA 상태 리셋
+    _engine.resetEmaState();
 
     D10_LOGI("[E10] Mode changed: %u -> %u", (unsigned)v_old, (unsigned)p_newMode);
 

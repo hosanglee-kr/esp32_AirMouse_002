@@ -193,9 +193,9 @@ EN_M30_Dir_t CL_M30_Gesture::_detectLinear(
     const float v_gz_g =  v_cr * v_cp * v_g;
 
     // 선형 가속도 (g 단위 → m/s²)
-    const float v_lin_x = (p_ax - v_gx_g) * 9.80665f;
-    const float v_lin_y = (p_ay - v_gy_g) * 9.80665f;
-    const float v_lin_z = (p_az - v_gz_g) * 9.80665f;
+    const float v_lin_x = (p_ax - v_gx_g) * G_M30_GRAVITY;
+    const float v_lin_y = (p_ay - v_gy_g) * G_M30_GRAVITY;
+    const float v_lin_z = (p_az - v_gz_g) * G_M30_GRAVITY;
 
     // ---- 2) 윈도우 관리 ----
     if (!_linear.windowOpen) {
@@ -208,7 +208,7 @@ EN_M30_Dir_t CL_M30_Gesture::_detectLinear(
     // ---- 3) 임계 초과 시 적분 (dt = 8ms 가정) ----
     //   커서 X는 gy(gx), 커서 Y는 gx(gy) 관례 반영:
     //   여기선 물리 축 그대로 판정하고, 결과를 4방향으로 매핑
-    const float v_dt = 0.008f;
+    const float v_dt = (float)G_M30_LINEAR_DT_MS / 1000.0f;
 
     // Roll 축(긴 축, gx 물리) → Linear U/D
     if (fabsf(v_lin_x) > _cfg.linear_th) {

@@ -173,14 +173,19 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
 //   - active_mode는 /api/status의 config.profile_idx + 별도 W10 status 확장으로 대체
 //   - 본 함수에서 E10_Status_t.ppt_mode 미설정 (구조체에서 삭제됨)
 // =======================================================
+
 void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     _lock();
 
     // [R3-D-5] _hid read 예외 (STATE §1)
     p_out.ble_connected = _hid.isConnected();
-    // [v0415 삭제] p_out.ppt_mode = _isPptMode; — 필드 삭제
-    p_out.dpi_level     = (uint8_t)_dpiLevel;
+
+    // [v0415 Round M-1] ppt_mode → active_mode
+    //   - E10 _isPptMode 필드 삭제 (Round G)
+    //   - PPT 판정은 active_mode == 2 로 일원화
+    p_out.active_mode = _activeMode;
+    p_out.dpi_level   = (uint8_t)_dpiLevel;
 
     p_out.btn_mask = _state.btn_mask;
 
