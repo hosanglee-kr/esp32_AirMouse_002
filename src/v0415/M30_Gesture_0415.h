@@ -62,9 +62,13 @@ enum EN_M30_Dir_t : uint8_t {
 };
 
 // ======================================================
-// [v0415] 상수 추가
+// [v0415] 상수 추가 (Round L 정합)
 // ======================================================
 static constexpr float G_M30_GRAVITY = 9.80665f;
+
+// [v0415 fix] linear 임펄스 적분 dt (sensor 주기 가정, 8ms)
+static constexpr uint32_t G_M30_LINEAR_DT_MS = 8;
+
 
 class CL_M30_Gesture {
   public:

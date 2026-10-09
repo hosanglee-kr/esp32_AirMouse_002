@@ -253,9 +253,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         if (fabsf(v_gz) > E10_CONST::SPIKE_TH_DEG) v_m->_pushSpike(v_ts);
 
         // ---- fsm ----
-        //  [Phase 5] SCROLL/MODE 토글 폐기 → 2·3번째 인자는 항상 false
-        //  [Round K] _fsmUpdate 정리 예정 (현재 파라미터 유지)
-        v_m->_fsmUpdate(false, false, v_gyroAbs);
+        v_m->_fsmUpdate(v_gyroAbs);
 
         // ---- stats + motion engine ----
         v_m->_welfordAdd(v_m->_gyroN, v_m->_gyroMean, v_m->_gyroM2, (double)v_gz);
@@ -639,3 +637,4 @@ void CL_E10_EliteAirMouse::_ledTask(void* p_pv) {
         vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(50));
     }
 }
+
