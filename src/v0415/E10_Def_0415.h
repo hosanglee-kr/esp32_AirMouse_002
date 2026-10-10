@@ -118,7 +118,6 @@ struct ST_E10_State_t {
     int16_t x;
     int16_t y;
     int16_t wheel;
-    uint8_t btn_mask; // EN_E10_MouseBtnMask_t OR-mask
     bool    updated;
 };
 
@@ -129,8 +128,6 @@ struct ST_E10_Status_t {
     //   · W10 status 노출은 active_mode (1=PC, 2=PPT, 3=TV)
     uint8_t active_mode;        // ← 신규 추가
     uint8_t dpi_level;
-
-    uint8_t btn_mask;
 
     // ---- gate 상태 ----
     bool     safe_mode;

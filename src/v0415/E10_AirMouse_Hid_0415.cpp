@@ -72,7 +72,6 @@ bool CL_E10_EliteAirMouse::forceReleaseButtons() {
     _macroAbortToken++;
     _macroState.active = false;
 
-    _state.btn_mask = 0;
     _state.x        = 0;
     _state.y        = 0;
     _state.wheel    = 0;
@@ -107,7 +106,7 @@ void CL_E10_EliteAirMouse::_doReleaseAllButtons() {
 // 상태 리셋 + 즉시 HID release (commTask 내부 전용, enqueue 경유하지 않음)
 void CL_E10_EliteAirMouse::_doForceReleaseNow() {
     _lock();
-    _state.btn_mask = 0;
+    
     _state.x        = 0;
     _state.y        = 0;
     _state.wheel    = 0;

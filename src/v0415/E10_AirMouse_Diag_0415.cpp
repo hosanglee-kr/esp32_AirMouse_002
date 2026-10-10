@@ -93,14 +93,12 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
 // =======================================================
 // 캘리브: 강제 릴리즈 + 버튼 샘플링
 // =======================================================
+
 void CL_E10_EliteAirMouse::_runGyroCalibration() {
-    // 시작 시 강제 릴리즈 프레임
-    {
-        ST_E10_Frame_t v_rel;
-        memset(&v_rel, 0, sizeof(v_rel));
-        v_rel.updated = true;
-        _pushFrame(v_rel);
-    }
+    // [v0415 LC-A/OPT-E] v_rel dead code 삭제
+    //   - 이전 v_rel(updated=true, x/y/wheel/pan=0)은 commTask에서 _mouseSend(0,0,0,0) → no-op
+    //   - 캘리브 1초 동안 커서는 자연 정지 (프레임 push 없음)
+    //   - SPEC §"캘리브 중 프레임 유지" 표현은 오류 → v0416에서 정정 예정
 
     const uint32_t v_t0 = millis();
     uint32_t v_cnt = 0;
@@ -125,31 +123,14 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
             v_cnt++;
         }
 
-        // 캘리브 중 버튼 상태 반영 (6버튼 전량, C20 G_PINS 1:1)
-        {
-            uint8_t v_btn = 0;
-            for (uint8_t v_i = 0; v_i < EN_C20_BTN_MAX; v_i++) {
-                if (digitalRead(CL_C20_BtnDispatcher::G_PINS[v_i]) == LOW) {
-                    switch ((EN_C20_BtnId_t)v_i) {
-                        case EN_C20_BTN_TOP_L:  v_btn |= (uint8_t)EN_E10_BTN_LEFT;   break;
-                        case EN_C20_BTN_TOP_M:  v_btn |= (uint8_t)EN_E10_BTN_MIDDLE; break;
-                        case EN_C20_BTN_TOP_R:  v_btn |= (uint8_t)EN_E10_BTN_RIGHT;  break;
-                        default: break;
-                    }
-                }
-            }
-
-            ST_E10_Frame_t v_fr;
-            memset(&v_fr, 0, sizeof(v_fr));
-            v_fr.btn_mask = v_btn;
-            v_fr.updated  = false;
-            _pushFrame(v_fr);
-        }
+        // [v0415 LC-B] 캘리브 중 btn_mask push 삭제 (dead code)
+        //   - commTask는 v_upd=false 프레임의 btn_mask를 사용 안 함
+        //   - 물리 버튼은 _btnDisp.update()가 별도 처리 (프레임과 무관)
 
         // [D-2] 캘리브 1초 블로킹 중 BLE pairing 타임아웃 검사 유지
         _ble.tick(_hid.isConnected());
-
         vTaskDelay(pdMS_TO_TICKS(G_DIAG_CALIB_TICK_MS));
+        
     }
 
     // [v0415 L6e-A3-02] v_cnt==0 시 로그 (실패 피드백)
@@ -186,8 +167,6 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     //   - PPT 판정은 active_mode == 2 로 일원화
     p_out.active_mode = _activeMode;
     p_out.dpi_level   = (uint8_t)_dpiLevel;
-
-    p_out.btn_mask = _state.btn_mask;
 
     p_out.safe_mode = _safeMode;
     p_out.ota_guard = _otaGuard;

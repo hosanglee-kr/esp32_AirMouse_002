@@ -111,8 +111,6 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
     _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
     (void)_cfg->loadActiveProfile(v_p);
 
-    const ST_C10_WiFiConfig_t v_prevWifi = v_p.wifi;
-
     // ---- patch ----
     if (!_cfg->patchProfileFromJson(v_body, v_p)) {
         _cnt_json_bad++;
@@ -138,9 +136,6 @@ void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
     // ---- W10 로컬 캐시 갱신 ----
     _wifi = v_p.wifi;
 
-    // ---- WiFi diff → reboot 필요 여부 ----
-    // 매 저장 시 boot 스냅샷과 비교 → 되돌림 시 마스크 자동 클리어
-    (void)v_prevWifi;  // 참조는 유지 (디버그 목적)
     _bumpRebootMaskFromBoot();
 
     // ---- E10 재로드 (런타임 반영) ----

@@ -191,13 +191,16 @@ class CL_E10_EliteAirMouse {
     // ====================================================
     volatile uint32_t _macroAbortToken = 0;
 
+    // [v0415 OPT-F] 정렬 최적화 (16B → 12B)
     struct ST_MacroState_t {
-        volatile bool active;      // 다중 태스크 접근
-        uint8_t  macroIdx;          // commTask 단일 write (lock 예정)
-        uint8_t  stepIdx;           // commTask 단일 write (lock 예정)
-        uint32_t stepStartMs;       // commTask 단일 write (lock 예정)
-        uint32_t startToken;        // commTask 단일 write (lock 예정)
+        uint8_t  macroIdx;
+        uint8_t  stepIdx;
+        volatile bool active;
+        uint8_t  _pad;
+        uint32_t stepStartMs;
+        uint32_t startToken;
     };
+
     ST_MacroState_t _macroState = {};
 
     // [H-4] 실행 시점 매크로 스냅샷 (락 유지 시간 최소화 + OOB 방지)
@@ -379,7 +382,6 @@ class CL_E10_EliteAirMouse {
     bool applyRuntimeE10(const ST_C10_E10Config_t& p_e);
 
     // -------- control --------
-    bool setPptMode(bool p_enable);
     bool setDpiLevel(uint8_t p_level);
     bool setPrecisionMode(uint8_t p_mode);
     bool setHardClickLock(bool p_enable);

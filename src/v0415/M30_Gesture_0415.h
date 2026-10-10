@@ -161,7 +161,7 @@ class CL_M30_Gesture {
     EN_M30_Dir_t _detectFlickRoll(float p_gx, uint32_t p_nowMs);
 
     // Linear 내부
-    EN_M30_Dir_t _detectLinear(float p_gx, float p_gy,
+    EN_M30_Dir_t _detectLinear(
                                float p_ax, float p_ay, float p_az,
                                float p_roll, float p_pitch,
                                uint32_t p_nowMs);

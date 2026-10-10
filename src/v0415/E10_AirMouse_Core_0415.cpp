@@ -156,15 +156,6 @@ void CL_E10_EliteAirMouse::_applyRuntimeLocked(const ST_C10_E10Config_t& p_e) {
 // =======================================================
 // control
 // =======================================================
-// [v0415] setPptMode() — no-op (W10 API 호환용 스텁)
-//   - _isPptMode 필드 삭제됨 (Round G)
-//   - PPT 판정은 _activeMode == 2 로 일원화
-//   - Round M (W10)에서 set_ppt 명령 제거 후 이 API도 삭제 예정
-bool CL_E10_EliteAirMouse::setPptMode(bool p_enable) {
-    (void)p_enable;
-    D10_LOGD("[E10] setPptMode() no-op (deprecated in v0415)");
-    return true;
-}
 
 bool CL_E10_EliteAirMouse::setDpiLevel(uint8_t p_level) {
     uint8_t v_lv = p_level;
@@ -220,20 +211,19 @@ bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
     return true;
 }
 
-
+// ── 이후 ──
 bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     _lock();
     _safeMode = p_enable;
 
-    _state.btn_mask = 0;
+    // [v0415 LC-D] _state.btn_mask write 삭제 (필드 자체 삭제됨)
     _state.updated  = true;
 
-    // [M-4] 전용 코드
-    _pushErr(p_enable ? EN_E10_ERR_SAFE_MODE_ENTER : EN_E10_ERR_SAFE_MODE_EXIT, 0);
-
+    _pushErr(...);
     _unlock();
     return true;
 }
+
 
 bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
     _lock();
@@ -245,7 +235,7 @@ bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
             _otaGuardT0Ms = (uint32_t)(millis() - _uptime0);
             _pushErr(EN_E10_ERR_OTA_GUARD_ENTER, 0);
         }
-        _state.btn_mask = 0;
+        // [v0415 LC-D] btn_mask write 삭제
         _state.updated  = true;
     } else {
         if (_otaGuard) {
@@ -296,13 +286,18 @@ bool CL_E10_EliteAirMouse::_reloadActiveProfile() {
 bool CL_E10_EliteAirMouse::_saveActiveProfile() {
     if (!_cfg || !_cfgProfileValid) return false;
 
-    // 런타임 E10 값 반영
+    // [v0415 OPT-A] static 사용: 스택 2.4KB 절감
+    //   - 호출 컨텍스트: main loop(tickConfigSave), webTask(apiProfilesActivePost)
+    //   - 재진입 방지: _lock() 하 원자화 + 단일 writer (main/web 순차)
+    //   - static 공유 안전성: _lock() 하 유지, 다른 태스크가 동시 호출 시 직렬화
+    static ST_C10_ProfileConfig_t s_v_copy;
+
     _lock();
     _snapshotRuntimeToE10Config(_cfgProfile.e10);
-    ST_C10_ProfileConfig_t v_copy = _cfgProfile;
+    s_v_copy = _cfgProfile;
     _unlock();
 
-    return _cfg->saveActiveProfile(v_copy);
+    return _cfg->saveActiveProfile(s_v_copy);
 }
 
 // =======================================================

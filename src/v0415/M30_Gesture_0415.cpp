@@ -58,7 +58,7 @@ CL_M30_Gesture::ST_Output_t CL_M30_Gesture::update(
 
     // Linear: Middle Hold 중만 (D14)
     if (p_moveGateHeld) {
-        v_out.linear = _detectLinear(p_gx, p_gy, p_ax, p_ay, p_az,
+        v_out.linear = _detectLinear(p_ax, p_ay, p_az,
                                      p_roll, p_pitch, p_nowMs);
     } else {
         _linear.accumRoll  = 0.0f;
@@ -168,12 +168,10 @@ EN_M30_Dir_t CL_M30_Gesture::_detectFlickRoll(float /*p_gx*/, uint32_t p_nowMs) 
 // Linear: 선형 가속 임펄스 적분
 // =======================================================
 EN_M30_Dir_t CL_M30_Gesture::_detectLinear(
-    float p_gx, float p_gy,
     float p_ax, float p_ay, float p_az,
     float p_roll, float p_pitch,
     uint32_t p_nowMs)
 {
-    (void)p_gx; (void)p_gy;   // gyro는 지금 안 씀 (accel만)
 
     // ---- 1) 중력 성분 제거 (raw - R * g) ----
     // 단순화: roll/pitch로 중력 벡터 회전시켜 빼기

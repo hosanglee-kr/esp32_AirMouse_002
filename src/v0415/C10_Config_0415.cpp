@@ -926,15 +926,27 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
 // =======================================================
 // File utils
 // =======================================================
+
 bool CL_C10_Config::_verifyJsonFile(const char* p_path) {
     File v_f = LittleFS.open(p_path, "r");
     if (!v_f) return false;
+
+    // [v0415 OPT-B] 파일 크기 사전 검증 (heap 할당 방지 + 손상 파일 조기 검출)
+    //   - 프로파일 실제 크기 ~2.4KB, 매크로 라이브러리 포함 시 ~3KB
+    //   - 128KB 상한은 여유 있는 방어 임계
+    const size_t v_sz = v_f.size();
+    if (v_sz == 0 || v_sz > 128 * 1024) {
+        v_f.close();
+        D10_LOGW_C("C10::_verifyJsonFile", "invalid file size: %u", (unsigned)v_sz);
+        return false;
+    }
 
     JsonDocument v_d;
     bool v_ok = !deserializeJson(v_d, v_f);
     v_f.close();
     return v_ok;
 }
+
 
 bool CL_C10_Config::_copyFile(const char* p_src, const char* p_dst) {
     File v_s = LittleFS.open(p_src, "r");

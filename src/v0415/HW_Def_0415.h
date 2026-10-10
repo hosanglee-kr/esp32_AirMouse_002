@@ -151,14 +151,5 @@ static constexpr uint64_t buildWakeMaskButtons() {
     return v;
 }
 
-// ------------------------------------------------------
-// [Deprecated aliases] v0412 호환용
-//   - v0415 이후 신규 코드는 Normal/Safe/Buttons 사용
-//   - Phase 8 이후 제거 예정 (Round E에서 사용처 전량 치환)
-// ------------------------------------------------------
-[[deprecated("use buildWakeMaskNormal() instead")]]
-static constexpr uint64_t buildWakeMaskAll() {
-    return buildWakeMaskNormal();
-}
 
 } // namespace HW_DEF

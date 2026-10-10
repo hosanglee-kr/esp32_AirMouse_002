@@ -383,7 +383,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             v_m->_state.x        = v_xo;
             v_m->_state.y        = v_yo;
             v_m->_state.wheel    = v_wheelY;
-            v_m->_state.btn_mask = 0;
+
             if (v_updated) v_m->_state.updated = true;
             xSemaphoreGiveRecursive(v_m->_mutex);
         } else {

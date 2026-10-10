@@ -66,7 +66,6 @@ void CL_W10_WebConfig::_fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Sta
 
     e["fsm_state"] = s.fsm_state;
     e["fsm_sub"] = s.fsm_sub;
-    e["btn_mask"] = s.btn_mask;
 
     e["safe_mode"] = s.safe_mode;
 
