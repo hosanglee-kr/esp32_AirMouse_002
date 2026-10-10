@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`
-> 최종 갱신: 2026-10-09 (rev8 — v0415 리팩터: A40 삭제, Consumer mask Descriptor SSOT, Safe/Pairing Wake Mask, BB-1 제스처 확장, `_macroState` lock, L10 mutex, `_bootWifi`, `setPptMode` 삭제, 스키마 411)
+> 최종 갱신: 2026-10-11 (rev9 — R-1~R-3 통합 patch + C20 resetButton fix 반영. §2.10 버튼 이벤트 시퀀스 신규)
 
 ---
 
@@ -28,13 +28,13 @@
 | `switchProfile(idx)` | `webTask` only | 진행 중 재진입 차단 (`_cfgProfileValid` + `_profileSwitchInProgress`) | `_lock` 하 `_macroAbortToken++`, 큐 드레인, 리셋 위임, HID release, `_engine.resetEmaState()` | 전환 중이면 `false` 반환 및 조기 종료 |
 | `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링, 캘리브, 호스트 순환, **SLEEP_NOW (즉시 진입)** | 알 수 없는 코드 시 무시. **HOST_CYCLE 시 `_ble.exitPairing()` 선행 호출** |
 | `forceReleaseButtons()` | `any` (web, sensor, comm) | 논블로킹 (`_lock` 하 매크로 abort + state 리셋) | `_macroAbortToken++` (lock 하) + `_qHidCmd`에 `RELEASE_ALL` 인큐 | **큐 Full 시 `_reqCommReleaseAll = true` 위임 + false 반환** |
-| `forceReleaseAllButtons()` | – | – | **v0415 삭제** (Round G, 호출처 없음) | – |
 | `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_lock()` 하 config 스냅샷 read + `_freezeState` 전이 | `motion_adv.click_freeze` 로컬 복사 |
 | `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | `_lock()` 하 config 스냅샷 read + 활성 축 감쇠 | `motion_adv.snap` 로컬 복사 |
 | `mpuWr(reg,val)` | `sensorTask` (`_prepareMpuWom`) | 논블로킹 I2C | `Wire.endTransmission()` 반환값 리턴 | WoM prep 실패 시 조기 반환 → sleep 금지 |
 | `_recoverI2C()` | `sensorTask` only | I2C 버스 재초기화 | `Wire.end()`, `Wire.begin()`, `_mpu.begin()` | 실패 시 `_consecutiveRecoverFail++` |
 | `_runGyroCalibration()` | `sensorTask` only | 초기 부팅 또는 정지 시 1000ms 측정 | 자이로 오프셋 산출, `_gyroCalibDone = true` | 측정 중 움직임 시 재시도. 루프 내 `_ble.tick()` 유지 |
-| `_snapshotRuntimeToE10Config(out)` | `sensorTask`/`commTask`/`webTask` | `_lock()` 하 호출 필수 | 런타임 → config 구조체 반영 (**v0415: wipe 제거, 런타임 필드만 갱신**) | `motion_adv`/`power`/`button`/`gyro_bias`/`flick`/`tilt_hold`/`active_mode`/`led_brightness` 등은 호출자가 baseline 유지 |
+| `_snapshotRuntimeToE10Config(out)` | `sensorTask`/`commTask`/`webTask` | `_lock()` 하 호출 필수 | 런타임 → config 구조체 반영 (**v0415: wipe 제거, 런타임 필드만 갱신, 21개 필드**) | `gyro_bias/flick/tilt_hold/active_mode/led_brightness` 등 config 전용 필드는 호출자 baseline 유지 |
+| `_saveActiveProfile()` | `main loop` (`tickConfigSave`), `webTask` (`apiProfilesActivePost` 경유) | **R-1: static `s_v_copy` 사용 (스택 2.4KB 절감)** | `_snapshotRuntimeToE10Config` + `_cfg->saveActiveProfile(s_v_copy)` | 실패 시 `WARN` 로그 후 false. `_lock()` 하 원자화 |
 | `_applyE10ToRuntime(e10)` | `sensorTask`/`webTask` | `_applyRuntimeLocked()` 경유 (락 보유) | 런타임 필드 일괄 반영 | 범위 클램프 다수. **`_engine.setHardClickLock` 호출 없음 (v0415)** |
 | `_enqueueAction(slot, isDown)` | `sensorTask`, `webTask` | 논블로킹 | `_qActionExec` 인큐 | 큐 Full 시 drop (false) |
 | `_enqueueHidCmd(cmd)` | `webTask`, `sensorTask` | 논블로킹 | `_qHidCmd` 인큐 | 큐 Full 시 drop (false) |
@@ -53,15 +53,17 @@
 
 - 모든 GPIO 핀 번호(`PIN_BTN_*`, `PIN_I2C_*`, `PIN_LED_*`, `PIN_BATT_ADC`) 및 EXT1 RTC Deep Sleep Wakeup 마스크는 `HW_Def_0415.h`의 `HW_DEF` 네임스페이스를 **단일 진실 공급원(SSOT)**으로 삼는다.
 - 타 모듈(`C20`, `L10`, `E10`, `P20`, `main.cpp`)에서 GPIO 핀 번호를 로컬 매크로나 독립 상수로 중복 정의하는 행위는 엄격히 금지된다.
+- **v0415-Zero 핀 재배치**: ESP32-S3-Zero 우측 핀헤더(GP7~GP13) 기반으로 6버튼 재배치. GP14~16은 배제.
 - RTC Deep Sleep 웨이크업 마스크는 다음 **3종 constexpr 함수**를 통해서만 획득:
 
 | 함수 | 마스크 소스 | 사용 시나리오 |
 |---|---|---|
 | `HW_DEF::buildWakeMaskNormal()` | MPU INT + 6버튼 | Light-sleep 일반 모드 |
-| `HW_DEF::buildWakeMaskSafe()` | Side C 단독 (GPIO 13) | Safe/Pairing (Light/Deep 모두) |
+| `HW_DEF::buildWakeMaskSafe()` | Side C 단독 | Safe/Pairing (Light/Deep 모두) |
 | `HW_DEF::buildWakeMaskButtons()` | 6버튼 (MPU 제외) | Deep-sleep 일반 모드 |
 
 - `BTN_PINS[]` 순서는 `EN_C20_BtnId_t` 순서와 1:1 유지. `C20_BtnDispatcher::G_PINS`는 본 배열을 참조해야 한다.
+- **`buildWakeMaskAll()` alias 삭제** (R-2 LC-F). 사용처 없음 확인.
 
 ### 2.2 Consumer Mask Descriptor SSOT 계약 (v0415 신규)
 
@@ -131,6 +133,52 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - 매크로 8 step × 28ms = 최대 224ms 누적 블로킹 (분산 실행).
 - 커서 프레임 소비는 각 step 사이에 계속됨.
 
+### 2.10 버튼 이벤트 시퀀스 계약 (v0415, C20 patch)
+
+**C20_BtnDispatcher 이벤트 발화 정책**:
+
+#### 1) DOWN/UP 안정 상태 전이
+- DOWN: `stableState` false→true
+- UP:   `stableState` true→false
+- 디바운스: 비대칭 (Press 32ms / Release 16ms) + 2-Stage (시간 AND 카운터 3틱)
+
+#### 2) CLICK (release 후 재입력 없음)
+- 시퀀스: `DOWN → UP → (double 윈도우 320ms 경과) → CLICK`
+- `minClickMs` (16ms) 미만 눌림은 `DISCARD`
+
+#### 3) DOUBLE (double 윈도우 내 두 번째 stable DOWN)
+**시퀀스**: `DOWN(1) → UP(1) → DOUBLE → UP(2)`
+- **2번째 press의 DOWN은 의도적으로 흡수(미발화)**
+- **이유**: 소비처(예: Top L 하드코딩)가 첫 DOWN/UP으로 1회 클릭을 발화했고, DOUBLE 슬롯이 2회째 클릭을 발화함. 만약 2번째 DOWN도 발화하면 클릭 3회(오작동) 발생.
+- **금지**: DOWN도 함께 발화하도록 수정 금지 (Top L 오작동 유발)
+
+#### 4) LONG/HOLD_2S/HOLD_3S (progressive 누적 발화)
+**시퀀스**: `DOWN → LONG(800ms) → HOLD_2S(2000ms) → HOLD_3S(3000ms) → UP`
+- 각 임계 도달 시각에 1회씩 순차 발화
+- `longFired`/`hold2sFired`/`hold3sFired` 플래그로 각 임계당 1회만 발화
+- 소비처:
+  - Side C HOLD_2S → Pairing 진입
+  - Side C HOLD_3S → Host Cycle (+ Pairing 자동 취소, BB-2)
+  - Side C LONG(800ms) → 명시적 무시
+  - 기타 버튼 → `G_SLOT_MAP` 미매핑 → 무시
+
+#### 5) resetButton 타임스탬프 초기화 (R-1 fix)
+`resetButton(p_btnId)` / `resetAll()` 호출 시:
+- `downMs = millis()` (0 아님)
+- `upMs = millis()`
+- `waitClickStartMs = millis()`
+- `lastRawChangeMs = millis()`
+- `stableCount = 0`, `rawDownMs = 0`
+- `phase = PHASE_IDLE`, fired 플래그 3종 false
+- **유지**: `stableState`, `lastRaw` (물리 상태 반영)
+- **이유**: reset 직후 release edge 발생 시 `heldMs = now - downMs` 계산에서 downMs=0이면 거대값 → LONG 오발화 위험 (방어적 초기화, L5-A3-11)
+
+#### 6) update() 호출 전제조건
+- **권장 주기**: 5~10ms (sensorTask 8ms)
+- **15ms 이상**: `_debounceMinTicks(3)`가 시간 조건 지배 → 실효 디바운스 증가 (역효과)
+- **20ms 이상**: `v_timeOk`가 32ms 초과 → 디바운스 무력화 위험
+- **콜백 경량 필수**: `_cb()` 내부에서 블로킹 금지. E10 `_onBtnEvent`는 `_enqueueAction(timeout=0)` 경유
+
 ---
 
 ## 3. FreeRTOS 큐 계약
@@ -189,7 +237,7 @@ struct ST_E10_HidCmd_t {
 | `_moveGateHeld` | `sensorTask` (Top M), `webTask` (switchProfile) | `sensorTask` (모션) | `volatile bool` | Move Gate |
 | `_frontHoldActive` | `sensorTask` (Side F) | `sensorTask` (스크롤) | `volatile bool` | Front Hold |
 | `_cfgProfile` | `webTask` (write), `sensorTask` (init) | `sensorTask`, `commTask`, `webTask` | `_mutex` (Recursive Mutex) | 프로파일 변경/저장 시 `_lock()` |
-| `_state` | `sensorTask`, **`commTask` (`_doForceReleaseNow`)**, `webTask` (setSafeMode 등) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 관측용. 타임아웃 시 miss 카운터 증가 |
+| `_state` | `sensorTask`, `commTask` (`_doForceReleaseNow`), `webTask` (setSafeMode 등) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 관측용. **R-2 LC-D: `btn_mask` 필드 삭제됨 (항상 0으로 write되어 무의미)**. 타임아웃 시 miss 카운터 증가 |
 | `_errHist`, `_spikes` | `sensorTask`, `commTask` | `webTask` | `_pushErr`, `_pushSpike` 내부 `_lock()` | 링버퍼 오버플로 방지 |
 | `_reqSpecialAction` | `webTask` (`execLiveTest`) | `sensorTask` | `volatile uint8_t` | SPECIAL 위임. 최신 1개만 유효 |
 | `_reqCommReleaseAll` | `webTask` (`switchProfile`), `any` (enqueue 실패) | `commTask` | `volatile bool` | release 100% 보장 |
@@ -281,8 +329,12 @@ _unlock();
 - `_getE10RuntimeConfig` 삭제 (v0412 rev5)
 - `testMouseClick` / `_doTestMouseClick` / `EN_E10_HIDCMD_TEST_CLICK` 삭제 (v0412 rev5)
 - **`forceReleaseAllButtons` 삭제 (v0415)**
+- **`setPptMode` 삭제 (R-1)** — E10 헤더/구현, W10 콜백 전부
 - **`EN_E10_HidCmd_t::holdMs` 필드 삭제 (v0415, TEST_CLICK 삭제 이후 Dead)**
 - **`_modeToggleCooldownMs` / `_lastModeToggleMs` 삭제 (v0415, `_fsmUpdate` Dead 분기)**
+- **`buildWakeMaskAll()` alias 삭제 (R-2 LC-F)**
+- **`_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D)**
+- **M30 `_detectLinear(p_gx, p_gy, ...)` 시그니처 정리 (R-3 LC-G)** — gyro 인자 삭제
 
 ---
 
@@ -363,6 +415,8 @@ _unlock();
 | Momentary sanitization 누락 | `_sanitizeMomentarySlot` 호출 확인 | 반려. 버튼/제스처 양쪽 적용 필수 |
 | 위임 플래그 read-clear 순서 위반 | 코드 리뷰 | 반려. `read → clear → 처리` 순서 강제 |
 | L10 외부 상태 변경 lock 누락 | `_lock()` 쌍 확인 | 반려. 모든 public API 보호 |
+| C20 DOUBLE 시 2번째 DOWN 발화 | 코드 리뷰 | 반려. DOWN 흡수 정책 위반 (§2.10-3) |
+| resetButton 타임스탬프 = 0 초기화 | 코드 리뷰 | 반려. millis() 초기화 강제 (§2.10-5) |
 
 ---
 
@@ -378,4 +432,5 @@ _unlock();
 | rev5 | 2026-10-02 | Round 2/3 조치: `forceReleaseButtons` enqueue 안전망, `motion_adv` config 스냅샷 락 |
 | rev6 | 2026-10-07 | 웹 API 부분 패치 무결성 계약 |
 | rev7 | 2026-10-07 | HW_Def SSOT, Momentary 단발화(BB-1), Host Cycle 페어링 취소(BB-2), Side F DOWN/UP 소비(BB-6) |
-| **rev8** | **2026-10-09** | **v0415 리팩터**: A40 파일 삭제, Consumer mask Descriptor SSOT 계약 신규, Safe/Pairing Wake Mask 분기, BB-1 제스처 확장, `_macroState` lock 정책, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `setPptMode` 콜백 삭제, `forceReleaseAllButtons` 삭제, `ST_E10_HidCmd_t.holdMs` 삭제, `_fsmUpdate` 1-param, M10 Click-Lock 삭제, 스키마 411 |
+| rev8 | 2026-10-09 | **v0415 리팩터**: A40 파일 삭제, Consumer mask Descriptor SSOT 계약 신규, Safe/Pairing Wake Mask 분기, BB-1 제스처 확장, `_macroState` lock 정책, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `setPptMode` 콜백 삭제, `forceReleaseAllButtons` 삭제, `ST_E10_HidCmd_t.holdMs` 삭제, `_fsmUpdate` 1-param, M10 Click-Lock 삭제, 스키마 411 |
+| **rev9** | **2026-10-11** | **R-1~R-3 통합 patch**: `setPptMode` 완전 삭제 (E10 헤더/구현), `_saveActiveProfile` static (스택 2.4KB 절감), `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제, `buildWakeMaskAll` alias 삭제, M30 `_detectLinear` 시그니처 정리, C10 `_verifyJsonFile` 크기 검증, HW_Def 핀 재배치 (GP7~GP13). **C20 patch**: `resetButton` 타임스탬프 millis() 초기화, `update()` 5~10ms 전제조건, **§2.10 버튼 이벤트 시퀀스 계약 신규** (DOUBLE DOWN 흡수 / LONG/HOLD progressive / update() 전제) |

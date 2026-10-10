@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-09 (rev7 — v0415: `_isPptMode` 삭제, `_macroState` lock, L10 mutex, `_bootWifi`, `_fsmUpdate` 1-param, HW_Def SSOT 반영)
+> 최종 갱신: 2026-10-11 (rev8 — R-1~R-3 통합 patch + C20 resetButton fix 반영. §2.7 resetButton 규약 통합)
 
 ---
 
@@ -42,7 +42,7 @@
 | `_moveGateHeld` | `sensorTask` (Top M 이벤트), `webTask` (switchProfile) | `sensorTask` (모션 파이프라인) | `volatile bool` | Middle Hold 커서 이동 허용 게이트 |
 | `_frontHoldActive` | `sensorTask` (Side F 이벤트) | `sensorTask` (스크롤 처리) | `volatile bool` | Front Hold 스크롤 전용 상태 플래그 |
 | `_cfgProfile` | `webTask` (write), `sensorTask` (init) | `sensorTask`, `commTask`, `webTask` | `_mutex` (Recursive Mutex) | 프로파일 변경/저장 시 반드시 `_lock()` 하 |
-| `_state` | `sensorTask`, `commTask` (`_doForceReleaseNow`), `webTask` (setSafeMode 등) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 웹 관측용 상태 구조체. 타임아웃 초과 시 miss 카운터 증가 |
+| `_state` | `sensorTask`, `commTask` (`_doForceReleaseNow`), `webTask` (setSafeMode 등) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 웹 관측용 상태 구조체. **R-2 LC-D: `btn_mask` 필드 삭제 (항상 0으로 write되어 무의미)**. 타임아웃 초과 시 miss 카운터 증가 |
 | `_errHist`, `_spikes` | `sensorTask`, `commTask` | `webTask` | `_pushErr`, `_pushSpike` 내부 `_lock()` | 링버퍼 오버플로 방지 |
 | `_profileSwitchInProgress` | `webTask` (`switchProfile`) | `webTask`, `sensorTask` | `volatile bool` | 프로파일 전환 재진입 차단 |
 | `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트 |
@@ -51,7 +51,8 @@
 
 ### 1.1 v0415 주요 변경
 
-- **삭제 필드**: `_isPptMode` (E10), `_modeToggleCooldownMs`, `_lastModeToggleMs`, `_topMDownMs` (Dead)
+- **삭제 필드**: `_isPptMode` (E10), `_modeToggleCooldownMs`, `_lastModeToggleMs`, `_topMDownMs` (Dead), **`_state.btn_mask`** (R-2 LC-D), **`ST_E10_Status_t.btn_mask`** (R-2 LC-D)
+- **삭제 심볼**: `setPptMode()` (R-1), `buildWakeMaskAll()` (R-2 LC-F), `_detectLinear(p_gx, p_gy, ...)` 시그니처 (R-3 LC-G)
 - **추가 필드**: `_thLed`, `ST_E10_Status_t::active_mode`, `ST_E10_Status_t::task_stack_led_min_words`, `_bootWifi` (W10)
 - **정책 변경**: `_macroState` → `_lock()` 하 원자적 갱신 (v0412는 부분 volatile)
 - **L10 thread-safety**: Recursive Mutex (v0412는 무보호)
@@ -175,14 +176,34 @@
 | `PHASE_WAIT_CLICK` | – | ✓ (`double_delay_ms`) | ✓ (타임아웃 시) |
 | `PHASE_DOUBLE` | **✗ (제외)** | – | – |
 
-**`resetButton()` 타임스탬프 초기화 규약**:
-
-`_btnDisp.resetButton(idx)` 및 `resetAll()` 호출 시:
-- **초기화**: 상태 Phase(`PHASE_IDLE`), 발화 플래그(`longFired`, `hold2sFired`, `hold3sFired`, `downSent`), **시간 계측 타임스탬프**(`downMs = 0`, `upMs = 0`, `waitClickStartMs = 0`, `rawDownMs = 0`)
-- **유지**: `stableState`, `lastRaw` (물리 상태 반영)
-- `lastRawChangeMs`는 현재 시각으로 갱신 (타임아웃 즉시 발화 방지)
+**이벤트 발화 정책 (C20 patch 반영)**:
+1. **DOUBLE 시 2번째 DOWN 흡수**: `PHASE_WAIT_CLICK → PHASE_DOUBLE` 전이 시 DOWN 발화 없이 DOUBLE만 발화.
+   시퀀스: `DOWN(1) → UP(1) → DOUBLE → UP(2)`.
+   소비처가 첫 DOWN/UP으로 1회 클릭, DOUBLE 슬롯이 2회째 클릭 발화 (Top L 기본 매핑).
+2. **LONG/HOLD progressive**: `PHASE_PRESSED` 유지 중 각 임계 도달 시 1회씩 순차 발화.
+   `longFired`/`hold2sFired`/`hold3sFired` 플래그로 각 임계당 1회만 발화.
+3. **PHASE_DOUBLE 제외**: `_checkTimers`에서 `PHASE_DOUBLE`은 Long/Hold 검사 대상 아님 (R2-M-1).
 
 **v0415 `setTimings` 정책**: 8-param 단일. 구버전 5-param 오버로드 삭제.
+
+> **`resetButton()` 타임스탬프 초기화 규약 (rev7, BB-3 + L5-A3-11)**:
+>
+> `_btnDisp.resetButton(idx)` 및 `resetAll()` 호출 시 다음을 초기화한다:
+>
+> - **상태**: `phase = PHASE_IDLE`, `longFired = false`, `hold2sFired = false`, `hold3sFired = false`
+> - **시간 계측 타임스탬프 (R-1 fix)**: `downMs = millis()`, `upMs = millis()`, `waitClickStartMs = millis()`, `lastRawChangeMs = millis()`
+>   - **이전 rev6**: 0으로 초기화 → **폐기**
+>   - **이유**: reset 직후 release edge 발생 시
+>     `heldMs = (rawDownMs>0) ? ... : (now - downMs)` 계산에서
+>     `downMs=0`이면 거대값 → phase가 PRESSED였을 경우 LONG 오발화 위험
+> - **디바운스**: `stableCount = 0`, `rawDownMs = 0`
+> - **유지**: `stableState`, `lastRaw` (물리 상태 반영 — 프로파일 전환 중 버튼 눌림 유지 시 debounce 정상 동작)
+
+> **update() 호출 전제조건**:
+> - `update()`는 5~10ms 주기로 호출 필수 (sensorTask 8ms 권장)
+> - 15ms 이상이면 `_debounceMinTicks(3)`가 시간 조건 지배 → 실효 디바운스 증가 (역효과)
+> - 20ms 이상이면 `v_timeOk`가 32ms를 초과하여 디바운스 무력화 위험
+> - 콜백 경량 필수 (`_cb()` 내부 블로킹 금지)
 
 ---
 
@@ -237,4 +258,5 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev4 | 2026-10-02 | LED suspend/resume FSM 상세화 (blocking/async 구분) |
 | rev5 | 2026-10-02 | motion_adv config 스냅샷 락, `_reqCommReleaseAll` 확장, PHASE_DOUBLE hold 제외 |
 | rev6 | 2026-10-07 | `resetButton()` 타임스탬프 완전 초기화, HW_Def SSOT 반영 |
-| **rev7** | **2026-10-09** | **v0415 리팩터**: `_isPptMode` 삭제 → `active_mode` 일원화, `_fsmUpdate(gyroAbs)` 1-param, `_macroState` lock 정책 강화, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `_thLed` 추가, `task_stack_led_min_words` 관측 |
+| rev7 | 2026-10-09 | **v0415 리팩터**: `_isPptMode` 삭제 → `active_mode` 일원화, `_fsmUpdate(gyroAbs)` 1-param, `_macroState` lock 정책 강화, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `_thLed` 추가, `task_stack_led_min_words` 관측 |
+| **rev8** | **2026-10-11** | **R-1~R-3 통합 patch**: `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D), `setPptMode()` 삭제 (R-1), `buildWakeMaskAll()` alias 삭제 (R-2 LC-F). **§2.7 resetButton 규약 rev7로 갱신**: downMs/upMs/waitClickStartMs = `millis()` (0 아님, L5-A3-11). **DOUBLE DOWN 흡수** + **LONG/HOLD progressive** + **update() 5~10ms 전제조건** 명시. HW_Def 핀 재배치 (GP7~GP13) 반영. |

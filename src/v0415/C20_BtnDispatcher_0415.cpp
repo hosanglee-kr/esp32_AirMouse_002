@@ -136,19 +136,39 @@ void CL_C20_BtnDispatcher::_emit(uint8_t p_btnId, uint8_t p_evt) {
     if (_cb) _cb(_ctx, p_btnId, p_evt);
 }
 
+
+// =======================================================
+// [v0415 L5-A3-11 fix] resetButton — 방어적 타임스탬프 초기화
+// -------------------------------------------------------
+// 이전 (v0415 초기):
+//   b.downMs           = 0;
+//   b.upMs             = 0;
+//   b.waitClickStartMs = 0;
+//   → reset 직후 release edge 발생 시 heldMs 계산이 거대값 → LONG 오발화 위험
+//     (phase가 IDLE이라 현재는 미발화이지만 방어적 초기화가 안전)
+//
+// v0415 fix:
+//   b.downMs           = v_now;
+//   b.upMs             = v_now;
+//   b.waitClickStartMs = v_now;
+//   → heldMs = (rawDownMs>0) ? ... : (now - v_now) = 0~수ms (안전)
+// =======================================================
 void CL_C20_BtnDispatcher::resetButton(uint8_t p_btnId) {
     if (p_btnId >= EN_C20_BTN_MAX) return;
     ST_BtnState_t& b = _btn[p_btnId];
+
+    const uint32_t v_now = (uint32_t)millis();
+
     b.phase            = PHASE_IDLE;
-    b.downMs           = 0;
-    b.upMs             = 0;
-    b.waitClickStartMs = 0;
+    b.downMs           = v_now;    // [v0415 fix] 0 대신 현재 시각
+    b.upMs             = v_now;    // [v0415 fix]
+    b.waitClickStartMs = v_now;    // [v0415 fix]
     b.longFired        = false;
     b.hold2sFired      = false;
     b.hold3sFired      = false;
 
     // [v0415 정책] stableState/lastRaw 유지 (물리 상태 반영)
-    b.lastRawChangeMs = (uint32_t)millis();
+    b.lastRawChangeMs = v_now;
     b.stableCount     = 0;
     b.rawDownMs       = 0;
 }
@@ -156,3 +176,5 @@ void CL_C20_BtnDispatcher::resetButton(uint8_t p_btnId) {
 void CL_C20_BtnDispatcher::resetAll() {
     for (uint8_t i = 0; i < EN_C20_BTN_MAX; i++) resetButton(i);
 }
+
+
