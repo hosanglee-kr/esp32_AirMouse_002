@@ -12,13 +12,14 @@
  *  - E10(센서/I2C), C20(버튼), P20(전원/WoM), L10(LED)이 참조
  *  - EXT1 wake mask를 constexpr로 자동 계산 (하드코딩 제거)
  *
- * [v0415 주요 변경 — SPEC rev8 명명 정합]
+ * [v0415 주요 변경 — SPEC rev8 명명 정합 및 핀 재배치]
  *  - buildWakeMaskAll()     → buildWakeMaskNormal()   (rename)
- *  - buildWakeMaskSafe()    → 신설 (Safe/Pairing 모드)
- *    · SPEC rev8: "안전/페어링 모드: Side C 단독"
- *    · Phase 1 방안 2-A 확정
+ *  - buildWakeMaskSafe()    → 신설 (Safe/Pairing 모드: Side C 단독)
  *  - buildWakeMaskButtons() → 유지 (Deep-sleep: MPU INT 제외)
- *  - PIN_BATTERY_ADC → PIN_BATT_ADC (명명 통일, SPEC 표와 일치)
+ *  - PIN_BATTERY_ADC        → PIN_BATT_ADC (명명 통일, SPEC 표와 일치)
+ *  - ESP32-S3-Zero 전용 재매핑: GPIO 13 이하 핀만 사용 (GP14~16 배제)
+ *  - GP11 검증 반영: SPI Flash(GP26~32) 간섭 없음 확인 완료, PIN_BTN_SIDE_R로 복귀
+ *  - 우측 핀헤더(GP7~GP13) 결선 최적화: Side 3버튼 및 Top 3버튼 순차 연속 배치
  *
  * [SSOT 계약]
  *  - 본 파일이 GPIO 핀 번호, RTC Wakeup 마스크, BTN_PINS 순서의 유일한 정의
@@ -47,6 +48,38 @@
  * [C]│             │  ← 좌측면 (Front/Center/Rear)
  * [R]│             │
  *   └─────────────┘
+ *
+ * =======================================================================================================
+ * [Waveshare ESP32-S3-Zero 좌/우 대칭 핀아웃 다이어그램 ]
+ * =======================================================================================================
+ *  - 좌측 핀: 전원(5V, GND, 3V3) 및 아날로그 ADC / I2C / 인터럽트 센서 계통
+ *  - 우측 핀: UART0 디버그 핀 및 조작 버튼(Top 3개, Side 3개) 계통
+ * =======================================================================================================
+ *
+ *                                               ┌───────────────┐
+ *                                               │   USB-C 포트  │
+ *                                               └───────┬───────┘
+ *                                                       │
+ *                        ┌──────────────────────────────┴──────────────────────────────┐
+ *                        │                                                             │
+ *  PIN_5V_IN   [전원] ── │ [ 5V ]                                             [ TX ]   │ ── [통신] UART0 TX (GP43)
+ *  PIN_GND     [전원] ── │ [GND ]                                             [ RX ]   │ ── [통신] UART0 RX (GP44)
+ *  PIN_3V3_OUT [전원] ── │ [3V3 ]                                             [ 13 ]   │ ── [할당] PIN_BTN_SIDE_C (GP13)
+ *  PIN_BATT_ADC[할당] ── │ [ 1  ]                                             [ 12 ]   │ ── [할당] PIN_BTN_SIDE_F (GP12)
+ *  (여유 핀)   [여유] ── │ [ 2  ]             ┌────────────────┐              [ 11 ]   │ ── [할당] PIN_BTN_SIDE_R (GP11)
+ *  (여유 핀)   [여유] ── │ [ 3  ]             │  ESP32-S3-FH4R2│              [ 10 ]   │ ── [여유] (ADC1_CH9 / RTC)
+ *  PIN_I2C_SDA [할당] ── │ [ 4  ]             │     (MCU)      │              [ 9  ]   │ ── [할당] PIN_BTN_TOP_L  (GP9)
+ *  PIN_I2C_SCL [할당] ── │ [ 5  ]             └────────────────┘              [ 8  ]   │ ── [할당] PIN_BTN_TOP_M  (GP8)
+ *  PIN_MPU_INT [할당] ── │ [ 6  ]                                             [ 7  ]   │ ── [할당] PIN_BTN_TOP_R  (GP7)
+ *                        │                                                             │
+ *                        └─────────────────────────────────────────────────────────────┘
+ *
+ *                        ───────────────────────────────────────────────────────────────
+ *                        [온보드 내장 및 배제 핀]
+ *                        - GP21 : [할당] PIN_LED_WS2812 (온보드 RGB LED)
+ *                        - GP0  : [배제] Boot 스트래핑 핀 (미할당)
+ *                        - GP14, GP15, GP16 : [배제] 하단/모서리 핀 (미할당)
+ *                        ───────────────────────────────────────────────────────────────
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -74,18 +107,16 @@ namespace HW_DEF {
 //    0 = TOP_L, 1 = TOP_M, 2 = TOP_R,
 //    3 = SIDE_F, 4 = SIDE_C, 5 = SIDE_R
 // =====================================================
-static constexpr int PIN_BTN_TOP_L  = 12;   // EN_C20_BTN_TOP_L  (좌클릭/Drag)
-static constexpr int PIN_BTN_TOP_M  = 16;   // EN_C20_BTN_TOP_M  (Move Gate)
-static constexpr int PIN_BTN_TOP_R  = 15;   // EN_C20_BTN_TOP_R  (우클릭)
-static constexpr int PIN_BTN_SIDE_F = 14;   // EN_C20_BTN_SIDE_F (Front Hold)
-static constexpr int PIN_BTN_SIDE_C = 13;   // EN_C20_BTN_SIDE_C (Mode/Pairing/Host Cycle)
-static constexpr int PIN_BTN_SIDE_R = 7;    // EN_C20_BTN_SIDE_R (보조)
+static constexpr int PIN_BTN_TOP_L  = 9;    // GP9  (좌클릭/Drag)
+static constexpr int PIN_BTN_TOP_M  = 8;    // GP8  (Move Gate)
+static constexpr int PIN_BTN_TOP_R  = 7;    // GP7  (우클릭)
+static constexpr int PIN_BTN_SIDE_F = 12;   // GP12 (Front Hold)
+static constexpr int PIN_BTN_SIDE_C = 13;   // GP13 (Mode/Pairing/Host Cycle)
+static constexpr int PIN_BTN_SIDE_R = 11;   // GP11 (보조)
 
 static constexpr uint8_t BTN_COUNT = 6;
 
-// C20_BtnDispatcher::G_PINS 순서와 1:1 (EN_C20_BtnId_t 순서)
-//   - C20_Action_0415.h의 EN_C20_BtnId_t 순서와 반드시 일치
-//   - 정적 검증: Round E에서 C20_BtnDispatcher::G_PINS가 이 배열 참조
+// C20_BtnDispatcher::G_PINS 순서와 1:1 대응 (EN_C20_BtnId_t 순서)
 static constexpr int BTN_PINS[BTN_COUNT] = {
     PIN_BTN_TOP_L,
     PIN_BTN_TOP_M,
@@ -98,25 +129,23 @@ static constexpr int BTN_PINS[BTN_COUNT] = {
 // =====================================================
 // [I2C 버스]
 // =====================================================
-static constexpr int PIN_I2C_SDA = 4;
-static constexpr int PIN_I2C_SCL = 5;
+static constexpr int PIN_I2C_SDA = 4;       // GP4
+static constexpr int PIN_I2C_SCL = 5;       // GP5
 
 // =====================================================
 // [MPU6050 INT1] WoM wake 소스
 // =====================================================
-static constexpr int PIN_MPU_INT = 6;
+static constexpr int PIN_MPU_INT = 6;       // GP6
 
 // =====================================================
-// [LED] WS2812 단일 LED (DIN)
+// [LED] WS2812 온보드 내장 RGB LED (DIN)
 // =====================================================
-static constexpr int PIN_LED_WS2812 = 21;
+static constexpr int PIN_LED_WS2812 = 21;   // GP21
 
 // =====================================================
-// [배터리 ADC] (미구현, 향후)
-//   - v0412 명칭: PIN_BATTERY_ADC
-//   - v0415 명칭: PIN_BATT_ADC (SPEC 표 정합)
+// [배터리 ADC]
 // =====================================================
-static constexpr int PIN_BATT_ADC = 1;
+static constexpr int PIN_BATT_ADC = 1;      // GP1 (ADC1_CH0)
 
 // =====================================================
 // [EXT1 wake mask 빌더] (constexpr, 매직넘버 제거)
@@ -150,6 +179,5 @@ static constexpr uint64_t buildWakeMaskButtons() {
     }
     return v;
 }
-
 
 } // namespace HW_DEF
