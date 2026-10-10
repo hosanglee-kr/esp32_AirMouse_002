@@ -211,7 +211,6 @@ bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
     return true;
 }
 
-// ── 이후 ──
 bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     _lock();
     _safeMode = p_enable;
@@ -219,7 +218,9 @@ bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     // [v0415 LC-D] _state.btn_mask write 삭제 (필드 자체 삭제됨)
     _state.updated  = true;
 
-    _pushErr(...);
+    // [M-4] 전용 코드 (SafeMode 진입/이탈)
+    _pushErr(p_enable ? EN_E10_ERR_SAFE_MODE_ENTER : EN_E10_ERR_SAFE_MODE_EXIT, 0);
+
     _unlock();
     return true;
 }
