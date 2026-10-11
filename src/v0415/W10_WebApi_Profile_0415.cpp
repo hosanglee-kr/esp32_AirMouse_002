@@ -436,7 +436,21 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
 
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx, v_k, v_h, v_p16, v_p32);
     if (!v_ok) {
-        _sendErr(req, "ble_disconnected", "Live test failed (BLE disconnected to host PC).");
+        // [FIX-9] execLiveTest 실패 사유 구분:
+        //   - SafeMode/OTAGuard → gate 실패
+        //   - SPECIAL은 BLE 무관 성공 위임 (rev12) → 여기 도달 안 함
+        //   - 그 외 → 실제 BLE 미연결
+        bool v_otaGuard = false;
+        if (_e10if->getStatus) {
+            ST_E10_Status_t s;
+            memset(&s, 0, sizeof(s));
+            if (_e10if->getStatus(_e10if->ctx, &s)) v_otaGuard = s.ota_guard;
+        }
+        if (_isSafeMode() || v_otaGuard) {
+            _sendErr(req, "ota_guard_blocked", "Live test blocked by gate.");
+        } else {
+            _sendErr(req, "ble_disconnected", "Live test failed (BLE disconnected to host PC).");
+        }
         return;
     }
 
@@ -481,14 +495,24 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
         return;
     }
 
-    // [v0415] kind=MACRO 명시 상수 사용 (Round M-2 개선)
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx,
-                                           (uint8_t)EN_C20_ACT_MACRO,
-                                           (uint8_t)EN_C20_HOLD_NONE,
-                                           0,
-                                           (uint32_t)v_idx);
+                                       (uint8_t)EN_C20_ACT_MACRO,
+                                       (uint8_t)EN_C20_HOLD_NONE,
+                                       0,
+                                       (uint32_t)v_idx);
     if (!v_ok) {
-        _sendErr(req, "ble_disconnected", "Macro test failed (BLE disconnected to host PC).");
+        // [FIX-9] gate 실패 vs BLE 미연결 구분
+        bool v_otaGuard = false;
+        if (_e10if->getStatus) {
+            ST_E10_Status_t s;
+            memset(&s, 0, sizeof(s));
+            if (_e10if->getStatus(_e10if->ctx, &s)) v_otaGuard = s.ota_guard;
+        }
+        if (_isSafeMode() || v_otaGuard) {
+            _sendErr(req, "ota_guard_blocked", "Macro test blocked by gate.");
+        } else {
+            _sendErr(req, "ble_disconnected", "Macro test failed (BLE disconnected to host PC).");
+        }
         return;
     }
 

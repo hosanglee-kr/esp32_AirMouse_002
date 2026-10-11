@@ -229,9 +229,13 @@ const REMOTE_CONFIG_BY_MODE = {
     pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x000800) },
     // [v0415] Input: 0x2000 → WWW_SEARCH 0x080000 (Descriptor 미지원 → 대체)
     pad2D: { labelKey: "remote.tv_input", action: () => keyTest("consumer", 0, 0x080000) },
-    // [v0415] CH_UP/DOWN: Descriptor 미지원 → 비활성 (label만 유지, action no-op)
-    pad3U: { labelKey: "remote.tv_ch_up", action: () => keyTest("consumer", 0, 0x000000) },
-    pad3D: { labelKey: "remote.tv_ch_down", action: () => keyTest("consumer", 0, 0x000000) },
+    
+    // [FIX-5] CH_UP/DOWN: Descriptor 미지원 → 시각적 비활성 (disabled 플래그)
+    //   - action 제거 (조용한 거짓 로그 방지)
+    //   - setBtn에서 button.disabled = true 처리
+    pad3U: { labelKey: "remote.tv_ch_up", disabled: true },
+    pad3D: { labelKey: "remote.tv_ch_down", disabled: true },
+        
     pad3LblKey: "remote.pad_ch"
   }
 };
@@ -265,12 +269,22 @@ function _renderController(mode) {
     if (v_lbl !== undefined) el.textContent = v_lbl;
     const cloned = el.cloneNode(true);
     el.parentNode.replaceChild(cloned, el);
-    if (typeof def.action === "function") cloned.addEventListener("click", def.action);
+  
+    // [FIX-5] disabled 플래그 지원 (Descriptor 미지원 액션의 시각적 비활성)
+    if (def.disabled) {
+      cloned.disabled = true;
+      cloned.classList.add("disabled");
+      cloned.setAttribute("aria-disabled", "true");
+    } else if (typeof def.action === "function") {
+      cloned.addEventListener("click", def.action);
+    }
+  
     if (subId) {
       const sEl = qs(subId);
       if (sEl) sEl.textContent = def.subKey ? t(def.subKey) : "";
     }
   };
+  
   setBtn("rbtnTop1", cfg.top1, "lblTop1");
   setBtn("rbtnTop2", cfg.top2, "lblTop2");
   setBtn("rbtnRingUp", cfg.ringUp);

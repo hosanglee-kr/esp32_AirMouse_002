@@ -139,7 +139,6 @@ class CL_E10_EliteAirMouse {
     bool _gyroCalibDone = false;
 
     // Runtime config (applied)
-    volatile bool _isPptMode = false;
     int           _dpiLevel  = 2;
     bool          _hardClickLock = true;
 
@@ -264,8 +263,11 @@ class CL_E10_EliteAirMouse {
     uint8_t           _spikeHead  = 0;
     uint8_t           _spikeCount = 0;
 
-    uint16_t _consecutiveFail        = 0;
-    uint16_t _consecutiveRecoverFail = 0;
+    uint16_t _consecutiveFail        = 0;   // NaN / 센서 read 실패
+    uint16_t _consecutiveRecoverFail = 0;   // _recoverI2C 실패
+    // [FIX-4] I2C pre-probe 전용 카운터 분리 (CONTRACT §2.11 "연속 10회" 시맨틱 정합)
+    uint16_t _consecutiveI2cFail     = 0;
+
 
     // FSM
     uint8_t  _fsm     = EN_FSM_AIR;

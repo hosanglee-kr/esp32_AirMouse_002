@@ -100,10 +100,8 @@ const I18N_DICT = {
     "remote.tv_home": "🏠 홈",
     "remote.tv_ok": "확인",
     "remote.tv_input": "외부 입력",
-    "remote.tv_input_tip": "HID Descriptor 미지원 (사용 불가)",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
-    "remote.tv_ch_tip": "HID Descriptor 미지원 (사용 불가)",
 
     /* ============ 모드별 추가 도구 ============ */
     "tools.title": "모드별 추가 도구",
@@ -135,9 +133,6 @@ const I18N_DICT = {
     "tools.ppt.nav": "슬라이드 이동",
     "tools.ppt.home": "첫 슬라이드 (Home)",
     "tools.ppt.endpg": "마지막 슬라이드 (End)",
-    "tools.tv.channel": "채널 탐색",
-    "tools.tv.ch_up": "채널 올리기",
-    "tools.tv.ch_down": "채널 내리기",
     "tools.tv.media": "미디어 재생",
     "tools.tv.play": "재생 / 일시 중지",
     "tools.tv.stop": "정지",
@@ -313,10 +308,6 @@ const I18N_DICT = {
     "cfg.import_ok": "가져오기 완료 (새 인덱스: {idx})",
     "cfg.import_err": "가져오기 JSON 오류: {msg}",
     "cfg.import_fail": "가져오기 실패",
-
-    /* ============ [v0415] 스키마 마이그레이션 안내 ============ */
-    "cfg.schema_migrated": "프로파일이 스키마 411로 자동 마이그레이션되었습니다.",
-    "cfg.schema_migrate_note": "v0412 → v0415: Consumer 키 매핑이 HID Descriptor 정합으로 갱신됨.",
 
     /* ============ 진단 ============ */
     "diag.title": "진단 및 입력 테스트",
@@ -527,10 +518,8 @@ const I18N_DICT = {
     "remote.tv_home": "🏠 Home",
     "remote.tv_ok": "OK",
     "remote.tv_input": "Input Source",
-    "remote.tv_input_tip": "HID Descriptor not supported",
     "remote.tv_ch_up": "CH ▲",
     "remote.tv_ch_down": "CH ▼",
-    "remote.tv_ch_tip": "HID Descriptor not supported",
 
     /* ============ Mode Tools ============ */
     "tools.title": "Mode-Specific Tools",
@@ -562,9 +551,7 @@ const I18N_DICT = {
     "tools.ppt.nav": "Slide Navigation",
     "tools.ppt.home": "First Slide (Home)",
     "tools.ppt.endpg": "Last Slide (End)",
-    "tools.tv.channel": "Channel Control",
-    "tools.tv.ch_up": "Channel Up",
-    "tools.tv.ch_down": "Channel Down",
+
     "tools.tv.media": "Media Playback",
     "tools.tv.play": "Play / Pause",
     "tools.tv.stop": "Stop",
@@ -740,10 +727,6 @@ const I18N_DICT = {
     "cfg.import_ok": "Import OK (new idx: {idx})",
     "cfg.import_err": "Import JSON error: {msg}",
     "cfg.import_fail": "Import failed",
-
-    /* ============ [v0415] Schema Migration ============ */
-    "cfg.schema_migrated": "Profile auto-migrated to schema 411.",
-    "cfg.schema_migrate_note": "v0412 → v0415: Consumer key mapping updated to HID Descriptor SSOT.",
 
     /* ============ Diagnostics ============ */
     "diag.title": "Diagnostics & Input Test",

@@ -256,8 +256,15 @@ async function keyTest(page, mod, code, labelOverride) {
     return;
   }
 
+  // [FIX-10] Consumer code 0은 서버 _tapConsumerMask에서 no-op → 클라이언트 조기 반환
+  //   - "Key Test OK" 오인 로그 방지
+  //   - (Issue 5) CH_UP/DOWN 버튼은 disabled 처리되어 이 경로로 오지 않음
+  if (page === "consumer" && (code >>> 0) === 0) {
+    return;
+  }
+
   const label = labelOverride || ((page === "kb")
-    ? `KB u=${code} mod=${mod}`
+    ? `KB u=${mod} mod=${mod}`   // (원본 유지: KB u=code mod=mod)
     : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
   if (typeof pushRecentLog === "function") pushRecentLog(label, true);
 

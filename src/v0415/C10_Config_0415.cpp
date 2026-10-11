@@ -401,8 +401,13 @@ bool CL_C10_Config::saveActiveProfile(const ST_C10_ProfileConfig_t& p_in) {
 void CL_C10_Config::makeDefaultsWiFi(ST_C10_WiFiConfig_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     p_out.mode = (uint8_t)EN_C10_WIFI_AUTO;
-    strlcpy(p_out.sta_ssid,  "NetE89C",        sizeof(p_out.sta_ssid));
-    strlcpy(p_out.sta_pass,  "38D#4FP001",     sizeof(p_out.sta_pass));
+
+    // [FIX-1] 실 WiFi 자격증명 embed 제거 (보안 + BUDGET §6.7 정합)
+    //   - sta_ssid 공백 → W10이 8초 STA 대기 생략하고 즉시 SoftAP 구동
+    //   - 사용자가 웹 UI에서 STA 자격증명 명시 입력 시에만 STA 시도
+    p_out.sta_ssid[0] = '\0';
+    p_out.sta_pass[0] = '\0';
+
     strlcpy(p_out.ap_ssid,   "EliteAirMouse",  sizeof(p_out.ap_ssid));
     strlcpy(p_out.ap_pass,   "12345678",       sizeof(p_out.ap_pass));
     strlcpy(p_out.mdns_host, "elite-airmouse", sizeof(p_out.mdns_host));

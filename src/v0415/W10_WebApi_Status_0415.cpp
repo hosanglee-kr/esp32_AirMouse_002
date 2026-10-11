@@ -185,10 +185,15 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
     JsonObject net = v_doc["net"].to<JsonObject>();
     net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
     net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+    
+    // [FIX-8] SafeBoot SSID: _setupWiFi와 동일한 27자 클램프 규칙 적용
+    //   (_setupWiFi: strlen(base) <= 27일 때만 "-SAFE" 부착)
     const char* v_apSsid = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
-    net["ssid"] = (WiFi.getMode() == WIFI_AP)
-                      ? ((_cfg && _cfg->isSafeMode()) ? (String(v_apSsid) + "-SAFE") : String(v_apSsid))
-                      : WiFi.SSID();
+    String v_apSsidFull = String(v_apSsid);
+    if (_cfg && _cfg->isSafeMode() && v_apSsidFull.length() <= 27) {
+        v_apSsidFull += "-SAFE";
+    }
+    net["ssid"] = (WiFi.getMode() == WIFI_AP) ? v_apSsidFull : WiFi.SSID();
     net["mdns"] = String(_wifi.mdns_host) + ".local";
 
     bool v_otaGuard = false;

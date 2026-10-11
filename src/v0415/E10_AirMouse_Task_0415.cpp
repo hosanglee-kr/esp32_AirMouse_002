@@ -157,6 +157,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
             v_m->_consecutiveFail        = 0;
             v_m->_consecutiveRecoverFail = 0;
+            v_m->_consecutiveI2cFail     = 0;   // [FIX-4]
             v_m->_unlock();
 
             v_m->_pushErr(EN_E10_ERR_NONE, 0);
@@ -189,13 +190,17 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         Wire.beginTransmission(v_m->_mpuAddr);
         const uint8_t v_i2cProbe = Wire.endTransmission();
         if (v_i2cProbe != 0) {
-            v_m->_consecutiveFail++;
-            if ((v_m->_consecutiveFail % 10) == 0) {
+            // [FIX-4] I2C 전용 카운터: "연속" 10회 실패 시 복구 (성공 시 0 리셋)
+            v_m->_consecutiveI2cFail++;
+            if (v_m->_consecutiveI2cFail >= 10) {
                 (void)v_m->_recoverI2C();
+                v_m->_consecutiveI2cFail = 0;   // 복구 시도 후 리셋 (플러딩 방지)
             }
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
             continue;
         }
+        // pre-probe 성공 시 I2C 실패 카운터 리셋
+        v_m->_consecutiveI2cFail = 0;
 
         sensors_event_t v_a, v_g, v_t;
         v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
