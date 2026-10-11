@@ -31,7 +31,22 @@ static uint32_t _migrateConsumerMaskV410ToV415(uint32_t p_old) {
 static void _migrateSlotConsumerV410ToV415(ST_C20_ActionSlot_t& p_slot) {
     if (p_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_TAP ||
         p_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
+        // [v0415] 구형 v0410 키 대체 규칙
+        // 1) 0x1000 (old POWER) -> v0415 Keyboard Page Power(0x66)
+        if (p_slot.param32 == 0x1000) {
+            p_slot = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_POWER);
+            return;
+        }
+        // 2) 0x2000 (old TV_INPUT) -> v0415 WWW_SEARCH (makeDefaultsSlots 정합)
+        if (p_slot.param32 == 0x2000) {
+            p_slot = C20_MakeConsumer(EN_C20_CON_WWW_SEARCH);
+            return;
+        }
         p_slot.param32 = _migrateConsumerMaskV410ToV415(p_slot.param32);
+        // 3) 매핑 없는 구형 키(CH_UP, CH_DOWN 등)로 인해 mask가 0이 되면 유효하지 않은 슬롯이 되지 않도록 NONE 변환
+        if (p_slot.param32 == 0) {
+            p_slot = C20_MakeNone();
+        }
     }
 }
 
@@ -48,8 +63,8 @@ CL_C10_Config::CL_C10_Config() {
 void CL_C10_Config::begin(bool p_formatOnFail) {
     (void)LittleFS.begin(p_formatOnFail);
 
-    if (!LittleFS.exists("/json"))               (void)LittleFS.mkdir("/json");
-    if (!LittleFS.exists(C10_DEF::PROFILES_DIR)) (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
+    (void)LittleFS.mkdir("/json");
+    (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
 
     // ---------- boot state ----------
     _loadBootState(_boot);
@@ -205,6 +220,7 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
     }
 
     // 4) [v0415] 스키마 마이그레이션 (ver < 411)
+    bool v_migrated = false;
     if (p_out.ver < G_C10_CFG_VER) {
         D10_LOGI_C("C10::loadProfile",
                    "migrate profile idx=%u (ver %u → %u)",
@@ -212,6 +228,7 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
                    (unsigned)p_out.ver,
                    (unsigned)G_C10_CFG_VER);
         _migrateProfileV410ToV411(p_out);
+        v_migrated = true;
     }
 
     // 5) [v0415] validate — 손상 프로파일 방어
@@ -221,6 +238,11 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
                    (unsigned)p_idx);
         makeDefaultsProfile(p_idx, p_out);
         return false;
+    }
+
+    // [v0415] 마이그레이션 성공 시 파일에 영구 저장 (매 부팅 재마이그레이션/경고 방지)
+    if (v_migrated) {
+        (void)saveProfile(p_idx, p_out);
     }
 
     return true;
@@ -379,6 +401,8 @@ bool CL_C10_Config::saveActiveProfile(const ST_C10_ProfileConfig_t& p_in) {
 void CL_C10_Config::makeDefaultsWiFi(ST_C10_WiFiConfig_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     p_out.mode = (uint8_t)EN_C10_WIFI_AUTO;
+    strlcpy(p_out.sta_ssid,  "NetE89C",        sizeof(p_out.sta_ssid));
+    strlcpy(p_out.sta_pass,  "38D#4FP001",     sizeof(p_out.sta_pass));
     strlcpy(p_out.ap_ssid,   "EliteAirMouse",  sizeof(p_out.ap_ssid));
     strlcpy(p_out.ap_pass,   "12345678",       sizeof(p_out.ap_pass));
     strlcpy(p_out.mdns_host, "elite-airmouse", sizeof(p_out.mdns_host));
@@ -746,11 +770,19 @@ bool CL_C10_Config::validateSlot(const ST_C20_ActionSlot_t& p_s, uint8_t p_macro
 
 bool CL_C10_Config::validateSlots(const ST_C10_ProfileSlots_t& p_s, uint8_t p_macroCount) const {
     for (uint8_t i = 0; i < EN_C10_TRIG_MAX; i++) {
-        if (!validateSlot(p_s.global[i], p_macroCount)) return false;
+        if (!validateSlot(p_s.global[i], p_macroCount)) {
+            D10_LOGW_C("C10::validateSlots", "global slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
+                       (unsigned)i, (unsigned)p_s.global[i].kind, (unsigned)p_s.global[i].param16, (unsigned)p_s.global[i].param32);
+            return false;
+        }
     }
     for (uint8_t m = 0; m < C10_DEF::MODE_COUNT; m++) {
         for (uint8_t i = 0; i < EN_C10_TRIG_MAX; i++) {
-            if (!validateSlot(p_s.modes[m][i], p_macroCount)) return false;
+            if (!validateSlot(p_s.modes[m][i], p_macroCount)) {
+                D10_LOGW_C("C10::validateSlots", "mode=%u slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
+                           (unsigned)m, (unsigned)i, (unsigned)p_s.modes[m][i].kind, (unsigned)p_s.modes[m][i].param16, (unsigned)p_s.modes[m][i].param32);
+                return false;
+            }
         }
     }
     return true;
@@ -803,10 +835,22 @@ bool CL_C10_Config::validateMacros(const ST_C10_MacroLib_t& p_m) const {
 }
 
 bool CL_C10_Config::validateProfile(const ST_C10_ProfileConfig_t& p_p) const {
-    if (!validateWiFi(p_p.wifi)) return false;
-    if (!validateE10 (p_p.e10))  return false;
-    if (!validateMacros(p_p.macros)) return false;
-    if (!validateSlots (p_p.slots, p_p.macros.count)) return false;
+    if (!validateWiFi(p_p.wifi)) {
+        D10_LOGW_C("C10::validateProfile", "validateWiFi failed");
+        return false;
+    }
+    if (!validateE10 (p_p.e10))  {
+        D10_LOGW_C("C10::validateProfile", "validateE10 failed");
+        return false;
+    }
+    if (!validateMacros(p_p.macros)) {
+        D10_LOGW_C("C10::validateProfile", "validateMacros failed");
+        return false;
+    }
+    if (!validateSlots (p_p.slots, p_p.macros.count)) {
+        D10_LOGW_C("C10::validateProfile", "validateSlots failed");
+        return false;
+    }
     return true;
 }
 
@@ -831,7 +875,18 @@ void CL_C10_Config::_migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io) {
             ST_C10_MacroStep_t& v_s = v_m.steps[si];
             if (v_s.kind == (uint8_t)EN_C20_ACT_CONSUMER_TAP ||
                 v_s.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
-                v_s.param32 = _migrateConsumerMaskV410ToV415(v_s.param32);
+                if (v_s.param32 == 0x1000) {
+                    v_s.kind = (uint8_t)EN_C20_ACT_KB_TAP;
+                    v_s.param16 = EN_C20_KB_POWER;
+                    v_s.param32 = 0;
+                } else if (v_s.param32 == 0x2000) {
+                    v_s.param32 = (uint32_t)EN_C20_CON_WWW_SEARCH;
+                } else {
+                    v_s.param32 = _migrateConsumerMaskV410ToV415(v_s.param32);
+                    if (v_s.param32 == 0) {
+                        v_s.kind = (uint8_t)EN_C20_ACT_NONE;
+                    }
+                }
             }
         }
     }
@@ -972,11 +1027,17 @@ bool CL_C10_Config::_copyFile(const char* p_src, const char* p_dst) {
 }
 
 bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, JsonDocument& p_doc) {
+    (void)LittleFS.mkdir("/json");
+    (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
+
     if (LittleFS.exists(p_tmpPath)) (void)LittleFS.remove(p_tmpPath);
 
     // 1) tmp write
     File v_f = LittleFS.open(p_tmpPath, "w");
-    if (!v_f) return false;
+    if (!v_f) {
+        D10_LOGE_C("C10::_atomicWriteJson", "Failed to open tmp file: %s", p_tmpPath);
+        return false;
+    }
 
     size_t v_bytes = serializeJson(p_doc, v_f);
     v_f.flush();
