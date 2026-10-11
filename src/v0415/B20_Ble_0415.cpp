@@ -18,6 +18,12 @@ void CL_B20_Ble::begin() {
     _pairing         = false;
     _dirty           = false;
 
+    // taskServer가 비동기로 NimBLEDevice::init()을 완료할 때까지 대기 (최대 500ms)
+    const uint32_t v_t0 = (uint32_t)millis();
+    while (!NimBLEDevice::isInitialized() && ((uint32_t)millis() - v_t0 < 500)) {
+        delay(10);
+    }
+
     D10_LOGI("[B20] begin: bond_count=%u", (unsigned)getBondCount());
 }
 
@@ -25,6 +31,9 @@ void CL_B20_Ble::begin() {
 // Bond 조회 / 삭제
 // =======================================================
 uint8_t CL_B20_Ble::getBondCount() const {
+    if (!NimBLEDevice::isInitialized()) {
+        return 0;
+    }
     return (uint8_t)NimBLEDevice::getNumBonds();
 }
 

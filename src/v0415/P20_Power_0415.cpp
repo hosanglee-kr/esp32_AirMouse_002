@@ -11,7 +11,7 @@
 // -------------------------------------------------------
 // MPU6050 register (raw I2C, driver 미경유)
 // -------------------------------------------------------
-static constexpr uint8_t G_MPU_ADDR       = 0x68;
+static uint8_t           G_MPU_ADDR       = 0x68;
 static constexpr uint8_t G_MPU_PWR_MGMT_1 = 0x6B;
 static constexpr uint8_t G_MPU_PWR_MGMT_2 = 0x6C;
 static constexpr uint8_t G_MPU_ACCEL_CFG  = 0x1C;
@@ -110,6 +110,10 @@ void CL_P20_Power::setConfig(const ST_Config_t& p_cfg) {
              (unsigned)_cfg.deep_idle_timeout_ms);
 }
 
+void CL_P20_Power::setMpuAddr(uint8_t p_addr) {
+    G_MPU_ADDR = p_addr;
+}
+
 // =======================================================
 // 활동 알림
 // =======================================================
@@ -184,6 +188,13 @@ bool CL_P20_Power::_prepareMpuWom() {
 void CL_P20_Power::_restoreMpuAfterWake(bool p_sleepOccurred) {
     if (!p_sleepOccurred) return;
 
+    // Wake 직후 ESP32 I2C 하드웨어 클럭 복구 및 Wire 재초기화
+    Wire.end();
+    delay(G_MPU_SETTLE_SHORT_MS);
+    Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
+    Wire.setClock(400000);
+    delay(G_MPU_SETTLE_SHORT_MS);
+
     // 1) INT_STATUS 읽어 래치 클리어
     (void)mpuRd(G_MPU_INT_STATUS);
 
@@ -238,10 +249,9 @@ bool CL_P20_Power::sleepNow(uint32_t p_nowMs, bool p_safeOrPairing) {
 
     // ---- wake ----
     const esp_sleep_wakeup_cause_t v_cause = esp_sleep_get_wakeup_cause();
-    const bool v_sleepOccurred = (v_cause != ESP_SLEEP_WAKEUP_UNDEFINED);
 
-    // [v0415 L4-A3-13] UNDEFINED 경로 가드
-    _restoreMpuAfterWake(v_sleepOccurred);
+    // MPU WoM 준비로 저전력 모드로 변경되었으므로 반드시 복원 실행
+    _restoreMpuAfterWake(true);
 
     _lastWakeMs     = (uint32_t)millis();
     _lastActivityMs = _lastWakeMs;

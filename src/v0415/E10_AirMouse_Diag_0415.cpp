@@ -67,7 +67,7 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
     Wire.setClock(400000);
     delay(G_DIAG_I2C_SETTLE_SHORT_MS);
 
-    bool v_ok = _mpu.begin();
+    bool v_ok = _mpu.begin(_mpuAddr, &Wire);
     if (v_ok) {
         _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
         _mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
@@ -88,6 +88,144 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
 
     _pushErr(v_ok ? EN_E10_ERR_I2C_RECOVER_OK : EN_E10_ERR_I2C_RECOVER_FAIL, 0);
     return v_ok;
+}
+
+// =======================================================
+// [v0415] MPU I2C 상세 진단 및 버스 자동 스캔/복구
+// =======================================================
+bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
+    Serial.println();
+    Serial.println("========================================================");
+    Serial.println("   [E10][Diag] MPU6050 I2C Auto-Scan & Diagnostic Start  ");
+    Serial.println("========================================================");
+
+    // 1. 물리 핀 전압 레벨 검사 (내부 풀업 활성화 후 측정)
+    pinMode(HW_DEF::PIN_I2C_SDA, INPUT_PULLUP);
+    pinMode(HW_DEF::PIN_I2C_SCL, INPUT_PULLUP);
+    delay(5);
+    const int v_sdaLvl = digitalRead(HW_DEF::PIN_I2C_SDA);
+    const int v_sclLvl = digitalRead(HW_DEF::PIN_I2C_SCL);
+
+    Serial.printf("[E10][Diag] Line status: SDA(GP%d)=%s, SCL(GP%d)=%s\n",
+                  HW_DEF::PIN_I2C_SDA, v_sdaLvl ? "HIGH (Normal)" : "LOW (STUCK/GND!)",
+                  HW_DEF::PIN_I2C_SCL, v_sclLvl ? "HIGH (Normal)" : "LOW (STUCK/GND!)");
+    if (!v_sdaLvl) {
+        Serial.println("[E10][Diag]  ⚠️ Warning: SDA is held LOW. Possible bus hang or wiring short.");
+    }
+    if (!v_sclLvl) {
+        Serial.println("[E10][Diag]  ⚠️ Warning: SCL is held LOW. Possible clock line short.");
+    }
+
+    // 2. 표준 I2C 9-클럭 펄스 버스 잠금 해제 (Bus Unlock)
+    Serial.println("[E10][Diag] Sending 9 I2C clock pulses to unlock bus...");
+    pinMode(HW_DEF::PIN_I2C_SCL, OUTPUT_OPEN_DRAIN);
+    for (int v_i = 0; v_i < G_DIAG_I2C_UNLOCK_PULSES; v_i++) {
+        digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
+        delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
+        digitalWrite(HW_DEF::PIN_I2C_SCL, LOW);
+        delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
+    }
+    digitalWrite(HW_DEF::PIN_I2C_SCL, HIGH);
+    delayMicroseconds(G_DIAG_I2C_HALF_PERIOD_US);
+
+    // 3. I2C 버스 스캔 (100kHz 안정 모드, 다중 라운드)
+    uint8_t v_devices[8] = {0};
+    uint8_t v_devCount   = 0;
+    constexpr int G_MAX_SCAN_ROUNDS = 3;
+
+    for (int v_round = 1; v_round <= G_MAX_SCAN_ROUNDS; v_round++) {
+        Wire.end();
+        delay(10);
+        Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
+        Wire.setClock(100000);  // 진단용 100kHz 저속 안정 통신
+        delay(10);
+
+        v_devCount = 0;
+        Serial.printf("[E10][Diag] Scanning I2C bus (Round %d/%d)...\n", v_round, G_MAX_SCAN_ROUNDS);
+        for (uint8_t v_addr = 1; v_addr < 127; v_addr++) {
+            Wire.beginTransmission(v_addr);
+            const uint8_t v_err = Wire.endTransmission();
+            if (v_err == 0) {
+                Serial.printf("[E10][Diag]  -> Detected I2C device at 0x%02X (%d)\n", v_addr, v_addr);
+                if (v_devCount < 8) v_devices[v_devCount++] = v_addr;
+            }
+        }
+
+        if (v_devCount > 0) {
+            break;
+        }
+
+        if (v_round < G_MAX_SCAN_ROUNDS) {
+            Serial.println("[E10][Diag]  No devices detected yet. Retrying in 1.5s (check wiring)...");
+            delay(1500);
+        }
+    }
+
+    if (v_devCount == 0) {
+        Serial.println("[E10][Diag] ❌ NO I2C devices detected on the bus!");
+        Serial.println("[E10][Diag] [Hardware Checklist]:");
+        Serial.printf("[E10][Diag]  1) SDA pin must be ESP32 GPIO %d\n", HW_DEF::PIN_I2C_SDA);
+        Serial.printf("[E10][Diag]  2) SCL pin must be ESP32 GPIO %d\n", HW_DEF::PIN_I2C_SCL);
+        Serial.println("[E10][Diag]  3) Check if SDA and SCL jumper wires are swapped");
+        Serial.println("[E10][Diag]  4) Check VCC (3.3V or 5V) and GND connections & LED on module");
+        Serial.println("========================================================");
+        return false;
+    }
+
+    // 4. 감지된 주소의 WHO_AM_I 레지스터 (0x75) 확인
+    uint8_t v_bestAddr = 0;
+    for (uint8_t v_i = 0; v_i < v_devCount; v_i++) {
+        const uint8_t v_addr = v_devices[v_i];
+        Wire.beginTransmission(v_addr);
+        Wire.write(0x75);
+        if (Wire.endTransmission(false) == 0) {
+            Wire.requestFrom(v_addr, (uint8_t)1);
+            if (Wire.available()) {
+                const uint8_t v_who = Wire.read();
+                Serial.printf("[E10][Diag] Device 0x%02X -> WHO_AM_I (reg 0x75) = 0x%02X", v_addr, v_who);
+                if (v_who == 0x68) {
+                    Serial.println(" (MPU-6050 genuine)");
+                    if (v_bestAddr == 0) v_bestAddr = v_addr;
+                } else if (v_who == 0x70) {
+                    Serial.println(" (MPU-6500 - Note: Adafruit MPU6050 expects 0x68)");
+                    if (v_bestAddr == 0) v_bestAddr = v_addr;
+                } else if (v_who == 0x71) {
+                    Serial.println(" (MPU-9250)");
+                    if (v_bestAddr == 0) v_bestAddr = v_addr;
+                } else if (v_who == 0x72 || v_who == 0x98) {
+                    Serial.println(" (MPU variant/clone)");
+                    if (v_bestAddr == 0) v_bestAddr = v_addr;
+                } else {
+                    Serial.println(" (Other I2C device)");
+                }
+            }
+        }
+    }
+
+    // 5. Adafruit_MPU6050::begin 재시도 (최우선 후보 주소 먼저 시도)
+    uint8_t v_tryAddrs[2] = {0x68, 0x69};
+    if (v_bestAddr == 0x69) {
+        v_tryAddrs[0] = 0x69;
+        v_tryAddrs[1] = 0x68;
+    }
+
+    for (int v_t = 0; v_t < 2; v_t++) {
+        const uint8_t v_target = v_tryAddrs[v_t];
+        Serial.printf("[E10][Diag] Attempting MPU begin at 0x%02X (100kHz)...\n", v_target);
+        if (_mpu.begin(v_target, &Wire)) {
+            Serial.printf("[E10][Diag] ✅ MPU initialized successfully at 0x%02X!\n", v_target);
+            _mpuAddr = v_target;
+            _power.setMpuAddr(v_target);
+            Wire.setClock(400000);  // 정상 운용 클럭(400kHz) 복귀
+            Serial.println("========================================================");
+            return true;
+        }
+    }
+
+    Serial.println("[E10][Diag] ❌ MPU begin failed even though I2C device responded.");
+    Serial.println("[E10][Diag]    If WHO_AM_I was != 0x68, your module may be an MPU6500/clone.");
+    Serial.println("========================================================");
+    return false;
 }
 
 // =======================================================

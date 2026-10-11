@@ -76,6 +76,9 @@ class CL_P20_Power {
     // Config 반영
     void setConfig(const ST_Config_t& p_cfg);
 
+    // MPU I2C 주소 설정 (기본 0x68, AD0 High 시 0x69)
+    void setMpuAddr(uint8_t p_addr);
+
     uint32_t getIdleTimeout(uint8_t p_mode) const {
         if (p_mode < 1 || p_mode > 3) return 60000;
         return _cfg.idle_timeout_ms[p_mode - 1];

@@ -185,6 +185,18 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         }
 
         // ---- sensor read ----
+        // I2C 버스 통신 상태 빠른 확인 (Address ACK 검사: ~25us)
+        Wire.beginTransmission(v_m->_mpuAddr);
+        const uint8_t v_i2cProbe = Wire.endTransmission();
+        if (v_i2cProbe != 0) {
+            v_m->_consecutiveFail++;
+            if ((v_m->_consecutiveFail % 10) == 0) {
+                (void)v_m->_recoverI2C();
+            }
+            vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(8));
+            continue;
+        }
+
         sensors_event_t v_a, v_g, v_t;
         v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
         v_m->_tempC = v_t.temperature;

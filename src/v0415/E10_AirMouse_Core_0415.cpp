@@ -22,8 +22,13 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
     Wire.setClock(400000);
 
-    if (!_mpu.begin()) {
-        Serial.println("[E10] MPU begin fail");
+    bool v_mpuOk = _mpu.begin(_mpuAddr, &Wire);
+    if (!v_mpuOk) {
+        v_mpuOk = _diagAndRecoverMpu();
+    }
+
+    if (!v_mpuOk) {
+        Serial.println("[E10] FATAL: MPU begin failed even after recovery. System halted.");
         for (;;) delay(10);
     }
     _mpu.setGyroRange(MPU6050_RANGE_250_DEG);
@@ -65,6 +70,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _ble.begin();
 
     // [Phase 8] Power Manager 초기화
+    _power.setMpuAddr(_mpuAddr);
     _power.begin();
 
     // [v0415 L6a-A1-02] LED 태스크 핸들 저장 (스택 워터마크 관측용)
@@ -710,20 +716,21 @@ uint8_t CL_E10_EliteAirMouse::getMacroCount() const {
 
 bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
                                         uint16_t p_p16, uint32_t p_p32) {
-    if (!_hid.isConnected()) return false;
     if (_safeMode || _otaGuard) return false;
-
-    ST_C20_ActionSlot_t v_slot;
-    v_slot.kind     = p_kind;
-    v_slot.holdMode = p_hMode;
-    v_slot.param16  = p_p16;
-    v_slot.param32  = p_p32;
 
     // [REQ-FIX-02] SPECIAL은 Web 태스크에서 직접 실행 금지 → sensorTask 위임
     if (p_kind == (uint8_t)EN_C20_ACT_SPECIAL) {
         _reqSpecialAction = (uint8_t)p_p16;
         return true;
     }
+
+    if (!_hid.isConnected()) return false;
+
+    ST_C20_ActionSlot_t v_slot;
+    v_slot.kind     = p_kind;
+    v_slot.holdMode = p_hMode;
+    v_slot.param16  = p_p16;
+    v_slot.param32  = p_p32;
 
     // MACRO / 기타는 큐 경유 (비동기)
     return _enqueueAction(v_slot, true);

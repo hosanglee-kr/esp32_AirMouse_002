@@ -81,6 +81,7 @@
 class CL_E10_EliteAirMouse {
   private:
     Adafruit_MPU6050 _mpu;
+    uint8_t          _mpuAddr = 0x68;
 
     BleCompositeHID _hid;
     KeyboardDevice  _keyboard;
@@ -496,6 +497,7 @@ class CL_E10_EliteAirMouse {
     void _pushErr(uint8_t p_code, uint16_t p_value = 0);
     void _pushSpike(uint32_t p_tsMs);
     bool _recoverI2C();
+    bool _diagAndRecoverMpu();
     void _runGyroCalibration();
 
     // -----------------------
