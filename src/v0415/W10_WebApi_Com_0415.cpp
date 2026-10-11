@@ -172,6 +172,7 @@ int CL_W10_WebConfig::_httpFromCode(const char* p_code) {
     if (!strcmp(p_code, "bad_json")) return 400;
     if (!strcmp(p_code, "validation_failed")) return 400;
     if (!strcmp(p_code, "no_map")) return 400;
+    if (!strcmp(p_code, "ble_disconnected")) return 400;
 
     if (!strcmp(p_code, "safe_mode_blocked")) return 403;
     if (!strcmp(p_code, "ota_guard_blocked")) return 403;
@@ -216,6 +217,8 @@ void CL_W10_WebConfig::_sendErr(AsyncWebServerRequest* req, const char* code, co
 
     if (data) {
         doc["data"].set(data->as<JsonVariantConst>());
+    } else {
+        doc["data"].to<JsonObject>();
     }
     _sendJsonStream(req, doc, v_http);
 }

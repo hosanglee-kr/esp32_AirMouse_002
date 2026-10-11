@@ -185,7 +185,10 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
     JsonObject net = v_doc["net"].to<JsonObject>();
     net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
     net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-    net["ssid"] = (WiFi.getMode() == WIFI_AP) ? String(_wifi.ap_ssid) : WiFi.SSID();
+    const char* v_apSsid = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
+    net["ssid"] = (WiFi.getMode() == WIFI_AP)
+                      ? ((_cfg && _cfg->isSafeMode()) ? (String(v_apSsid) + "-SAFE") : String(v_apSsid))
+                      : WiFi.SSID();
     net["mdns"] = String(_wifi.mdns_host) + ".local";
 
     bool v_otaGuard = false;
@@ -486,7 +489,12 @@ const char* CL_W10_WebConfig::_precModeName(uint8_t p_mode) {
 }
 
 void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
-    JsonDocument d;
+    JsonDocument doc;
+    doc["ok"] = true;
+    doc["code"] = "keycodes";
+    doc["msg"] = "";
+
+    JsonObject d = doc["data"].to<JsonObject>();
 
     // ---- mods ----
     JsonArray mods = d["mods"].to<JsonArray>();
@@ -496,15 +504,11 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["mask"] = G_W10_MODS[i].mask;
     }
 
-    // ---- kb usages (0x00 ~ 0xE7) ----
+    // ---- kb usages (유효한 키들만 등록하여 OOM 및 댕글링 포인터 방지) ----
     JsonArray kb = d["kb"].to<JsonArray>();
-    char nameBuf[8];
     for (uint16_t code = 0; code <= 0xE7; code++) {
         const char* n = _kbName(code);
-        if (!n) {
-            snprintf(nameBuf, sizeof(nameBuf), "0x%02X", (unsigned)code);
-            n = nameBuf;
-        }
+        if (!n) continue;
         JsonObject o = kb.add<JsonObject>();
         o["name"] = n;
         o["code"] = code;
@@ -637,5 +641,5 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
                 "kb=usage-id(0x07) + Power(0x66). consumer=24-bit mask. "
                 "MACRO kind(10) references macro index via p32.";
 
-    _sendOk(req, "keycodes", "", &d, 200);
+    _sendJsonStream(req, doc, 200);
 }

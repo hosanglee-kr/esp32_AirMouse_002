@@ -188,7 +188,11 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
         });
 
     _svr.on("/api/ppt/test", HTTP_POST,
-        [this](AsyncWebServerRequest* req) { (void)req; },
+        [this](AsyncWebServerRequest* req) {
+            if (req->contentLength() == 0) {
+                _sendErr(req, "bad_json", "Empty body.");
+            }
+        },
         nullptr,
         [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
             apiPptTest(req, data, len, index, total);
@@ -249,9 +253,44 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
 
     _svr.on("/api/reboot/check", HTTP_GET, [this](AsyncWebServerRequest* req) { apiRebootCheck(req); });
 
-    // Static routing
+    // ==============================
+    // Static & Direct serving
+    // ==============================
     _svr.on("/", HTTP_GET, [this](AsyncWebServerRequest* req) {
+        D10_LOGI("[W10] GET / -> direct serve %s", G_W10_DEFAULT_INDEX_PATH);
+        _serveWwwStatic(req, G_W10_DEFAULT_INDEX_PATH);
+    });
+    _svr.on("/index.html", HTTP_GET, [this](AsyncWebServerRequest* req) {
+        D10_LOGI("[W10] GET /index.html -> direct serve %s", G_W10_DEFAULT_INDEX_PATH);
+        _serveWwwStatic(req, G_W10_DEFAULT_INDEX_PATH);
+    });
+    _svr.on("/index_0415.html", HTTP_GET, [this](AsyncWebServerRequest* req) {
+        _serveWwwStatic(req, G_W10_DEFAULT_INDEX_PATH);
+    });
+    _svr.on("/manifest.json", HTTP_GET, [this](AsyncWebServerRequest* req) {
+        _servePublicJson(req, "/json/public/manifest_0415.json");
+    });
+
+    // ==============================
+    // Captive Portal Probes (Android, Apple, Windows)
+    // ==============================
+    _svr.on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(204);
+    });
+    _svr.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(204);
+    });
+    _svr.on("/hotspot-detect.html", HTTP_GET, [this](AsyncWebServerRequest* req) {
         req->redirect(G_W10_DEFAULT_INDEX_PATH);
+    });
+    _svr.on("/canonical.html", HTTP_GET, [this](AsyncWebServerRequest* req) {
+        req->redirect(G_W10_DEFAULT_INDEX_PATH);
+    });
+    _svr.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(200, "text/plain", "Microsoft Connect Test");
+    });
+    _svr.on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(200, "text/plain", "Microsoft NCSI");
     });
 
     _svr.onNotFound([this](AsyncWebServerRequest* req) {
@@ -268,27 +307,36 @@ void CL_W10_WebConfig::_setupWiFi() {
     WiFi.mode(WIFI_MODE_NULL);
 
     const bool v_hasSta  = (_wifi.sta_ssid[0] != '\0');
-    const bool v_autoMode = (_wifi.mode == (uint8_t)EN_C10_WIFI_AUTO);
-    const bool v_forceAp  = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
-    const bool v_forceSta = (_wifi.mode == (uint8_t)EN_C10_WIFI_STA);
+    const bool v_forceAp = (_wifi.mode == (uint8_t)EN_C10_WIFI_AP);
 
+    // 1) Safe Mode: 무조건 AP 강제 (-SAFE 접미사)
     if (_cfg && _cfg->isSafeMode()) {
         char v_ssid[33];
         memset(v_ssid, 0, sizeof(v_ssid));
-        strlcpy(v_ssid, _wifi.ap_ssid, sizeof(v_ssid));
-        if (strlen(v_ssid) <= 28) strlcat(v_ssid, "-SAFE", sizeof(v_ssid));
+        const char* v_base = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
+        strlcpy(v_ssid, v_base, sizeof(v_ssid));
+        if (strlen(v_ssid) <= 27) strlcat(v_ssid, "-SAFE", sizeof(v_ssid));
 
         WiFi.mode(WIFI_AP);
+        IPAddress v_localIP(192, 168, 4, 1);
+        IPAddress v_gateway(192, 168, 4, 1);
+        IPAddress v_subnet(255, 255, 255, 0);
+        WiFi.softAPConfig(v_localIP, v_gateway, v_subnet);
+
         if (_wifi.ap_pass[0] != '\0') WiFi.softAP(v_ssid, _wifi.ap_pass);
         else                          WiFi.softAP(v_ssid);
+        _startMdns();
+        D10_LOGI("[W10] SafeMode AP started: SSID=%s, IP=%s", v_ssid, WiFi.softAPIP().toString().c_str());
         return;
     }
 
-    if (v_forceAp || (!v_hasSta && (v_autoMode || !v_forceSta))) {
+    // 2) AP 강제이거나, 접속할 STA SSID가 없는 경우 즉시 AP 시작 (8초 지연 방지)
+    if (v_forceAp || !v_hasSta) {
         _startAp();
         return;
     }
 
+    // 3) STA 연결 시도
     WiFi.mode(WIFI_STA);
     WiFi.begin(_wifi.sta_ssid, _wifi.sta_pass);
 
@@ -307,31 +355,45 @@ void CL_W10_WebConfig::_setupWiFi() {
         return;
     }
 
-    if (v_autoMode) {
-        _startAp();
-        return;
-    }
-
+    // 4) STA 접속 실패 시 AP fallback
     D10_LOGW("[W10] STA failed, fallback to AP");
     _startAp();
-    return;
 }
 
 void CL_W10_WebConfig::_startAp() {
+    const char* v_ssid = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
     WiFi.mode(WIFI_AP);
-    if (_wifi.ap_pass[0] != '\0') WiFi.softAP(_wifi.ap_ssid, _wifi.ap_pass);
-    else                          WiFi.softAP(_wifi.ap_ssid);
+    IPAddress v_localIP(192, 168, 4, 1);
+    IPAddress v_gateway(192, 168, 4, 1);
+    IPAddress v_subnet(255, 255, 255, 0);
+    WiFi.softAPConfig(v_localIP, v_gateway, v_subnet);
+
+    if (_wifi.ap_pass[0] != '\0') WiFi.softAP(v_ssid, _wifi.ap_pass);
+    else                          WiFi.softAP(v_ssid);
+    _startMdns();
+    D10_LOGI("[W10] AP started: SSID=%s, IP=%s", v_ssid, WiFi.softAPIP().toString().c_str());
 }
 
 void CL_W10_WebConfig::_onWifiEvent(WiFiEvent_t p_e) {
     if (p_e == ARDUINO_EVENT_WIFI_STA_GOT_IP)       _startMdns();
     if (p_e == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) _stopMdns();
+    if (p_e == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+        D10_LOGI("[W10] AP: Station connected");
+    }
+    if (p_e == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+        D10_LOGI("[W10] AP: Station disconnected");
+    }
+    if (p_e == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED) {
+        D10_LOGI("[W10] AP: IP assigned to station");
+    }
 }
 
 void CL_W10_WebConfig::_startMdns() {
     if (_mdnsStarted) return;
     if (_wifi.mdns_host[0] == '\0') return;
-    if (WiFi.getMode() != WIFI_STA || WiFi.status() != WL_CONNECTED) return;
+    const wifi_mode_t v_mode = WiFi.getMode();
+    if (v_mode == WIFI_MODE_NULL) return;
+    if (v_mode == WIFI_STA && WiFi.status() != WL_CONNECTED) return;
     if (!MDNS.begin(_wifi.mdns_host)) return;
     MDNS.addService("http", "tcp", 80);
     _mdnsStarted = true;

@@ -436,7 +436,7 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
 
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx, v_k, v_h, v_p16, v_p32);
     if (!v_ok) {
-        _sendErr(req, "ppt_test_failed", "Live test failed (BLE disconnected?).");
+        _sendErr(req, "ble_disconnected", "Live test failed (BLE disconnected to host PC).");
         return;
     }
 
@@ -488,7 +488,7 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
                                            0,
                                            (uint32_t)v_idx);
     if (!v_ok) {
-        _sendErr(req, "ppt_test_failed", "Macro test failed (BLE disconnected?).");
+        _sendErr(req, "ble_disconnected", "Macro test failed (BLE disconnected to host PC).");
         return;
     }
 

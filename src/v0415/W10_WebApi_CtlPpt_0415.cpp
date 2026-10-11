@@ -134,6 +134,7 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
 // /api/ppt/test (유지)
 // =====================================================
 void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+    D10_LOGI("[W10] POST /api/ppt/test: len=%u, tot=%u", (unsigned)len, (unsigned)total);
 
     if (_gateSafeModeOrReply(req)) return;
 
@@ -166,5 +167,5 @@ void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, siz
     bool ok = (e10if && e10if->testPptKey2 ? e10if->testPptKey2(e10if->ctx, page, mod, code) : false);
 
     if (ok) _sendOk(req, "ppt_test", "", nullptr, 200);
-    else    _sendErr(req, "ppt_test_failed", "Test failed.");
+    else    _sendErr(req, "ble_disconnected", "Key test failed (BLE disconnected to host PC).");
 }

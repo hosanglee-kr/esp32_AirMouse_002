@@ -411,9 +411,17 @@ bool CL_W10_WebConfig::_collectBodyOrReply(AsyncWebServerRequest* req,
 // =====================================================
 void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
     const String v_uri = req->url();
+    D10_LOGI("[W10] req: %s", v_uri.c_str());
 
     if (v_uri.startsWith("/api/")) {
         _sendErr(req, "api_not_found", "API endpoint not found.");
+        return;
+    }
+
+    // [v0415] 루트 및 index 별칭 직접 서빙 (리다이렉트 루프 원천 방지)
+    if (v_uri == "/" || v_uri == "/index.html" || v_uri == "/index_0415.html" || v_uri == "/www" || v_uri == "/www/") {
+        D10_LOGI("[W10] direct serve index");
+        _serveWwwStatic(req, G_W10_DEFAULT_INDEX_PATH);
         return;
     }
 
@@ -423,6 +431,26 @@ void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
     }
     if (v_uri == "/robots.txt") {
         _serveWwwStatic(req, "/www/robots.txt");
+        return;
+    }
+
+    // [v0415] PWA 매니페스트 단축 경로
+    if (v_uri == "/manifest.json") {
+        _servePublicJson(req, "/json/public/manifest_0415.json");
+        return;
+    }
+
+    // [v0415] Captive Portal 프로브 대응 (Android, Apple, Windows)
+    if (v_uri == "/generate_204" || v_uri == "/gen_204") {
+        req->send(204);
+        return;
+    }
+    if (v_uri == "/hotspot-detect.html" || v_uri == "/canonical.html") {
+        _serveWwwStatic(req, G_W10_DEFAULT_INDEX_PATH);
+        return;
+    }
+    if (v_uri == "/connecttest.txt" || v_uri == "/ncsi.txt") {
+        req->send(200, "text/plain", "Microsoft Connect Test");
         return;
     }
 
@@ -444,6 +472,21 @@ void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
         return;
     }
 
+    // [v0415] /www/ 프리픽스 누락 요청 폴백 (/style_0415.css, /lib/* 등)
+    {
+        String v_wwwAlt = String("/www") + v_uri;
+        char v_altExt[12];
+        memset(v_altExt, 0, sizeof(v_altExt));
+        const char* v_extLower = W10_getLowerExt(v_wwwAlt.c_str(), v_altExt, sizeof(v_altExt));
+        if (v_extLower && W10_isAllowedWwwExt(v_extLower) && W10_isPathSafe(v_wwwAlt.c_str())) {
+            if (LittleFS.exists(v_wwwAlt) || LittleFS.exists(v_wwwAlt + ".gz")) {
+                D10_LOGI("[W10] fallback /www map: %s", v_wwwAlt.c_str());
+                _serveWwwStatic(req, v_wwwAlt.c_str());
+                return;
+            }
+        }
+    }
+
     _sendStaticErr(req, 404, "static_not_found", "not found");
 }
 
@@ -458,6 +501,7 @@ void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p
     const char* v_extLower = W10_getLowerExt(p_path, v_ext, sizeof(v_ext));
 
     if (!v_extLower || !W10_isAllowedWwwExt(v_extLower)) {
+        D10_LOGW("[W10] forbidden ext: %s", p_path);
         _sendStaticErr(req, 403, "static_forbidden", "forbidden");
         return;
     }
@@ -476,9 +520,12 @@ void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p
     if (v_useGz) v_sendPath = v_gzPath.c_str();
 
     if (!LittleFS.exists(v_sendPath)) {
+        D10_LOGW("[W10] static 404: %s (gz=%d)", v_sendPath, (int)v_useGz);
         _sendStaticErr(req, 404, "static_not_found", "not found");
         return;
     }
+
+    D10_LOGI("[W10] serve static: %s (gz=%d)", v_sendPath, (int)v_useGz);
 
     // Cache-Control: 정책 함수 그대로 사용(요구: 304도 동일값)
     const char* v_cc = W10_cacheControlForStatic(p_path, v_extLower, false);
