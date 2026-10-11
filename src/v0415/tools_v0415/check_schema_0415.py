@@ -206,9 +206,11 @@ def _diff_and_report(label, backend, front):
     if only_front:
         print(f"  [{label}] ONLY in JS: {sorted(only_front)}")
     if not only_backend and not only_front:
-        print(f"  [{label}] ✅ match")
+        print(f"  [{label}] [OK] match")
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.exit(main())
     

@@ -42,6 +42,7 @@ import sys
 import gzip
 import shutil
 import subprocess
+import re
 from SCons.Script import COMMAND_LINE_TARGETS
 
 # -------------------------------------------------------
@@ -70,6 +71,24 @@ COPY_ONLY_NAMES = {"robots.txt", "favicon.ico"}
 EXCLUDE_NAMES = {
     "index_0415_standalone.html", "index_0415_standalone2.html", "index_0415_standalone3.html"
 }
+
+# -------------------------------------------------------
+# [JS 번들링 설정]
+# ESP32 LWIP TCP 소켓 고갈(8개 한계) 방지를 위해 9개 JS 모듈을 단일 번들로 결합
+# -------------------------------------------------------
+BUNDLE_JS_ORDER = [
+    "lib/am_base_0415.js",
+    "lib/am_i18n_0415.js",
+    "lib/am_offline_0415.js",
+    "lib/am_profile_0415.js",
+    "lib/am_macro_0415.js",
+    "lib/am_config_0415.js",
+    "lib/am_status_0415.js",
+    "lib/am_remote_0415.js",
+    "app_0415_0001.js",
+]
+BUNDLE_OUTPUT_NAME = "app_bundle_0415.js"
+BUNDLE_SET = {p.replace("\\", "/") for p in BUNDLE_JS_ORDER}
 
 
 # =======================================================
@@ -108,10 +127,10 @@ def _run_verify_script(script_name, description, timeout_sec=30):
             print(f"  {line}", file=sys.stderr)
 
     if result.returncode != 0:
-        print(f"[verify] ❌ {script_name} FAILED (exit={result.returncode})", flush=True)
+        print(f"[verify] [FAIL] {script_name} FAILED (exit={result.returncode})", flush=True)
         return False
 
-    print(f"[verify] ✅ {script_name} passed", flush=True)
+    print(f"[verify] [PASS] {script_name} passed", flush=True)
     return True
 
 
@@ -125,7 +144,7 @@ def run_verification():
 
     checks = [
         ("check_i18n_0415.py",   "KO/EN key parity"),
-        ("check_schema_0415.py", "backend↔frontend field names"),
+        ("check_schema_0415.py", "backend<->frontend field names"),
     ]
 
     all_ok = True
@@ -139,7 +158,7 @@ def run_verification():
 
     if not all_ok:
         print("", flush=True)
-        print("[verify] ❌ Verification FAILED. Build aborted.", flush=True)
+        print("[verify] [FAIL] Verification FAILED. Build aborted.", flush=True)
         print("[verify]    Fix the reported issues, or set G_SKIP_VERIFY=1 to bypass (hotfix only).", flush=True)
         raise SystemExit(1)
 
@@ -177,6 +196,61 @@ def copy_file(src_path, dst_path):
 
 
 # =======================================================
+# [JS 번들링 및 HTML 번들 태그 치환]
+# =======================================================
+def create_js_bundle(src_dir, dst_dir):
+    """SRC_WWW_DIR의 9개 모듈 JS를 순서대로 결합하여 단일 app_bundle_0415.js.gz 생성."""
+    bundle_chunks = []
+    total_raw_bytes = 0
+
+    for rel_path in BUNDLE_JS_ORDER:
+        src_path = os.path.join(src_dir, rel_path.replace("/", os.sep))
+        if not os.path.isfile(src_path):
+            print(f"[BUNDLE] WARN: missing bundle component {rel_path}")
+            continue
+        with open(src_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        total_raw_bytes += len(content.encode("utf-8"))
+        bundle_chunks.append(f"/* === {os.path.basename(src_path)} === */\n" + content + "\n;")
+
+    bundle_content = "\n".join(bundle_chunks)
+    dst_gz_path = os.path.join(dst_dir, BUNDLE_OUTPUT_NAME + ".gz")
+    ensure_dir(os.path.dirname(dst_gz_path))
+
+    with gzip.open(dst_gz_path, "wb", compresslevel=9) as f_out:
+        f_out.write(bundle_content.encode("utf-8"))
+
+    gz_size = os.path.getsize(dst_gz_path)
+    ratio = (1 - (gz_size / total_raw_bytes)) * 100 if total_raw_bytes > 0 else 0
+    print(f"  [BUNDLE] {len(BUNDLE_JS_ORDER)} JS files -> {BUNDLE_OUTPUT_NAME}.gz: "
+          f"{total_raw_bytes} -> {gz_size} bytes ({ratio:.1f}% saved)")
+
+
+def process_and_gzip_html(src_path, dst_gz_path):
+    """HTML 파일의 9개 개별 script 태그를 단일 app_bundle_0415.js 태그로 치환 후 gzip."""
+    with open(src_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # 9개 개별 script 태그 패턴 검색 및 치환
+    script_pattern = re.compile(
+        r'(?:[ \t]*<script\s+src=["\']\./(?:lib/am_[^"\']+\.js|app_[^"\']+\.js)["\']>\s*</script>\s*\n?)+',
+        re.MULTILINE
+    )
+    bundle_tag = f'  <script src="./{BUNDLE_OUTPUT_NAME}"></script>\n'
+    new_html = script_pattern.sub(bundle_tag, html)
+
+    ensure_dir(os.path.dirname(dst_gz_path))
+    with gzip.open(dst_gz_path, "wb", compresslevel=9) as f_out:
+        f_out.write(new_html.encode("utf-8"))
+
+    orig_size = os.path.getsize(src_path)
+    gz_size = os.path.getsize(dst_gz_path)
+    ratio = (1 - (gz_size / orig_size)) * 100 if orig_size > 0 else 0
+    print(f"  [GZIP-HTML] {os.path.basename(src_path)}: "
+          f"{orig_size} -> {gz_size} bytes ({ratio:.1f}% saved, bundled script tag)")
+
+
+# =======================================================
 # [DST 클린]
 # =======================================================
 def clean_dst_www():
@@ -206,7 +280,16 @@ def sync_www():
             rel      = relpath_safe(src_path, SRC_WWW_DIR)
             dst_path = os.path.join(DST_WWW_DIR, rel.replace("/", os.sep))
 
-            # 1) gzip 대상 (html/css/js) — 원본은 DST에 두지 않음
+            # A) 번들에 포함되는 JS 모듈은 개별 복사 skip (LittleFS 플래시 절약)
+            if rel in BUNDLE_SET:
+                continue
+
+            # B) index_0415.html: 번들 script 태그 치환 후 gzip
+            if fn == "index_0415.html":
+                process_and_gzip_html(src_path, dst_path + ".gz")
+                continue
+
+            # 1) 일반 gzip 대상 (css/기타 html/기타 js)
             if ext in GZ_EXTS:
                 gzip_file(src_path, dst_path + ".gz")
                 continue
@@ -218,6 +301,9 @@ def sync_www():
 
             # 3) 기타 파일은 무시 (원치 않는 파일 유입 방지)
             # print(f"  [SKIP] {rel}")
+
+    # C) 9개 JS 모듈 결합 단일 번들 생성
+    create_js_bundle(SRC_WWW_DIR, DST_WWW_DIR)
 
 
 # =======================================================
