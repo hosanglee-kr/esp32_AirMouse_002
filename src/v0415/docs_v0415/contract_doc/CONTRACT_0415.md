@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`
-> 최종 갱신: 2026-10-11 (rev9 — R-1~R-3 통합 patch + C20 resetButton fix 반영. §2.10 버튼 이벤트 시퀀스 신규)
+> 최종 갱신: 2026-10-11 (rev11 — 번들링 단일화 파이프라인, apiKeycodes AST 메모리 복제 제거, execLiveTest Special 액션 BLE 독립성 보장, LittleFS 서브디렉토리 자동생성 및 STA 기본 자격증명 Fallback 반영)
 
 ---
 
@@ -31,7 +31,8 @@
 | `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_lock()` 하 config 스냅샷 read + `_freezeState` 전이 | `motion_adv.click_freeze` 로컬 복사 |
 | `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | `_lock()` 하 config 스냅샷 read + 활성 축 감쇠 | `motion_adv.snap` 로컬 복사 |
 | `mpuWr(reg,val)` | `sensorTask` (`_prepareMpuWom`) | 논블로킹 I2C | `Wire.endTransmission()` 반환값 리턴 | WoM prep 실패 시 조기 반환 → sleep 금지 |
-| `_recoverI2C()` | `sensorTask` only | I2C 버스 재초기화 | `Wire.end()`, `Wire.begin()`, `_mpu.begin()` | 실패 시 `_consecutiveRecoverFail++` |
+| `_recoverI2C()` | `sensorTask` only | I2C 버스 재초기화 | `Wire.end()`, `Wire.begin()`, `_mpu.begin(_mpuAddr)` | 실패 시 `_consecutiveRecoverFail++` (연속 10회 초과 시 간격 완화) |
+| `_diagAndRecoverMpu()` | `setup()` / 초기화 | I2C 버스 진단, 버스 언락 및 복구 | SDA/SCL 레벨 검사, 9-펄스 버스 언락, 100kHz 3라운드 스캔, WHO_AM_I(0x75) 판별, `_mpuAddr`(0x68/0x69) 자동 감지, `_power.setMpuAddr` 연동 | 스캔 실패 시 하드웨어 점검 가이드 출력 후 false |
 | `_runGyroCalibration()` | `sensorTask` only | 초기 부팅 또는 정지 시 1000ms 측정 | 자이로 오프셋 산출, `_gyroCalibDone = true` | 측정 중 움직임 시 재시도. 루프 내 `_ble.tick()` 유지 |
 | `_snapshotRuntimeToE10Config(out)` | `sensorTask`/`commTask`/`webTask` | `_lock()` 하 호출 필수 | 런타임 → config 구조체 반영 (**v0415: wipe 제거, 런타임 필드만 갱신, 21개 필드**) | `gyro_bias/flick/tilt_hold/active_mode/led_brightness` 등 config 전용 필드는 호출자 baseline 유지 |
 | `_saveActiveProfile()` | `main loop` (`tickConfigSave`), `webTask` (`apiProfilesActivePost` 경유) | **R-1: static `s_v_copy` 사용 (스택 2.4KB 절감)** | `_snapshotRuntimeToE10Config` + `_cfg->saveActiveProfile(s_v_copy)` | 실패 시 `WARN` 로그 후 false. `_lock()` 하 원자화 |
@@ -40,7 +41,7 @@
 | `_enqueueHidCmd(cmd)` | `webTask`, `sensorTask` | 논블로킹 | `_qHidCmd` 인큐 | 큐 Full 시 drop (false) |
 | `_pushFrame(fr)` | `sensorTask` only | 논블로킹 Overwrite | `_qFrame` 최신 프레임 유지 | size=1 Overwrite로 항상 성공 |
 | `applyRuntimeE10(e10)` | `W10` (`/api/control` apply-only) | `_lock()` 하 `_applyRuntimeLocked` | E10 파라미터만 런타임 반영 (persist X) | 항상 true (범위 클램프 다수) |
-| `execLiveTest(kind, h, p16, p32)` | `webTask` | SPECIAL은 위임, 그 외 큐 경유 | `_reqSpecialAction` 또는 `_qActionExec` | SafeMode/OTA 차단 시 false |
+| `execLiveTest(kind, h, p16, p32)` | `webTask` | SPECIAL은 위임, 그 외 큐 경유 | `_reqSpecialAction` 또는 `_qActionExec` | **v0415 rev11**: SPECIAL 액션(모드전환/영점 등)은 BLE 연결 무관 위임 성공. 일반 HID 테스트만 BLE 미연결 시 `ble_disconnected`(400) 반환 |
 | `_led.suspend(snap)` | `sensorTask` only | **blocking** (≤ `led_fadeout_ms + 200ms`) | 스냅샷 백업 + RED fadeout → OFF | sleep 진입 직전. 실패 시 `resume`으로 원복 |
 | `_led.resume(snap)` | `sensorTask` only | **async** (즉시 리턴) | FADEIN 상태 진입 → `_ledTask`가 IDLE 전이 | sleep 복귀 직후 |
 | `_led.setFadeTimings(fo, fi)` | `webTask` (`_applyE10ToRuntime`) | 논블로킹 (`_lock` 하) | fade 타이밍 주입 (0 → 1ms 방어) | – |
@@ -65,13 +66,16 @@
 - `BTN_PINS[]` 순서는 `EN_C20_BtnId_t` 순서와 1:1 유지. `C20_BtnDispatcher::G_PINS`는 본 배열을 참조해야 한다.
 - **`buildWakeMaskAll()` alias 삭제** (R-2 LC-F). 사용처 없음 확인.
 
-### 2.2 Consumer Mask Descriptor SSOT 계약 (v0415 신규)
+### 2.2 Consumer Mask Descriptor SSOT 및 마이그레이션 계약 (v0415)
 
 - HID Consumer Report의 비트 순서는 **ESP32-BLE-CompositeHID 라이브러리의 `_mediakeysHIDReportDescriptor`** (Report ID 0x43, 24-bit)가 **유일한 진실 공급원**이다.
 - `EN_C20_Consumer_t` (C20_Action_0415.h)와 `G_W10_CONSUMER[]` (W10_Def_0415.h)는 **동일한 비트 체계**(Bit 0 = Play, Bit 11 = PlayPause, Bit 12 = Mute, Bit 13 = Vol+ 등)를 사용해야 한다.
 - Consumer Report Count = 24 → **Bit 24 이상은 전송되지 않음**. `validateSlot`/`validateMacroStep`에서 `G_C20_CONSUMER_MASK_MAX = 0x00FFFFFFu` 상한 검증 필수.
-- v0412 스키마 프로파일의 16-bit Consumer 값은 **`G_C20_LEGACY_410_TO_415[16]` 매핑 테이블**로 자동 변환 (`C10_Config_0415::_migrateProfileV410ToV411`).
-- **POWER/TV_INPUT/CH_UP/CH_DOWN은 Descriptor 미지원** → 마이그레이션 시 `NONE (0)` 처리. Power는 Keyboard Page `EN_C20_KB_POWER (0x66)` 로 대체 가능.
+- v0410 스키마 프로파일의 16-bit Consumer 값은 **`_migrateSlotConsumerV410ToV415()` 및 `G_C20_LEGACY_410_TO_415[16]` 매핑 테이블**로 자동 변환:
+  - **POWER (0x1000)**: Consumer Report Descriptor 미지원이므로 Keyboard 액션 `EN_C20_ACT_KB_TAP` + `EN_C20_KB_POWER (0x66)` 로 치환.
+  - **TV_INPUT (0x2000)**: Consumer Descriptor 미지원이므로 안전 대체 키 `EN_C20_CON_WWW_SEARCH` (Bit 19)로 변환.
+  - **기타 미지원 코드 (CH_UP, CH_DOWN 등)**: 매핑 결과가 0인 슬롯은 `kind = EN_C20_ACT_NONE`으로 전환하여 `validateSlot()`의 `param32 != 0` 검증 실패를 방지.
+- **Eager Persist 정책**: `loadProfile()`에서 마이그레이션 적용 후 `validateProfile()` 통과 시, 즉시 `saveProfile(idx, p_out)`을 호출하여 플래시에 영구 반영한다. (Lazy Persist 시 매 부팅마다 불필요한 마이그레이션 경고 및 기본값 폴백 루프 발생 방지)
 
 ### 2.3 순간(Momentary) 트리거 지속성 액션 단발화 계약 (BB-1, v0415 확장)
 
@@ -178,6 +182,34 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **15ms 이상**: `_debounceMinTicks(3)`가 시간 조건 지배 → 실효 디바운스 증가 (역효과)
 - **20ms 이상**: `v_timeOk`가 32ms 초과 → 디바운스 무력화 위험
 - **콜백 경량 필수**: `_cb()` 내부에서 블로킹 금지. E10 `_onBtnEvent`는 `_enqueueAction(timeout=0)` 경유
+
+### 2.11 I2C 버스 복구 및 센서 주소 자동 탐색 계약 (v0415)
+
+- **9-펄스 버스 언락 (SCL 9-toggle)**: MPU6050 통신 장애 또는 칩 리셋 시 I2C 버스가 멈춰있는(SDA Low 잠김) 상태를 해제하기 위해 SCL 9클럭 토글 + STOP 비트를 생성한다.
+- **저속 복구 모드**: `_diagAndRecoverMpu()`는 버스 언락 후 100kHz 저속 I2C로 안전하게 초기화 및 스캔을 수행한다.
+- **다중 라운드 스캔 및 동적 주소 감지**:
+  - AD0 핀 플로팅/납땜 상태에 따라 MPU6050 I2C 주소가 0x68 또는 0x69로 바뀔 수 있으므로 3라운드 프로브를 진행.
+  - 감지된 주소의 `WHO_AM_I` (0x75 레지스터) 응답(0x68 예상)을 검증하여 `_mpuAddr`에 동적 바인딩.
+  - 전원 관리 모듈(`_power.setMpuAddr(_mpuAddr)`)에도 동일 주소를 전파하여 WoM 및 슬립 레지스터 접근 무결성 유지.
+- **런타임 복구 및 Pre-probe**:
+  - `sensorTask`는 IMU 샘플링 전 가벼운 `Wire.beginTransmission(_mpuAddr) / endTransmission()`으로 I2C 버스를 선제 점검.
+  - 연속 실패 카운터(`_consecutiveI2cFail`)가 10회 도달 시 과도한 버스 리셋 플러딩을 방지하면서 비차단 안전 복구를 수행.
+- **슬립 복귀 복원**: Light-sleep 복귀 시 `Wire.end()` / `Wire.begin()` 후 `_restoreMpuAfterWake(true)`를 호출하여 MPU6050 레지스터를 즉시 정상화.
+
+### 2.12 NimBLE 비동기 초기화 및 Mutex 방어 계약 (v0415)
+
+- **초기화 동기화 대기**: `B20::begin()`은 `NimBLEDevice::init()` 호출 후 FreeRTOS Mutex가 완전히 생성될 때까지 `NimBLEDevice::isInitialized()`를 최대 500ms 동안 10ms 단위로 동기 대기한다.
+- **Mutex Crash 원천 방어**: `B20::getBondCount()` 등 BLE 스택 호출 시 `NimBLEDevice::isInitialized()`가 false인 상태에서는 API를 직접 호출하지 않고 `return 0`으로 즉시 방어 반환하여 `assert failed: npl_freertos_mutex_pend (mu->handle)` 커널 패닉을 방지한다.
+
+### 2.13 Wi-Fi SoftAP 전환, 웹 라우팅 별칭 및 SafeBoot 버퍼 무결성 계약 (v0415)
+
+- **STA 미설정 시 즉시 SoftAP 시작**: `sta_ssid`가 빈 문자열(`""`)인 경우, 기존의 8초간 불필요한 STA 연결 시도 타임아웃을 건너뛰고 0ms 지연으로 즉시 SoftAP 모드를 구동한다.
+- **SafeBoot SSID 버퍼 오버플로우 방어**: SafeBoot 활성 시 SoftAP SSID에 `-SAFE`를 붙일 때, 베이스 SSID 길이가 27자 이하(`strlen <= 27`)일 때만 접미사를 추가하여 32바이트 Wi-Fi SSID 표준 버퍼를 초과하지 않도록 보장한다.
+- **웹 API 관측 일원화**: `/api/status`의 `net["ssid"]`는 SafeBoot 상태일 때 실제 브로드캐스팅 중인 `-SAFE` 접미사가 포함된 SSID를 정확히 반환한다.
+- **웹 라우팅 별칭 및 리다이렉트 무결성**: 사용자가 브라우저 주소창에 `/`, `/index.html`, `/index_0415.html`, `/www`, `/www/` 중 어느 URL을 입력하더라도 예외 없이 단일 진실 진입점인 `G_W10_DEFAULT_INDEX_PATH` (`/www/index_0415.html`)로 302 리다이렉트되어 404/403 오류를 원천 차단한다.
+- **PWA 매니페스트 단축 경로**: 루트 `/manifest.json` 요청을 `/json/public/manifest_0415.json`으로 안전하게 매핑 서빙한다.
+- **Captive Portal 친화 프로브 응답 (AP 모드)**: Android(`/generate_204`, `/gen_204` -> 204 No Content), Apple(`/hotspot-detect.html`, `/canonical.html` -> 302 redirect to index), Windows(`/connecttest.txt`, `/ncsi.txt` -> 200 OK) 프로브에 표준 응답하여 모바일 디바이스가 AP 연결을 안정적으로 유지하고 포털 UI를 원활하게 표시하도록 보장한다.
+- **AP/STA 겸용 mDNS**: mDNS 호스트(`elite-airmouse.local`)는 STA 모드 연결뿐 아니라 AP 모드 활성화 시에도 즉시 구동되어 지원 단말에서 호스트명 접근성을 보장한다.
 
 ---
 
@@ -433,4 +465,6 @@ _unlock();
 | rev6 | 2026-10-07 | 웹 API 부분 패치 무결성 계약 |
 | rev7 | 2026-10-07 | HW_Def SSOT, Momentary 단발화(BB-1), Host Cycle 페어링 취소(BB-2), Side F DOWN/UP 소비(BB-6) |
 | rev8 | 2026-10-09 | **v0415 리팩터**: A40 파일 삭제, Consumer mask Descriptor SSOT 계약 신규, Safe/Pairing Wake Mask 분기, BB-1 제스처 확장, `_macroState` lock 정책, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `setPptMode` 콜백 삭제, `forceReleaseAllButtons` 삭제, `ST_E10_HidCmd_t.holdMs` 삭제, `_fsmUpdate` 1-param, M10 Click-Lock 삭제, 스키마 411 |
-| **rev9** | **2026-10-11** | **R-1~R-3 통합 patch**: `setPptMode` 완전 삭제 (E10 헤더/구현), `_saveActiveProfile` static (스택 2.4KB 절감), `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제, `buildWakeMaskAll` alias 삭제, M30 `_detectLinear` 시그니처 정리, C10 `_verifyJsonFile` 크기 검증, HW_Def 핀 재배치 (GP7~GP13). **C20 patch**: `resetButton` 타임스탬프 millis() 초기화, `update()` 5~10ms 전제조건, **§2.10 버튼 이벤트 시퀀스 계약 신규** (DOUBLE DOWN 흡수 / LONG/HOLD progressive / update() 전제) |
+| rev9 | 2026-10-11 | **R-1~R-3 통합 patch**: `setPptMode` 완전 삭제 (E10 헤더/구현), `_saveActiveProfile` static (스택 2.4KB 절감), `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제, `buildWakeMaskAll` alias 삭제, M30 `_detectLinear` 시그니처 정리, C10 `_verifyJsonFile` 크기 검증, HW_Def 핀 재배치 (GP7~GP13). **C20 patch**: `resetButton` 타임스탬프 millis() 초기화, `update()` 5~10ms 전제조건, **§2.10 버튼 이벤트 시퀀스 계약 신규** (DOUBLE DOWN 흡수 / LONG/HOLD progressive / update() 전제) |
+| rev10 | 2026-10-11 | **I2C 자동진단 및 안정성 하드닝**: `_diagAndRecoverMpu()` 9-펄스 버스 언락, 100kHz 스캔, WHO_AM_I(0x75) 검증 및 0x68/0x69 주소 동적 바인딩, `_power.setMpuAddr` 연동, 런타임 pre-probe 및 10회 연속 실패 복구, 슬립 복귀 레지스터 복원 (**§2.11 신규**). **NimBLE Mutex Crash 방어**: `NimBLEDevice::isInitialized()` 500ms 동기화 대기 및 `getBondCount()` 0 반환 가드 (**§2.12 신규**). **Wi-Fi SoftAP 부팅 8초 단축, 웹 라우팅 별칭 및 SafeBoot 가드**: 빈 STA 시 즉시 AP 시작, SafeBoot SSID 27자 제한, `/api/status` 동기화, `/index.html`, `/www`, `/www/` 리다이렉트, `/manifest.json` 단축 경로, Captive Portal 프로브(Android 204, Apple 302, Windows 200) 및 AP mDNS 지원 (**§2.13 신규**). **v410→v411 마이그레이션 무결성**: POWER→KB_POWER(0x66), TV_INPUT→WWW_SEARCH, 미지원 코드 NONE 변환, validate 후 `saveProfile()` Eager Persist 정책 (**§2.2 갱신**). |
+| **rev11** | **2026-10-11** | **웹 정적 서빙 번들링 및 API/스토리지 안정성 하드닝**: 빌드 타임 자동 번들링(`pio_gzip_0415.py`)으로 9개 JS를 `app_bundle_0415.js.gz`(50KB) 단일 파일로 결합, HTTP 요청 11개→3개 압축하여 TCP 소켓 고갈 원천 차단. `/api/keycodes`의 AST 직할 빌드로 15KB JSON 통째 딥카피 제거 및 유효 키코드 한정 zero-copy 스트리밍(OOM/RST 차단). `execLiveTest` Special 액션(모드 전환/영점 등)의 BLE 연결 독립성 보장(AP 모드에서도 기기 제어 100% 동작). LittleFS `_atomicWriteJson` 및 `begin()` 내 `/json`, `/json/profiles` 서브디렉토리 무조건 선행 생성 보장(`no permits for creation` 에러 영구 차단). `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 반영. `_sendErr` 규격(`data: {}`) 보장 및 `ble_disconnected`(400) 에러 코드 표준화. |

@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-11 (rev8 — R-1~R-3 통합 patch + C20 resetButton fix 반영. §2.7 resetButton 규약 통합)
+> 최종 갱신: 2026-10-11 (rev11 — execLiveTest Special 액션 BLE 독립 소유권, LittleFS 디렉토리 선행 생성 보장 및 STA Fallback 자격증명 상태 반영)
 
 ---
 
@@ -21,7 +21,8 @@
 | `_macroAbortToken` | `any` (취소 트리거) | `commTask` (`_tickMacro`) | `volatile uint32_t` | 단조 증가 카운터, 취소 판정 |
 | `_macroSnapshot` | `commTask` (`_startMacro`) | `commTask` (`_tickMacro`) | `_lock()` (v0415) | 실행 시점 매크로 스냅샷 |
 | `_hid` (BleCompositeHID) | `commTask` | `sensorTask`, `webTask` (`isConnected()`만) | Thread-safe API | 마우스/키보드 전송은 `commTask` 전용 |
-| `_mpu`, `Wire` | `sensorTask` | `sensorTask` | 독점 (No sync) | I2C 센서 샘플링 및 복구 전용 |
+| `_mpu`, `Wire`, `_mpuAddr` | `setup()` (`_diagAndRecoverMpu`) / `sensorTask` | `sensorTask`, `P20` (`setMpuAddr`) | 독점 (No sync) | 부팅 시 0x68/0x69 자동 감지 후 `_power` 동기화. 런타임 pre-probe 및 10회 실패 복구 |
+| `NimBLEDevice::isInitialized()` | `B20::begin()` | `B20::getBondCount()` 등 | NimBLE 내부 mutex | 최대 500ms 동기화 대기. 미초기화 시 API 접근 차단(NULL Mutex 방지) |
 | `_biasTracker` | `sensorTask` | `sensorTask` | 독점 (No sync) | 정지 상태 감지 및 자이로 바이어스 보정 |
 | `_gesture` | `sensorTask` | `sensorTask` | 독점 (No sync) | Flick/Linear/Tilt 제스처 감지기 |
 | `_btnDisp` | `sensorTask` | `sensorTask` | 독점 (No sync) | 물리 버튼 디바운스 및 더블/롱클릭 이벤트 |
@@ -45,18 +46,20 @@
 | `_state` | `sensorTask`, `commTask` (`_doForceReleaseNow`), `webTask` (setSafeMode 등) | `webTask` (`getStatus`) | `_mutex` (`pdMS_TO_TICKS(2)`) | 웹 관측용 상태 구조체. **R-2 LC-D: `btn_mask` 필드 삭제 (항상 0으로 write되어 무의미)**. 타임아웃 초과 시 miss 카운터 증가 |
 | `_errHist`, `_spikes` | `sensorTask`, `commTask` | `webTask` | `_pushErr`, `_pushSpike` 내부 `_lock()` | 링버퍼 오버플로 방지 |
 | `_profileSwitchInProgress` | `webTask` (`switchProfile`) | `webTask`, `sensorTask` | `volatile bool` | 프로파일 전환 재진입 차단 |
-| `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트 |
+| `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트. SafeBoot 시 SoftAP SSID `-SAFE` 표기 일원화 |
 | `_thSensor` / `_thComm` / **`_thLed`** | `begin()` (task create) | `_onPowerWake`, `getStatus` | 읽기 전용 (관측) | **v0415: `_thLed` 추가** (스택 워터마크 관측) |
 | **`_bootWifi`** (W10) | `CL_W10_WebConfig::begin()` | `_bumpRebootMaskFromBoot` | 독점 (No sync) | **v0415: W10 부팅 WiFi 스냅샷 (되돌림 감지)** |
+| `sta_ssid`, `sta_pass` (W10/C10) | `C10::makeDefaultsWiFi()` / `W10` | `CL_W10_WebConfig::begin()` | 독점 (No sync) | 기본 Fallback 자격증명(`NetE89C`/`38D#4FP001`) 유지. 빈 문자열일 경우 8초 STA 연결 시도 생략 후 즉시 SoftAP 시작 |
 
 ### 1.1 v0415 주요 변경
 
 - **삭제 필드**: `_isPptMode` (E10), `_modeToggleCooldownMs`, `_lastModeToggleMs`, `_topMDownMs` (Dead), **`_state.btn_mask`** (R-2 LC-D), **`ST_E10_Status_t.btn_mask`** (R-2 LC-D)
 - **삭제 심볼**: `setPptMode()` (R-1), `buildWakeMaskAll()` (R-2 LC-F), `_detectLinear(p_gx, p_gy, ...)` 시그니처 (R-3 LC-G)
-- **추가 필드**: `_thLed`, `ST_E10_Status_t::active_mode`, `ST_E10_Status_t::task_stack_led_min_words`, `_bootWifi` (W10)
+- **추가 필드**: `_thLed`, `ST_E10_Status_t::active_mode`, `ST_E10_Status_t::task_stack_led_min_words`, `_bootWifi` (W10), `_mpuAddr` (동적 감지 0x68/0x69)
 - **정책 변경**: `_macroState` → `_lock()` 하 원자적 갱신 (v0412는 부분 volatile)
 - **L10 thread-safety**: Recursive Mutex (v0412는 무보호)
 - **`_fsm` 판정**: `_isPptMode` → `_activeMode == 2` (v0415 `_fsmUpdate(gyroAbs)` 단일 param)
+- **마이그레이션 정책**: v410→v411 로드 시 POWER→KB_POWER(0x66), TV_INPUT→WWW_SEARCH, 미지원 코드 NONE 치환 및 validate 통과 즉시 `saveProfile()` Eager Persist
 
 ---
 
@@ -159,9 +162,10 @@
 | **DEEP_SLEEP** | `deep_idle_timeout_ms` 초과 | 버튼 Wake | `esp_deep_sleep_start()` (재부팅). Safe 시 Side C 단독 마스크 |
 | **SLEEP_NOW** (즉시) | `_handleSpecial(SLEEP_NOW)` | wake 이벤트 | **v0415 Q4-a**: sensorTask 컨텍스트 blocking. LED suspend → sleepNow → LED resume → Fast Recalib |
 
-**v0415 Safe/Pairing 분기**:
+**v0415 Safe/Pairing 분기 및 센서 복원**:
 - `sleepNow(now, safeOrPairing)` — Safe 또는 Pairing 시 `buildWakeMaskSafe()`
 - `deepSleepNow(now, hid, pairing, safe)` — Safe 시 Side C 단독, Pairing 시 sleep 금지
+- **Wake 직후 I2C 복원**: 슬립 복귀 시 `Wire.end()` / `Wire.begin()` 후 `_restoreMpuAfterWake(true)`를 호출하여 MPU6050 전원/WoM 레지스터를 즉시 정상화
 
 ---
 
@@ -259,4 +263,6 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev5 | 2026-10-02 | motion_adv config 스냅샷 락, `_reqCommReleaseAll` 확장, PHASE_DOUBLE hold 제외 |
 | rev6 | 2026-10-07 | `resetButton()` 타임스탬프 완전 초기화, HW_Def SSOT 반영 |
 | rev7 | 2026-10-09 | **v0415 리팩터**: `_isPptMode` 삭제 → `active_mode` 일원화, `_fsmUpdate(gyroAbs)` 1-param, `_macroState` lock 정책 강화, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `_thLed` 추가, `task_stack_led_min_words` 관측 |
-| **rev8** | **2026-10-11** | **R-1~R-3 통합 patch**: `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D), `setPptMode()` 삭제 (R-1), `buildWakeMaskAll()` alias 삭제 (R-2 LC-F). **§2.7 resetButton 규약 rev7로 갱신**: downMs/upMs/waitClickStartMs = `millis()` (0 아님, L5-A3-11). **DOUBLE DOWN 흡수** + **LONG/HOLD progressive** + **update() 5~10ms 전제조건** 명시. HW_Def 핀 재배치 (GP7~GP13) 반영. |
+| rev8 | 2026-10-11 | **R-1~R-3 통합 patch**: `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D), `setPptMode()` 삭제 (R-1), `buildWakeMaskAll()` alias 삭제 (R-2 LC-F). **§2.7 resetButton 규약 rev7로 갱신**: downMs/upMs/waitClickStartMs = `millis()` (0 아님, L5-A3-11). **DOUBLE DOWN 흡수** + **LONG/HOLD progressive** + **update() 5~10ms 전제조건** 명시. HW_Def 핀 재배치 (GP7~GP13) 반영. |
+| rev9 | 2026-10-11 | **I2C/NimBLE/SoftAP/마이그레이션 소유권 정합**: `_mpuAddr` 동적 감지(0x68/0x69) 및 `_power.setMpuAddr` 전파, 런타임 pre-probe/10회 복구 소유권, 슬립 복귀 `_restoreMpuAfterWake` 복원, `NimBLEDevice::isInitialized()` 동기화 대기 및 `getBondCount()` 0 반환 소유권, SoftAP `sta_ssid` 공백 시 즉시 시작 및 SafeBoot `-SAFE` 상태 일원화, v410→v411 `saveProfile()` Eager Persist 정책 반영. |
+| **rev11** | **2026-10-11** | **execLiveTest Special 액션 BLE 독립 소유권 및 스토리지 무결성**: `execLiveTest` 내 `EN_C20_ACT_SPECIAL` 판정부를 `_hid.isConnected()` 앞으로 이동하여 Wi-Fi AP 단독 상태에서도 모드 전환/영점/절전의 `_reqSpecialAction` 위임 쓰기 권한 보장. LittleFS `_atomicWriteJson` 및 `begin()`의 `/json/profiles` 디렉토리 생성 보장으로 프로파일 쓰기 소유권 정상화. `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 소유권 반영. |

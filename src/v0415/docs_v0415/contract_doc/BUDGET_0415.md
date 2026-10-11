@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)
 > 위치: `src/v0415/docs_v0415/contract_doc/BUDGET_0415.md`
-> 최종 갱신: 2026-10-08 (rev6 — v0415 리팩터 반영: Safe Wake Mask, B20 HOST_CYCLE, 매크로 step 블로킹, L10 mutex)
+> 최종 갱신: 2026-10-11 (rev8 — JS 번들링 소켓 고갈 방지 예산, apiKeycodes AST 딥카피 제거 힙 90% 절감 예산 반영)
 
 ---
 
@@ -17,9 +17,9 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | `_ledTask` | Core 0 | 1 | 50 ms (20 Hz) | 2048 B | ~0.8 ms (WS2812 RMT + mutex) | 49.2 ms |
 | `AsyncWebServer` | (ESP-IDF 내부) | – | 이벤트 | – | (HTTP body 당 최대 ~30 ms) | – |
 | `main loop` | Core 0 | – | 200 ms (5 Hz) | – | ~1.5 ms (boot grace + tickConfigSave) | 198.5 ms |
-| `setup()` | Core 0 | – | 1회 (부팅) | – | ~6.5 초 (worst: boot key hold) | – |
+| `setup()` | Core 0 | – | 1회 (부팅) | – | ~7.5 초 (worst: boot key hold 6초 + I2C 진단 ~1.5초) | – |
 
-> **참고**: `main loop`는 `main.cpp`의 `delay(200)`로 확인. `setup()` 최악 ~6.5초 = C10 begin(~0.3초) + Side C 6초 hold(Fatory Reset) + 모듈 초기화.
+> **참고**: `main loop`는 `main.cpp`의 `delay(200)`로 확인. `setup()` 최악 시간 = Side C 6초 hold(Factory Reset) + MPU6050 I2C 진단/복구(~1.5초) + 모듈 초기화. STA 미설정 시 Wi-Fi SoftAP 즉시 구동(0ms 지연)으로 기존 8초 blocking이 완전 제거됨.
 
 ---
 
@@ -30,7 +30,9 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | 함수 / 기능 | 최대 블로킹 | 시스템 영향 | 완화 조치 |
 |---|---|---|---|
 | `_runGyroCalibration` | 1000 ms (`CALIB_MS`) | 센서 루프 일시 정지, 커서 1초 정지 | ① 부팅 1회 ② `_reqGyroCalib` 수신 시. 루프 내 `_ble.tick()` 유지 |
-| `_recoverI2C` | ~15 ms | 센서 1~2 프레임 누락 | 하드웨어 멈춤 복구 최소 지연 |
+| `_recoverI2C` | ~15 ms | 센서 1~2 프레임 누락 | 하드웨어 멈춤 복구 최소 지연. 연속 10회 실패 시 호출 간격 제한 |
+| `I2C Pre-probe` | ~0.1 ms | 없음 | `Wire.beginTransmission / endTransmission` 경량 ACK 확인 |
+| `_diagAndRecoverMpu` | ~1500 ms | 부팅 setup 1회 | 9-펄스 버스 언락 + 100kHz 3라운드 스캔 (setup 전용) |
 | **`_handleSpecial(SLEEP_NOW)`** | **~700 ms + sleep (wake까지)** | **sensorTask blocking (wake 후 복귀)** | **v0415 Q4-a: sensorTask 컨텍스트 blocking 허용** (sleep 진입 자체가 목적) |
 | `_led.suspend(snap)` | ~700 ms (`_fadeoutMs + 200`) | sleep 진입 전 LED fadeout | LED RED fadeout 완료 대기. deadline 초과 시 강제 OFF |
 | `_power.sleepNow(now, safeOrPair)` | (wake까지 블로킹) | sensorTask 정지 | `esp_light_sleep_start()` 리턴까지. wake 후 자동 복귀 |
@@ -68,7 +70,8 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | 함수 / 기능 | 최대 블로킹 | 시스템 영향 | 완화 조치 |
 |---|---|---|---|
 | 프로파일 I/O (LittleFS) | ~35 ms | Web API 응답 지연 | Core 0 백그라운드, sensorTask 독립 |
-| `_setupWiFi` STA 시도 | **~8 초 (blocking)** | **setup() 지연** | v0415: BUDGET 명시 (STA 실패 시 AP fallback) |
+| `_setupWiFi` STA 시도 | **0 ms (STA 미설정 시) / ~8 초 (STA 설정 시)** | **setup() 지연** | **v0415: `sta_ssid` 공백 시 8초 대기 생략하고 즉시 SoftAP 구동** |
+| `B20::begin` NimBLE 대기 | **최대 500 ms (통상 ~20 ms)** | BLE 스택 초기화 동기화 | `NimBLEDevice::isInitialized()` 폴링 (10ms yield 루프) |
 | `_holdAtBoot(Side C, 6000)` | ~6000 ms | 부팅 지연 | 조기 릴리즈 시 즉시 탈출 |
 | `_resetProfile` (Factory) | ~500 ms | FS 재생성 | 재부팅 유도 |
 
@@ -146,11 +149,21 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **영향**: Flash ~5KB 절감, RAM ~2KB 절감
 - **관측**: 통계는 E10 도메인(`_errMpuNan` 등)이 담당
 
-### 6.5 매크로 라이브러리 구조체 축소
+### 6.6 I2C 버스 복구 및 센서 진단 예산 (v0415)
 
-- **변경**: `ST_C10_MacroStep_t` 16B → 12B
-- **영향**: `ST_C10_ProfileConfig_t` ~160B 절감
-- **BUDGET**: 프로파일 I/O 시간 감소
+- **부팅 진단**: `_diagAndRecoverMpu()`는 부팅 시 1회 최대 ~1.5초 소요 (GPIO 검사 + 9-펄스 버스 언락 + 100kHz 3라운드 스캔 + WHO_AM_I 확인).
+- **런타임 오버헤드**: `sensorTask` 매 틱 I2C pre-probe는 ~0.1ms 미만으로 8ms 주기 데드라인에 영향 없음.
+- **연속 실패 가드**: 연속 10회 실패 시에만 복구 시도하여 I2C 리셋 플러딩으로 인한 태스크 지연 방지.
+
+### 6.7 Wi-Fi 부팅 시간 최적화 (v0415)
+
+- **STA 미설정 시 즉시 SoftAP**: `sta_ssid`가 비어있는 경우 기존 8초간의 STA 타임아웃 대기를 완전히 생략.
+- **시스템 기여**: 에어마우스 부팅 시간이 8초 이상 대폭 단축되어 즉각적인 페어링 및 웹 설정 가능.
+
+### 6.8 웹 소켓 풀 보존 및 API 메모리 절감 예산 (v0415 rev8)
+
+- **JS 번들링을 통한 소켓 풀 고갈 원천 차단**: 9개 JS 모듈을 `app_bundle_0415.js.gz`로 1개 단일화하여 전체 HTTP 요청 수를 11개 ➔ 3개로 압축. ESP32 lwIP TCP PCB 소켓 한계(8개) 초과로 인한 5분 타임아웃/연결 끊김을 0.5초 이내 고속 응답으로 안정화.
+- **`apiKeycodes` 메모리 복제 0바이트 최적화**: 15KB 크기의 JSON AST 딥카피 제거 및 유효 키코드(55개) Flash 리터럴 zero-copy 스트리밍으로 순간 힙 점유를 30KB 이상에서 ~3KB로 **90% 절감**, OOM에 의한 TCP RST(Connection Reset) 완벽 차단.
 
 ---
 
@@ -158,9 +171,20 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 
 | 항목 | v0412 | v0415 | 변화 |
 |---|---|---|---|
-| RAM | ~40% (131 KB) | **41.1% (134.5 KB)** | +3.5 KB |
-| Flash | ~45% (1.42 MB) | **45.9% (1.443 MB)** | **−45 KB** |
+| RAM | ~40% (131 KB) | **41.8% (136.8 KB)** | +5.8 KB |
+| Flash | ~45% (1.42 MB) | **46.1% (1.451 MB)** | **+31 KB** |
 
-**Flash 감소 원인**: A40 파일 삭제, M10 Click-Lock 삭제, D10 Stats/export 삭제, MacroStep 축소
+**Flash 변화 요인**: JS 번들링 및 디렉토리 보장, 에러 처리 추가
 
-**RAM 증가 원인**: L10 mutex, `_thLed` handle, `_bootWifi` 스냅샷, `active_mode` + `task_stack_led_min_words` 필드
+**RAM 변화 요인**: L10 mutex, `_thLed` handle, `_bootWifi` 스냅샷, `active_mode` + `task_stack_led_min_words` 필드
+
+---
+
+## 8. 개정 이력
+
+| 버전 | 날짜 | 변경 사항 |
+|---|---|---|
+| rev0 | 2026-09-15 | 최초 작성 (v0412) |
+| rev6 | 2026-10-08 | v0415 리팩터 반영: Safe Wake Mask, B20 HOST_CYCLE, 매크로 step 블로킹, L10 mutex |
+| rev7 | 2026-10-11 | **I2C 진단 및 Wi-Fi 부팅 최적화 예산 반영**: `setup()` MPU6050 9-펄스 진단/동적감지(~1.5초) 예산 반영, 런타임 pre-probe(~0.1ms) 및 10회 복구 가드, NimBLE 동기화 대기(최대 500ms) 반영, `sta_ssid` 공백 시 8초 STA 타임아웃 제거(0ms 즉시 SoftAP 구동) 부팅 단축 명시. |
+| **rev8** | **2026-10-11** | **웹 정적 번들링 및 API 힙 메모리 절감 예산 반영**: HTTP 요청 수 11개→3개 압축으로 lwIP TCP PCB 풀(8개) 보호 및 렌더링 지연 단축. `/api/keycodes` AST 딥카피 제거 및 zero-copy 스트리밍으로 순간 힙 점유 90% 절감(30KB→3KB, OOM/RST 방어). |
