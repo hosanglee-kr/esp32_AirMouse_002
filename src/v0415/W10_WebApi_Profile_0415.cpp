@@ -370,16 +370,22 @@ void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
 
     // W10 로컬 캐시
     _wifi = v_p.wifi;
-
+    
+    // [v0415 rev15] WiFi 변경 감지 → 재부팅 배너 트리거
+    //   - 이전 누락: apiConfigSave에만 있고 여기엔 없었음
+    //   - /api/profiles/active POST 경로에서도 WiFi 변경 반영
+    _bumpRebootMaskFromBoot();
+    
     // E10 재로드
     bool v_reloaded = false;
     if (_e10if && _e10if->reloadProfile) {
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
     }
-
+    
     JsonDocument v_out;
-    v_out["idx"]      = v_idx;
-    v_out["reloaded"] = v_reloaded;
+    v_out["idx"]             = v_idx;
+    v_out["reloaded"]        = v_reloaded;
+    v_out["reboot_required"] = _needReboot;   // ← 추가 (WiFi 변경 시 배너 트리거)
 
     _markLastApply(true, "profile", "profile_save");
     _sendOk(req, "profile_set", "", &v_out, 200);

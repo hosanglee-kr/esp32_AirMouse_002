@@ -149,9 +149,9 @@ class CL_E10_EliteAirMouse {
     float _wheelThDeg   = 90.0f;
     int   _wheelStepMax = 6;
 
-    float    _gestureFlickDeg   = 200.0f;
-    uint16_t _gestureCooldownMs = 600;
-
+    // [v0415 rev15 / 스키마 412] _gestureFlickDeg / _gestureCooldownMs 삭제
+    //   - M30 제스처 감도는 flick.* config 직접 참조 (Core_0415.cpp::_applyE10ToRuntime)
+    
     float _scrollCursorDamp = 0.25f;
 
     // Precision config + FSM knobs

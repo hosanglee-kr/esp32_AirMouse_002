@@ -354,8 +354,7 @@ void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out
     p_out.accel_threshold     = _accelTh;
     p_out.wheel_threshold_deg = _wheelThDeg;
     p_out.wheel_step_max      = (uint8_t)_wheelStepMax;
-    p_out.gesture_flick_deg   = _gestureFlickDeg;
-    p_out.gesture_cooldown_ms = (uint16_t)_gestureCooldownMs;
+    // [v0415 rev15 / 스키마 412] gesture_* 역동기화 삭제
     p_out.scroll_cursor_damp  = _scrollCursorDamp;
 
     p_out.precision_mode       = (uint8_t)_precision_mode;
@@ -420,13 +419,8 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     if (_wheelStepMax < 1)  _wheelStepMax = 1;
     if (_wheelStepMax > 25) _wheelStepMax = 25;
 
-    _gestureFlickDeg = p_e.gesture_flick_deg;
-    if (_gestureFlickDeg < 20.0f)  _gestureFlickDeg = 20.0f;
-    if (_gestureFlickDeg > 2000.f) _gestureFlickDeg = 2000.f;
-
-    _gestureCooldownMs = p_e.gesture_cooldown_ms;
-    if (_gestureCooldownMs < 50)   _gestureCooldownMs = 50;
-    if (_gestureCooldownMs > 8000) _gestureCooldownMs = 8000;
+    // [v0415 rev15 / 스키마 412] gesture_* 미러 갱신 삭제
+    //   - M30 config 주입은 하단의 _gesture.setConfig()에서 flick.* 직접 참조
 
     _scrollCursorDamp = p_e.scroll_cursor_damp;
     if (_scrollCursorDamp < 0.01f) _scrollCursorDamp = 0.01f;
@@ -491,21 +485,37 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
 
     // ====================================================
     // [Phase 7] 제스처 감지기 config 반영
+    // ----------------------------------------------------
+    // [v0415 rev15 / 스키마 412]
+    //   - gesture.* 미러 삭제 → flick.* 직접 참조 (SSOT)
+    //   - 클램프로 방어적 적용 (validateE10 통과 값이지만 이중 안전)
     // ====================================================
     {
         CL_M30_Gesture::ST_Config_t v_gc;
-        v_gc.flick_p2p_th      = p_e.flick.p2p_th;
-        v_gc.flick_window_ms   = p_e.flick.window_ms;
+    
+        // Flick
+        v_gc.flick_p2p_th = p_e.flick.p2p_th;
+        if (v_gc.flick_p2p_th < 50.0f)   v_gc.flick_p2p_th = 50.0f;
+        if (v_gc.flick_p2p_th > 2000.0f) v_gc.flick_p2p_th = 2000.0f;
+    
+        v_gc.flick_window_ms = p_e.flick.window_ms;
+        if (v_gc.flick_window_ms < 50)  v_gc.flick_window_ms = 50;
+        if (v_gc.flick_window_ms > 500) v_gc.flick_window_ms = 500;
+    
         v_gc.flick_cooldown_ms = p_e.flick.cooldown_ms;
-
+        if (v_gc.flick_cooldown_ms < 100)  v_gc.flick_cooldown_ms = 100;
+        if (v_gc.flick_cooldown_ms > 5000) v_gc.flick_cooldown_ms = 5000;
+    
+        // Linear
         v_gc.linear_th         = p_e.linear.th;
         v_gc.linear_impulse_th = p_e.linear.impulse_th;
         v_gc.linear_window_ms  = p_e.linear.window_ms;
-
+    
+        // Tilt Hold
         v_gc.tilt_angle_deg    = p_e.tilt_hold.angle_deg;
         v_gc.tilt_hold_ms      = p_e.tilt_hold.hold_ms;
         v_gc.tilt_repeat_hz    = p_e.tilt_hold.repeat_hz;
-
+    
         _gesture.setConfig(v_gc);
     }
 

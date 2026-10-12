@@ -15,17 +15,23 @@
  *  - E10 파라미터 (modes 제외, 프로파일 단위 관리)
  *  - [Phase 1~3] Motion Advanced (Click-Freeze / EMA / Snap)
  *
- * [v0415 주요 변경]
- *  - G_C10_CFG_VER: 410 → 411
- *    · Consumer mask Descriptor 정합 (EN_C20_Consumer_t 전면 재정의)
- *    · C10_Config_0415.cpp::_migrateProfileV410ToV411()에서 마이그레이션
- *  - G_C10_CFG_VER_V410 상수 추가 (마이그레이션 감지용)
- *  - TRIG_COUNT 상수 삭제 → EN_C10_TRIG_MAX 단독 사용 (SSOT)
- *  - G_C10_FULL_OVERRIDE_MASK 상수 추가
- *  - ST_C10_MacroStep_t 정렬 최적화 (_pad 제거, 16B → 12B)
- *  - BOOT_PATH 경로: _0412 → _0415 bump
- *  - PROFILES_DIR / PROFILE_ACTIVE: 버전-프리 유지
- *    (스키마 버전은 JSON 내부 "ver" 필드로 관리)
+ * [v0415 rev15 주요 변경 — 스키마 412]
+*  - G_C10_CFG_VER: 411 → 412
+*    · gesture_flick_deg / gesture_cooldown_ms 필드 삭제 (Dead 필드)
+*    · M30 제스처 감도는 flick.p2p_th / flick.cooldown_ms 단일 소스
+*    · 마이그레이션 함수 신설 없음 (제품 출시 시점 별도 검토)
+*  - G_C10_CFG_VER_V410 상수 유지 (legacy 410 감지용)
+*
+* [v0415 이전 주요 변경 (스키마 411)]
+*  - G_C10_CFG_VER: 410 → 411
+*    · Consumer mask Descriptor 정합 (EN_C20_Consumer_t 전면 재정의)
+*    · C10_Config_0415.cpp::_migrateProfileV410ToV411()에서 마이그레이션
+*  - TRIG_COUNT 상수 삭제 → EN_C10_TRIG_MAX 단독 사용 (SSOT)
+*  - G_C10_FULL_OVERRIDE_MASK 상수 추가
+*  - ST_C10_MacroStep_t 정렬 최적화 (_pad 제거, 16B → 12B)
+*  - BOOT_PATH 경로: _0412 → _0415 bump
+*  - PROFILES_DIR / PROFILE_ACTIVE: 버전-프리 유지
+*    (스키마 버전은 JSON 내부 "ver" 필드로 관리)
  * ------------------------------------------------------
  */
 
@@ -36,13 +42,19 @@
 #include "C20_Action_0415.h"
 
 // ======================================================
-// [v0415] 스키마 버전
+// [v0415 rev15] 스키마 버전
 // ------------------------------------------------------
 //  - G_C10_CFG_VER       : 현재 스키마 (저장 시 이 값 기록)
-//  - G_C10_CFG_VER_V410  : legacy (로드 시 마이그레이션 트리거)
+//  - G_C10_CFG_VER_V410  : legacy 410 (로드 시 410→411 마이그레이션 트리거)
+//
+//  [마이그레이션 정책 — 미구현]
+//   - 과거 버전 프로파일 마이그레이션은 제품 출시 시점에 별도 검토
+//   - 현재는 410→411 마이그레이션 함수(_migrateProfileV410ToV411)만 유지
+//   - 스키마 412 전환 시 411 이하 파일은 기본값 fallback (makeDefaults)
 // ------------------------------------------------------
-static constexpr uint16_t G_C10_CFG_VER      = 411;
+static constexpr uint16_t G_C10_CFG_VER      = 412;
 static constexpr uint16_t G_C10_CFG_VER_V410 = 410;
+
 
 namespace C10_DEF {
     // --------------------------------------------------
@@ -317,10 +329,12 @@ struct ST_C10_E10Config_t {
 
     float   wheel_threshold_deg;
     uint8_t wheel_step_max;
-
-    float    gesture_flick_deg;
-    uint16_t gesture_cooldown_ms;
-
+    
+    // [v0415 rev15 / 스키마 412] gesture_flick_deg / gesture_cooldown_ms 삭제
+    //   - Dead 필드: M30은 flick.* 필드만 사용 (E10_Core_0415.cpp::_applyE10ToRuntime)
+    //   - UI "휘두르기 감도"는 flick.p2p_th / flick.cooldown_ms로 단일화
+    //   - 마이그레이션 미구현: 411 이하 파일은 makeDefaults의 flick 기본값 사용
+    
     float scroll_cursor_damp;
 
     uint8_t  precision_mode;

@@ -249,14 +249,16 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
         return false;
     }
 
-    // 4) [v0415] 스키마 마이그레이션 (ver < 411)
+    // 4) [v0415 rev15] 스키마 마이그레이션 — legacy 410만 대상
+    //    - 스키마 412 전환: 마이그레이션 함수 신설 없음
+    //    - 411 이하 파일은 legacy 410 마이그레이션 조건에서만 처리
+    //    - 411 파일은 makeDefaults의 flick 기본값으로 fallback (gesture 무시)
     bool v_migrated = false;
-    if (p_out.ver < G_C10_CFG_VER) {
+    if (p_out.ver < G_C10_CFG_VER_V410 + 1) {      // ver < 411 = 410 이하
         D10_LOGI_C("C10::loadProfile",
-                   "migrate profile idx=%u (ver %u → %u)",
+                   "migrate profile idx=%u (ver %u → 411)",
                    (unsigned)p_idx,
-                   (unsigned)p_out.ver,
-                   (unsigned)G_C10_CFG_VER);
+                   (unsigned)p_out.ver);
         _migrateProfileV410ToV411(p_out);
         v_migrated = true;
     }
@@ -465,10 +467,10 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
 
     p_out.wheel_threshold_deg = 90.0f;
     p_out.wheel_step_max      = 6;
-
-    p_out.gesture_flick_deg   = 200.0f;
-    p_out.gesture_cooldown_ms = 600;
-
+    
+    // [v0415 rev15 / 스키마 412] gesture_* 초기화 삭제
+    //   - flick.* 는 하단에서 별도 초기화 (SSOT)
+    
     p_out.scroll_cursor_damp = 0.25f;
 
     p_out.precision_mode       = (uint8_t)EN_C10_E10_PREC_OFF;
@@ -681,19 +683,35 @@ void CL_C10_Config::makeDefaultsProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p
 // =======================================================
 bool CL_C10_Config::validateWiFi(const ST_C10_WiFiConfig_t& p_w) const {
     if (p_w.mode > (uint8_t)EN_C10_WIFI_STA) return false;
-    size_t v_apLen = strlen(p_w.ap_pass);
+
+    // AP SSID 필수 (빈 문자열 금지)
+    if (p_w.ap_ssid[0] == '\0') return false;
+
+    // AP 비밀번호: 비어있거나 8자 이상
+    const size_t v_apLen = strlen(p_w.ap_pass);
     if (v_apLen > 0 && v_apLen < 8) return false;
-    if (strlen(p_w.mdns_host) > C10_DEF::MDNS_MAX) return false;
+
+    // [v0415 rev15] STA 모드일 때 SSID 필수
+    if (p_w.mode == (uint8_t)EN_C10_WIFI_STA && p_w.sta_ssid[0] == '\0') {
+        return false;
+    }
+
+    // mDNS 호스트: 빈 문자열 금지 + 길이 제한
+    const size_t v_mdnsLen = strlen(p_w.mdns_host);
+    if (v_mdnsLen == 0) return false;
+    if (v_mdnsLen > C10_DEF::MDNS_MAX) return false;
+
     return true;
 }
 
 bool CL_C10_Config::validateE10(const ST_C10_E10Config_t& p_e) const {
     if (p_e.dpi_level < 1 || p_e.dpi_level > 3) return false;
     if (p_e.accel_threshold < 0.0f || p_e.accel_threshold > 50.0f) return false;
+    
     if (p_e.wheel_threshold_deg < 1.0f || p_e.wheel_threshold_deg > 360.0f) return false;
     if (p_e.wheel_step_max < 1 || p_e.wheel_step_max > 50) return false;
-    if (p_e.gesture_flick_deg < 10.0f || p_e.gesture_flick_deg > 2000.0f) return false;
-    if (p_e.gesture_cooldown_ms > 20000) return false;
+    // [v0415 rev15 / 스키마 412] gesture_flick_deg / gesture_cooldown_ms 검증 삭제
+    //   - flick.* 검증은 하단에서 수행 (SSOT)
     if (p_e.scroll_cursor_damp < 0.0f || p_e.scroll_cursor_damp > 1.0f) return false;
 
     if (p_e.precision_mode >= (uint8_t)EN_C10_E10_PREC_MAX) return false;
@@ -1256,10 +1274,9 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     v_w["threshold_deg"] = p_in.wheel_threshold_deg;
     v_w["step_max"]      = p_in.wheel_step_max;
 
-    JsonObject v_g = p_parent["gesture"].to<JsonObject>();
-    v_g["flick_deg"]   = p_in.gesture_flick_deg;
-    v_g["cooldown_ms"] = p_in.gesture_cooldown_ms;
-
+    // [v0415 rev15 / 스키마 412] gesture JSON 블록 삭제
+    //   - flick 블록이 SSOT (하단 v_fl 참조)
+    
     JsonObject v_p = p_parent["precision"].to<JsonObject>();
     v_p["mode"]             = p_in.precision_mode;
     v_p["deadzone"]         = p_in.precision_deadzone;
@@ -1498,11 +1515,10 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
         if (!v_w["step_max"].isNull())      p_io.wheel_step_max = (uint8_t)v_w["step_max"];
     }
 
-    JsonVariantConst v_g = p_v["gesture"];
-    if (!v_g.isNull()) {
-        if (!v_g["flick_deg"].isNull())   p_io.gesture_flick_deg = (float)v_g["flick_deg"];
-        if (!v_g["cooldown_ms"].isNull()) p_io.gesture_cooldown_ms = (uint16_t)v_g["cooldown_ms"];
-    }
+    // [v0415 rev15 / 스키마 412] gesture.* 필드 삭제
+    //   - legacy 411 파일의 gesture 블록은 무시됨 (makeDefaults의 flick 기본값 사용)
+    //   - 마이그레이션 미구현 정책에 따름
+    //   - flick.* 는 하단에서 별도 파싱 (SSOT)
 
     JsonVariantConst v_p = p_v["precision"];
     if (!v_p.isNull()) {
