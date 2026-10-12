@@ -41,6 +41,7 @@
  */
 
 #include "W10_Web_0415.h"
+#include "D10_Logger_0415.h"
 
 
 // - apiOtaUpload
@@ -204,6 +205,7 @@ void CL_W10_WebConfig::apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data
     }
 
     if (ok && v_exit) {
+        D10_LOGI("[W10] SafeBoot exit requested. Rebooting...");
         delay(150);
         ESP.restart();
     }
@@ -225,6 +227,7 @@ void CL_W10_WebConfig::apiFactoryReset(AsyncWebServerRequest* req) {
     }
 
     if (ok) {
+        D10_LOGW("[W10] Factory reset requested. Rebooting...");
         delay(200);
         ESP.restart();
     }
@@ -294,7 +297,14 @@ void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, 
     v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
     _sendOk(req, "reboot_scheduled", "Reboot scheduled.", &v_doc, 200);
 
-    xTaskCreatePinnedToCore(_taskReboot, "w10_reboot", 2048, nullptr, 1, nullptr, 0);
+    BaseType_t v_rc = xTaskCreatePinnedToCore(_taskReboot, "w10_reboot", 2048, nullptr, 1, nullptr, 0);
+    if (v_rc == pdPASS) {
+        D10_LOGI("[W10] Reboot task scheduled successfully");
+    } else {
+        D10_LOGE("[W10] Failed to create reboot task (rc=%d), executing sync restart", (int)v_rc);
+        delay(200);
+        ESP.restart();
+    }
 }
 
 void CL_W10_WebConfig::apiRebootCheck(AsyncWebServerRequest* req) {

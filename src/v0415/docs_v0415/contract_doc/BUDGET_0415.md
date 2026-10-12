@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)
 > 위치: `src/v0415/docs_v0415/contract_doc/BUDGET_0415.md`
-> 최종 갱신: 2026-10-12 (rev10 — LED 태스크 스택 관측 실측화, _stackLedMinWords 멤버 + _ledTask 50ms 워터마크 훅 + getStatus 반영, §5 표기 갱신)
+> 최종 갱신: 2026-10-12 (rev11 — D10 Logger 고주파 루프 금지 예산 규약 §2.4 추가, W10 리부트 태스크 방어 B-4 예산 명시)
 
 ---
 
@@ -60,6 +60,12 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 |---|---|---|
 | step delay | **논블로킹** | `v_m._stepStartMs` + `v_now >= delayMs` 비동기 검사 |
 | step 실행 (`execSingleAction`) | **블로킹 허용** (최대 28 ms) | HID tap/release의 `vTaskDelay`는 commTask에만 한정. 8ms 주기 sensorTask는 영향 없음 |
+
+### 2.4 D10 로깅 및 비동기 리부트 블로킹 제한 규칙 (rev11)
+
+- **고주파 루프 내 D10 로깅 금지**: `CL_D10_Logger`는 Two-Phase Locking(~50ns spinlock)으로 메모리 경합을 극소화했으나, Serial 출력부(`_serial->write`)는 USB CDC 버퍼 상태에 따라 수 밀리초 지연될 수 있음. 따라서 **8ms(`sensorTask`) 및 7ms(`commTask`) 주기적 루프 내 `D10_LOG*` 호출은 엄격히 금지**함.
+- **허용 구간**: 시스템 부팅(`setup`), 하드웨어 진단(`_diagAndRecoverMpu`), 상태 전이(`SafeBoot`, `FactoryReset`, `Reboot`), 치명적 오류 정지 시에만 1회성 로깅 허용.
+- **W10 리부트 태스크 생성 실패 동기 폴백**: `xTaskCreatePinnedToCore(_taskReboot)` 실패 시 `delay(200); ESP.restart();`를 호출. HTTP 요청 처리 완료 후 재부팅으로의 안전 폴백이며 주기적 태스크에 영향 없음.
 
 ---
 
@@ -210,4 +216,5 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | rev7 | 2026-10-11 | **I2C 진단 및 Wi-Fi 부팅 최적화 예산 반영**: `setup()` MPU6050 9-펄스 진단/동적감지(~1.5초) 예산 반영, 런타임 pre-probe(~0.1ms) 및 10회 복구 가드, NimBLE 동기화 대기(최대 500ms) 반영, `sta_ssid` 공백 시 8초 STA 타임아웃 제거(0ms 즉시 SoftAP 구동) 부팅 단축 명시. |
 | rev8 | 2026-10-11 | **웹 정적 번들링 및 API 힙 메모리 절감 예산 반영**: HTTP 요청 수 11개→3개 압축으로 lwIP TCP PCB 풀(8개) 보호 및 렌더링 지연 단축. `/api/keycodes` AST 딥카피 제거 및 zero-copy 스트리밍으로 순간 힙 점유 90% 절감(30KB→3KB, OOM/RST 방어). |
 | rev9 | 2026-10-12 | **D10 Logger 최적화 + 원자적 저장 + Deep-sleep 셧다운**: §5.1 D10 관측 카운터 신규 (`getOverwriteCount`, `getTruncCount`). §6.9 D10 RingBuffer 256→64, MSG_MAX 128→96 (SRAM −28.1KB), Two-Phase Locking, Serial 단일 write, delay(30) 제거, .h inline → .cpp 이관. §6.10 C10 rotate 저장 (`main → main.old`), `_dirsEnsured` 캐시, idx 상한 가드. §6.11 Deep-sleep MPU sleep bit(`0x40`) + WS2812 LED suspend 선행. |
-| **rev10** | **2026-10-12** | **LED 태스크 스택 관측 실측화 (B-2)**: `_stackLedMinWords` 멤버 + `_ledTask` 워터마크 훅 + `getStatus` 반영. §5 표기 갱신. |
+| rev10 | 2026-10-12 | **LED 태스크 스택 관측 실측화 (B-2)**: `_stackLedMinWords` 멤버 + `_ledTask` 워터마크 훅 + `getStatus` 반영. §5 표기 갱신. |
+| **rev11** | **2026-10-12** | **D10 로깅 예산 규칙 (§2.4 신규) 및 W10 Reboot 태스크 방어 예산**: 8ms/7ms 루프 내 로깅 배제 원칙 명시, 부팅/진단/단발성 API 한정 D10 허용. 리부트 태스크 실패 시 동기식 재부팅 폴백 예산 반영. |

@@ -110,10 +110,10 @@ bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
                   HW_DEF::PIN_I2C_SDA, v_sdaLvl ? "HIGH (Normal)" : "LOW (STUCK/GND!)",
                   HW_DEF::PIN_I2C_SCL, v_sclLvl ? "HIGH (Normal)" : "LOW (STUCK/GND!)");
     if (!v_sdaLvl) {
-        Serial.println("[E10][Diag]  ⚠️ Warning: SDA is held LOW. Possible bus hang or wiring short.");
+        D10_LOGW("[E10][Diag] Warning: SDA is held LOW. Possible bus hang or wiring short.");
     }
     if (!v_sclLvl) {
-        Serial.println("[E10][Diag]  ⚠️ Warning: SCL is held LOW. Possible clock line short.");
+        D10_LOGW("[E10][Diag] Warning: SCL is held LOW. Possible clock line short.");
     }
 
     // 2. 표준 I2C 9-클럭 펄스 버스 잠금 해제 (Bus Unlock)
@@ -162,7 +162,7 @@ bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
     }
 
     if (v_devCount == 0) {
-        Serial.println("[E10][Diag] ❌ NO I2C devices detected on the bus!");
+        D10_LOGE("[E10][Diag] NO I2C devices detected on the bus!");
         Serial.println("[E10][Diag] [Hardware Checklist]:");
         Serial.printf("[E10][Diag]  1) SDA pin must be ESP32 GPIO %d\n", HW_DEF::PIN_I2C_SDA);
         Serial.printf("[E10][Diag]  2) SCL pin must be ESP32 GPIO %d\n", HW_DEF::PIN_I2C_SCL);
@@ -182,22 +182,21 @@ bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
             Wire.requestFrom(v_addr, (uint8_t)1);
             if (Wire.available()) {
                 const uint8_t v_who = Wire.read();
-                Serial.printf("[E10][Diag] Device 0x%02X -> WHO_AM_I (reg 0x75) = 0x%02X", v_addr, v_who);
+                const char* v_chip = "Other I2C device";
                 if (v_who == 0x68) {
-                    Serial.println(" (MPU-6050 genuine)");
+                    v_chip = "MPU-6050 genuine";
                     if (v_bestAddr == 0) v_bestAddr = v_addr;
                 } else if (v_who == 0x70) {
-                    Serial.println(" (MPU-6500 - Note: Adafruit MPU6050 expects 0x68)");
+                    v_chip = "MPU-6500 (Adafruit expects 0x68)";
                     if (v_bestAddr == 0) v_bestAddr = v_addr;
                 } else if (v_who == 0x71) {
-                    Serial.println(" (MPU-9250)");
+                    v_chip = "MPU-9250";
                     if (v_bestAddr == 0) v_bestAddr = v_addr;
                 } else if (v_who == 0x72 || v_who == 0x98) {
-                    Serial.println(" (MPU variant/clone)");
+                    v_chip = "MPU variant/clone";
                     if (v_bestAddr == 0) v_bestAddr = v_addr;
-                } else {
-                    Serial.println(" (Other I2C device)");
                 }
+                D10_LOGI("[E10][Diag] Device 0x%02X -> WHO_AM_I=0x%02X (%s)", v_addr, v_who, v_chip);
             }
         }
     }
@@ -213,7 +212,7 @@ bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
         const uint8_t v_target = v_tryAddrs[v_t];
         Serial.printf("[E10][Diag] Attempting MPU begin at 0x%02X (100kHz)...\n", v_target);
         if (_mpu.begin(v_target, &Wire)) {
-            Serial.printf("[E10][Diag] ✅ MPU initialized successfully at 0x%02X!\n", v_target);
+            D10_LOGI("[E10][Diag] MPU initialized successfully at 0x%02X!", v_target);
             _mpuAddr = v_target;
             _power.setMpuAddr(v_target);
             Wire.setClock(400000);  // 정상 운용 클럭(400kHz) 복귀
@@ -222,8 +221,8 @@ bool CL_E10_EliteAirMouse::_diagAndRecoverMpu() {
         }
     }
 
-    Serial.println("[E10][Diag] ❌ MPU begin failed even though I2C device responded.");
-    Serial.println("[E10][Diag]    If WHO_AM_I was != 0x68, your module may be an MPU6500/clone.");
+    D10_LOGE("[E10][Diag] MPU begin failed even though I2C device responded.");
+    D10_LOGW("[E10][Diag] If WHO_AM_I was != 0x68, module may be MPU6500/clone.");
     Serial.println("========================================================");
     return false;
 }

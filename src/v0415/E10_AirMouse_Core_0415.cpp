@@ -28,7 +28,7 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     }
 
     if (!v_mpuOk) {
-        Serial.println("[E10] FATAL: MPU begin failed even after recovery. System halted.");
+        D10_LOGE("[E10] FATAL: MPU begin failed even after recovery. System halted.");
         for (;;) delay(10);
     }
     _mpu.setGyroRange(MPU6050_RANGE_250_DEG);

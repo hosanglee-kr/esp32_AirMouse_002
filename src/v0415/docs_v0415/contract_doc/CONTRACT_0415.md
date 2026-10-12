@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`  
-> 최종 갱신: 2026-10-12 (rev13 — W10 Consumer/KB 라벨 SSOT 계약 §2.19 신규, G_W10_CONSUMER[] UPPER_SNAKE 통일, _kbName 45건 확장 및 온/오프라인 106개 코드 완전 파리티, LED 태스크 스택 워터마크 실측 관측)
+> 최종 갱신: 2026-10-12 (rev14 — D10 Logger 백엔드 로깅 정책 §2.18 보강, W10 리부트 태스크 생성 검증 및 동기 폴백 계약 §2.20 신규 B-4)
 
 ---
 
@@ -262,13 +262,16 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - 목적: **HTTP 헤더 인젝션(CRLF smulging) 원천 차단**.
 - 위반 예: `?filename=a%0D%0ASet-Cookie:%20pwned` → `attachment; filename="a__Set-Cookie:_pwned"` 로 무해화.
 
-### 2.18 D10 Logger Two-Phase Locking 계약 (v0415 rev12 신규)
+### 2.18 D10 Logger Two-Phase Locking 및 로깅 정책 계약 (v0415 rev12/rev14)
 
 - **Phase 1 (critical, ISR-safe)**: 인덱스 확보 (`s_head`, `s_count`) + `s_overwriteCount++` (덮어쓰기 시).
 - **Phase 2 (critical 외부)**: `s_buffer[v_idx]` 슬롯 write — `memcpy` 96B, truncation 방어.
 - **근거**: 각 태스크는 critical 하에 고유 슬롯 인덱스를 확보하므로 critical 외부의 슬롯 write는 **서로 다른 슬롯에 대해 무경합**.
 - **컨텍스트 계약**: Task 전용. ISR/timer 콜백에서 호출 금지 (D10_Logger_0415.h 상단 명시).
 - **Serial 출력**: 라인 전체를 스택 버퍼(256B)에 조립 → `_serial->write(buf, len)` 1회. `printf` 2회 호출 금지 (HWCDC 내부 분할 → 태스크 인터리빙).
+- **고주파 태스크 로깅 금지 (Zero-Latency)**: `sensorTask`(8ms) 및 `commTask`(7ms)의 주기적 루프 내에서는 USB CDC 백프레셔로 인한 데드라인 누락을 방지하기 위해 `D10_LOG*` 호출을 엄격히 금지한다.
+- **진단 및 이벤트 한정 로깅**: 시스템 부팅(`setup`), I2C 진단(`_diagAndRecoverMpu`), 상태 전이(`SafeBoot`, `FactoryReset`, `Reboot`), 치명적 오류(`FATAL`)에 한하여 `D10_LOG*`를 사용한다.
+- **다중 라인/체크리스트 보존**: 96바이트 초과 가능성이 있는 긴 아스키 아트 배너나 다중 라인 하드웨어 점검 체크리스트는 `D10_LOG*`의 96B 절단(`...`)을 방지하기 위해 `Serial.println`을 유지한다.
 
 ### 2.19 W10 Consumer/KB 라벨 SSOT 계약 (rev13, B-1/B-3)
 
@@ -284,6 +287,13 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
   1. `W10_WebApi_Status_0415.cpp::_kbName`
   2. `am_offline_0415.js::G_OFFLINE_KEYCODES.kb.names`
   3. (선택) `am_base_0415.js::_kbUsageGroup` 그룹 범위
+
+### 2.20 W10 리부트 태스크 스케줄링 및 동기 폴백 계약 (rev14, B-4)
+
+- `/api/reboot` 요청 처리 시 `xTaskCreatePinnedToCore(_taskReboot, ...)`의 반환값(`BaseType_t`)을 반드시 검증한다.
+- **성공 (`pdPASS`)**: `D10_LOGI`로 예약 성공을 기록하고 즉시 200 OK 응답 반환 (태스크가 200ms 후 비동기 `ESP.restart()` 수행).
+- **실패 (`!= pdPASS`)**: 힙/스택 고갈로 태스크 생성이 거부된 경우 `D10_LOGE`로 실패(오류 코드)를 기록하고, 웹 클라이언트에 HTTP 응답이 완전히 송출될 수 있도록 `delay(200); ESP.restart();`를 호출하는 **동기식 안전 폴백**을 즉시 실행한다.
+- **목적**: 시스템이 재부팅 요청을 받았으나 백그라운드 태스크 생성 실패로 인해 무한 대기 상태(좀비 상태)에 빠지는 결함을 원천 차단.
 
 ---
 
@@ -554,5 +564,6 @@ _unlock();
 | rev10 | 2026-10-11 | **I2C 자동진단 및 안정성 하드닝**: `_diagAndRecoverMpu()` 9-펄스 버스 언락, 100kHz 스캔, WHO_AM_I(0x75) 검증 및 0x68/0x69 주소 동적 바인딩, `_power.setMpuAddr` 연동, 런타임 pre-probe 및 10회 연속 실패 복구, 슬립 복귀 레지스터 복원 (**§2.11 신규**). **NimBLE Mutex Crash 방어**: `NimBLEDevice::isInitialized()` 500ms 동기화 대기 및 `getBondCount()` 0 반환 가드 (**§2.12 신규**). **Wi-Fi SoftAP 부팅 8초 단축, 웹 라우팅 별칭 및 SafeBoot 가드**: 빈 STA 시 즉시 AP 시작, SafeBoot SSID 27자 제한, `/api/status` 동기화, `/index.html`, `/www`, `/www/` 리다이렉트, `/manifest.json` 단축 경로, Captive Portal 프로브(Android 204, Apple 302, Windows 200) 및 AP mDNS 지원 (**§2.13 신규**). **v410→v411 마이그레이션 무결성**: POWER→KB_POWER(0x66), TV_INPUT→WWW_SEARCH, 미지원 코드 NONE 변환, validate 후 `saveProfile()` Eager Persist 정책 (**§2.2 갱신**). |
 | rev11 | 2026-10-11 | **웹 정적 서빙 번들링 및 API/스토리지 안정성 하드닝**: 빌드 타임 자동 번들링(`pio_gzip_0415.py`)으로 9개 JS를 `app_bundle_0415.js.gz`(50KB) 단일 파일로 결합, HTTP 요청 11개→3개 압축하여 TCP 소켓 고갈 원천 차단. `/api/keycodes`의 AST 직할 빌드로 15KB JSON 통째 딥카피 제거 및 유효 키코드 한정 zero-copy 스트리밍(OOM/RST 차단). `execLiveTest` Special 액션(모드 전환/영점 등)의 BLE 연결 독립성 보장(AP 모드에서도 기기 제어 100% 동작). LittleFS `_atomicWriteJson` 및 `begin()` 내 `/json`, `/json/profiles` 서브디렉토리 무조건 선행 생성 보장(`no permits for creation` 에러 영구 차단). `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 반영. `_sendErr` 규격(`data: {}`) 보장 및 `ble_disconnected`(400) 에러 코드 표준화. |
 | rev12 | 2026-10-12 | **안정성 하드닝 & D10 Logger rev2 / C10 안전 회전 & 딥슬립 차단 무결성**: D10 RingBuffer=64, MSG_MAX=96 Two-Phase Locking 및 Serial 블로킹 제거, USB CDC 대기 루프(main.cpp). C10 atomic rotate save(`main->old`, `tmp->main`) 및 `_bootMutex` 스레드 안전성 확보. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. `makeDefaultsWiFi` 및 기본 프로파일 STA 자격증명 공백("") 초기화 규약 반영. Deep Sleep 직전 LED suspend 및 MPU6050 PWR_MGMT_1=0x40 슬립 설정. W10 export 헤더 인젝션 방어(64자 제한/특수문자 치환). 정적 파일 ETag 이중 샘플링 방지 및 `/www` 경로 traversal 방지. |
-| **rev13** | **2026-10-12** | **Consumer/KB 라벨 SSOT 계약 (§2.19 신규, B-1/B-3)**: `G_W10_CONSUMER[].name` UPPER_SNAKE 통일 (B-1). `_kbName()`과 offline names dict 완전 파리티 (B-3, 106 codes). LED 태스크 스택 워터마크 관측 계약 (B-2, §2.14 연계). |
+| rev13 | 2026-10-12 | **Consumer/KB 라벨 SSOT 계약 (§2.19 신규, B-1/B-3)**: `G_W10_CONSUMER[].name` UPPER_SNAKE 통일 (B-1). `_kbName()`과 offline names dict 완전 파리티 (B-3, 106 codes). LED 태스크 스택 워터마크 관측 계약 (B-2, §2.14 연계). |
+| **rev14** | **2026-10-12** | **D10 Logger 백엔드 로깅 정책 (§2.18 보강) 및 W10 리부트 태스크 방어 (§2.20 신규, B-4)**: 8ms/7ms 루프 로깅 배제, 진단/부팅 단일 라인 원자적 D10 로깅 확립, 96B 초과 체크리스트 Serial 보존. `xTaskCreatePinnedToCore(_taskReboot)` 반환값 검증 및 생성 실패 시 동기식 `ESP.restart()` 안전 폴백 확립. |
 

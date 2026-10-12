@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-12 (rev13 — LED 태스크 스택 관측 완결 B-2: _stackLedMinWords 소유권 등록, §2.8 L10 LED FSM에 _ledTask 관측 훅 명시)
+> 최종 갱신: 2026-10-12 (rev14 — W10 _taskReboot 소유권 방어 B-4 및 D10 로깅 상태 전이 명세)
 
 ---
 
@@ -59,6 +59,7 @@
 | **`_stackLedMinWords`** (E10) | `_ledTask` (50ms) | `getStatus` | 독점 (No sync) | **rev13 (B-2)**: LED 태스크 워터마크. `_thLed` 저장과 함께 완결 |
 | **`_bootWifi`** (W10) | `CL_W10_WebConfig::begin()` | `_bumpRebootMaskFromBoot` | 독점 (No sync) | **v0415: W10 부팅 WiFi 스냅샷 (되돌림 감지)** |
 | `sta_ssid`, `sta_pass` (W10/C10) | `C10::makeDefaultsWiFi()` / `W10` | `CL_W10_WebConfig::begin()` | 독점 (No sync) | **rev12: 실 자격증명 embed 제거 → 기본값 공백("")**. 빈 문자열 시 8초 STA 연결 시도 생략 즉시 SoftAP 구동. 사용자가 UI에서 명시 입력 시에만 STA 시도 |
+| `_taskReboot` (W10) | `webTask` (`apiRebootPost`) | FreeRTOS Scheduler | `BaseType_t` 반환값 검증 | **rev14 (B-4)**: 태스크 생성 실패 시 동기식 `ESP.restart()` 안전 폴백 |
 
 ### 1.1 v0415 주요 변경
 
@@ -300,4 +301,5 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev9 | 2026-10-11 | **I2C/NimBLE/SoftAP/마이그레이션 소유권 정합**: `_mpuAddr` 동적 감지(0x68/0x69) 및 `_power.setMpuAddr` 전파, 런타임 pre-probe/10회 복구 소유권, 슬립 복귀 `_restoreMpuAfterWake` 복원, `NimBLEDevice::isInitialized()` 동기화 대기 및 `getBondCount()` 0 반환 소유권, SoftAP `sta_ssid` 공백 시 즉시 시작 및 SafeBoot `-SAFE` 상태 일원화, v410→v411 `saveProfile()` Eager Persist 정책 반영. |
 | rev11 | 2026-10-11 | **execLiveTest Special 액션 BLE 독립 소유권 및 스토리지 무결성**: `execLiveTest` 내 `EN_C20_ACT_SPECIAL` 판정부를 `_hid.isConnected()` 앞으로 이동하여 Wi-Fi AP 단독 상태에서도 모드 전환/영점/절전의 `_reqSpecialAction` 위임 쓰기 권한 보장. LittleFS `_atomicWriteJson` 및 `begin()`의 `/json/profiles` 디렉토리 생성 보장으로 프로파일 쓰기 소유권 정상화. `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 소유권 반영. |
 | rev12 | 2026-10-12 | **D10 Two-Phase 뮤텍스 소유권 & C10 _bootMutex 및 딥슬립 LED 차단 상태 전이**: §1 매트릭스에 `_consecutiveI2cFail`, `_bootMutex`, `_dirsEnsured`, D10 `_buf` 및 `_serialMutex`, D10 원자적 카운터 소유권 추가. `sta_ssid/pass` 실 자격증명 제거 및 기본값 공백("") 규약 확정. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. §2.8 Deep Sleep 진입 직전 `_led.suspend(snap)` WS2812 래칭 차단 명시. §2.9 D10 Logger Two-Phase Locking FSM 신설. §2.10 C10 Boot State Mutex FSM 신설. |
-| **rev13** | **2026-10-12** | **LED 태스크 스택 관측 완결 (B-2)**: `_stackLedMinWords` 소유권 등록. §2.8 L10 LED FSM에 `_ledTask` 관측 훅 명시. |
+| rev13 | 2026-10-12 | **LED 태스크 스택 관측 완결 (B-2)**: `_stackLedMinWords` 소유권 등록. §2.8 L10 LED FSM에 `_ledTask` 관측 훅 명시. |
+| **rev14** | **2026-10-12** | **W10 Reboot 태스크 소유권 방어 (B-4) 및 D10 로깅 상태 전이 명세**: `_taskReboot` 생성 반환값(`pdPASS`) 검증 및 실패 시 동기식 `ESP.restart()` 안전 폴백 소유권 등록. D10 로거는 상태 전이 및 치명적 에러 한정 호출 규약 동기화. |

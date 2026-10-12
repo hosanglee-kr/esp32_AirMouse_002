@@ -1,17 +1,17 @@
 # Graph Report - esp32_AirMouse_002  (2026-10-12)
 
 ## Corpus Check
-- 614 files · ~1,365,806 words
+- 614 files · ~1,366,374 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 76 file(s) not represented in the graph (top: .css 33, .ino 12, (none) 7)
 
 ## Summary
-- 21328 nodes · 35460 edges · 1145 communities (988 shown, 157 thin omitted)
+- 21330 nodes · 35463 edges · 1147 communities (990 shown, 157 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 2494 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a1be8ebd`
+- Built from commit: `4ad21b28`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -311,7 +311,7 @@
 - ._lock
 - AsyncWebServerRequest
 - v031/C10_Def_0310.h
-- ST_C10_ModeConfig_t
+- v031_20/C10_Def_0303.h
 - 5) Usage Guide
 - 📝 AirMouse Elite S3(v0.0.6) 기술 사양서 (Technical Specification)
 - 📝 AirMouse Elite S3(v0.0.6) 기술 사양서 (Technical Specification)
@@ -401,7 +401,7 @@
 - ._sendPptKey2
 - ._sendPptKey2
 - ._sendPptKey2
-- E10_Def_0301.h
+- ST_E10_State_t
 - .sendPptKey2_
 - .sendPptKey2_
 - .sendPptKey2_
@@ -429,7 +429,7 @@
 - C10_Def_0302.h
 - v031_06/C10_Def_0303.h
 - ST_E10_Frame_t
-- v031_20/C10_Def_0303.h
+- ST_C10_ModeConfig_t
 - E10_AirMouse_Action_0410.cpp
 - ST_E10_Frame_t
 - v031_26/C10_Def_0310.h
@@ -517,7 +517,7 @@
 - .begin
 - ST_E10_ErrEvt_t
 - ST_E10_ErrEvt_t
-- ST_ActionCmd_t
+- CL_A40_MutexGuard_Semaphore
 - ST_E10_ErrEvt_t
 - CL_C10_Config
 - W10_Web_init_0410.cpp
@@ -558,7 +558,7 @@
 - ._mouseSend
 - ._commTask
 - CL_E10_EliteAirMouse::begin
-- CL_E10_EliteAirMouse::begin
+- CL_A40_MutexGuard_Semaphore
 - 7. 🚀 핵심 기능 상세 사양
 - ST_SpikeEvt
 - ST_SpikeEvt_t
@@ -790,7 +790,7 @@
 - am_base_0412.js
 - CL_A40_MutexGuard_Semaphore
 - CL_L10_Led
-- 7. 🚀 v0410 핵심 기능 상세 사양
+- CL_A40_MutexGuard_Semaphore
 - JsonVariantConst
 - CL_A40_MutexGuard_Semaphore
 - ST_C10_MotionAdv_Ema_t
@@ -813,7 +813,7 @@
 - 🗂️ 리팩터 이력
 - C10_Def_0412.h
 - 🎛️ Mode 시스템
-- 7. 🚀 v0415 핵심 기능 상세 사양
+- 7.10. 포인팅 정밀도 & 모션 알고리즘 고도화 (v0411)
 - 🎛️ Mode 시스템
 - 🎛️ Mode 시스템
 - 📊 5. 마우스 민감도 및 세부 환경 설정
@@ -868,7 +868,7 @@
 - 📐 명명 규칙 & 코드 정책
 - 📡 BLE (B20)
 - ST_Runtime_t
-- ST_Config_t
+- AdvancedMotionProcessor
 - 📡 BLE (B20)
 - 🎮 제스처 시스템 (M30)
 - 🔌 하드웨어
@@ -900,7 +900,7 @@
 - 📎 부록: 주요 상수
 - 📝 Config & Profile System (Schema v5, `G_C10_CFG_VER = 410`)
 - 📁 프로젝트 구조
-- CL_A40_MutexGuard_Semaphore
+- 7. 🚀 v0415 핵심 기능 상세 사양
 - ST_C10_ProfileSlots_t
 - 🖥️ 프론트엔드 (Web UI 3-View + Phase 1~4 확장)
 - 3. 웹 UI 구성 옵션 (3단계)
@@ -995,7 +995,7 @@
 - LD2420 Arduino Library
 - LD2420.h
 - CL_A40_MutexGuard_Semaphore
-- 7.10. 포인팅 정밀도 & 모션 알고리즘 고도화 (v0411)
+- 7. 🚀 v0410 핵심 기능 상세 사양
 - app_0414_0001.js
 - am_macro_0414.js
 - LD2420TargetData
@@ -1003,7 +1003,7 @@
 - CL_W10_WebConfig::apiConfigSave
 - bindSlotsAndConfig
 - am_offline_0414.js
-- AdvancedMotionProcessor
+- E10_EliteAirMouse_002.h
 - am_i18n_0414.js
 - [0.0.1] - 2026-10-06
 - am_i18n_0412.js
@@ -1014,12 +1014,12 @@
 - am_base_0415.js
 - W10_Def_0415.h
 - _sendErr
-- 3. 🏗️ 시스템 아키텍처
+- ST_C10_WiFiConfig_t
 - 📡 BLE (B20)
 - CL_D10_Logger
 - C10_Def_0410.h
 - A40_ComFunc_0415.h
-- E10_EliteAirMouse_002.h
+- ST_C10_WiFiConfig_t
 - FLOW_0415.md — 기능별 데이터 흐름 및 파이프라인 명세
 - 🎬 Action Registry & 매크로 라이브러리
 - E10_AirMouse_Action_0415.cpp
@@ -1039,7 +1039,7 @@
 - 16. v0412 잔여 유보 이슈 상세 및 대응 방안 (Deferred Issues)
 - am_profile_0415.js
 - am_remote_0415.js
-- 📝 Config & Profile System (Schema 411)
+- ST_Runtime_t
 - 6. v0415 리팩터 반영
 - Elite AirMouse S3 — 사용자 매뉴얼
 - 웹 기반 사용자 개별화 고도화 — 통합 구현 계획서 (v0412)
@@ -1048,7 +1048,7 @@
 - ST_C10_Macro_t
 - Part 3: v0412 핵심 기술 사양 요약 (Summary Specification)
 - E10_AirMouse_Diag_0415.cpp
-- 4. 📁 프로젝트 디렉터리 구조
+- 📡 BLE (B20)
 - ST_C10_ProfileConfig_t
 - am_config_0415.js
 - docs_v0415/Req_ImplPlan/30.impl_0410_002.md
@@ -1057,9 +1057,9 @@
 - 2. 도메인별 표준 용어 매핑 테이블
 - 🗂️ 리팩터 이력
 - W10_Web_init_0415.cpp
-- 6. 📐 명명 규칙 & 코드 정책
-- 5. 🛠️ 빌드 시스템 (PlatformIO CLI)
-- ST_Runtime_t
+- 3. 🏗️ 시스템 아키텍처
+- MouseState
+- 🖥️ 프론트엔드 (Web UI)
 - C10_Def_0415.h
 - ST_C10_MotionAdv_Ema_t
 - ST_C10_PowerConfig_t
@@ -1067,11 +1067,12 @@
 - 사용자 개별화 기능 고도화 — 검토
 - 웹 페이지 기반 사용자 개별화 — 고도화 검토
 - 웹 기반 사용자 개별화 고도화 — 통합 구현 계획서 (v0412)
-- 7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)
+- 4. 📁 프로젝트 디렉터리 구조
 - ST_C10_ButtonConfig_t
 - 🟢 A. 프로파일 세트 (권장)
 - 7.10. 포인팅 정밀도 & 모션 알고리즘 고도화 (v0412)
-- 7.12. 버튼 디스패처 & 타이밍 고도화 (C20)
+- 6. 📐 명명 규칙 & 코드 정책
+- ST_ActionCmd_t
 - ST_C10_MotionAdv_ClickFreeze_t
 - app_0415_0001.js
 - am_macro_0415.js
@@ -1082,13 +1083,14 @@
 - ST_Runtime_t
 - ST_C10_MotionAdv_Snap_t
 - bindSlotsAndConfig
+- 5. 🛠️ 빌드 시스템 (PlatformIO CLI)
+- 7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)
 - 🏗️ 아키텍처
 - 12. 버튼 및 동작 맞춤 할당 화면 (슬롯 관리)
 - ST_E10_Frame_t
-- MouseState
+- 7.12. 버튼 디스패처 & 타이밍 고도화 (C20)
+- CL_E10_EliteAirMouse::begin
 - am_i18n_0415.js
-- 📐 명명 규칙 & 코드 정책
-- 🖥️ 프론트엔드 (Web UI)
 - 6. A 도입 시 설계 요약
 - Elite AirMouse S3 기능적 관점 보완 사항
 - 🔋 전원 관리 (P20)
@@ -1161,19 +1163,19 @@
 ## Surprising Connections (you probably didn't know these)
 - `1. 📌 핵심 프로젝트 개요` --references--> `buildWakeMaskSafe()`  [INFERRED]
   agent.md → src/v0415/HW_Def_0415.h
-- `6.4 매크로/런타임 관련 제거 이력 (v0415)` --references--> `buildWakeMaskAll()`  [INFERRED]
-  src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md → src/v0412/HW_Def_0412.h
 - `2.2 Consumer Mask Descriptor SSOT 및 마이그레이션 계약 (v0415)` --references--> `_migrateSlotConsumerV410ToV415()`  [INFERRED]
   src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md → src/v0415/C10_Config_0415.cpp
 - `Consumer 매핑 및 치환 (`_migrateSlotConsumerV410ToV415`)` --references--> `_migrateSlotConsumerV410ToV415()`  [INFERRED]
   src/v0415/docs_v0415/contract_doc/FLOW_0415.md → src/v0415/C10_Config_0415.cpp
 - `v0415.1 안정성 및 하드닝 패치 (2026-10-11)` --references--> `_migrateSlotConsumerV410ToV415()`  [INFERRED]
   src/v0415/docs_v0415/contract_doc/SPEC_0415.md → src/v0415/C10_Config_0415.cpp
+- `스키마 마이그레이션 (v410 → v411, v0415 신규)` --references--> `_migrateSlotConsumerV410ToV415()`  [INFERRED]
+  src/v0415/docs_v0415/contract_doc/SPEC_0415.md → src/v0415/C10_Config_0415.cpp
 
 ## Import Cycles
 - None detected.
 
-## Communities (1145 total, 157 thin omitted)
+## Communities (1147 total, 157 thin omitted)
 
 ### Community 0 - "CL_E10_EliteAirMouse"
 Cohesion: 0.01
@@ -1188,7 +1190,7 @@ Cohesion: 0.01
 Nodes (132): CL_E10_EliteAirMouse, _accelGain, _accelTh, _applyPrecision, applyRuntimeE10, begin, _cfg, _cfgE10Runtime (+124 more)
 
 ### Community 3 - "String"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (21): arduinojson, c10_config_0310, c10_def_0303, e10_def_0310, esp_system, espasyncwebserver, espmdns, freertos (+13 more)
 
 ### Community 4 - "CL_E10_EliteAirMouse"
@@ -1297,7 +1299,7 @@ Nodes (71): apiGet(), apiPostJson(), bindTabs(), bindUi(), bindViewToggle(), bui
 
 ### Community 30 - "arduino"
 Cohesion: 0.09
-Nodes (17): a40_comfunc_070, adafruit_sensor, arduino, asynctcp, d10_logger_061, e10_def_0302, keyboardconfiguration, keyboardhidcodes (+9 more)
+Nodes (19): a40_comfunc_070, adafruit_sensor, arduino, asynctcp, d10_logger_061, e10_def_0302, keyboardconfiguration, keyboardhidcodes (+11 more)
 
 ### Community 31 - "CL_W10_WebConfig"
 Cohesion: 0.06
@@ -1608,8 +1610,8 @@ Cohesion: 0.16
 Nodes (41): apiGet(), apiPostJson(), apiPostText(), bindPptRow(), bindTabs(), bindUi(), cfgApply(), cfgExport() (+33 more)
 
 ### Community 108 - "v031_06/A40_ComFunc_070.h"
-Cohesion: 0.14
-Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
+Cohesion: 0.11
+Nodes (31): new, semphr, _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe() (+23 more)
 
 ### Community 109 - "ST_E10_Status_t"
 Cohesion: 0.05
@@ -1624,24 +1626,24 @@ Cohesion: 0.14
 Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
 
 ### Community 112 - "v031_31/A40_ComFunc_070.h"
-Cohesion: 0.14
-Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
+Cohesion: 0.09
+Nodes (34): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, CL_A40_muxGuard_Critical, _flagSpinlock (+26 more)
 
 ### Community 113 - "app_0276.js"
 Cohesion: 0.16
 Nodes (41): apiGet(), apiPostJson(), apiPostText(), bindPptRow(), bindTabs(), bindUi(), cfgApply(), cfgExport() (+33 more)
 
 ### Community 114 - "v030/A40_ComFunc_070.h"
-Cohesion: 0.09
-Nodes (34): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, CL_A40_muxGuard_Critical, _flagSpinlock (+26 more)
+Cohesion: 0.14
+Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
 
 ### Community 115 - "ST_E10_Status_t"
 Cohesion: 0.05
 Nodes (42): ST_E10_ErrEvt_t, code, ts_ms, value, ST_E10_Status_t, ble_connected, btn_mask, consecutive_fail (+34 more)
 
 ### Community 116 - "A40_ComFunc_0320.h"
-Cohesion: 0.09
-Nodes (34): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, CL_A40_muxGuard_Critical, _flagSpinlock (+26 more)
+Cohesion: 0.14
+Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
 
 ### Community 117 - "W10_Web_Static_0320.cpp"
 Cohesion: 0.07
@@ -1884,8 +1886,8 @@ Cohesion: 0.06
 Nodes (31): ST_E10_PrecProfile_t, accel_limit, alpha, gain, ST_E10_SpikeEvt_t, ts_ms, ST_E10_State_t, btn_mask (+23 more)
 
 ### Community 177 - "v031/A40_ComFunc_070.h"
-Cohesion: 0.09
-Nodes (34): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, CL_A40_muxGuard_Critical, _flagSpinlock (+26 more)
+Cohesion: 0.14
+Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
 
 ### Community 178 - "AsyncWebServerRequest"
 Cohesion: 0.20
@@ -2168,8 +2170,8 @@ Cohesion: 0.14
 Nodes (16): SpecialCallback, CL_P20_Power, _armExt1, begin, _ext1Armed, _idle, _idleTimeoutMs, _lastActivityMs (+8 more)
 
 ### Community 258 - "2. 상태머신(FSM) 상세 명세"
-Cohesion: 0.10
-Nodes (20): buildWakeMaskAll(), 10. 개정 이력, 2.1 하드웨어 핀 및 Wake Mask SSOT 계약 (`HW_Def_0415.h`), 14. 개정 이력, 1.1 v0415 주요 변경, 1. 상태 변수 소유권 매트릭스, 2.10 C10 Boot State FSM (Mutex 보호), 2.1 Click-Freeze FSM (`_applyClickFreeze`) (+12 more)
+Cohesion: 0.18
+Nodes (11): 2.10 C10 Boot State FSM (Mutex 보호), 2.1 Click-Freeze FSM (`_applyClickFreeze`), 2.2 Snap-to-Axis FSM (`_applySnapToAxis`), 2.3 Precision FSM (`_fsmUpdate` / `_applyPrecision`), 2.4 Macro Sequencer FSM (`_tickMacro`), 2.5 Macro 대체(Replace) 및 취소(Abort) 정책, 2.6 전원 관리 FSM (`sensorTask` 내부), 2.7 Button Dispatcher Phase 전이 (+3 more)
 
 ### Community 259 - "CL_C10_Config"
 Cohesion: 0.19
@@ -2287,9 +2289,9 @@ Nodes (6): AsyncWebServerRequest, ST_W10_BodySlot, buf, lastMs, len, req
 Cohesion: 0.14
 Nodes (13): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass (+5 more)
 
-### Community 295 - "ST_C10_ModeConfig_t"
-Cohesion: 0.13
-Nodes (21): _buildModeJson, _buildSlotArray, _buildSlotJson, _patchModeJson, _patchSlotArray, _patchSlotJson, validateMode, validateSlot (+13 more)
+### Community 295 - "v031_20/C10_Def_0303.h"
+Cohesion: 0.14
+Nodes (13): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass (+5 more)
 
 ### Community 296 - "5) Usage Guide"
 Cohesion: 0.10
@@ -2483,9 +2485,9 @@ Nodes (7): shutil, before_buildfs(), copy_file(), ensure_dir(), gzip_file(), rel
 Cohesion: 0.61
 Nodes (7): before_buildfs(), clean_dst_www(), copy_file(), ensure_dir(), gzip_file(), relpath_safe(), sync_www()
 
-### Community 389 - "E10_Def_0301.h"
-Cohesion: 0.25
-Nodes (7): ST_E10_SpikeEvt_t, ts_ms, ST_E10_State_t, updated, wheel, x, y
+### Community 389 - "ST_E10_State_t"
+Cohesion: 0.40
+Nodes (5): ST_E10_State_t, updated, wheel, x, y
 
 ### Community 401 - "src/v010/tools/pio_gzip_0279.py"
 Cohesion: 0.61
@@ -2524,16 +2526,16 @@ Cohesion: 0.17
 Nodes (11): ST_C10_BootState_t, fail_count, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass, ap_ssid, mdns_host (+3 more)
 
 ### Community 416 - "v031_06/C10_Def_0303.h"
-Cohesion: 0.14
-Nodes (13): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass (+5 more)
+Cohesion: 0.29
+Nodes (6): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode
 
 ### Community 417 - "ST_E10_Frame_t"
 Cohesion: 0.29
 Nodes (6): ST_E10_Frame_t, btn_mask, updated, wheel, x, y
 
-### Community 418 - "v031_20/C10_Def_0303.h"
-Cohesion: 0.14
-Nodes (13): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass (+5 more)
+### Community 418 - "ST_C10_ModeConfig_t"
+Cohesion: 0.13
+Nodes (21): _buildModeJson, _buildSlotArray, _buildSlotJson, _patchModeJson, _patchSlotArray, _patchSlotJson, validateMode, validateSlot (+13 more)
 
 ### Community 419 - "E10_AirMouse_Action_0410.cpp"
 Cohesion: 0.13
@@ -2580,8 +2582,8 @@ Cohesion: 0.33
 Nodes (5): ST_W10_BodySlot, buf, lastMs, len, req
 
 ### Community 431 - "v030/C10_Def_0303.h"
-Cohesion: 0.14
-Nodes (13): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode, ST_C10_WiFiConfig_t, ap_pass (+5 more)
+Cohesion: 0.29
+Nodes (6): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, safe_mode
 
 ### Community 432 - "ST_E10_Frame_t"
 Cohesion: 0.29
@@ -2807,9 +2809,9 @@ Nodes (4): ST_E10_ErrEvt_t, code, ts_ms, value
 Cohesion: 0.50
 Nodes (4): ST_E10_ErrEvt_t, code, ts_ms, value
 
-### Community 507 - "ST_ActionCmd_t"
-Cohesion: 0.50
-Nodes (4): ST_C20_ActionSlot_t, ST_ActionCmd_t, isDown, slot
+### Community 507 - "CL_A40_MutexGuard_Semaphore"
+Cohesion: 0.24
+Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, SemaphoreHandle_t, TickType_t
 
 ### Community 508 - "ST_E10_ErrEvt_t"
 Cohesion: 0.50
@@ -2875,9 +2877,9 @@ Nodes (3): ST_C10_PptKey_t, key, mod
 Cohesion: 0.67
 Nodes (3): _applyFromConfig, CL_E10_EliteAirMouse::begin(), CL_C10_Config
 
-### Community 548 - "CL_E10_EliteAirMouse::begin"
-Cohesion: 0.67
-Nodes (3): _applyFromConfig, CL_E10_EliteAirMouse::begin(), CL_C10_Config
+### Community 548 - "CL_A40_MutexGuard_Semaphore"
+Cohesion: 0.24
+Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, SemaphoreHandle_t, TickType_t
 
 ### Community 549 - "7. 🚀 핵심 기능 상세 사양"
 Cohesion: 0.17
@@ -3572,8 +3574,8 @@ Cohesion: 0.50
 Nodes (3): Contract-Based Review & Development Rules, 📋 일관된 리뷰 및 검토 출력 포맷, 🚨 필수 검토 및 준수 6대 원칙 (Invariants)
 
 ### Community 743 - "A40_ComFunc_0412.h"
-Cohesion: 0.13
-Nodes (29): memory, _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22() (+21 more)
+Cohesion: 0.14
+Nodes (28): _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22(), copyStr2Buffer_safe() (+20 more)
 
 ### Community 744 - "🔄 모드 전환 및 상태 표시등 규격"
 Cohesion: 0.67
@@ -3731,9 +3733,9 @@ Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, Semaphore
 Cohesion: 0.07
 Nodes (49): CL_L10_Led, _apply, _applyBase, _baseColor, begin, blink, _blinkOn, _blinkPeriodMs (+41 more)
 
-### Community 785 - "7. 🚀 v0410 핵심 기능 상세 사양"
-Cohesion: 0.20
-Nodes (10): 7.1. 3-Mode 시스템 (PC / PPT / TV), 7.2. 2단 슬롯 매트릭스 (Global + Mode Override), 7.3. 4대 필수 슬롯 잠금 (🔒), 7.4. 8×8 매크로 라이브러리 & 안전 취소 시퀀서, 7.5. M10 물리 모션 엔진 & M30 제스처, 7.6. Front Hold 스크롤, 7.7. SafeBoot & OTA Guard (method-aware), 7.8. 다중 프로파일 시스템 (Schema v5) (+2 more)
+### Community 785 - "CL_A40_MutexGuard_Semaphore"
+Cohesion: 0.24
+Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, SemaphoreHandle_t, TickType_t
 
 ### Community 786 - "JsonVariantConst"
 Cohesion: 0.24
@@ -3823,9 +3825,9 @@ Nodes (9): ST_C10_BootState_t, boot_ms, fail_count, last_reset_reason, pending, 
 Cohesion: 0.22
 Nodes (9): 27개 고정 트리거 인덱스 매핑, 2단 슬롯 매트릭스 (Global + Mode Override), 3 Modes, 🎛️ Mode 시스템, 버튼 디스패처 및 타이밍 (C20, Phase 11.7), 설정 구조체 (`ST_C10_ButtonConfig_t`), 전환 (고정), 하드코딩 규칙 (`_handleHardcodedButton`) (+1 more)
 
-### Community 808 - "7. 🚀 v0415 핵심 기능 상세 사양"
-Cohesion: 0.07
-Nodes (27): 7.10.10. 실측 검증 계획 (Phase 0, 사후 진행), 7.10.1. 모션 처리 파이프라인 (단방향, 6단계), 7.10.2. Adaptive Variable EMA (Phase 2), 7.10.3. Snap-to-Axis (Phase 3, Mode 2 프리셋 기본 ON), 7.10.4. Click-Freeze (Phase 1, 4-State FSM), 7.10.5. Config 스키마 확장, 7.10.6. Mode별 프리셋, 7.10.7. 모듈 책임 분리 (Architecture Boundary) (+19 more)
+### Community 808 - "7.10. 포인팅 정밀도 & 모션 알고리즘 고도화 (v0411)"
+Cohesion: 0.18
+Nodes (11): 7.10.10. 실측 검증 계획 (Phase 0, 사후 진행), 7.10.1. 모션 처리 파이프라인 (단방향, 6단계), 7.10.2. Adaptive Variable EMA (Phase 2), 7.10.3. Snap-to-Axis (Phase 3, Mode 2 프리셋 기본 ON), 7.10.4. Click-Freeze (Phase 1, 4-State FSM), 7.10.5. Config 스키마 확장, 7.10.6. Mode별 프리셋, 7.10.7. 모듈 책임 분리 (Architecture Boundary) (+3 more)
 
 ### Community 809 - "🎛️ Mode 시스템"
 Cohesion: 0.22
@@ -4039,9 +4041,9 @@ Nodes (5): 📡 BLE (B20), Bond 관리, Composite HID, Host Cycle (disconnect-on
 Cohesion: 0.40
 Nodes (5): ST_Runtime_t, active, lastRepeatMs, repeatMs, slot
 
-### Community 863 - "ST_Config_t"
-Cohesion: 0.25
-Nodes (8): ST_Config_t, deep_idle_timeout_ms, idle_timeout_ble_ms, idle_timeout_ms, pairing_idle_timeout_ms, wake_min_active_ms, wom_duration, wom_threshold
+### Community 863 - "AdvancedMotionProcessor"
+Cohesion: 0.22
+Nodes (6): AdvancedMotionProcessor, _baseAlpha, _isClickStabilizing, _lastClickTime, _lpfX, _lpfY
 
 ### Community 864 - "📡 BLE (B20)"
 Cohesion: 0.40
@@ -4167,9 +4169,9 @@ Nodes (4): 📝 Config & Profile System (Schema v5, `G_C10_CFG_VER = 410`), Litt
 Cohesion: 0.50
 Nodes (4): E10 7파일 분할 기준, 백엔드 (`src/v0410/`), 📁 프로젝트 구조, 프론트엔드 (`data_v0410/www/`)
 
-### Community 895 - "CL_A40_MutexGuard_Semaphore"
-Cohesion: 0.24
-Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, SemaphoreHandle_t, TickType_t
+### Community 895 - "7. 🚀 v0415 핵심 기능 상세 사양"
+Cohesion: 0.20
+Nodes (10): 7.1. 3-Mode 시스템 (PC / PPT / TV), 7.2. 2단 슬롯 매트릭스 (Global + Mode Override), 7.3. 4대 필수 슬롯 잠금 (🔒), 7.4. 8×8 매크로 라이브러리 & 안전 취소 시퀀서, 7.5. M10 물리 모션 엔진 & M30 제스처, 7.6. Front Hold 스크롤, 7.7. SafeBoot & OTA Guard (method-aware), 7.8. 다중 프로파일 시스템 (Schema v5) (+2 more)
 
 ### Community 896 - "ST_C10_ProfileSlots_t"
 Cohesion: 0.29
@@ -4372,8 +4374,8 @@ Cohesion: 0.17
 Nodes (12): 14.1 기본 파라미터, 14.2 동작 정밀도 (Motion Advanced) 설정, 14.3 절전 및 전원 관리 설정, 14.4 버튼 타이밍 설정, 14.5 공장 초기화, 14. 포인터 및 센서 세부 설정 (Config 탭), 발표용 축 스냅 (Snap-to-Axis), 방법 1: 웹 화면에서 초기화 (+4 more)
 
 ### Community 948 - "Elite AirMouse S3 — v0415 기술 사양서 (정본)"
-Cohesion: 0.06
-Nodes (33): `/api/control` cmd (v0415), `/api/status` 응답 확장 (v0415), 📡 BLE (B20), Bond 관리, Button Timings 기본값, Composite HID, E10 7파일 분할 기준, Elite AirMouse S3 — v0415 기술 사양서 (정본) (+25 more)
+Cohesion: 0.05
+Nodes (40): `/api/control` cmd (v0415), `/api/status` 응답 확장 (v0415), ArduinoJson v7 정책, Button Timings 기본값, 📝 Config & Profile System (Schema 411), Consumer 마이그레이션 테이블 (`G_C20_LEGACY_410_TO_415[16]`), deleteProfile 정책 (v0415), E10 7파일 분할 기준 (+32 more)
 
 ### Community 949 - "🔋 전원 관리 (P20)"
 Cohesion: 0.29
@@ -4520,8 +4522,8 @@ Cohesion: 0.25
 Nodes (8): 27개 고정 트리거 인덱스 매핑, 2단 슬롯 매트릭스 (Global + Mode Override), 3 Modes, 🎛️ Mode 시스템, 버튼 디스패처 (C20), 설정 구조체 (`ST_C10_ButtonConfig_t`), 전환 (고정), 핵심 알고리즘
 
 ### Community 986 - "📝 AirMouse Elite S3 (v0412) 종합 가이드 & 기술 사양서"
-Cohesion: 0.20
-Nodes (9): 1. 📌 AI 어시스턴트를 위한 핵심 요약 (Read First), 2. 🎯 프로젝트 개요 & 핵심 특징, 8. 🖥️ Web UI (v0414) 프론트엔드 & i18n 표준화 가이드, 9. 🔌 하드웨어 사양 및 핀맵, 📝 AirMouse Elite S3 (v0412) 종합 가이드 & 기술 사양서, 📑 목차 (Table of Contents), 📎 부록: 주요 상수, 🎯 프로젝트 철학 (+1 more)
+Cohesion: 0.08
+Nodes (25): 1. 📌 AI 어시스턴트를 위한 핵심 요약 (Read First), 2. 🎯 프로젝트 개요 & 핵심 특징, 3.1. FreeRTOS 태스크 모델, 3.2. 데이터 흐름 및 파이프라인, 3.3. 상태 소유권 및 동기화 매트릭스, 3.4. Mutex 동기화 정책, 3. 🏗️ 시스템 아키텍처, 4.0. 백엔드 (`src/v0412/`) (+17 more)
 
 ### Community 987 - "API 레퍼런스"
 Cohesion: 0.12
@@ -4539,9 +4541,9 @@ Nodes (10): event_groups, HardwareSerial, LD2420CmdFrame, command, data, data_le
 Cohesion: 0.24
 Nodes (6): CL_A40_MutexGuard_Semaphore, _acquired, _caller, _mutexPtr, SemaphoreHandle_t, TickType_t
 
-### Community 991 - "7.10. 포인팅 정밀도 & 모션 알고리즘 고도화 (v0411)"
-Cohesion: 0.18
-Nodes (11): 7.10.10. 실측 검증 계획 (Phase 0, 사후 진행), 7.10.1. 모션 처리 파이프라인 (단방향, 6단계), 7.10.2. Adaptive Variable EMA (Phase 2), 7.10.3. Snap-to-Axis (Phase 3, Mode 2 프리셋 기본 ON), 7.10.4. Click-Freeze (Phase 1, 4-State FSM), 7.10.5. Config 스키마 확장, 7.10.6. Mode별 프리셋, 7.10.7. 모듈 책임 분리 (Architecture Boundary) (+3 more)
+### Community 991 - "7. 🚀 v0410 핵심 기능 상세 사양"
+Cohesion: 0.07
+Nodes (27): 7.10.10. 실측 검증 계획 (Phase 0, 사후 진행), 7.10.1. 모션 처리 파이프라인 (단방향, 6단계), 7.10.2. Adaptive Variable EMA (Phase 2), 7.10.3. Snap-to-Axis (Phase 3, Mode 2 프리셋 기본 ON), 7.10.4. Click-Freeze (Phase 1, 4-State FSM), 7.10.5. Config 스키마 확장, 7.10.6. Mode별 프리셋, 7.10.7. 모듈 책임 분리 (Architecture Boundary) (+19 more)
 
 ### Community 992 - "app_0414_0001.js"
 Cohesion: 0.44
@@ -4571,9 +4573,9 @@ Nodes (8): bindSlotsAndConfig(), cfgExport(), factoryReset(), diagClear(), otaSt
 Cohesion: 0.28
 Nodes (7): G_OFFLINE_DEFAULT_PROFILE_0, G_OFFLINE_KEYCODES, G_OFFLINE_START_TIME, G_OFFLINE_TRIGGERS, handleOfflineApi(), loadOfflineStore(), saveOfflineStore()
 
-### Community 999 - "AdvancedMotionProcessor"
-Cohesion: 0.22
-Nodes (6): AdvancedMotionProcessor, _baseAlpha, _isClickStabilizing, _lastClickTime, _lpfX, _lpfY
+### Community 999 - "E10_EliteAirMouse_002.h"
+Cohesion: 0.33
+Nodes (3): BleMouse, MPU6050, BleKeyboard
 
 ### Community 1001 - "am_i18n_0414.js"
 Cohesion: 0.48
@@ -4615,9 +4617,9 @@ Nodes (30): ST_E10_PrecProfile_t, accel_limit, alpha, gain, ST_E10_SpikeEvt_t, t
 Cohesion: 0.18
 Nodes (33): _collectBodyOrReply, _diagPush, _gateSafeModeOrReply, _isApiAllowedInSafeMode, _isSafeMode, _markLastApply, _sendErr, _sendOk (+25 more)
 
-### Community 1011 - "3. 🏗️ 시스템 아키텍처"
-Cohesion: 0.40
-Nodes (5): 3.1. FreeRTOS 태스크 모델, 3.2. 데이터 흐름 및 파이프라인, 3.3. 상태 소유권 및 동기화 매트릭스, 3.4. Mutex 동기화 정책, 3. 🏗️ 시스템 아키텍처
+### Community 1011 - "ST_C10_WiFiConfig_t"
+Cohesion: 0.29
+Nodes (7): ST_C10_WiFiConfig_t, ap_pass, ap_ssid, mdns_host, mode, sta_pass, sta_ssid
 
 ### Community 1012 - "📡 BLE (B20)"
 Cohesion: 0.40
@@ -4632,12 +4634,12 @@ Cohesion: 0.16
 Nodes (11): C10_ResolveSlot(), ST_C20_ActionSlot_t, ST_C10_ProfileIndex_t, activeIndex, profileCount, ST_C10_ProfileSlots_t, global, modes (+3 more)
 
 ### Community 1015 - "A40_ComFunc_0415.h"
-Cohesion: 0.11
-Nodes (31): new, semphr, Adafruit_NeoPixel, _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal() (+23 more)
+Cohesion: 0.13
+Nodes (29): memory, _A40__callerOrUnknown(), _buildPathWithSuffix(), CL_A40_muxGuard_Critical, _flagSpinlock, clampVal(), cloneStr2SharedStr_safe(), Copy_File_V22() (+21 more)
 
-### Community 1016 - "E10_EliteAirMouse_002.h"
-Cohesion: 0.33
-Nodes (3): BleMouse, MPU6050, BleKeyboard
+### Community 1016 - "ST_C10_WiFiConfig_t"
+Cohesion: 0.29
+Nodes (7): ST_C10_WiFiConfig_t, ap_pass, ap_ssid, mdns_host, mode, sta_pass, sta_ssid
 
 ### Community 1017 - "FLOW_0415.md — 기능별 데이터 흐름 및 파이프라인 명세"
 Cohesion: 0.05
@@ -4652,16 +4654,16 @@ Cohesion: 0.12
 Nodes (19): 9. 위반 시 조치, 하드코딩 규칙 (`_handleHardcodedButton`), _enqueueAction, _handleSpecial, requestGyroCalibration, _resolveSlot, _setActiveMode, CL_E10_EliteAirMouse::_enqueueAction() (+11 more)
 
 ### Community 1020 - "📝 AirMouse Elite S3 (v0415) 종합 가이드 & 기술 사양서"
-Cohesion: 0.08
-Nodes (25): 1. 📌 AI 어시스턴트를 위한 핵심 요약 (Read First), 2. 🎯 프로젝트 개요 & 핵심 특징, 3.1. FreeRTOS 태스크 모델, 3.2. 데이터 흐름 및 파이프라인, 3.3. 상태 소유권 및 동기화 매트릭스, 3.4. Mutex 동기화 정책, 3. 🏗️ 시스템 아키텍처, 4.0. 백엔드 (`src/v0415/`) (+17 more)
+Cohesion: 0.20
+Nodes (9): 1. 📌 AI 어시스턴트를 위한 핵심 요약 (Read First), 2. 🎯 프로젝트 개요 & 핵심 특징, 8. 🖥️ Web UI (v0415) 프론트엔드 & i18n 표준화 가이드, 9. 🔌 하드웨어 사양 및 핀맵, 📝 AirMouse Elite S3 (v0415) 종합 가이드 & 기술 사양서, 📑 목차 (Table of Contents), 📎 부록: 주요 상수, 🎯 프로젝트 철학 (+1 more)
 
 ### Community 1021 - "E10_AirMouse_Core_0415.cpp"
 Cohesion: 0.11
 Nodes (18): _applyE10ToRuntime, _applyFromConfig, _applyRuntimeLocked, _diagAndRecoverMpu, _snapshotRuntimeToE10Config, CL_E10_EliteAirMouse::_applyE10ToRuntime(), CL_E10_EliteAirMouse::applyRuntimeE10(), CL_E10_EliteAirMouse::_applyRuntimeLocked() (+10 more)
 
 ### Community 1022 - "CL_P20_Power"
-Cohesion: 0.11
-Nodes (23): esp_sleep, gpio, rtc_io, CL_P20_Power, _armExt1, begin, _cfg, deepSleepNow (+15 more)
+Cohesion: 0.08
+Nodes (31): esp_sleep, gpio, rtc_io, CL_P20_Power, _armExt1, begin, _cfg, deepSleepNow (+23 more)
 
 ### Community 1023 - "W10_WebApi_Com_0415.cpp"
 Cohesion: 0.11
@@ -4700,8 +4702,8 @@ Cohesion: 0.13
 Nodes (17): C10_TriggerGroup(), C10_TriggerName(), _fillE10StatusFromSnapshot, _kbName, _precModeName, _rebootReasonsString, CL_W10_WebConfig::apiTriggers(), CL_W10_WebConfig::_apiDiag() (+9 more)
 
 ### Community 1032 - "CONTRACT_0415.md — 모듈 경계 및 인터페이스 계약"
-Cohesion: 0.10
-Nodes (19): 1. 개요 및 설계 원칙, 3. FreeRTOS 큐 계약, 4. 공유 변수 및 상태 동기화 계약, 4대 절대 금지 규칙, 5.1 SLEEP_NOW 계약 (v0415 Q4-a), 5. 태스크 간 Special 액션 라우팅 계약, 6.1 `_startMacro` 원자화 (v0415), 6.2 취소 정책 (v0415: `_lock` 하 원자화) (+11 more)
+Cohesion: 0.07
+Nodes (28): buildWakeMaskAll(), 10. 개정 이력, 1. 개요 및 설계 원칙, 2.1 하드웨어 핀 및 Wake Mask SSOT 계약 (`HW_Def_0415.h`), 3. FreeRTOS 큐 계약, 4. 공유 변수 및 상태 동기화 계약, 4대 절대 금지 규칙, 5.1 SLEEP_NOW 계약 (v0415 Q4-a) (+20 more)
 
 ### Community 1033 - "16. v0412 잔여 유보 이슈 상세 및 대응 방안 (Deferred Issues)"
 Cohesion: 0.10
@@ -4715,13 +4717,13 @@ Nodes (14): getOverrideMask(), getSlotsArray(), profileCreate(), profileDelete()
 Cohesion: 0.16
 Nodes (16): applyRemoteMode(), bindModeTabs(), bindRemoteFoldToggle(), ctlSetMode(), initHybridJoystick(), getDir(), handleMove(), handleStart() (+8 more)
 
-### Community 1036 - "📝 Config & Profile System (Schema 411)"
-Cohesion: 0.25
-Nodes (8): 📝 Config & Profile System (Schema 411), Consumer 마이그레이션 테이블 (`G_C20_LEGACY_410_TO_415[16]`), deleteProfile 정책 (v0415), LittleFS 저장 구조, loadProfile 정책 (v0415), 검증 규칙, 스키마 마이그레이션 (v410 → v411, v0415 신규), 프로파일 본체 스키마
+### Community 1036 - "ST_Runtime_t"
+Cohesion: 0.29
+Nodes (6): ST_C20_ActionSlot_t, ST_Runtime_t, active, lastRepeatMs, repeatMs, slot
 
 ### Community 1037 - "6. v0415 리팩터 반영"
 Cohesion: 0.08
-Nodes (23): 1. 태스크 주기 및 시간 예산, 2.1 sensorTask 컨텍스트, 2.2 commTask 컨텍스트, 2.3 매크로 step 실행 정책 (v0415 명확화), 2. 잠재적 블로킹 지점 및 제한 규칙, 3. 동기화 원시 타입 비용, 4. 큐 깊이 및 드롭 정책, 5.1 D10 Logger 관측 카운터 (v0415 rev9 신규) (+15 more)
+Nodes (24): 1. 태스크 주기 및 시간 예산, 2.1 sensorTask 컨텍스트, 2.2 commTask 컨텍스트, 2.3 매크로 step 실행 정책 (v0415 명확화), 2.4 D10 로깅 및 비동기 리부트 블로킹 제한 규칙 (rev11), 2. 잠재적 블로킹 지점 및 제한 규칙, 3. 동기화 원시 타입 비용, 4. 큐 깊이 및 드롭 정책 (+16 more)
 
 ### Community 1038 - "Elite AirMouse S3 — 사용자 매뉴얼"
 Cohesion: 0.11
@@ -4737,7 +4739,7 @@ Nodes (20): clean_dst_www(), copy_file(), create_js_bundle(), ensure_dir(), _ens
 
 ### Community 1041 - "2. 함수 인터페이스 계약"
 Cohesion: 0.08
-Nodes (24): 1) DOWN/UP 안정 상태 전이, 2.10 버튼 이벤트 시퀀스 계약 (v0415, C20 patch), 2.11 I2C 버스 복구 및 센서 주소 자동 탐색 계약 (v0415), 2.12 NimBLE 비동기 초기화 및 Mutex 방어 계약 (v0415), 2.13 Wi-Fi SoftAP 전환, 웹 라우팅 별칭 및 SafeBoot 버퍼 무결성 계약 (v0415), 2.14 Deep-sleep 셧다운 순서 계약 (v0415 rev12 신규), 2.15 C10 부팅 상태 Mutex 계약 (v0415 rev12 신규), 2.16 C10 원자적 저장 rotate 계약 (v0415 rev12 신규) (+16 more)
+Nodes (25): 1) DOWN/UP 안정 상태 전이, 2.10 버튼 이벤트 시퀀스 계약 (v0415, C20 patch), 2.11 I2C 버스 복구 및 센서 주소 자동 탐색 계약 (v0415), 2.12 NimBLE 비동기 초기화 및 Mutex 방어 계약 (v0415), 2.13 Wi-Fi SoftAP 전환, 웹 라우팅 별칭 및 SafeBoot 버퍼 무결성 계약 (v0415), 2.14 Deep-sleep 셧다운 순서 계약 (v0415 rev12 신규), 2.15 C10 부팅 상태 Mutex 계약 (v0415 rev12 신규), 2.16 C10 원자적 저장 rotate 계약 (v0415 rev12 신규) (+17 more)
 
 ### Community 1042 - "ST_C10_Macro_t"
 Cohesion: 0.13
@@ -4751,9 +4753,9 @@ Nodes (15): 10. 소스 파일 구조 (`v0412`), 1-1. 핵심 사양 변화 매트
 Cohesion: 0.14
 Nodes (7): _pushErr, CL_E10_EliteAirMouse::setOtaGuard(), CL_E10_EliteAirMouse::setSafeMode(), CL_E10_EliteAirMouse::getStatus(), CL_E10_EliteAirMouse::_recoverI2C(), CL_E10_EliteAirMouse::_runGyroCalibration(), ST_E10_Status_t
 
-### Community 1045 - "4. 📁 프로젝트 디렉터리 구조"
-Cohesion: 0.50
-Nodes (4): 4.0. 백엔드 (`src/v0412/`), 4.1. E10 모듈 7파일 분할 기준, 4.2. 프론트엔드 8-모듈 구조 (`data_v0414_www/`), 4. 📁 프로젝트 디렉터리 구조
+### Community 1045 - "📡 BLE (B20)"
+Cohesion: 0.33
+Nodes (6): 📡 BLE (B20), Bond 관리, Composite HID, Host Cycle (disconnect-only), Pairing Mode, 상수 (v0415)
 
 ### Community 1046 - "ST_C10_ProfileConfig_t"
 Cohesion: 0.14
@@ -4787,17 +4789,17 @@ Nodes (13): Front Hold 스크롤, Phase 11.5 (포인팅 정밀도 & 모션 알�
 Cohesion: 0.19
 Nodes (9): _startAp, _startMdns, _stopMdns, CL_W10_WebConfig::_onWifiEvent(), CL_W10_WebConfig::s_wifiEvent(), CL_W10_WebConfig::_setupWiFi(), CL_W10_WebConfig::_startAp(), WiFiEvent_t (+1 more)
 
-### Community 1054 - "6. 📐 명명 규칙 & 코드 정책"
-Cohesion: 0.50
-Nodes (4): 6.1. 명명 규칙 (Strict Naming Conventions), 6.2. ArduinoJson v7 전용 코딩 정책, 6.3. 안전 원자적 IO 정책 (Atomic Storage), 6. 📐 명명 규칙 & 코드 정책
+### Community 1054 - "3. 🏗️ 시스템 아키텍처"
+Cohesion: 0.40
+Nodes (5): 3.1. FreeRTOS 태스크 모델, 3.2. 데이터 흐름 및 파이프라인, 3.3. 상태 소유권 및 동기화 매트릭스, 3.4. Mutex 동기화 정책, 3. 🏗️ 시스템 아키텍처
 
-### Community 1055 - "5. 🛠️ 빌드 시스템 (PlatformIO CLI)"
-Cohesion: 0.67
-Nodes (3): 5. 🛠️ 빌드 시스템 (PlatformIO CLI), 리소스 사용 (v0410 최종), 필수 명령어
+### Community 1055 - "MouseState"
+Cohesion: 0.40
+Nodes (5): MouseState, updated, wheel, x, y
 
-### Community 1056 - "ST_Runtime_t"
-Cohesion: 0.29
-Nodes (6): ST_C20_ActionSlot_t, ST_Runtime_t, active, lastRepeatMs, repeatMs, slot
+### Community 1056 - "🖥️ 프론트엔드 (Web UI)"
+Cohesion: 0.40
+Nodes (5): 웹 진입 및 라우팅 규약 (Direct Serving), 자동 빌드 파이프라인 (`pio_gzip_0415.py`), 캐시 및 압축 정책, 파일 구조 (소스 분리 ↔ 런타임 단일 번들), 🖥️ 프론트엔드 (Web UI)
 
 ### Community 1057 - "C10_Def_0415.h"
 Cohesion: 0.17
@@ -4827,9 +4829,9 @@ Nodes (11): 10. 비교 요약, 11. Mode별 vs Global (재확인), 12. 남은 결
 Cohesion: 0.18
 Nodes (10): 0. 관련 요구사항 문서, 10. 마이그레이션 및 기존 Config 처리 정책 (D6, R10), 11. 시스템 자원 예산 분석, 12. 전체 개발 Phase 분할, 13. 핵심 설계 결정 사항 (R1~R10 확정), 1. 요구사항 정리 및 결정 요약, 4-1. 인덱스 매핑 및 잠금 정의, 4. 트리거 라이브러리 및 잠금 정책 (27개) (+2 more)
 
-### Community 1064 - "7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)"
-Cohesion: 0.67
-Nodes (3): 7.11.1. 설정 파라미터 (`ST_C10_PowerConfig_t`), 7.11.2. 슬립/웨이크 라이프사이클 및 안전 처리, 7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)
+### Community 1064 - "4. 📁 프로젝트 디렉터리 구조"
+Cohesion: 0.50
+Nodes (4): 4.0. 백엔드 (`src/v0415/`), 4.1. E10 모듈 7파일 분할 기준, 4.2. 프론트엔드 8-모듈 구조 (`data_v0415_www/`), 4. 📁 프로젝트 디렉터리 구조
 
 ### Community 1065 - "ST_C10_ButtonConfig_t"
 Cohesion: 0.20
@@ -4843,9 +4845,13 @@ Nodes (10): 3. 각 축 상세, 🟢 A. 프로파일 세트 (권장), 🟢 B. 매
 Cohesion: 0.20
 Nodes (9): 7.10.1. 모션 처리 파이프라인 (단방향, 6단계), 7.10.2. Adaptive Variable EMA, 7.10.3. Snap-to-Axis (Mode 2 프리셋 기본 ON), 7.10.4. Click-Freeze (4-State FSM), 7.10.5. Config 스키마 확장, 7.10.6. Mode별 프리셋, 7.10.7. 모듈 책임 분리, 7.10.8. 실측 검증 계획 (구현 전) (+1 more)
 
-### Community 1068 - "7.12. 버튼 디스패처 & 타이밍 고도화 (C20)"
-Cohesion: 0.67
-Nodes (3): 7.12.1. 설정 파라미터 (`ST_C10_ButtonConfig_t`), 7.12.2. 핵심 알고리즘, 7.12. 버튼 디스패처 & 타이밍 고도화 (C20)
+### Community 1068 - "6. 📐 명명 규칙 & 코드 정책"
+Cohesion: 0.50
+Nodes (4): 6.1. 명명 규칙 (Strict Naming Conventions), 6.2. ArduinoJson v7 전용 코딩 정책, 6.3. 안전 원자적 IO 정책 (Atomic Storage), 6. 📐 명명 규칙 & 코드 정책
+
+### Community 1070 - "ST_ActionCmd_t"
+Cohesion: 0.50
+Nodes (4): ST_C20_ActionSlot_t, ST_ActionCmd_t, isDown, slot
 
 ### Community 1071 - "ST_C10_MotionAdv_ClickFreeze_t"
 Cohesion: 0.22
@@ -4887,6 +4893,14 @@ Nodes (8): ST_C10_MotionAdv_Snap_t, axis_mode, confirm_frames, enable, mode_mask
 Cohesion: 0.32
 Nodes (8): bindSlotsAndConfig(), cfgExport(), factoryReset(), diagClear(), otaStatus(), otaUpload(), refreshDiag(), renderDiag()
 
+### Community 1081 - "5. 🛠️ 빌드 시스템 (PlatformIO CLI)"
+Cohesion: 0.67
+Nodes (3): 5. 🛠️ 빌드 시스템 (PlatformIO CLI), 리소스 사용 (v0410 최종), 필수 명령어
+
+### Community 1082 - "7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)"
+Cohesion: 0.67
+Nodes (3): 7.11.1. 설정 파라미터 (`ST_C10_PowerConfig_t`), 7.11.2. 슬립/웨이크 라이프사이클 및 안전 처리, 7.11. 전원 관리 시스템 (P20 & Light/Deep Sleep & WoM)
+
 ### Community 1083 - "🏗️ 아키텍처"
 Cohesion: 0.25
 Nodes (8): main.cpp 부팅 시퀀스, Mutex 정책, 데이터 흐름 (반드시 준수), 매크로 실행 (비동기 상태머신), 상태 소유권, 🏗️ 아키텍처, 태스크 간 Special 액션 라우팅, 태스크 모델
@@ -4899,21 +4913,17 @@ Nodes (8): 12.1 개념 정의, 12.2 27가지 조작 동작 분류, 12.3 절대 �
 Cohesion: 0.25
 Nodes (7): ST_E10_Frame_t, btn_mask, pan, updated, wheel, x, y
 
-### Community 1087 - "MouseState"
-Cohesion: 0.40
-Nodes (5): MouseState, updated, wheel, x, y
+### Community 1086 - "7.12. 버튼 디스패처 & 타이밍 고도화 (C20)"
+Cohesion: 0.67
+Nodes (3): 7.12.1. 설정 파라미터 (`ST_C10_ButtonConfig_t`), 7.12.2. 핵심 알고리즘, 7.12. 버튼 디스패처 & 타이밍 고도화 (C20)
+
+### Community 1087 - "CL_E10_EliteAirMouse::begin"
+Cohesion: 0.67
+Nodes (3): _applyFromConfig, CL_E10_EliteAirMouse::begin(), CL_C10_Config
 
 ### Community 1088 - "am_i18n_0415.js"
 Cohesion: 0.21
 Nodes (11): 5.1 코드 변경 요약, 5.2 기대 효과, 5.3 빌드 파이프라인 검증, 5.4 후속 확인 권장 (차기 라운드), Step 5. 검증 및 결과 요약, applyI18nToDom(), I18N_DICT, initI18n() (+3 more)
-
-### Community 1089 - "📐 명명 규칙 & 코드 정책"
-Cohesion: 0.40
-Nodes (5): ArduinoJson v7 정책, 명명 규칙 (엄격), 📐 명명 규칙 & 코드 정책, 문자열/초기화, 안전 IO
-
-### Community 1090 - "🖥️ 프론트엔드 (Web UI)"
-Cohesion: 0.40
-Nodes (5): 웹 진입 및 라우팅 규약 (Direct Serving), 자동 빌드 파이프라인 (`pio_gzip_0415.py`), 캐시 및 압축 정책, 파일 구조 (소스 분리 ↔ 런타임 단일 번들), 🖥️ 프론트엔드 (Web UI)
 
 ### Community 1091 - "6. A 도입 시 설계 요약"
 Cohesion: 0.29
@@ -5128,8 +5138,8 @@ Cohesion: 0.67
 Nodes (3): 15-1. P-A 선언부 사전 검증 체크리스트, 15-2. 다음 개발 단계 (Next Steps), 15. 검증 체크리스트 및 다음 개발 단계
 
 ## Knowledge Gaps
-- **10148 isolated node(s):** `name`, `version`, `description`, `keywords`, `authors` (+10143 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 12193 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **10150 isolated node(s):** `name`, `version`, `description`, `keywords`, `authors` (+10145 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 12195 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **157 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
@@ -5139,10 +5149,10 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **Why does `CL_E10_EliteAirMouse` connect `CL_E10_EliteAirMouse` to `E10_AirMouse_Task_0415.cpp`, `ST_ActionCmd_t`, `ST_MacroState_t`, `forceReleaseButtons`, `ST_E10_Frame_t`, `E10_AirMouse_Diag_0415.cpp`, `E10_AirMouse_Hid_0415.cpp`, `E10_AirMouse_Action_0415.cpp`, `E10_AirMouse_Core_0415.cpp`, `arduino`?**
   _High betweenness centrality (0.022) - this node is a cross-community bridge._
-- **Why does `CL_E10_EliteAirMouse` connect `CL_E10_EliteAirMouse` to `CL_E10_EliteAirMouse::begin`, `E10_AirMouse_Action_0400.cpp`, `E10_AirMouse_Task_0400.cpp`, `._lock`, `ST_E10_Frame_t`, `ST_ActionCmd_t`, `E10_AirMouse_Hid_0400.cpp`, `arduino`?**
+- **Why does `CL_E10_EliteAirMouse` connect `CL_E10_EliteAirMouse` to `E10_AirMouse_Action_0400.cpp`, `E10_AirMouse_Task_0400.cpp`, `._lock`, `ST_ActionCmd_t`, `ST_E10_Frame_t`, `E10_AirMouse_Hid_0400.cpp`, `arduino`, `CL_E10_EliteAirMouse::begin`?**
   _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **What connects `name`, `version`, `description` to the rest of the system?**
-  _10148 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _10150 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `CL_E10_EliteAirMouse` be split into smaller, more focused modules?**
   _Cohesion score 0.013245033112582781 - nodes in this community are weakly interconnected._
 - **Should `CL_E10_EliteAirMouse` be split into smaller, more focused modules?**
