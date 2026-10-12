@@ -264,7 +264,7 @@ async function keyTest(page, mod, code, labelOverride) {
   }
 
   const label = labelOverride || ((page === "kb")
-    ? `KB u=${mod} mod=${mod}`   // (원본 유지: KB u=code mod=mod)
+    ? `KB u=${code} mod=${mod}`
     : `Consumer 0x${(code >>> 0).toString(16).toUpperCase()}`);
   if (typeof pushRecentLog === "function") pushRecentLog(label, true);
 

@@ -226,9 +226,8 @@ const REMOTE_CONFIG_BY_MODE = {
     sub2: { labelKey: "remote.tv_home", action: () => keyTest("consumer", 0, 0x008000) },
     pad1U: { label: "VOL +", action: () => keyTest("consumer", 0, 0x002000) },
     pad1D: { label: "VOL -", action: () => keyTest("consumer", 0, 0x004000) },
-    pad2U: { label: "▶⏸", action: () => keyTest("consumer", 0, 0x000800) },
-    // [v0415] Input: 0x2000 → WWW_SEARCH 0x080000 (Descriptor 미지원 → 대체)
-    pad2D: { labelKey: "remote.tv_input", action: () => keyTest("consumer", 0, 0x080000) },
+    // [B1-2] label↔action 불일치 해소: WWW_SEARCH 실제 동작 → "검색" 라벨로 교체
+    pad2D: { labelKey: "tools.tv.search", action: () => keyTest("consumer", 0, 0x080000) },
     
     // [FIX-5] CH_UP/DOWN: Descriptor 미지원 → 시각적 비활성 (disabled 플래그)
     //   - action 제거 (조용한 거짓 로그 방지)
