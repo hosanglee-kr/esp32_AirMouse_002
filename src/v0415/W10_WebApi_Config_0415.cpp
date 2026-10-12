@@ -192,6 +192,21 @@ void CL_W10_WebConfig::apiExport(AsyncWebServerRequest* req) {
         const AsyncWebParameter* p = req->getParam("filename");
         if (p) v_filename = p->value();
     }
+
+    // [W2] 파일명 sanitize (CRLF/제어문자/경로조작 방어 → 헤더 인젝션 차단)
+    String v_safe;
+    v_safe.reserve(v_filename.length());
+    for (size_t i = 0; i < v_filename.length() && v_safe.length() < 64; i++) {
+        const char c = v_filename[i];
+        if (c == '\r' || c == '\n' || c == '"' || c == '\\' || c == '/' ||
+            (uint8_t)c < 0x20 || c == 0x7F) {
+            v_safe += '_';
+        } else {
+            v_safe += c;
+        }
+    }
+    v_filename = v_safe;
+
     if (v_filename.length() == 0) {
         char v_buf[40];
         snprintf(v_buf, sizeof(v_buf), "profile_%u.json",

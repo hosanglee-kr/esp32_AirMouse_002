@@ -67,8 +67,12 @@ namespace C10_DEF {
     static constexpr const char* PROFILES_DIR       = "/json/profiles";
     static constexpr const char* PROFILE_ACTIVE     = "/json/active_profile.json";
     static constexpr const char* PROFILE_ACTIVE_TMP = "/json/active_profile.json.tmp";
+    // [P1] 원자적 저장용 .old 경로 (rotate 방식)
+    static constexpr const char* PROFILE_ACTIVE_OLD = "/json/active_profile.json.old";
     static constexpr const char* BOOT_PATH          = "/json/boot_state_0415.json";
     static constexpr const char* BOOT_TMP_PATH      = "/json/boot_state_0415.json.tmp";
+    // [P2] 원자적 저장용 .old 경로 (rotate 방식)
+    static constexpr const char* BOOT_OLD_PATH      = "/json/boot_state_0415.json.old";
 
     static constexpr uint8_t SAFE_FAIL_THRESHOLD = 2;
 
@@ -80,12 +84,14 @@ namespace C10_DEF {
 
     static inline bool makeProfilePath(char* p_dst, size_t p_dstSize, uint8_t p_idx) {
         if (!p_dst || p_dstSize < 32) return false;
+        if (p_idx >= PROFILE_MAX) return false;              // [P4] idx 상한 가드
         const int v_n = snprintf(p_dst, p_dstSize, "%s/profile_%u.json", PROFILES_DIR, (unsigned)p_idx);
         return (v_n > 0 && (size_t)v_n < p_dstSize);
     }
 
     static inline bool makeProfileTmpPath(char* p_dst, size_t p_dstSize, uint8_t p_idx) {
         if (!p_dst || p_dstSize < 40) return false;
+        if (p_idx >= PROFILE_MAX) return false;              // [P4]
         const int v_n = snprintf(p_dst, p_dstSize, "%s/profile_%u.json.tmp", PROFILES_DIR, (unsigned)p_idx);
         return (v_n > 0 && (size_t)v_n < p_dstSize);
     }

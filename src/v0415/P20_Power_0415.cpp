@@ -286,6 +286,11 @@ bool CL_P20_Power::deepSleepNow(uint32_t p_nowMs,
              (unsigned)(p_nowMs - _lastActivityMs),
              (int)p_safe);
 
+    // [W1] MPU6050 sleep bit 설정 (~4mA 절감, SPEC §전원관리 정합)
+    //   - deep sleep wake는 버튼 EXT1만 사용하므로 MPU WoM 불필요
+    static constexpr uint8_t G_MPU_PWR1_SLEEP = 0x40;
+    (void)mpuWr(G_MPU_PWR_MGMT_1, G_MPU_PWR1_SLEEP);
+
     // [v0415] Safe 분기 마스크
     //   - Safe  → buildWakeMaskSafe()    (Side C 단독)
     //   - 일반  → buildWakeMaskButtons() (6버튼, MPU 제외)

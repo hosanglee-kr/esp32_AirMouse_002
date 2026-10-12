@@ -7,17 +7,29 @@
  * ------------------------------------------------------
  * 기능 요약
  *  - INFO / WARN / ERROR / DEBUG 레벨
- *  - RingBuffer(256) 순환 로그 + drop 카운터
- *  - Serial 실시간 출력 (ANSI 색상, 타임스탬프)
- *  - Thread-safe (portMUX)
+ *  - RingBuffer(64) 순환 로그 + overwrite 카운터 + truncation 카운터
+ *  - Serial 실시간 출력 (ANSI 색상, 타임스탬프, 단일 write)
+ *  - Two-Phase Locking (인덱스 확보만 critical, 메시지 복사는 critical 외부)
  *
- * [v0415 대폭 축소 — Phase 2 grep 결과 반영]
- *  - 삭제: getStats / getCountByLevel / markOk / markFail / markSpike
- *          getConsecFail / getSpike / getLastFailMs / getDropCount
- *          getLastErrMs / getLastWarnMs / getLogsAsJsonText / saveToFile
- *  - 이유: 전부 Dead code (grep 결과 어디에서도 호출 없음)
- *  - 정책: 로그 레벨별 판정/통계는 E10 도메인이 담당 (E10::_errMpuNan 등)
- *          D10은 순수 "로그 출력" 책임만 보유 (Phase 2 Q2-c 결정)
+ * [v0415 rev2 — 권고안 반영]
+ *  - SRAM 최적화: BUFFER_SIZE 256→64, MSG_MAX 128→96 (34KB → 6.5KB)
+ *  - Two-Phase Locking: 인덱스만 portENTER_CRITICAL, 96B 복사는 critical 외부
+ *  - 타임스탬프 단일 취득 (log 진입 시 millis() 1회)
+ *  - Serial 라인 단일 버퍼 write (printf 분할 인터리빙 방지)
+ *  - Dead 제거: s_lvCount, s_lastErrMs, s_lastWarnMs, G_D10_LEVEL_MAX
+ *  - 네이밍 정정: s_dropCount → s_overwriteCount
+ *  - 신규 관측: s_truncCount, getOverwriteCount(), getTruncCount()
+ *  - begin() delay(30) 제거 → setup() 대기 위임 (USB CDC 이식성)
+ *  - inline static 정의 → .cpp 이동 (ESP32 Core 2.x/3.x 이식성)
+ *  - volatile: _logLevel, _showTimestamp, _showMemUsage
+ *
+ * [컨텍스트 계약]
+ *  - Task 문맥 전용. ISR/timer 콜백에서 호출 금지.
+ *  - 포터블한 확장이 필요하면 portENTER_CRITICAL_ISR 래퍼 도입 필요.
+ *
+ * [정책]
+ *  - 로그 레벨별 판정/통계는 E10 도메인이 담당 (E10::_errMpuNan 등)
+ *  - D10은 순수 "로그 출력" 책임만 보유
  * ------------------------------------------------------
  */
 
@@ -32,6 +44,24 @@
 #endif
 
 // ------------------------------------------------------
+// ANSI 색상
+// ------------------------------------------------------
+#define G_D10_COLOR_RESET   "\033[0m"
+#define G_D10_COLOR_RED     "\033[31m"
+#define G_D10_COLOR_YELLOW  "\033[33m"
+#define G_D10_COLOR_GREEN   "\033[32m"
+#define G_D10_COLOR_CYAN    "\033[36m"
+#define G_D10_COLOR_WHITE   "\033[37m"
+
+// ------------------------------------------------------
+// [v0415 rev2] 상수
+//   - MSG_MAX: 128 → 96 (실측 최장 로그 ~58자 + 여유)
+//   - SERIAL_LINE_MAX: 단일 write용 라인 버퍼 (2줄 출력 대응)
+// ------------------------------------------------------
+static constexpr uint16_t G_D10_MSG_MAX         = 96;
+static constexpr uint16_t G_D10_SERIAL_LINE_MAX = 256;
+
+// ------------------------------------------------------
 // 로그 레벨
 // ------------------------------------------------------
 typedef enum : uint8_t {
@@ -43,23 +73,11 @@ typedef enum : uint8_t {
 } EN_D10_LogLevel_t;
 
 // ------------------------------------------------------
-// ANSI 색상
-// ------------------------------------------------------
-#define G_D10_COLOR_RESET   "\033[0m"
-#define G_D10_COLOR_RED     "\033[31m"
-#define G_D10_COLOR_YELLOW  "\033[33m"
-#define G_D10_COLOR_GREEN   "\033[32m"
-#define G_D10_COLOR_CYAN    "\033[36m"
-#define G_D10_COLOR_WHITE   "\033[37m"
-
-// ------------------------------------------------------
-// [v0415] 상수화
-// ------------------------------------------------------
-static constexpr uint16_t G_D10_MSG_MAX    = 128;
-static constexpr uint8_t  G_D10_LEVEL_MAX  = 4;   // EN_D10_LOG_DEBUG
-
-// ------------------------------------------------------
-// 로그 엔트리
+// 로그 엔트리 (104 bytes, 4-byte align)
+//   offset 0  : uint32_t  timestamp   (4B)
+//   offset 4  : enum       level      (1B)
+//   offset 5  : char[96]   message    (96B)
+//   offset 101: padding               (3B)
 // ------------------------------------------------------
 typedef struct {
     uint32_t           timestamp;
@@ -72,13 +90,16 @@ typedef struct {
 // ------------------------------------------------------
 class CL_D10_Logger {
   public:
-    static const uint16_t BUFFER_SIZE = 256;
+    // [v0415 rev2] 256 → 64 (SRAM 34KB → 6.5KB)
+    static constexpr uint16_t BUFFER_SIZE = 64;
 
     static void begin(Stream& p_serial = Serial);
 
-    static void setLevel(EN_D10_LogLevel_t p_level) { _logLevel = p_level; }
-    static EN_D10_LogLevel_t getLevel() { return _logLevel; }
+    // [v0415 rev2] inline → .cpp 이동 (volatile 가시성)
+    static void setLevel(EN_D10_LogLevel_t p_level);
+    static EN_D10_LogLevel_t getLevel();
 
+    // 간단 volatile write — inline 유지
     static void enableTimestamp(bool p_enable) { _showTimestamp = p_enable; }
     static void enableMemUsage(bool p_enable) { _showMemUsage = p_enable; }
 
@@ -90,48 +111,36 @@ class CL_D10_Logger {
 
     static void printBanner();
 
+    // [v0415 rev2] 관측용 (신규)
+    static uint32_t getOverwriteCount();
+    static uint32_t getTruncCount();
+
   private:
-    static void _pushToRing(EN_D10_LogLevel_t p_level, const char* p_msg);
-    static void _printToSerial(EN_D10_LogLevel_t p_level, const char* p_msg);
+    static void _pushToRing(EN_D10_LogLevel_t p_level, const char* p_msg, uint32_t p_nowMs);
+    static void _printToSerial(EN_D10_LogLevel_t p_level, const char* p_msg, uint32_t p_nowMs);
     static const char* _getColor(EN_D10_LogLevel_t p_level);
     static const char* _getTag(EN_D10_LogLevel_t p_level);
 
   private:
-    static Stream*              _serial;
-    static EN_D10_LogLevel_t    _logLevel;
-    static bool                 _showTimestamp;
-    static bool                 _showMemUsage;
+    static Stream*                    _serial;
+
+    // [v0415 rev2 / #9] volatile: 태스크 간 메모리 가시성
+    static volatile EN_D10_LogLevel_t _logLevel;
+    static volatile bool              _showTimestamp;
+    static volatile bool              _showMemUsage;
 
 #if G_D10_THREAD_SAFE
-    static portMUX_TYPE         s_mux;
+    static portMUX_TYPE               s_mux;
 #endif
 
-    static ST_D10_LogEntry      s_buffer[BUFFER_SIZE];
-    static uint16_t             s_head;
-    static uint16_t             s_count;
-    static uint32_t             s_dropCount;
-    static uint32_t             s_lvCount[G_D10_LEVEL_MAX + 1];
-    static uint32_t             s_lastErrMs;
-    static uint32_t             s_lastWarnMs;
+    static ST_D10_LogEntry            s_buffer[BUFFER_SIZE];
+    static volatile uint16_t          s_head;
+    static volatile uint16_t          s_count;
+    // [v0415 rev2 / #7] 네이밍 정정: drop → overwrite
+    static volatile uint32_t          s_overwriteCount;
+    // [v0415 rev2 / 추가 B] 잘림 카운터
+    static volatile uint32_t          s_truncCount;
 };
-
-// 정적 멤버 초기화 (inline)
-inline Stream*              CL_D10_Logger::_serial         = nullptr;
-inline EN_D10_LogLevel_t    CL_D10_Logger::_logLevel       = EN_D10_LOG_INFO;
-inline bool                 CL_D10_Logger::_showTimestamp  = true;
-inline bool                 CL_D10_Logger::_showMemUsage   = false;
-
-#if G_D10_THREAD_SAFE
-inline portMUX_TYPE         CL_D10_Logger::s_mux = portMUX_INITIALIZER_UNLOCKED;
-#endif
-
-inline ST_D10_LogEntry      CL_D10_Logger::s_buffer[CL_D10_Logger::BUFFER_SIZE];
-inline uint16_t             CL_D10_Logger::s_head      = 0;
-inline uint16_t             CL_D10_Logger::s_count     = 0;
-inline uint32_t             CL_D10_Logger::s_dropCount = 0;
-inline uint32_t             CL_D10_Logger::s_lvCount[G_D10_LEVEL_MAX + 1] = {0};
-inline uint32_t             CL_D10_Logger::s_lastErrMs = 0;
-inline uint32_t             CL_D10_Logger::s_lastWarnMs = 0;
 
 // ------------------------------------------------------
 // 매크로 (D10_ 접두사)
@@ -145,14 +154,6 @@ inline const char* _D10_callerOrUnknown(const char* p_caller) {
 #define D10_LOGI(_fmt, ...) CL_D10_Logger::log(EN_D10_LOG_INFO,  "[%s] " _fmt, __func__, ##__VA_ARGS__)
 #define D10_LOGD(_fmt, ...) CL_D10_Logger::log(EN_D10_LOG_DEBUG, "[%s] " _fmt, __func__, ##__VA_ARGS__)
 
-// ------------------------------------------------------
-// [v0415 fix] 호출자 명시 변형 (_C)
-// ------------------------------------------------------
-//  - A40 삭제 시 우발적으로 함께 제거됨 (Round L 오판정)
-//  - C10_Config_0415 / B20_Ble_0415 등 모듈에서 사용 중
-//  - __func__ 대신 명시적 caller 문자열을 로그 prefix로 사용
-//  - 예: D10_LOGW_C("C10::loadProfile", "patch failed: idx=%u", idx)
-// ------------------------------------------------------
 #define D10_LOGE_C(_caller, _fmt, ...) \
     CL_D10_Logger::log(EN_D10_LOG_ERROR, "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
 #define D10_LOGW_C(_caller, _fmt, ...) \
@@ -161,4 +162,3 @@ inline const char* _D10_callerOrUnknown(const char* p_caller) {
     CL_D10_Logger::log(EN_D10_LOG_INFO,  "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
 #define D10_LOGD_C(_caller, _fmt, ...) \
     CL_D10_Logger::log(EN_D10_LOG_DEBUG, "[%s] " _fmt, _D10_callerOrUnknown((_caller)), ##__VA_ARGS__)
-    

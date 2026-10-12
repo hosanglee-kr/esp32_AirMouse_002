@@ -126,10 +126,14 @@ bool CL_W10_WebConfig::_calcFileEtag32(const char* p_path, uint32_t& p_outEtag, 
 
     const size_t S = 256;
     readAt(0, (v_size >= S ? S : v_size));
+
+    // [W5] mid 샘플링이 head와 겹치지 않을 때만 실행
     if (v_size > S) {
         size_t mid = (v_size / 2);
         if (mid >= (S / 2)) mid -= (S / 2);
-        readAt(mid, (v_size >= S ? S : v_size));
+        if (mid >= S) {
+            readAt(mid, (v_size >= S ? S : v_size));
+        }
     }
     if (v_size > (2 * S)) {
         readAt(v_size - S, S);
@@ -472,16 +476,31 @@ void CL_W10_WebConfig::_handleDynamicStatic(AsyncWebServerRequest* req) {
         return;
     }
 
-    // [v0415] /www/ 프리픽스 누락 요청 폴백 (/style_0415.css, /lib/* 등)
-    {
-        String v_wwwAlt = String("/www") + v_uri;
-        char v_altExt[12];
-        memset(v_altExt, 0, sizeof(v_altExt));
-        const char* v_extLower = W10_getLowerExt(v_wwwAlt.c_str(), v_altExt, sizeof(v_altExt));
-        if (v_extLower && W10_isAllowedWwwExt(v_extLower) && W10_isPathSafe(v_wwwAlt.c_str())) {
-            if (LittleFS.exists(v_wwwAlt) || LittleFS.exists(v_wwwAlt + ".gz")) {
-                D10_LOGI("[W10] fallback /www map: %s", v_wwwAlt.c_str());
-                _serveWwwStatic(req, v_wwwAlt.c_str());
+    // [W4] /www 폴백 매핑: prefix 화이트리스트 + 스택 버퍼 (힙 할당 제거)
+    static constexpr const char* G_WWW_FALLBACK_PREFIXES[] = {
+        "/style_0415.css",
+        "/app_0415_0001.js",
+        "/app_bundle_0415.js",
+        "/lib/",
+        "/images/",
+        "/fonts/",
+    };
+
+    bool v_wwwFallback = false;
+    for (size_t i = 0; i < sizeof(G_WWW_FALLBACK_PREFIXES) / sizeof(G_WWW_FALLBACK_PREFIXES[0]); i++) {
+        if (v_uri.startsWith(G_WWW_FALLBACK_PREFIXES[i])) { v_wwwFallback = true; break; }
+    }
+
+    if (v_wwwFallback) {
+        char v_altPath[192];
+        const int v_n = snprintf(v_altPath, sizeof(v_altPath), "/www%s", v_uri.c_str());
+        if (v_n > 0 && (size_t)v_n < sizeof(v_altPath) && W10_isPathSafe(v_altPath)) {
+            char v_altExt[12];
+            memset(v_altExt, 0, sizeof(v_altExt));
+            const char* v_extLower = W10_getLowerExt(v_altPath, v_altExt, sizeof(v_altExt));
+            if (v_extLower && W10_isAllowedWwwExt(v_extLower) && LittleFS.exists(v_altPath)) {
+                D10_LOGI("[W10] fallback /www map: %s", v_altPath);
+                _serveWwwStatic(req, v_altPath);
                 return;
             }
         }
@@ -507,12 +526,16 @@ void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p
     }
 
     bool v_useGz = false;
+    bool v_gzVariantExists = false;   // [W3] gz variant 존재 여부 분리
     String v_gzPath;
 
     if (W10_isGzipTargetExt(v_extLower)) {
         v_gzPath = String(p_path) + ".gz";
-        if (LittleFS.exists(v_gzPath) && _acceptsGzip(req)) {
-            v_useGz = true;
+        if (LittleFS.exists(v_gzPath)) {
+            v_gzVariantExists = true;
+            if (_acceptsGzip(req)) {
+                v_useGz = true;
+            }
         }
     }
 
@@ -537,8 +560,7 @@ void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p
 
     // 304 처리
     if (v_etagOk && _ifNoneMatchHit(req, v_etag)) {
-        // Vary는 gzip을 "실제로 사용"할 때만
-        _send304StaticWithCacheControl(req, v_etag, v_cc, v_useGz);
+        _send304StaticWithCacheControl(req, v_etag, v_cc, v_gzVariantExists);   // [W3]
         return;
     }
 
@@ -549,7 +571,7 @@ void CL_W10_WebConfig::_serveWwwStatic(AsyncWebServerRequest* req, const char* p
                                     v_ct,
                                     v_cc,
                                     v_useGz,
-                                    v_useGz,        // 엄격: 실제 gzip 사용 시에만 Vary
+                                    v_gzVariantExists,   // [W3] 존재 시 항상 Vary
                                     v_etagOk,
                                     v_etag,
                                     v_size);

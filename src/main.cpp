@@ -157,6 +157,11 @@ static bool _holdAtBoot(int p_pin, uint32_t p_ms) {
 void setup() {
     Serial.begin(115200);
 
+    const uint32_t v_t0 = millis();
+    while (!Serial && (millis() - v_t0 < 1500)) {
+        delay(10);
+    }
+
     CL_D10_Logger::begin(Serial);
     CL_D10_Logger::setLevel(EN_D10_LOG_INFO);
     CL_D10_Logger::enableTimestamp(true);

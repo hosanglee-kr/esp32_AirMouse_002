@@ -95,28 +95,27 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
                                            ? (v_nowP - v_idleSince) : 0;
 
                 if (v_elapsed >= v_timeout) {
+                    // [W1] Deep/Light 공통 전처리: WS2812 latch 방지 위해 먼저 LED OFF
+                    CL_L10_Led::ST_LedSnapshot_t v_snap;
+                    v_m->_led.suspend(v_snap);
+
                     // [N-1] Deep-sleep 우선 판정 (Safe 분기 포함)
+                    //   - P20 내부에서 MPU PWR_MGMT_1 sleep bit 설정
                     const bool v_didDeepSleep =
                         v_m->_power.deepSleepNow(v_nowP, v_bleConn, v_pairing, v_safe);
 
-                    if (!v_didDeepSleep) {
-                        // LED 상태 저장 (blocking fadeout)
-                        CL_L10_Led::ST_LedSnapshot_t v_snap;
-                        v_m->_led.suspend(v_snap);
+                    // 여기 도달 = deep 미진입 → light-sleep 시도
+                    const bool v_didSleep =
+                        v_m->_power.sleepNow(v_nowP, v_safeOrPairing);
 
-                        // [v0415] Safe/Pairing Wake Mask 분기
-                        const bool v_didSleep =
-                            v_m->_power.sleepNow(v_nowP, v_safeOrPairing);
+                    // wake 복귀 또는 실패 시 LED 원복
+                    v_m->_led.resume(v_snap);
 
-                        // wake 복귀 또는 실패 시 LED 원복
-                        v_m->_led.resume(v_snap);
-
-                        if (v_didSleep) {
-                            // [v0415] Fast Recalib — E10 config 직접 참조
-                            //   (P20의 fast_recalib_ms 필드 삭제됨)
-                            v_m->_biasTracker.startFastRecalibrate(
-                                v_m->_cfgProfile.e10.power.fast_recalib_ms);
-                        }
+                    if (v_didSleep) {
+                        // [v0415] Fast Recalib — E10 config 직접 참조
+                        //   (P20의 fast_recalib_ms 필드 삭제됨)
+                        v_m->_biasTracker.startFastRecalibrate(
+                            v_m->_cfgProfile.e10.power.fast_recalib_ms);
                     }
                 }
             }

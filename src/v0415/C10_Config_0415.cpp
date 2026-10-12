@@ -58,6 +58,7 @@ CL_C10_Config::CL_C10_Config() {
     memset(&_index, 0, sizeof(_index));
     _bootOkRetryAtMs = 0;
     _profileSwitchInProgress = false;
+    _bootMutex = xSemaphoreCreateMutex();   // [W6]
 }
 
 void CL_C10_Config::begin(bool p_formatOnFail) {
@@ -65,6 +66,7 @@ void CL_C10_Config::begin(bool p_formatOnFail) {
 
     (void)LittleFS.mkdir("/json");
     (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
+    _dirsEnsured = true;   // [P5] 이후 _atomicWriteJson에서 mkdir 생략
 
     // ---------- boot state ----------
     _loadBootState(_boot);
@@ -147,30 +149,42 @@ bool CL_C10_Config::_saveIndex() {
     v_d["active_index"]  = _index.activeIndex;
     v_d["profile_count"] = _index.profileCount;
 
-    if (LittleFS.exists(C10_DEF::PROFILE_ACTIVE_TMP))
-        (void)LittleFS.remove(C10_DEF::PROFILE_ACTIVE_TMP);
+    const char* v_tmp = C10_DEF::PROFILE_ACTIVE_TMP;
+    const char* v_old = C10_DEF::PROFILE_ACTIVE_OLD;
+    const char* v_main = C10_DEF::PROFILE_ACTIVE;
 
-    File v_f = LittleFS.open(C10_DEF::PROFILE_ACTIVE_TMP, "w");
+    if (LittleFS.exists(v_tmp)) (void)LittleFS.remove(v_tmp);
+
+    File v_f = LittleFS.open(v_tmp, "w");
     if (!v_f) return false;
 
     size_t v_bytes = serializeJson(v_d, v_f);
     v_f.flush();
     v_f.close();
 
-    if (v_bytes == 0) {
-        (void)LittleFS.remove(C10_DEF::PROFILE_ACTIVE_TMP);
+    if (v_bytes == 0 || !_verifyJsonFile(v_tmp)) {
+        (void)LittleFS.remove(v_tmp);
         return false;
     }
 
-    if (!_verifyJsonFile(C10_DEF::PROFILE_ACTIVE_TMP)) {
-        (void)LittleFS.remove(C10_DEF::PROFILE_ACTIVE_TMP);
+    // [P1] rotate: main → old (main을 먼저 삭제하지 않음)
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    if (LittleFS.exists(v_main)) {
+        if (!LittleFS.rename(v_main, v_old)) {
+            (void)LittleFS.remove(v_tmp);
+            return false;
+        }
+    }
+
+    // commit: tmp → main
+    if (!LittleFS.rename(v_tmp, v_main)) {
+        if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);   // rollback
+        (void)LittleFS.remove(v_tmp);
         return false;
     }
 
-    if (LittleFS.exists(C10_DEF::PROFILE_ACTIVE))
-        (void)LittleFS.remove(C10_DEF::PROFILE_ACTIVE);
-
-    return LittleFS.rename(C10_DEF::PROFILE_ACTIVE_TMP, C10_DEF::PROFILE_ACTIVE);
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    return true;
 }
 
 bool CL_C10_Config::setActiveIndex(uint8_t p_idx) {
@@ -196,6 +210,7 @@ bool CL_C10_Config::setActiveIndex(uint8_t p_idx) {
 //   - v411 프로파일: ver = 411 → 마이그레이션 skip
 //   - 영구 반영은 caller의 saveProfile 시점에 수행 (부작용 최소화)
 bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
+    if (p_idx >= C10_DEF::PROFILE_MAX) return false;   // [P4]
     char v_path[64];
     if (!C10_DEF::makeProfilePath(v_path, sizeof(v_path), p_idx)) return false;
 
@@ -249,6 +264,7 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
 }
 
 bool CL_C10_Config::saveProfile(uint8_t p_idx, const ST_C10_ProfileConfig_t& p_in) {
+    if (p_idx >= C10_DEF::PROFILE_MAX) return false;   // [P4]
     if (!validateProfile(p_in)) return false;
 
     char v_path[64];
@@ -339,8 +355,17 @@ bool CL_C10_Config::deleteProfile(uint8_t p_idx) {
         if (!C10_DEF::makeProfilePath(v_src, sizeof(v_src), v_last)) return false;
         if (!C10_DEF::makeProfilePath(v_dst, sizeof(v_dst), p_idx))  return false;
 
-        // 삭제 대상 파일 제거
+        // [P3] 삭제 대상 슬롯의 main + old + tmp 잔재 전부 정리
         if (LittleFS.exists(v_dst)) (void)LittleFS.remove(v_dst);
+
+        char v_dstOld[96];
+        snprintf(v_dstOld, sizeof(v_dstOld), "%s.old", v_dst);
+        if (LittleFS.exists(v_dstOld)) (void)LittleFS.remove(v_dstOld);
+
+        char v_dstTmp[80];
+        if (C10_DEF::makeProfileTmpPath(v_dstTmp, sizeof(v_dstTmp), p_idx)) {
+            if (LittleFS.exists(v_dstTmp)) (void)LittleFS.remove(v_dstTmp);
+        }
 
         // 마지막 → 삭제 슬롯 이동
         if (!LittleFS.rename(v_src, v_dst)) {
@@ -903,29 +928,52 @@ void CL_C10_Config::_migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io) {
 // =======================================================
 // SafeBoot
 // =======================================================
+void CL_C10_Config::getBootState(ST_C10_BootState_t& p_out) const {
+    auto* v_self = const_cast<CL_C10_Config*>(this);
+    if (v_self->_bootMutex) xSemaphoreTake(v_self->_bootMutex, portMAX_DELAY);
+    p_out = v_self->_boot;
+    if (v_self->_bootMutex) xSemaphoreGive(v_self->_bootMutex);
+}
+
 bool CL_C10_Config::clearSafeMode() {
+    ST_C10_BootState_t v_snap;
+    if (_bootMutex) xSemaphoreTake(_bootMutex, portMAX_DELAY);
     _boot.safe_mode  = false;
     _boot.fail_count = 0;
     _boot.pending    = false;
-    return _saveBootState(_boot);
+    v_snap = _boot;
+    if (_bootMutex) xSemaphoreGive(_bootMutex);
+    return _saveBootState(v_snap);
 }
 
 bool CL_C10_Config::bootMarkOkIfGracePassed(uint32_t p_graceMs) {
-    if (_boot.boot_ms == 0) _boot.boot_ms = (uint32_t)millis();
+    uint32_t v_now = (uint32_t)millis();
+    ST_C10_BootState_t v_snap;
+    bool v_doSave = false;
 
-    const uint32_t v_now = (uint32_t)millis();
+    if (_bootMutex) xSemaphoreTake(_bootMutex, portMAX_DELAY);
+    if (_boot.boot_ms == 0) _boot.boot_ms = v_now;
     const uint32_t v_alive = (v_now >= _boot.boot_ms) ? (v_now - _boot.boot_ms) : 0;
 
-    if (v_alive < p_graceMs) return false;
-
-    if (_bootOkRetryAtMs != 0 && (int32_t)(v_now - _bootOkRetryAtMs) < 0) return false;
+    if (v_alive < p_graceMs) {
+        if (_bootMutex) xSemaphoreGive(_bootMutex);
+        return false;
+    }
+    if (_bootOkRetryAtMs != 0 && (int32_t)(v_now - _bootOkRetryAtMs) < 0) {
+        if (_bootMutex) xSemaphoreGive(_bootMutex);
+        return false;
+    }
 
     _boot.pending = false;
     if (!_boot.safe_mode) _boot.fail_count = 0;
+    v_snap = _boot;
+    v_doSave = true;
+    if (_bootMutex) xSemaphoreGive(_bootMutex);
 
-    const bool v_ok = _saveBootState(_boot);
+    const bool v_ok = _saveBootState(v_snap);
     if (v_ok) _bootOkRetryAtMs = 0;
     else      _bootOkRetryAtMs = v_now + 30000u;
+    (void)v_doSave;
     return v_ok;
 }
 
@@ -963,24 +1011,46 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
     v_d["boot_ms"]           = p_in.boot_ms;
     v_d["last_reset_reason"] = p_in.last_reset_reason;
 
-    File v_f = LittleFS.open(C10_DEF::BOOT_TMP_PATH, "w");
+    const char* v_tmp  = C10_DEF::BOOT_TMP_PATH;
+    const char* v_old  = C10_DEF::BOOT_OLD_PATH;
+    const char* v_main = C10_DEF::BOOT_PATH;
+
+    if (LittleFS.exists(v_tmp)) (void)LittleFS.remove(v_tmp);
+
+    File v_f = LittleFS.open(v_tmp, "w");
     if (!v_f) return false;
 
     if (serializeJson(v_d, v_f) == 0) {
         v_f.close();
-        (void)LittleFS.remove(C10_DEF::BOOT_TMP_PATH);
+        (void)LittleFS.remove(v_tmp);
         return false;
     }
     v_f.flush();
     v_f.close();
 
-    if (!_verifyJsonFile(C10_DEF::BOOT_TMP_PATH)) {
-        (void)LittleFS.remove(C10_DEF::BOOT_TMP_PATH);
+    if (!_verifyJsonFile(v_tmp)) {
+        (void)LittleFS.remove(v_tmp);
         return false;
     }
 
-    if (LittleFS.exists(C10_DEF::BOOT_PATH)) (void)LittleFS.remove(C10_DEF::BOOT_PATH);
-    return LittleFS.rename(C10_DEF::BOOT_TMP_PATH, C10_DEF::BOOT_PATH);
+    // [P2] rotate: main → old
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    if (LittleFS.exists(v_main)) {
+        if (!LittleFS.rename(v_main, v_old)) {
+            (void)LittleFS.remove(v_tmp);
+            return false;
+        }
+    }
+
+    // commit: tmp → main
+    if (!LittleFS.rename(v_tmp, v_main)) {
+        if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);
+        (void)LittleFS.remove(v_tmp);
+        return false;
+    }
+
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    return true;
 }
 
 // =======================================================
@@ -1032,8 +1102,12 @@ bool CL_C10_Config::_copyFile(const char* p_src, const char* p_dst) {
 }
 
 bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, JsonDocument& p_doc) {
-    (void)LittleFS.mkdir("/json");
-    (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
+    // [P5] begin() 이후 1회만 mkdir (매 저장 반복 제거)
+    if (!_dirsEnsured) {
+        (void)LittleFS.mkdir("/json");
+        (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
+        _dirsEnsured = true;
+    }
 
     if (LittleFS.exists(p_tmpPath)) (void)LittleFS.remove(p_tmpPath);
 

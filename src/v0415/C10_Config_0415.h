@@ -29,6 +29,8 @@
 #include <ArduinoJson.h>
 #include <string.h>
 #include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include "C10_Def_0415.h"
 #include "D10_Logger_0415.h"
@@ -41,6 +43,8 @@ class CL_C10_Config {
 
     uint32_t _bootOkRetryAtMs = 0;
     volatile bool _profileSwitchInProgress = false;
+    bool _dirsEnsured = false;                        // [P5] 디렉토리 보장 캐시
+    SemaphoreHandle_t _bootMutex = nullptr;           // [W6] _boot 원자화
 
   public:
     CL_C10_Config();
@@ -84,7 +88,7 @@ class CL_C10_Config {
 
     // ---------- SafeBoot ----------
     bool isSafeMode() const { return _boot.safe_mode; }
-    void getBootState(ST_C10_BootState_t& p_out) const { p_out = _boot; }
+    void getBootState(ST_C10_BootState_t& p_out) const;   // [W6] .cpp로 이동 (mutex)
     bool clearSafeMode();
     bool bootMarkOkIfGracePassed(uint32_t p_graceMs);
 
