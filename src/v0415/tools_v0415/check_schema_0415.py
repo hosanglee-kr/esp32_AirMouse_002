@@ -95,10 +95,6 @@ GESTURE_REMOVED_H_FIELDS = ["gesture_flick_deg", "gesture_cooldown_ms"]
 
 
 def extract_c_struct_fields(lines, struct_name):
-    """
-    'struct ST_C10_PowerConfig_t { ... };' 블록에서 필드명 추출.
-    배열 필드(idle_timeout_ms[3])도 이름만 취함.
-    """
     start = -1
     for i, line in enumerate(lines):
         if re.search(rf'struct\s+{re.escape(struct_name)}\s*\{{', line):
@@ -107,20 +103,23 @@ def extract_c_struct_fields(lines, struct_name):
     if start < 0:
         return []
 
+    # [FIX v2] struct 시작 이후 전체를 한 번에 주석 제거 후 라인 배열 재구성
+    #   - 라인별 _strip_comments는 멀티라인 블록 주석 미지원
+    #   - `/* ... */`가 필드 사이에 걸쳐 있으면 필드 오탐 발생 가능
+    tail_text = "\n".join(lines[start:])
+    tail_clean = _strip_comments_multi(tail_text)
+    tail_lines = tail_clean.splitlines()
+
     fields = []
     depth = 1
-    for i in range(start + 1, len(lines)):
-        line = lines[i]
+    # tail_lines[0] = struct 선언 라인 (이미 '{' 포함)
+    for i in range(1, len(tail_lines)):
+        code = tail_lines[i]
 
-        # 주석 제거
-        code = _strip_comments(line)
-
-        # 중괄호 카운트
         depth += code.count('{') - code.count('}')
         if depth <= 0:
             break
 
-        # 필드 패턴: <type> <name>; 또는 <type> <name>[N];
         m = re.match(r'\s*(?:uint\d+_t|int\d+_t|bool|float|double|char)\s+(\w+)\s*(?:\[[^\]]*\])?\s*;', code)
         if m:
             name = m.group(1)
@@ -129,7 +128,6 @@ def extract_c_struct_fields(lines, struct_name):
             fields.append(name)
 
     return fields
-
 
 def extract_js_field_refs(text, section):
     """
@@ -201,6 +199,26 @@ def _strip_comments(line):
     line = re.sub(r'/\*.*?\*/', '', line)
     return line
 
+def _strip_comments_multi(text):
+    """
+    [v0415 rev15 / BUG-5 fix v2] 멀티라인 블록 주석까지 완전 제거
+    -------------------------------------------------------
+    - 기존 _strip_comments(line)는 라인 단위 처리만 가능
+    - C10_Def_0415.h 상단 헤더 `/* ... */` 블록은 여러 라인에 걸쳐 있어
+      라인별 처리 시 잔존 → gesture_* 부분 문자열 오탐 발생
+    - 본 함수는 전체 텍스트를 한 번에 처리하여 블록 주석을 완전 제거
+    -------------------------------------------------------
+    순서 중요:
+      1) /* ... */ (DOTALL, 논그리디) 먼저 제거
+      2) // ... (줄 끝까지) 이후 제거
+    이유: `// /* ...` 같은 조합에서 // 를 먼저 제거하면 `/*`가 남을 수 있음
+    """
+    
+    # 1) Block comment: /* ... */ (멀티라인 지원)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    # 2) Line comment: // ... (줄 끝까지)
+    text = re.sub(r'//[^\n]*', '', text)
+    return text
 
 def main():
     ok = True
@@ -374,13 +392,14 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
     """[v0415 rev15 / 스키마 412] gesture.* 삭제 검증 (Negative check)"""
     print(f"\n--- Gesture Removal (Schema 412) ---")
 
-    # [FIX] 주석 제거 후 검사 (주석 내 문자열 오탐 방지)
-    h_code_lines = [_strip_comments(l) for l in h_lines]
-    h_text_code = "\n".join(h_code_lines)
+    # [FIX v2] 멀티라인 블록 주석 완전 제거 후 검사
+    #   - 기존: 라인별 _strip_comments(l) → 헤더 블록 주석 잔존 → 오탐
+    #   - 변경: _strip_comments_multi(전체) → 블록 주석 완전 제거
+    h_text_code = _strip_comments_multi("\n".join(h_lines))
 
     ok = True
 
-    # 1) H 코드에서 gesture_* 필드 잔존 검사 (주석 제외)
+    # 1) H 코드에서 gesture_* 필드 잔존 검사 (모든 주석 제외)
     h_hits = [f for f in GESTURE_REMOVED_H_FIELDS if f in h_text_code]
     if h_hits:
         print(f"  [FAIL] H에 gesture_* 필드 잔존 (스키마 412 위반):")
@@ -405,10 +424,9 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
         print(f"  [OK] JS gesture 참조 없음")
 
     # 3) Offline 기본 프로파일에 gesture 블록 잔존 검사
-    #    - "gesture:" (JSON key) 만 검사 (주석의 "gesture.*"는 통과)
+    #    [FIX v2] 멀티라인 블록 주석 + 라인 주석 완전 제거
+    off_code = _strip_comments_multi(off_text)
     off_hits = []
-    # 주석 제거 후 검사
-    off_code = re.sub(r'//[^\n]*', '', off_text)
     if re.search(r'\bgesture\s*:', off_code):
         off_hits.append("gesture:")
     if off_hits:
@@ -427,7 +445,7 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
         print(f"  [OK] JS flick 참조 존재")
 
     return ok
-
+    
 def check_e10_nested_mapping(h_lines, js_config_text, off_text):
     """[Wave C+D] E10 nested 필드 3자 매핑 검증 (H ↔ JS config ↔ Offline)"""
     print(f"\n--- E10 Nested Mapping (Wave C+D) ---")
