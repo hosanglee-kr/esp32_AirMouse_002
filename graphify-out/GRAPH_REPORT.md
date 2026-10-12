@@ -1,7 +1,7 @@
 # Graph Report - esp32_AirMouse_002  (2026-10-12)
 
 ## Corpus Check
-- 614 files · ~1,372,846 words
+- 614 files · ~1,372,932 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 76 file(s) not represented in the graph (top: .css 33, .ino 12, (none) 7)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `97097015`
+- Built from commit: `fd223ece`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

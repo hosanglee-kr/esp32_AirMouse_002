@@ -1,10 +1,16 @@
 {
+  "active_index": 0,
+  "profile_count": 2,
   "active": 0,
-  "count": 1,
+  "count": 2,
   "profiles": [
     {
       "idx": 0,
       "name": "Default"
+    },
+    {
+      "idx": 1,
+      "name": "Office"
     }
   ]
 }

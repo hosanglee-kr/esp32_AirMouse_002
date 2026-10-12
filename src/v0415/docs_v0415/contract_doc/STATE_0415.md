@@ -57,7 +57,7 @@
 | `_safeMode` / `_otaGuard` | `sensorTask`, `webTask` | `any` | `volatile bool` + `_lock()` | HID 실행 게이트. SafeBoot 시 SoftAP SSID `-SAFE` 표기 일원화 |
 | `_thSensor` / `_thComm` / **`_thLed`** | `begin()` (task create) | `_onPowerWake`, `getStatus` | 읽기 전용 (관측) | **v0415: `_thLed` 추가** (스택 워터마크 관측) |
 | **`_bootWifi`** (W10) | `CL_W10_WebConfig::begin()` | `_bumpRebootMaskFromBoot` | 독점 (No sync) | **v0415: W10 부팅 WiFi 스냅샷 (되돌림 감지)** |
-| `sta_ssid`, `sta_pass` (W10/C10) | `C10::makeDefaultsWiFi()` / `W10` | `CL_W10_WebConfig::begin()` | 독점 (No sync) | 기본 Fallback 자격증명(`NetE89C`/`38D#4FP001`) 유지. 빈 문자열일 경우 8초 STA 연결 시도 생략 후 즉시 SoftAP 시작 |
+| `sta_ssid`, `sta_pass` (W10/C10) | `C10::makeDefaultsWiFi()` / `W10` | `CL_W10_WebConfig::begin()` | 독점 (No sync) | **rev12: 실 자격증명 embed 제거 → 기본값 공백("")**. 빈 문자열 시 8초 STA 연결 시도 생략 즉시 SoftAP 구동. 사용자가 UI에서 명시 입력 시에만 STA 시도 |
 
 ### 1.1 v0415 주요 변경
 
@@ -295,4 +295,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev8 | 2026-10-11 | **R-1~R-3 통합 patch**: `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D), `setPptMode()` 삭제 (R-1), `buildWakeMaskAll()` alias 삭제 (R-2 LC-F). **§2.7 resetButton 규약 rev7로 갱신**: downMs/upMs/waitClickStartMs = `millis()` (0 아님, L5-A3-11). **DOUBLE DOWN 흡수** + **LONG/HOLD progressive** + **update() 5~10ms 전제조건** 명시. HW_Def 핀 재배치 (GP7~GP13) 반영. |
 | rev9 | 2026-10-11 | **I2C/NimBLE/SoftAP/마이그레이션 소유권 정합**: `_mpuAddr` 동적 감지(0x68/0x69) 및 `_power.setMpuAddr` 전파, 런타임 pre-probe/10회 복구 소유권, 슬립 복귀 `_restoreMpuAfterWake` 복원, `NimBLEDevice::isInitialized()` 동기화 대기 및 `getBondCount()` 0 반환 소유권, SoftAP `sta_ssid` 공백 시 즉시 시작 및 SafeBoot `-SAFE` 상태 일원화, v410→v411 `saveProfile()` Eager Persist 정책 반영. |
 | rev11 | 2026-10-11 | **execLiveTest Special 액션 BLE 독립 소유권 및 스토리지 무결성**: `execLiveTest` 내 `EN_C20_ACT_SPECIAL` 판정부를 `_hid.isConnected()` 앞으로 이동하여 Wi-Fi AP 단독 상태에서도 모드 전환/영점/절전의 `_reqSpecialAction` 위임 쓰기 권한 보장. LittleFS `_atomicWriteJson` 및 `begin()`의 `/json/profiles` 디렉토리 생성 보장으로 프로파일 쓰기 소유권 정상화. `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 소유권 반영. |
-| **rev12** | **2026-10-12** | **D10 Two-Phase 뮤텍스 소유권 & C10 _bootMutex 및 딥슬립 LED 차단 상태 전이**: §1 매트릭스에 `_consecutiveI2cFail`, `_bootMutex`, `_dirsEnsured`, D10 `_buf` 및 `_serialMutex`, D10 원자적 카운터 소유권 추가. §2.8 Deep Sleep 진입 직전 `_led.suspend(snap)` WS2812 래칭 차단 명시. §2.9 D10 Logger Two-Phase Locking FSM 신설. §2.10 C10 Boot State Mutex FSM 신설. |
+| **rev12** | **2026-10-12** | **D10 Two-Phase 뮤텍스 소유권 & C10 _bootMutex 및 딥슬립 LED 차단 상태 전이**: §1 매트릭스에 `_consecutiveI2cFail`, `_bootMutex`, `_dirsEnsured`, D10 `_buf` 및 `_serialMutex`, D10 원자적 카운터 소유권 추가. `sta_ssid/pass` 실 자격증명 제거 및 기본값 공백("") 규약 확정. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. §2.8 Deep Sleep 진입 직전 `_led.suspend(snap)` WS2812 래칭 차단 명시. §2.9 D10 Logger Two-Phase Locking FSM 신설. §2.10 C10 Boot State Mutex FSM 신설. |

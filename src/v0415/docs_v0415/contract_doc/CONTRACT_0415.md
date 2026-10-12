@@ -1,8 +1,8 @@
 # CONTRACT_0415.md — 모듈 경계 및 인터페이스 계약
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
-> 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`
-> 최종 갱신: 2026-10-12 (rev12 — D10 Logger Two-Phase Locking, C10 원자적 저장 rotate, Deep-sleep MPU 슬립, I2C pre-probe 카운터 분리, apiExport 헤더 인젝션 방어, W10 Vary/fallback 최적화, WiFi 자격증명 제거)
+> 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`  
+> 최종 갱신: 2026-10-12 (rev12 — D10 Logger Two-Phase Locking, C10 원자적 저장 rotate 및 인덱스 하위 호환/2종 프로파일 동기화, Deep-sleep MPU 슬립, I2C pre-probe 카운터 분리, apiExport 헤더 인젝션 방어, W10 Vary/fallback 최적화, WiFi 자격증명 제거)
 
 ---
 
@@ -538,5 +538,5 @@ _unlock();
 | rev9 | 2026-10-11 | **R-1~R-3 통합 patch**: `setPptMode` 완전 삭제 (E10 헤더/구현), `_saveActiveProfile` static (스택 2.4KB 절감), `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제, `buildWakeMaskAll` alias 삭제, M30 `_detectLinear` 시그니처 정리, C10 `_verifyJsonFile` 크기 검증, HW_Def 핀 재배치 (GP7~GP13). **C20 patch**: `resetButton` 타임스탬프 millis() 초기화, `update()` 5~10ms 전제조건, **§2.10 버튼 이벤트 시퀀스 계약 신규** (DOUBLE DOWN 흡수 / LONG/HOLD progressive / update() 전제) |
 | rev10 | 2026-10-11 | **I2C 자동진단 및 안정성 하드닝**: `_diagAndRecoverMpu()` 9-펄스 버스 언락, 100kHz 스캔, WHO_AM_I(0x75) 검증 및 0x68/0x69 주소 동적 바인딩, `_power.setMpuAddr` 연동, 런타임 pre-probe 및 10회 연속 실패 복구, 슬립 복귀 레지스터 복원 (**§2.11 신규**). **NimBLE Mutex Crash 방어**: `NimBLEDevice::isInitialized()` 500ms 동기화 대기 및 `getBondCount()` 0 반환 가드 (**§2.12 신규**). **Wi-Fi SoftAP 부팅 8초 단축, 웹 라우팅 별칭 및 SafeBoot 가드**: 빈 STA 시 즉시 AP 시작, SafeBoot SSID 27자 제한, `/api/status` 동기화, `/index.html`, `/www`, `/www/` 리다이렉트, `/manifest.json` 단축 경로, Captive Portal 프로브(Android 204, Apple 302, Windows 200) 및 AP mDNS 지원 (**§2.13 신규**). **v410→v411 마이그레이션 무결성**: POWER→KB_POWER(0x66), TV_INPUT→WWW_SEARCH, 미지원 코드 NONE 변환, validate 후 `saveProfile()` Eager Persist 정책 (**§2.2 갱신**). |
 | rev11 | 2026-10-11 | **웹 정적 서빙 번들링 및 API/스토리지 안정성 하드닝**: 빌드 타임 자동 번들링(`pio_gzip_0415.py`)으로 9개 JS를 `app_bundle_0415.js.gz`(50KB) 단일 파일로 결합, HTTP 요청 11개→3개 압축하여 TCP 소켓 고갈 원천 차단. `/api/keycodes`의 AST 직할 빌드로 15KB JSON 통째 딥카피 제거 및 유효 키코드 한정 zero-copy 스트리밍(OOM/RST 차단). `execLiveTest` Special 액션(모드 전환/영점 등)의 BLE 연결 독립성 보장(AP 모드에서도 기기 제어 100% 동작). LittleFS `_atomicWriteJson` 및 `begin()` 내 `/json`, `/json/profiles` 서브디렉토리 무조건 선행 생성 보장(`no permits for creation` 에러 영구 차단). `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 반영. `_sendErr` 규격(`data: {}`) 보장 및 `ble_disconnected`(400) 에러 코드 표준화. |
-| **rev12** | **2026-10-12** | **안정성 하드닝 & D10 Logger rev2 / C10 안전 회전 & 딥슬립 차단 무결성**: D10 RingBuffer=64, MSG_MAX=96 Two-Phase Locking 및 Serial 블로킹 제거, USB CDC 대기 루프(main.cpp). C10 atomic rotate save(`main->old`, `tmp->main`) 및 `_bootMutex` 스레드 안전성 확보. Deep Sleep 직전 LED suspend 및 MPU6050 PWR_MGMT_1=0x40 슬립 설정. W10 export 헤더 인젝션 방어(64자 제한/특수문자 치환). 정적 파일 ETag 이중 샘플링 방지 및 `/www` 경로 traversal 방지. |
+| **rev12** | **2026-10-12** | **안정성 하드닝 & D10 Logger rev2 / C10 안전 회전 & 딥슬립 차단 무결성**: D10 RingBuffer=64, MSG_MAX=96 Two-Phase Locking 및 Serial 블로킹 제거, USB CDC 대기 루프(main.cpp). C10 atomic rotate save(`main->old`, `tmp->main`) 및 `_bootMutex` 스레드 안전성 확보. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. `makeDefaultsWiFi` 및 기본 프로파일 STA 자격증명 공백("") 초기화 규약 반영. Deep Sleep 직전 LED suspend 및 MPU6050 PWR_MGMT_1=0x40 슬립 설정. W10 export 헤더 인젝션 방어(64자 제한/특수문자 치환). 정적 파일 ETag 이중 샘플링 방지 및 `/www` 경로 traversal 방지. |
 

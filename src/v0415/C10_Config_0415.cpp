@@ -132,8 +132,21 @@ bool CL_C10_Config::_loadIndex() {
     v_f.close();
     if (v_err) return false;
 
-    uint8_t v_ai = (uint8_t)v_d["active_index"].as<int>();
-    uint8_t v_pc = (uint8_t)v_d["profile_count"].as<int>();
+    uint8_t v_ai = 0;
+    if (!v_d["active_index"].isNull()) {
+        v_ai = (uint8_t)v_d["active_index"].as<int>();
+    } else if (!v_d["active"].isNull()) {
+        v_ai = (uint8_t)v_d["active"].as<int>();
+    }
+
+    uint8_t v_pc = 0;
+    if (!v_d["profile_count"].isNull()) {
+        v_pc = (uint8_t)v_d["profile_count"].as<int>();
+    } else if (!v_d["count"].isNull()) {
+        v_pc = (uint8_t)v_d["count"].as<int>();
+    } else if (v_d["profiles"].is<JsonArrayConst>()) {
+        v_pc = (uint8_t)v_d["profiles"].as<JsonArrayConst>().size();
+    }
 
     if (v_pc < 1) v_pc = 1;
     if (v_pc > C10_DEF::PROFILE_MAX) v_pc = C10_DEF::PROFILE_MAX;
@@ -148,6 +161,8 @@ bool CL_C10_Config::_saveIndex() {
     JsonDocument v_d;
     v_d["active_index"]  = _index.activeIndex;
     v_d["profile_count"] = _index.profileCount;
+    v_d["active"]        = _index.activeIndex;
+    v_d["count"]         = _index.profileCount;
 
     const char* v_tmp = C10_DEF::PROFILE_ACTIVE_TMP;
     const char* v_old = C10_DEF::PROFILE_ACTIVE_OLD;
