@@ -86,25 +86,40 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
 
     _svr.on("/api/keycodes", HTTP_GET, [this](AsyncWebServerRequest* req) { apiKeycodes(req); });
 
-    _svr.on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* req) { apiGetConfig(req); });
 
-    _svr.on("/api/config/save", HTTP_POST,
-        [this](AsyncWebServerRequest* req) { (void)req; },
-        nullptr,
-        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            apiConfigSave(req, data, len, index, total);
-        });
+    // ─── 삭제 1 ───
+    // [DEL] 프론트 미호출 — /api/profiles/active GET으로 통합
+    // _svr.on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* req) { apiGetConfig(req); });
+    
+    // ─── 삭제 2 ───
+    // [DEL] 프론트 미호출 — /api/profiles/active POST로 통합
+    // _svr.on("/api/config/save", HTTP_POST,
+    //     [this](AsyncWebServerRequest* req) { (void)req; },
+    //     nullptr,
+    //     [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+    //         apiConfigSave(req, data, len, index, total);
+    //     });
+    
+    // ─── 삭제 3 ───
+    // [DEL] /api/config/save 별칭 — 통합 대상 소멸
+    // _svr.on("/api/config/apply", HTTP_POST,
+    //     [this](AsyncWebServerRequest* req) { (void)req; },
+    //     nullptr,
+    //     [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+    //         apiConfigApply(req, data, len, index, total);
+    //     });
+    
+    // ─── 삭제 4 ───
+    // [DEL] /api/config/export 별칭 — 정식 경로만 유지
+    // _svr.on("/api/export", HTTP_GET, [this](AsyncWebServerRequest* req) { apiExport(req); });
+    
+    // ─── 삭제 5 ───
+    // [DEL] M-9에서 주기 폴링 제거, UI 없음. /api/status.groups.policy로 대체
+    // _svr.on("/api/reboot/check", HTTP_GET, [this](AsyncWebServerRequest* req) { apiRebootCheck(req); });
 
-    _svr.on("/api/config/apply", HTTP_POST,
-        [this](AsyncWebServerRequest* req) { (void)req; },
-        nullptr,
-        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-            apiConfigApply(req, data, len, index, total);
-        });
 
     _svr.on("/api/config/export", HTTP_GET, [this](AsyncWebServerRequest* req) { apiExport(req); });
-    _svr.on("/api/export", HTTP_GET, [this](AsyncWebServerRequest* req) { apiExport(req); });
-
+    
     _svr.on("/api/config/import", HTTP_POST,
         [this](AsyncWebServerRequest* req) { (void)req; },
         nullptr,
@@ -250,8 +265,6 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
         [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
             apiRebootPost(req, data, len, index, total);
         });
-
-    _svr.on("/api/reboot/check", HTTP_GET, [this](AsyncWebServerRequest* req) { apiRebootCheck(req); });
 
     // ==============================
     // Static & Direct serving

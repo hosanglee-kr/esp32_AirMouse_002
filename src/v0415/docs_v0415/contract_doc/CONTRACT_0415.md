@@ -106,7 +106,6 @@
 - `W10.begin(cfg, e10if)`의 유일한 E10 진입은 **`_e10if` (`ST_W10_E10If_t` 함수 포인터 테이블)**.
 - **v0415: `ST_W10_E10If_t::setPptMode` 콜백 삭제**. PPT 판정은 `active_mode == 2` 로 일원화.
 - **v0415: `W10_Web_0415.h`의 4-arg `begin()` 오버로드 삭제**. 2-arg(cfg, e10if) 단일 진입.
-- `/api/config/apply`는 `/api/config/save` 별칭으로 통합.
 - `applyRuntimeE10`은 `/api/control`의 apply-only 요청에서만 사용.
 - **신규 기능 추가 시 `_e10if`에 함수 포인터를 등록하는 방식이 유일한 원칙**.
 
@@ -578,4 +577,4 @@ _unlock();
 | rev12 | 2026-10-12 | **안정성 하드닝 & D10 Logger rev2 / C10 안전 회전 & 딥슬립 차단 무결성**: D10 RingBuffer=64, MSG_MAX=96 Two-Phase Locking 및 Serial 블로킹 제거, USB CDC 대기 루프(main.cpp). C10 atomic rotate save(`main->old`, `tmp->main`) 및 `_bootMutex` 스레드 안전성 확보. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. `makeDefaultsWiFi` 및 기본 프로파일 STA 자격증명 공백("") 초기화 규약 반영. Deep Sleep 직전 LED suspend 및 MPU6050 PWR_MGMT_1=0x40 슬립 설정. W10 export 헤더 인젝션 방어(64자 제한/특수문자 치환). 정적 파일 ETag 이중 샘플링 방지 및 `/www` 경로 traversal 방지. |
 | rev13 | 2026-10-12 | **Consumer/KB 라벨 SSOT 계약 (§2.19 신규, B-1/B-3)**: `G_W10_CONSUMER[].name` UPPER_SNAKE 통일 (B-1). `_kbName()`과 offline names dict 완전 파리티 (B-3, 106 codes). LED 태스크 스택 워터마크 관측 계약 (B-2, §2.14 연계). |
 | **rev14** | **2026-10-12** | **D10 Logger 백엔드 로깅 정책 (§2.18 보강) 및 W10 리부트 태스크 방어 (§2.20 신규, B-4)**: 8ms/7ms 루프 로깅 배제, 진단/부팅 단일 라인 원자적 D10 로깅 확립, 96B 초과 체크리스트 Serial 보존. `xTaskCreatePinnedToCore(_taskReboot)` 반환값 검증 및 생성 실패 시 동기식 `ESP.restart()` 안전 폴백 확립. |
-| **rev15** | **2026-10-12** | **스키마 412 + Wi-Fi 웹 UI 계약 (§2.13 보강)**: `gesture_flick_deg`/`gesture_cooldown_ms` 필드 삭제. `flick.*` SSOT 확립. Config 탭 §8 Wi-Fi UI 신설에 따른 저장 경로 계약 (`cfgSave` patch 확장, `apiProfilesActivePost` 재부팅 마스크 갱신). `validateWiFi` 강화 (AP SSID 필수, STA 모드 SSID 필수, mdns 빈 값 금지). |
+| **rev15** | **2026-10-12** | **스키마 412 + Wi-Fi 웹 UI 계약 (§2.13 보강) + 미사용 엔드포인트 정리**: `gesture.*` 삭제, `flick.*` SSOT. Config 탭 §8 Wi-Fi UI 신설 (`cfgSave` patch 확장, `apiProfilesActivePost` 재부팅 마스크). `validateWiFi` 강화. **미사용 엔드포인트 5종 삭제** (`/api/config` GET, `/api/config/save` POST, `/api/config/apply` POST, `/api/export` GET, `/api/reboot/check` GET). |

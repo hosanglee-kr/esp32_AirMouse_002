@@ -50,7 +50,6 @@
 // - apiFactoryReset
 // - _taskReboot
 // - apiRebootPost
-// - apiRebootCheck
 
 // =====================================================
 // OTA
@@ -305,17 +304,5 @@ void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, 
         delay(200);
         ESP.restart();
     }
-}
-
-void CL_W10_WebConfig::apiRebootCheck(AsyncWebServerRequest* req) {
-    JsonDocument v_doc;
-    v_doc["required"] = _needReboot;
-    v_doc["mask"] = (uint32_t)_needRebootMask;
-    v_doc["reasons"] = _rebootReasonsString(_needRebootMask);
-
-    v_doc["allowed"] = _needReboot;
-    v_doc["deny_code"] = _needReboot ? "" : "no_reboot_needed";
-
-    _sendOk(req, "reboot_check", "", &v_doc, 200);
 }
 

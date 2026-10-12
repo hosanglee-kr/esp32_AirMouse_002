@@ -574,6 +574,7 @@ async function safeBootExit() {
   }, 1000);
 }
 
+/* 삭제
 async function safeModeSet(enable) {
   const msg = enable
     ? t("pop.safemode_enter_confirm")
@@ -603,6 +604,8 @@ async function otaGuardSet(enable) {
   await refreshStatus();
   return true;
 }
+
+*/
 
 /* [N-20] Factory Reset — [Phase 3.6 L-5] 미저장 경고 추가 */
 async function factoryReset() {

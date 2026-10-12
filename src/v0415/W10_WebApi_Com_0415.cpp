@@ -245,14 +245,10 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
     if (strcmp(p_uri, "/api/ota") == 0) return true;
     if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
     if (strcmp(p_uri, "/api/reboot") == 0) return true;
-    if (strcmp(p_uri, "/api/reboot/check") == 0) return true;
-
-    if (strcmp(p_uri, "/api/config") == 0) return true;
-
+    
     // write 계열은 save/apply/import 모두 차단 (아래 목록에 없으므로 자동 차단)
     // 복구 경로(export/rollback)만 허용
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
-    if (strcmp(p_uri, "/api/export") == 0) return true;
     if (strcmp(p_uri, "/api/config/rollback") == 0) return true;
 
     // [M-2] v0412 읽기 전용 profile/triggers API: GET만 허용

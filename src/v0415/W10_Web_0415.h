@@ -180,9 +180,18 @@ private:
     const char* _precModeName(uint8_t p_mode);
     void apiKeycodes(AsyncWebServerRequest* req);
 
-    void apiGetConfig(AsyncWebServerRequest* req);
-    void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
-    void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    // [DEL] apiGetConfig — /api/config GET 삭제
+    // void apiGetConfig(AsyncWebServerRequest* req);
+    
+    // [DEL] apiConfigSave — /api/config/save POST 삭제
+    // void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    
+    // [DEL] apiConfigApply — /api/config/apply POST 삭제
+    // void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    
+    // [DEL] apiRebootCheck — /api/reboot/check GET 삭제
+    // void apiRebootCheck(AsyncWebServerRequest* req);
+    
     void apiExport(AsyncWebServerRequest* req);
     void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiRollback(AsyncWebServerRequest* req);
@@ -199,5 +208,5 @@ private:
 
     static void _taskReboot(void* p_arg);
     void apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
-    void apiRebootCheck(AsyncWebServerRequest* req);
+
 };

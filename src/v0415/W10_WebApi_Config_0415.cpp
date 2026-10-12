@@ -7,21 +7,22 @@
  * 모듈약어 : W10
  * 모듈명 : Web Config API (v0415: 프로파일 기반)
  * ------------------------------------------------------
- * 기능 요약
- *  - /api/config          (GET)  활성 프로파일 raw JSON
- *  - /api/config/save     (POST) 활성 프로파일 patch + 저장 + E10 재로드
- *  - /api/config/apply    (POST) save 별칭 (v0412: no-save 폐기)
- *  - /api/config/export   (GET)  활성 프로파일 다운로드
- *  - /api/export          (GET)  별칭
- *  - /api/config/import   (POST) JSON → 새 프로파일 생성
- *  - /api/config/rollback (POST) v0412 폐기 (안내 응답)
- *
- * [v0400 → v0412 주요 변경]
- *  - C10_Config의 loadAll/saveAll/exportJson/importJson → 프로파일 메서드로 대체
- *  - ETag/Envelope 폐기 (클라이언트 단순화)
- *  - apply = save (프로파일 시스템에선 apply-only 의미 없음)
- *  - import = 새 프로파일 생성 (덮어쓰기 아님)
- *  - rollback 폐기 (프로파일 switch로 대체)
+* 기능 요약
+*  - /api/config/export   (GET)  활성 프로파일 다운로드
+*  - /api/config/import   (POST) JSON → 새 프로파일 생성
+*  - /api/config/rollback (POST) v0412 폐기 (안내 응답)
+*
+* [v0415 rev15 / Wave D-1]
+*  - /api/config        (GET)  삭제 — /api/profiles/active GET으로 통합
+*  - /api/config/save   (POST) 삭제 — /api/profiles/active POST로 통합
+*  - /api/config/apply  (POST) 삭제 — 위의 별칭 소멸
+*  - /api/export        (GET)  삭제 — /api/config/export 정식 경로만 유지
+* [v0415 이전 주요 변경]
+*  - C10_Config의 loadAll/saveAll/exportJson/importJson → 프로파일 메서드로 대체
+*  - ETag/Envelope 폐기 (클라이언트 단순화)
+*  - import = 새 프로파일 생성 (덮어쓰기 아님)
+*  - rollback 폐기 (프로파일 switch로 대체)
+*  - (v0415 rev15) apply = save 별칭 삭제 — /api/profiles/active POST로 통합.
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -57,110 +58,6 @@ void CL_W10_WebConfig::_bumpRebootMaskFromBoot() {
     const uint32_t v_m = _wifiDiffMask(_bootWifi, _wifi);
     _needRebootMask = v_m;
     _needReboot     = (v_m != 0);
-}
-
-// =====================================================
-// GET /api/config — 활성 프로파일 조회 (raw JSON)
-//   반환: { ver, name, wifi, e10, slots, macros }
-// =====================================================
-void CL_W10_WebConfig::apiGetConfig(AsyncWebServerRequest* req) {
-    if (!_cfg) {
-        _sendErr(req, "no_config", "Config manager not ready.");
-        return;
-    }
-
-    ST_C10_ProfileConfig_t v_p;
-    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
-    if (!_cfg->loadActiveProfile(v_p)) {
-        _sendErr(req, "config_get_failed", "Failed to load active profile.");
-        return;
-    }
-
-    JsonDocument v_doc;
-    if (!_cfg->buildProfileJson(v_p, v_doc)) {
-        _sendErr(req, "config_get_failed", "Failed to serialize profile.");
-        return;
-    }
-
-    AsyncResponseStream* res = req->beginResponseStream("application/json");
-    res->setCode(200);
-    res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
-    serializeJson(v_doc, *res);
-    req->send(res);
-}
-
-// =====================================================
-// POST /api/config/save — 활성 프로파일 patch + 저장 + E10 재로드
-//   Body: partial profile JSON
-// =====================================================
-void CL_W10_WebConfig::apiConfigSave(AsyncWebServerRequest* req,
-                                     uint8_t* data, size_t len,
-                                     size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    if (!_cfg) {
-        _sendErr(req, "no_config", "Config manager not ready.");
-        return;
-    }
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
-    // ---- 현재 활성 프로파일 로드 ----
-    ST_C10_ProfileConfig_t v_p;
-    _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
-    (void)_cfg->loadActiveProfile(v_p);
-
-    // ---- patch ----
-    if (!_cfg->patchProfileFromJson(v_body, v_p)) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid profile JSON.");
-        return;
-    }
-
-    // ---- validate ----
-    if (!_cfg->validateProfile(v_p)) {
-        _sendErr(req, "validation_failed", "Validation failed.");
-        return;
-    }
-
-    // ---- save ----
-    const uint8_t v_idx = _cfg->getActiveIndex();
-    if (!_cfg->saveProfile(v_idx, v_p)) {
-        _markLastApply(false, "save", "config_save_failed");
-        _sendErr(req, "config_save_failed", "Save failed.");
-        return;
-    }
-
-    // ---- W10 로컬 캐시 갱신 ----
-    _wifi = v_p.wifi;
-
-    _bumpRebootMaskFromBoot();
-
-    // ---- E10 재로드 (런타임 반영) ----
-    bool v_reloaded = false;
-    if (_e10if && _e10if->reloadProfile) {
-        v_reloaded = _e10if->reloadProfile(_e10if->ctx);
-    }
-
-    JsonDocument v_out;
-    v_out["saved"]           = true;
-    v_out["reloaded"]        = v_reloaded;
-    v_out["idx"]             = v_idx;
-    v_out["reboot_required"] = _needReboot;
-
-    _markLastApply(true, "save", "config_save");
-    _sendOk(req, "config_save", "", &v_out, 200);
-}
-
-// =====================================================
-// POST /api/config/apply — v0412: save 별칭
-// =====================================================
-void CL_W10_WebConfig::apiConfigApply(AsyncWebServerRequest* req,
-                                      uint8_t* data, size_t len,
-                                      size_t index, size_t total) {
-    apiConfigSave(req, data, len, index, total);
 }
 
 // =====================================================

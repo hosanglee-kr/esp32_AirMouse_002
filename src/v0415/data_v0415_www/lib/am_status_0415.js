@@ -8,8 +8,14 @@
    - [Phase 3.4 M-10] 캘리브 피드백 통일
    - [Phase 3.7 L-7] 배터리 N/A 처리
    - [Phase 4.2 M-9] reboot/check 폴링 중복 제거
-   ======================================================= */
-   
+======================================================= 
+ // [v0415 rev15 / Wave D-2] rebootCheck() 삭제
+//   - /api/reboot/check GET 라우팅 삭제됨
+//   - 재부팅 필요 여부는 /api/status.groups.policy.reboot_required 사용
+//   - 프론트는 refreshStatus()의 _updateRebootBanner()가 자동 처리
+
+=======================================================
+*/
    
 /* =======================================================
    [Phase 3.1 H-4] 배너 dismiss 세션 플래그
@@ -174,6 +180,7 @@ async function diagClear() {
 /* =======================================================
    [N-7] 실시간 DPI / Precision
    ======================================================= */
+/* 삭제
 async function ctlSetDpi(level) {
   const u = unwrapApi(await apiPostJson("/api/control", {
     cmd: "set_dpi", level: level, snapshot: true
@@ -191,6 +198,7 @@ async function ctlSetPrecision(mode) {
   else setMsg(t("pop.prec_applied", { v: mode }), true);
   await refreshStatus();
 }
+*/
 
 /* =======================================================
    [N-8] Host Cycle
@@ -357,10 +365,13 @@ function _getE10Bias() {
    - refreshStatus에서 주기 호출 제거됨
    - 필요 시 개발자 콘솔에서 rebootCheck() 수동 호출 가능
    ======================================================= */
+
+/* 삭제
 async function rebootCheck() {
   const u = unwrapApi(await apiGet("/api/reboot/check"));
   return (u.ok && u.data) ? u.data : null;
 }
+*/
 
 /* =======================================================
    Tab / Diag 헬퍼
