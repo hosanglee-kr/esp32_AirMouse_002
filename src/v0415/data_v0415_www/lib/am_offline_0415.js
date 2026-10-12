@@ -193,7 +193,9 @@ const G_OFFLINE_KEYCODES = {
   triggers: G_OFFLINE_TRIGGERS,
   trigger_count: G_OFFLINE_TRIGGERS.length,
   api_ver: 411,  // [v0415]
-  note: "v0415: Descriptor SSOT consumer mask (24-bit). " +
+
+  note: "v0415 rev15: Descriptor SSOT consumer mask (24-bit). " +
+    "gesture.* removed (schema 412). flick.* is SSOT for M30. " +
     "action_kinds + specials + triggers for UI. " +
     "mods mask == HID modifier byte. " +
     "kb=usage-id(0x07) + Power(0x66). consumer=24-bit mask. " +
@@ -207,8 +209,10 @@ const G_OFFLINE_KEYCODES = {
    - Mode 3: TV Power → KB_POWER(0x66), CH_UP/DOWN → NONE
    - active_mode로 PPT 판정 (ppt_mode 필드 삭제)
    ======================================================= */
+
+    
 const G_OFFLINE_DEFAULT_PROFILE_0 = {
-  ver: 411,  // [v0415]
+  ver: 412, // [v0415 rev15 / 스키마 412]
   name: "Default",
   wifi: {
     mode: 0,
@@ -223,8 +227,11 @@ const G_OFFLINE_DEFAULT_PROFILE_0 = {
     accel_gain: [0.35, 0.55, 0.85],
     accel_threshold: 8.0,
     scroll_cursor_damp: 0.25,
+    
     wheel: { threshold_deg: 90.0, step_max: 6 },
-    gesture: { flick_deg: 200.0, cooldown_ms: 600 },
+    // [v0415 rev15 / 스키마 412] gesture.* 삭제 — flick.* 단일 소스 (SSOT)
+    //   flick.p2p_th / flick.cooldown_ms 는 하단 flick 블록 참조
+    
     precision: {
       mode: 0, deadzone: 1.2, gain: 0.65, accel: 0.25,
       max_step: 18, smooth: 0.85, entry_ms: 450, exit_ms: 300,
@@ -617,7 +624,7 @@ function handleOfflineApi(url, method, body) {
     };
     const gBoot = { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 };
     const gConfig = {
-      ver: 411,
+      ver: 412,
       etag_ok: false, etag: 0, size: 0,
       profile_idx: act,
       profile_count: g_offlineStore.profiles.length,

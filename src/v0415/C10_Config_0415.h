@@ -13,7 +13,13 @@
  *  - 매크로 라이브러리 CRUD 및 Live Test 지원
  *  - SafeBoot 및 원자적(Atomic) 파일 쓰기 보장
  *
- * [v0415 주요 변경]
+ * [v0415 rev15 주요 변경]
+ *  - 스키마 411 → 412 (gesture.* 삭제, flick.* SSOT 확립)
+ *    · gesture_flick_deg / gesture_cooldown_ms 필드 완전 삭제
+ *    · 마이그레이션 미구현 (제품 출시 시점 별도 검토)
+ *  - validateWiFi 강화 (AP SSID 필수, STA 모드 SSID 필수, mdns 빈 값 금지)
+ *
+ * [v0415 이전 주요 변경 (스키마 411)]
  *  - 스키마 410 → 411 (Consumer mask Descriptor 정합)
  *  - loadProfile: _migrateProfileV410ToV411() 자동 수행 + validateProfile
  *  - deleteProfile: gap-shift → swap-with-last (원자성 강화)

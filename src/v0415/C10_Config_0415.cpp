@@ -256,13 +256,14 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
     bool v_migrated = false;
     if (p_out.ver < G_C10_CFG_VER_V410 + 1) {      // ver < 411 = 410 이하
         D10_LOGI_C("C10::loadProfile",
-                   "migrate profile idx=%u (ver %u → 411)",
+                   "migrate profile idx=%u (ver %u → %u)",
                    (unsigned)p_idx,
-                   (unsigned)p_out.ver);
+                   (unsigned)p_out.ver,
+                   (unsigned)G_C10_CFG_VER);       // ← 저장 시점 ver = 412
         _migrateProfileV410ToV411(p_out);
         v_migrated = true;
     }
-
+    
     // 5) [v0415] validate — 손상 프로파일 방어
     if (!validateProfile(p_out)) {
         D10_LOGW_C("C10::loadProfile",

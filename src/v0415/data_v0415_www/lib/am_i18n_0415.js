@@ -272,6 +272,53 @@ const I18N_DICT = {
 
     "cfg.adv_power": "⚙ 절전 고급 설정",
     "cfg.adv_button": "⚙ 버튼 고급 설정",
+    
+    /* ============ [v0415 rev15 / Wave A] Wi-Fi ============ */
+    "cfg.sec_wifi": "8. Wi-Fi 설정",
+    "cfg.lbl_wifi_mode": "동작 모드",
+    "cfg.wifi_auto": "자동 (STA 실패 시 AP 전환)",
+    "cfg.wifi_ap": "AP 전용 (공유기 없이 직접 접속)",
+    "cfg.wifi_sta": "STA 전용 (공유기에 접속)",
+    
+    "cfg.lbl_ap_ssid": "AP SSID (기기 이름)",
+    "cfg.lbl_ap_pass": "AP 비밀번호 (8자 이상)",
+    "cfg.lbl_mdns": "mDNS 호스트명",
+    "cfg.adv_wifi_sta": "⚙ STA (공유기 접속) 설정",
+    "cfg.lbl_sta_ssid": "공유기 SSID",
+    "cfg.lbl_sta_pass": "공유기 비밀번호",
+    "cfg.wifi_reboot_note": "Wi-Fi 변경 후 다시 시작이 필요합니다.",
+    
+    
+    /* ============ [v0415 rev15 / Wave C] Precision & Gyro Bias ============ */
+    "cfg.adv_precision": "⚙ Precision 상세 파라미터",
+    "cfg.lbl_prec_mode": "정밀 모드 프리셋",
+    "cfg.lbl_prec_deadzone": "정밀 조작 불감대 (deg/s)",
+    "cfg.lbl_prec_gain": "정밀 조작 배율",
+    "cfg.lbl_prec_accel": "정밀 조작 가속",
+    "cfg.lbl_prec_max_step": "프레임당 최대 이동 (px)",
+    "cfg.lbl_prec_smooth": "필터 평활도",
+    "cfg.lbl_prec_entry_ms": "진입 안정화 시간 (ms)",
+    "cfg.lbl_prec_exit_ms": "이탈 안정화 시간 (ms)",
+    "cfg.lbl_prec_entry_still": "진입 정지 임계 (deg/s)",
+    "cfg.lbl_prec_exit_move": "이탈 이동 임계 (deg/s)",
+    "cfg.lbl_prec_profile": "조이스틱 프로파일 (0~5)",
+    "cfg.adv_gyro_bias": "⚙ 자이로 드리프트 튜닝",
+    "cfg.lbl_gyro_still_th": "정지 판정 임계 (deg/s)",
+    "cfg.lbl_gyro_still_win": "정지 유지 시간 (ms)",
+    "cfg.lbl_gyro_alpha": "드리프트 추종 계수",
+    
+    /* ============ [v0415 rev15 / Wave D] Linear / Flick / Tilt ============ */
+    "cfg.adv_gesture_detail": "⚙ 제스처 세부 감도 (Linear / Flick / Tilt)",
+    "cfg.lbl_lin_th": "선형 임펄스 시작 임계 (m/s²)",
+    "cfg.lbl_lin_impulse": "선형 임펄스 크기 임계 (m/s)",
+    "cfg.lbl_lin_window": "선형 적분 윈도우 (ms)",
+    "cfg.lbl_flick_window": "휘두르기 감지 윈도우 (ms)",
+    "cfg.lbl_tilt_angle": "틸트 트리거 각도 (deg)",
+    "cfg.lbl_tilt_hold": "틸트 유지 시간 (ms)",
+    "cfg.lbl_tilt_repeat": "틸트 반복 주기 (Hz)",
+    "cfg.tilt_mode3_note": "틸트 홀드는 모드 3 (스마트 TV) 전용입니다.",
+
+    
     "cfg.lbl_pwr_idle_pc": "모드 1 (PC) 대기 (초)",
     "cfg.lbl_pwr_idle_ppt": "모드 2 (프레젠테이션) 대기 (초)",
     "cfg.lbl_pwr_idle_tv": "모드 3 (스마트 TV) 대기 (초)",
@@ -691,6 +738,51 @@ const I18N_DICT = {
 
     "cfg.adv_power": "⚙ Advanced Power Settings",
     "cfg.adv_button": "⚙ Advanced Button Settings",
+    
+    /* ============ [v0415 rev15 / Wave A] Wi-Fi ============ */
+    "cfg.sec_wifi": "8. Wi-Fi Settings",
+    "cfg.lbl_wifi_mode": "Operating Mode",
+    "cfg.wifi_auto": "Auto (AP fallback on STA failure)",
+    "cfg.wifi_ap": "AP Only (direct connection)",
+    "cfg.wifi_sta": "STA Only (connect to router)",
+    "cfg.lbl_ap_ssid": "AP SSID (device name)",
+    "cfg.lbl_ap_pass": "AP Password (min 8 chars)",
+    "cfg.lbl_mdns": "mDNS Hostname",
+    "cfg.adv_wifi_sta": "⚙ STA (Router Connection)",
+    "cfg.lbl_sta_ssid": "Router SSID",
+    "cfg.lbl_sta_pass": "Router Password",
+    "cfg.wifi_reboot_note": "A restart is required after Wi-Fi changes.",
+    
+    
+    /* ============ [v0415 rev15 / Wave C] Precision & Gyro Bias ============ */
+    "cfg.adv_precision": "⚙ Precision Advanced",
+    "cfg.lbl_prec_mode": "Precision Mode Preset",
+    "cfg.lbl_prec_deadzone": "Precision Deadzone (deg/s)",
+    "cfg.lbl_prec_gain": "Precision Gain",
+    "cfg.lbl_prec_accel": "Precision Accel",
+    "cfg.lbl_prec_max_step": "Max Step per Frame (px)",
+    "cfg.lbl_prec_smooth": "Filter Smoothing",
+    "cfg.lbl_prec_entry_ms": "Entry Stabilize (ms)",
+    "cfg.lbl_prec_exit_ms": "Exit Stabilize (ms)",
+    "cfg.lbl_prec_entry_still": "Entry Still Threshold (deg/s)",
+    "cfg.lbl_prec_exit_move": "Exit Move Threshold (deg/s)",
+    "cfg.lbl_prec_profile": "Joystick Profile (0~5)",
+    "cfg.adv_gyro_bias": "⚙ Gyro Drift Tuning",
+    "cfg.lbl_gyro_still_th": "Still Threshold (deg/s)",
+    "cfg.lbl_gyro_still_win": "Still Window (ms)",
+    "cfg.lbl_gyro_alpha": "Drift Tracking Alpha",
+    
+    /* ============ [v0415 rev15 / Wave D] Linear / Flick / Tilt ============ */
+    "cfg.adv_gesture_detail": "⚙ Gesture Detail (Linear / Flick / Tilt)",
+    "cfg.lbl_lin_th": "Linear Impulse Threshold (m/s²)",
+    "cfg.lbl_lin_impulse": "Linear Impulse Magnitude (m/s)",
+    "cfg.lbl_lin_window": "Linear Integration Window (ms)",
+    "cfg.lbl_flick_window": "Flick Detection Window (ms)",
+    "cfg.lbl_tilt_angle": "Tilt Trigger Angle (deg)",
+    "cfg.lbl_tilt_hold": "Tilt Hold Time (ms)",
+    "cfg.lbl_tilt_repeat": "Tilt Repeat Rate (Hz)",
+    "cfg.tilt_mode3_note": "Tilt Hold is available only in Mode 3 (Smart TV).",
+
     "cfg.lbl_pwr_idle_pc": "Mode 1 (PC) Timeout (s)",
     "cfg.lbl_pwr_idle_ppt": "Mode 2 (Presentation) Timeout (s)",
     "cfg.lbl_pwr_idle_tv": "Mode 3 (Smart TV) Timeout (s)",

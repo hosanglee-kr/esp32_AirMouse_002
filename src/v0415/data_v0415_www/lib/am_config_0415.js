@@ -7,6 +7,12 @@
    - [Phase 2.0.1 N-1] deep_idle_timeout_ms 클램프
    - [Phase 3.2 H-8] 프리셋 19필드 전체화
    - [Phase 3.6 L-5] bindConfigDirtyTracker + clearDirty
+   - [v0415 rev15 / Wave A] Wi-Fi UI 매핑 (mode/ap/sta/mdns)
+   - [v0415 rev15 / Wave C] Precision + Gyro Bias 상세 파라미터
+   - [v0415 rev15 / Wave D] Linear / Flick(window) / Tilt Hold
+     · BUG-1 수정: configToUi 잉여 중괄호 제거
+     · BUG-2 수정: configToUi Wave D 매핑 추가
+     · BUG-3 수정: uiToConfig 내 잘못 삽입된 읽기 블록 제거
    ======================================================= */
    
    
@@ -37,9 +43,12 @@ function configToUi(cfg) {
   if (qs("wheelTh")) qs("wheelTh").value = String(w.threshold_deg ?? 90);
   if (qs("wheelStepMax")) qs("wheelStepMax").value = String(w.step_max ?? 6);
 
-  const g = e.gesture || {};
-  if (qs("flickDeg")) qs("flickDeg").value = String(g.flick_deg ?? 200);
-  if (qs("cooldownMs")) qs("cooldownMs").value = String(g.cooldown_ms ?? 600);
+  // [v0415 rev15 / 스키마 412] gesture.* 삭제 → flick.* 단일 소스
+  //   - UI 라벨("휘두르기 감도", "재발동 대기")은 유지
+  //   - 실제 필드: flick.p2p_th / flick.cooldown_ms (M30 SSOT)
+  const fl = e.flick || {};
+  if (qs("flickDeg")) qs("flickDeg").value = String(fl.p2p_th ?? 400);
+  if (qs("cooldownMs")) qs("cooldownMs").value = String(fl.cooldown_ms ?? 600);
 
   // ====================================================
   // [Phase 1~3] Motion Advanced
@@ -107,6 +116,63 @@ function configToUi(cfg) {
   if (qs("btnHold3sMs")) qs("btnHold3sMs").value = String(bt.hold_3s_ms ?? 3000);
   if (qs("btnDebounceMinTicks")) qs("btnDebounceMinTicks").value = String(bt.debounce_min_ticks ?? 3);
 
+  // ====================================================
+  // [v0415 rev15 / Wave C] Precision 상세 파라미터
+  //   - JSON: e10.precision.{mode, deadzone, gain, ...} (nested)
+  //   - 백엔드 _buildE10Json 참조 (C10_Config_0415.cpp)
+  // ====================================================
+  const p = e.precision || {};
+  if (qs("precMode")) qs("precMode").value = String(p.mode ?? 0);
+  if (qs("precDeadzone")) qs("precDeadzone").value = String(p.deadzone ?? 1.2);
+  if (qs("precGain")) qs("precGain").value = String(p.gain ?? 0.65);
+  if (qs("precAccel")) qs("precAccel").value = String(p.accel ?? 0.25);
+  if (qs("precMaxStep")) qs("precMaxStep").value = String(p.max_step ?? 18);
+  if (qs("precSmooth")) qs("precSmooth").value = String(p.smooth ?? 0.85);
+  if (qs("precEntryMs")) qs("precEntryMs").value = String(p.entry_ms ?? 450);
+  if (qs("precExitMs")) qs("precExitMs").value = String(p.exit_ms ?? 300);
+  if (qs("precEntryStillDeg")) qs("precEntryStillDeg").value = String(p.entry_still_deg ?? 1.2);
+  if (qs("precExitMoveDeg")) qs("precExitMoveDeg").value = String(p.exit_move_deg ?? 3.5);
+  if (qs("precProfile")) qs("precProfile").value = String(p.profile ?? 0);
+
+  // ====================================================
+  // [v0415 rev15 / Wave C] Gyro Bias Tracker 파라미터
+  //   - JSON: e10.gyro_bias.{still_th, still_win_ms, alpha}
+  // ====================================================
+  const gb = e.gyro_bias || {};
+  if (qs("gyroStillTh")) qs("gyroStillTh").value = String(gb.still_th ?? 2.0);
+  if (qs("gyroStillWinMs")) qs("gyroStillWinMs").value = String(gb.still_win_ms ?? 250);
+  if (qs("gyroAlpha")) qs("gyroAlpha").value = String(gb.alpha ?? 0.001);
+
+  // ====================================================
+  // [v0415 rev15 / Wave D] Linear / Flick(window) / Tilt Hold
+  //   - JSON: e10.linear.* / e10.flick.window_ms / e10.tilt_hold.*
+  //   - [BUG-2 수정] configToUi에 Wave D 매핑 추가
+  // ====================================================
+  const ln = e.linear || {};
+  if (qs("linTh"))         qs("linTh").value         = String(ln.th         ?? 0.3);
+  if (qs("linImpulseTh"))  qs("linImpulseTh").value  = String(ln.impulse_th ?? 0.5);
+  if (qs("linWindowMs"))   qs("linWindowMs").value   = String(ln.window_ms  ?? 300);
+
+  // flick.p2p_th / flick.cooldown_ms는 §2 상단 flickDeg/cooldownMs에서 처리 (이미 fl로 반영됨)
+  // flick.window_ms만 신규 노출
+  if (qs("flickWindowMs")) qs("flickWindowMs").value = String(fl.window_ms  ?? 200);
+
+  const th = e.tilt_hold || {};
+  if (qs("tiltAngleDeg"))  qs("tiltAngleDeg").value  = String(th.angle_deg ?? 15.0);
+  if (qs("tiltHoldMs"))    qs("tiltHoldMs").value    = String(th.hold_ms   ?? 300);
+  if (qs("tiltRepeatHz"))  qs("tiltRepeatHz").value  = String(th.repeat_hz ?? 3);
+
+  // ====================================================
+  // [v0415 rev15 / Wave A] WiFi 설정 UI 매핑
+  // ====================================================
+  const wifi = cfg.wifi || {};
+  if (qs("wifiMode"))    qs("wifiMode").value    = String(wifi.mode ?? 0);
+  if (qs("wifiApSsid"))  qs("wifiApSsid").value  = (wifi.ap   && wifi.ap.ssid)   || "EliteAirMouse";
+  if (qs("wifiApPass"))  qs("wifiApPass").value  = (wifi.ap   && wifi.ap.pass)   || "";
+  if (qs("wifiStaSsid")) qs("wifiStaSsid").value = (wifi.sta  && wifi.sta.ssid)  || "";
+  if (qs("wifiStaPass")) qs("wifiStaPass").value = (wifi.sta  && wifi.sta.pass)  || "";
+  if (qs("wifiMdns"))    qs("wifiMdns").value    = (wifi.mdns && wifi.mdns.host) || "elite-airmouse";
+
   if (qs("cfgJsonArea")) qs("cfgJsonArea").value = pretty(cfg);
 }
 
@@ -140,18 +206,26 @@ function uiToConfig() {
   e.wheel.threshold_deg = parseNum(qs("wheelTh")?.value, 90);
   e.wheel.step_max = parseNum(qs("wheelStepMax")?.value, 6);
 
-  e.gesture = e.gesture || {};
-  e.gesture.flick_deg = parseNum(qs("flickDeg")?.value, 200);
-  e.gesture.cooldown_ms = parseNum(qs("cooldownMs")?.value, 600);
+  // [v0415 rev15 / 스키마 412] flick.* 단일 소스
+  //   - window_ms는 Wave D 블록에서 처리
+  //   - p2p_th / cooldown_ms만 여기에서 편집
+  e.flick = e.flick || {};
+  e.flick.p2p_th = parseNum(qs("flickDeg")?.value, 400);
+  e.flick.cooldown_ms = parseNum(qs("cooldownMs")?.value, 600);
+
+  // 클라이언트 클램프 (백엔드 validateE10 정합)
+  const _flickClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  e.flick.p2p_th = _flickClamp(e.flick.p2p_th, 50, 2000);
+  e.flick.cooldown_ms = _flickClamp(e.flick.cooldown_ms, 100, 5000);
 
   // ====================================================
   // [Phase 1~3] Motion Advanced
   // ====================================================
   // [H-1] 서버 validateE10()과 정합하도록 클라이언트 클램프
   e.motion_adv = e.motion_adv || {};
-  
+
   const _c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  
+
   // [Phase 1] Click-Freeze
   e.motion_adv.click_freeze = e.motion_adv.click_freeze || {};
   const cf = e.motion_adv.click_freeze;
@@ -162,7 +236,7 @@ function uiToConfig() {
   cf.fadeout_ms = _c(parseNum(qs("cfFadeoutMs")?.value, 30), 0, 80);
   cf.move_th = _c(parseNum(qs("cfMoveTh")?.value, 2.0), 1.0, 10.0);
   cf.freeze_move_th = _c(parseNum(qs("cfFreezeMoveTh")?.value, 30.0), 10.0, 60.0);
-  
+
   // [Phase 2] Adaptive EMA
   e.motion_adv.ema = e.motion_adv.ema || {};
   const ema = e.motion_adv.ema;
@@ -174,7 +248,7 @@ function uiToConfig() {
   if (ema.deadzone_th >= ema.fast_th) ema.fast_th = ema.deadzone_th + 1.0;
   ema.reversal_th = _c(parseNum(qs("emaReversalTh")?.value, 8.0), 5.0, 20.0);
   ema.reversal_reset = parseBool(qs("emaReversalReset")?.value);
-  
+
   // [Phase 3] Snap-to-Axis
   e.motion_adv.snap = e.motion_adv.snap || {};
   const snap = e.motion_adv.snap;
@@ -186,7 +260,6 @@ function uiToConfig() {
   snap.ratio_enter = _c(parseNum(qs("snapRatio")?.value, 4.0), 2.0, 10.0);
   snap.strength = _c(parseNum(qs("snapStrength")?.value, 0.85), 0.5, 1.0);
   snap.confirm_frames = _c(parseNum(qs("snapConfirmFrames")?.value, 3), 1, 10);
-  
 
   // ====================================================
   // [Phase 11.6] Power
@@ -254,7 +327,76 @@ function uiToConfig() {
   const _align8 = (v) => Math.round(v / 8) * 8;
   e.button.debounce_press_ms = Math.max(8, _align8(e.button.debounce_press_ms));
   e.button.debounce_release_ms = Math.max(8, _align8(e.button.debounce_release_ms));
+
   e.button.min_click_ms = _align8(e.button.min_click_ms);
+
+  // ====================================================
+  // [v0415 rev15 / Wave C] Precision 상세 파라미터
+  //   - 백엔드 validateE10 범위와 1:1 클램프
+  //   - 강제 조건: exit_move_deg > entry_still_deg (백엔드 _applyE10ToRuntime 정합)
+  // ====================================================
+  const _pc = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  e.precision = e.precision || {};
+  e.precision.mode = _pc(parseNum(qs("precMode")?.value, 0), 0, 4);
+  e.precision.deadzone = _pc(parseNum(qs("precDeadzone")?.value, 1.2), 0, 40);
+  e.precision.gain = _pc(parseNum(qs("precGain")?.value, 0.65), 0.01, 10);
+  e.precision.accel = _pc(parseNum(qs("precAccel")?.value, 0.25), 0, 5);
+  e.precision.max_step = _pc(parseNum(qs("precMaxStep")?.value, 18), 1, 200);
+  e.precision.smooth = _pc(parseNum(qs("precSmooth")?.value, 0.85), 0, 0.97);
+  e.precision.entry_ms = _pc(parseNum(qs("precEntryMs")?.value, 450), 50, 5000);
+  e.precision.exit_ms = _pc(parseNum(qs("precExitMs")?.value, 300), 50, 5000);
+  e.precision.entry_still_deg = _pc(parseNum(qs("precEntryStillDeg")?.value, 1.2), 0.1, 20);
+  e.precision.exit_move_deg = _pc(parseNum(qs("precExitMoveDeg")?.value, 3.5), 0.1, 50);
+  // 백엔드 강제 조건: exit_move_deg > entry_still_deg
+  if (e.precision.exit_move_deg <= e.precision.entry_still_deg) {
+    e.precision.exit_move_deg = e.precision.entry_still_deg + 0.5;
+  }
+  e.precision.profile = _pc(parseNum(qs("precProfile")?.value, 0), 0, 5);
+
+  // ====================================================
+  // [v0415 rev15 / Wave C] Gyro Bias Tracker 파라미터
+  // ====================================================
+  e.gyro_bias = e.gyro_bias || {};
+  e.gyro_bias.still_th = _pc(parseNum(qs("gyroStillTh")?.value, 2.0), 0.1, 20);
+  e.gyro_bias.still_win_ms = _pc(parseNum(qs("gyroStillWinMs")?.value, 250), 50, 5000);
+  e.gyro_bias.alpha = _pc(parseNum(qs("gyroAlpha")?.value, 0.001), 0.0001, 0.1);
+
+  // ====================================================
+  // [v0415 rev15 / Wave D] Linear / Flick(window) / Tilt Hold
+  //   - 백엔드 validateE10 범위와 1:1 클램프
+  //   - [BUG-3 수정] 잘못 삽입된 읽기 블록 제거 (configToUi가 담당)
+  // ====================================================
+  e.linear = e.linear || {};
+  e.linear.th = _pc(parseNum(qs("linTh")?.value, 0.3), 0.05, 5);
+  e.linear.impulse_th = _pc(parseNum(qs("linImpulseTh")?.value, 0.5), 0.1, 5);
+  e.linear.window_ms = _pc(parseNum(qs("linWindowMs")?.value, 300), 50, 1000);
+
+  e.flick = e.flick || {};
+  e.flick.window_ms = _pc(parseNum(qs("flickWindowMs")?.value, 200), 50, 500);
+
+  e.tilt_hold = e.tilt_hold || {};
+  e.tilt_hold.angle_deg = _pc(parseNum(qs("tiltAngleDeg")?.value, 15.0), 5, 45);
+  e.tilt_hold.hold_ms = _pc(parseNum(qs("tiltHoldMs")?.value, 300), 100, 2000);
+  e.tilt_hold.repeat_hz = _pc(parseNum(qs("tiltRepeatHz")?.value, 3), 1, 20);
+
+  // ====================================================
+  // [v0415 rev15 / Wave A] WiFi 설정 UI → config 매핑
+  // ====================================================
+  cfg.wifi = cfg.wifi || {};
+  cfg.wifi.mode = parseNum(qs("wifiMode")?.value, 0);
+
+  cfg.wifi.ap = cfg.wifi.ap || {};
+  const v_apSsid = (qs("wifiApSsid")?.value || "").trim();
+  cfg.wifi.ap.ssid = v_apSsid || "EliteAirMouse"; // 빈 값 방어
+  cfg.wifi.ap.pass = qs("wifiApPass")?.value || "";
+
+  cfg.wifi.sta = cfg.wifi.sta || {};
+  cfg.wifi.sta.ssid = (qs("wifiStaSsid")?.value || "").trim();
+  cfg.wifi.sta.pass = qs("wifiStaPass")?.value || "";
+
+  cfg.wifi.mdns = cfg.wifi.mdns || {};
+  const v_mdns = (qs("wifiMdns")?.value || "").trim();
+  cfg.wifi.mdns.host = v_mdns || "elite-airmouse"; // 빈 값 방어
 
   return cfg;
 }
@@ -279,24 +421,27 @@ async function cfgLoad() {
   setMsg(t("cfg.load_ok"), true);
 }
 
-
 async function cfgSave() {
   if (!g_profile) { await cfgLoad(); }
   const cfg = uiToConfig();
 
-  const patch = { e10: cfg.e10 };
+  // [v0415 rev15 / Wave A] WiFi도 함께 전송 (백엔드 _bumpRebootMaskFromBoot 트리거)
+  const patch = { e10: cfg.e10, wifi: cfg.wifi };
   const u = unwrapApi(await apiPostJson("/api/profiles/active", patch));
+
   if (!u.ok) {
     setMsg(`${t("cfg.save_fail")}: ${u.msg || u.code}`, false);
     return;
   }
 
-  if (g_profile.config) g_profile.config.e10 = cfg.e10;
+  if (g_profile.config) {
+    g_profile.config.e10 = cfg.e10;
+    g_profile.config.wifi = cfg.wifi; // ← 추가
+  }
   configToUi(g_profile.config);
 
   setMsg(t("cfg.save_ok_resp", { reloaded: (u.data && u.data.reloaded) ? "yes" : "no" }), true);
   // [L-5] 저장 성공 시 dirty 클리어
-  // ── 이후 ──
   if (typeof clearCfgDirty === "function") clearCfgDirty();
   await refreshStatus();
 }

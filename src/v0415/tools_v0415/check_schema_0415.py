@@ -20,6 +20,80 @@ JS_CONFIG     = ROOT / "data_v0415_www" / "lib" / "am_config_0415.js"
 JS_OFFLINE    = ROOT / "data_v0415_www" / "lib" / "am_offline_0415.js"
 
 
+# ======================================================
+# [v0415 rev15 / Wave B] Wi-Fi 필드 매핑 (H struct → JSON 경로)
+# ------------------------------------------------------
+#  - ST_C10_WiFiConfig_t 는 flat 구조체 (mode/sta_ssid/sta_pass/...)
+#  - JSON/JS는 nested 구조 (wifi.sta.ssid 등)
+#  - H → JSON 경로 매핑을 명시 테이블로 관리 (문서-코드 SSOT)
+# ======================================================
+WIFI_FIELD_MAP = {
+    "mode":       "wifi.mode",
+    "sta_ssid":   "wifi.sta.ssid",
+    "sta_pass":   "wifi.sta.pass",
+    "ap_ssid":    "wifi.ap.ssid",
+    "ap_pass":    "wifi.ap.pass",
+    "mdns_host":  "wifi.mdns.host",
+}
+
+# JS DOM id ↔ JSON 경로 매핑 (configToUi/uiToConfig 검증용)
+WIFI_DOM_MAP = {
+    "wifiMode":    "wifi.mode",
+    "wifiStaSsid": "wifi.sta.ssid",
+    "wifiStaPass": "wifi.sta.pass",
+    "wifiApSsid":  "wifi.ap.ssid",
+    "wifiApPass":  "wifi.ap.pass",
+    "wifiMdns":    "wifi.mdns.host",
+}
+
+# ======================================================
+# [v0415 rev15 / Wave D] E10 nested 구조체 화이트리스트
+# ------------------------------------------------------
+#  - ST_C10_E10Config_t 내 인라인 struct 필드
+#  - 화이트리스트 SSOT: 문서-코드-UI 삼각 정합 검증
+#  - 각 key: H 필드명 / value: JSON 경로 (nested)
+# ======================================================
+E10_NESTED_MAP = {
+    "precision": {
+        "mode":            "precision.mode",
+        "deadzone":        "precision.deadzone",
+        "gain":            "precision.gain",
+        "accel":           "precision.accel",
+        "max_step":        "precision.max_step",
+        "smooth":          "precision.smooth",
+        "entry_ms":        "precision.entry_ms",
+        "exit_ms":         "precision.exit_ms",
+        "entry_still_deg": "precision.entry_still_deg",
+        "exit_move_deg":   "precision.exit_move_deg",
+        "profile":         "precision.profile",
+    },
+    "gyro_bias": {
+        "still_th":     "gyro_bias.still_th",
+        "still_win_ms": "gyro_bias.still_win_ms",
+        "alpha":        "gyro_bias.alpha",
+    },
+    "linear": {
+        "th":         "linear.th",
+        "impulse_th": "linear.impulse_th",
+        "window_ms":  "linear.window_ms",
+    },
+    "flick": {
+        "p2p_th":      "flick.p2p_th",
+        "window_ms":   "flick.window_ms",
+        "cooldown_ms": "flick.cooldown_ms",
+    },
+    "tilt_hold": {
+        "angle_deg":  "tilt_hold.angle_deg",
+        "hold_ms":    "tilt_hold.hold_ms",
+        "repeat_hz":  "tilt_hold.repeat_hz",
+    },
+}
+
+
+# [v0415 rev15 / 스키마 412] 삭제된 gesture 필드 (Negative check)
+GESTURE_REMOVED_H_FIELDS = ["gesture_flick_deg", "gesture_cooldown_ms"]
+
+
 def extract_c_struct_fields(lines, struct_name):
     """
     'struct ST_C10_PowerConfig_t { ... };' 블록에서 필드명 추출.
@@ -188,14 +262,35 @@ def main():
     _diff_and_report("H↔Offline", h_button, off_button)
     if h_button != off_button:
         ok = False
+        
+    # ---- [Wave B] Wi-Fi 3자 매핑 검증 ----
+    if not check_wifi_mapping(h_lines, cfg_text, off_text):
+        ok = False
+    
+    # ---- [Wave B] gesture 삭제 검증 (스키마 412) ----
+    if not check_gesture_removed(h_lines, cfg_text, off_text):
+        ok = False
 
+    # ---- [Wave C+D] E10 nested 매핑 검증 ----
+    if not check_e10_nested_mapping(h_lines, cfg_text, off_text):
+        ok = False
+    
+    # ---- [Wave C+D] DOM id 존재 검증 ----
+    # HTML 파일 로드 필요
+    HTML_INDEX = ROOT / "data_v0415_www" / "index_0415.html"
+    if HTML_INDEX.exists():
+        html_text = HTML_INDEX.read_text(encoding="utf-8")
+        if not check_wave_cd_dom_ids(html_text, cfg_text):
+            ok = False
+    else:
+        print(f"\n[WARN] index_0415.html not found: {HTML_INDEX}")
+    
     if ok:
-        print("\n[OK] schema field names match (H ↔ JS ↔ Offline)")
+        print("\n[OK] schema field names match (H ↔ JS ↔ Offline) + Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids")
         return 0
     else:
         print("\n[FAIL] schema mismatch detected")
         return 1
-
 
 def _diff_and_report(label, backend, front):
     only_backend = backend - front
@@ -207,6 +302,168 @@ def _diff_and_report(label, backend, front):
         print(f"  [{label}] ONLY in JS: {sorted(only_front)}")
     if not only_backend and not only_front:
         print(f"  [{label}] [OK] match")
+
+
+def check_wifi_mapping(h_lines, js_config_text, off_text):
+    """Wi-Fi 필드 3자 매핑 검증 (H ↔ JS config ↔ Offline)"""
+    print(f"\n--- Wi-Fi ---")
+
+    # 1) H struct 필드 추출
+    h_wifi = set(extract_c_struct_fields(h_lines, "ST_C10_WiFiConfig_t"))
+    expected = set(WIFI_FIELD_MAP.keys())
+
+    if h_wifi != expected:
+        print(f"  [FAIL] H ST_C10_WiFiConfig_t 필드 불일치")
+        print(f"    expected: {sorted(expected)}")
+        print(f"    found:    {sorted(h_wifi)}")
+        return False
+    print(f"  [OK] H fields match ({len(h_wifi)})")
+
+    # 2) JS configToUi/uiToConfig에 DOM id 존재 확인
+    missing_dom = [d for d in WIFI_DOM_MAP.keys() if d not in js_config_text]
+    if missing_dom:
+        print(f"  [FAIL] JS config에서 Wi-Fi DOM id 누락:")
+        for d in missing_dom:
+            print(f"    - {d}")
+        return False
+    print(f"  [OK] JS DOM ids present ({len(WIFI_DOM_MAP)})")
+
+    # 3) Offline 기본 프로파일에 wifi 블록 존재 확인
+    has_wifi_block = ("wifi:" in off_text) or ('"wifi"' in off_text)
+    if not has_wifi_block:
+        print(f"  [FAIL] Offline 기본 프로파일에 'wifi' 블록 없음")
+        return False
+    print(f"  [OK] Offline wifi block present")
+
+    return True
+
+def check_wave_cd_dom_ids(html_text, js_config_text):
+    """[Wave C+D] Config 탭의 신규 DOM id가 HTML + JS 양쪽에 존재하는지 검증"""
+    print(f"\n--- Wave C+D DOM IDs ---")
+
+    dom_ids = [
+        # Wave C
+        "precMode", "precDeadzone", "precGain", "precAccel", "precMaxStep",
+        "precSmooth", "precEntryMs", "precExitMs", "precEntryStillDeg",
+        "precExitMoveDeg", "precProfile",
+        "gyroStillTh", "gyroStillWinMs", "gyroAlpha",
+        # Wave D
+        "linTh", "linImpulseTh", "linWindowMs",
+        "flickWindowMs",
+        "tiltAngleDeg", "tiltHoldMs", "tiltRepeatHz",
+    ]
+
+    ok = True
+    missing_html = [d for d in dom_ids if d not in html_text]
+    missing_js   = [d for d in dom_ids if d not in js_config_text]
+
+    if missing_html:
+        print(f"  [FAIL] HTML 누락 DOM id: {missing_html}")
+        ok = False
+    if missing_js:
+        print(f"  [FAIL] JS 누락 DOM id: {missing_js}")
+        ok = False
+
+    if ok:
+        print(f"  [OK] Wave C+D DOM ids present ({len(dom_ids)})")
+
+    return ok
+
+
+def check_gesture_removed(h_lines, js_config_text, off_text):
+    """[v0415 rev15 / 스키마 412] gesture.* 삭제 검증 (Negative check)"""
+    print(f"\n--- Gesture Removal (Schema 412) ---")
+
+    # [FIX] 주석 제거 후 검사 (주석 내 문자열 오탐 방지)
+    h_code_lines = [_strip_comments(l) for l in h_lines]
+    h_text_code = "\n".join(h_code_lines)
+
+    ok = True
+
+    # 1) H 코드에서 gesture_* 필드 잔존 검사 (주석 제외)
+    h_hits = [f for f in GESTURE_REMOVED_H_FIELDS if f in h_text_code]
+    if h_hits:
+        print(f"  [FAIL] H에 gesture_* 필드 잔존 (스키마 412 위반):")
+        for f in h_hits:
+            print(f"    - {f}")
+        ok = False
+    else:
+        print(f"  [OK] H gesture_* 필드 없음")
+
+    # 2) JS config에서 e.gesture 참조 잔존 검사
+    js_hits = []
+    if "e.gesture" in js_config_text:
+        js_hits.append("e.gesture")
+    if "cfg.e10.gesture" in js_config_text:
+        js_hits.append("cfg.e10.gesture")
+    if js_hits:
+        print(f"  [FAIL] JS config에 gesture 참조 잔존:")
+        for h in js_hits:
+            print(f"    - {h}")
+        ok = False
+    else:
+        print(f"  [OK] JS gesture 참조 없음")
+
+    # 3) Offline 기본 프로파일에 gesture 블록 잔존 검사
+    #    - "gesture:" (JSON key) 만 검사 (주석의 "gesture.*"는 통과)
+    off_hits = []
+    # 주석 제거 후 검사
+    off_code = re.sub(r'//[^\n]*', '', off_text)
+    if re.search(r'\bgesture\s*:', off_code):
+        off_hits.append("gesture:")
+    if off_hits:
+        print(f"  [FAIL] Offline에 gesture 블록 잔존:")
+        for h in off_hits:
+            print(f"    - {h}")
+        ok = False
+    else:
+        print(f"  [OK] Offline gesture 블록 없음")
+
+    # 4) flick.* SSOT 참조 확인
+    if "flick" not in js_config_text:
+        print(f"  [FAIL] JS config에 flick 참조 없음 (SSOT 위반)")
+        ok = False
+    else:
+        print(f"  [OK] JS flick 참조 존재")
+
+    return ok
+
+def check_e10_nested_mapping(h_lines, js_config_text, off_text):
+    """[Wave C+D] E10 nested 필드 3자 매핑 검증 (H ↔ JS config ↔ Offline)"""
+    print(f"\n--- E10 Nested Mapping (Wave C+D) ---")
+    ok = True
+
+    for struct_name, fields in E10_NESTED_MAP.items():
+        # 1) JS configToUi/uiToConfig에서 DOM id 참조 존재
+        #    (e.{struct}.* 또는 {struct} = ... 패턴)
+        missing_js = []
+        for field in fields.keys():
+            # 3가지 패턴 중 하나라도 있으면 통과
+            patterns = [
+                f".{struct_name}.{field}",         # e.precision.mode
+                f"{struct_name}[\"{field}\"]",     # precision["mode"]
+            ]
+            if not any(p in js_config_text for p in patterns):
+                missing_js.append(field)
+
+        # 2) Offline 기본 프로파일 블록 존재
+        off_has_block = (f"{struct_name}:" in off_text)
+
+        # 3) H 파일에 struct 이름 존재
+        h_has_struct = (struct_name in "\n".join(h_lines))
+
+        if missing_js:
+            print(f"  [FAIL] JS {struct_name}: 누락 필드 {sorted(missing_js)}")
+            ok = False
+        elif not off_has_block:
+            print(f"  [FAIL] Offline {struct_name}: 블록 없음")
+            ok = False
+        elif not h_has_struct:
+            print(f"  [WARN] H {struct_name}: struct 이름 미검출 (인라인 파싱 한계)")
+        else:
+            print(f"  [OK] {struct_name}: {len(fields)} fields")
+
+    return ok
 
 
 if __name__ == "__main__":

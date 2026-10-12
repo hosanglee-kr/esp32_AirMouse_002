@@ -104,9 +104,35 @@ v0415 이상 버전에서 UI 요소를 추가하거나 변경할 때 반드시 �
 | 닫기 / 취소 | 닫기 / 취소 | Close / Cancel |
 | 접기 ▲ / 펼치기 ▼ | 접기 / 펼치기 | Collapse / Expand |
 
----
+### G. [v0415 rev15] Wi-Fi 설정 (신규)
 
+| 기능 | 표준 한글 | 표준 영문 |
+| :--- | :--- | :--- |
+| **Wi-Fi Mode** | 동작 모드 | Operating Mode |
+| **Auto** | 자동 (STA 실패 시 AP 전환) | Auto (AP fallback on STA failure) |
+| **AP Only** | AP 전용 (공유기 없이 직접 접속) | AP Only |
+| **STA Only** | STA 전용 (공유기에 접속) | STA Only |
+| **AP SSID** | AP SSID (기기 이름) | AP SSID (device name) |
+| **AP Password** | AP 비밀번호 (8자 이상) | AP Password (min 8 chars) |
+| **mDNS Hostname** | mDNS 호스트명 | mDNS Hostname |
+| **Router SSID** | 공유기 SSID | Router SSID |
+| **Router Password** | 공유기 비밀번호 | Router Password |
+| **Advanced STA** | ⚙ STA (공유기 접속) 설정 | ⚙ STA (Router Connection) |
+| **Reboot Note** | Wi-Fi 변경 후 다시 시작이 필요합니다. | A restart is required after Wi-Fi changes. |
+
+---
 ## 3. v0415 변경 사항 (v0414 → v0415)
+
+### 3.1 [rev15] gesture/Wi-Fi 정합
+
+| 항목 | v0414 | v0415 rev15 |
+|---|---|---|
+| **gesture.* 필드** | UI에서 `gesture.flick_deg` 편집 | **삭제 → `flick.p2p_th`로 매핑 정정** |
+| **Wi-Fi UI** | 없음 | **§8 Wi-Fi 설정 섹션 신설 (12개 i18n 키)** |
+| **i18n 키** | KO/EN 371개 | **KO/EN 383개 (+12)** |
+| **오프라인 스키마** | v6 (내부) | v6 유지, 프로파일 `ver = 412` |
+
+### 3.2 [누적] v0414 → v0415 리팩터
 
 | 항목 | v0414 | v0415 |
 |---|---|---|
@@ -135,6 +161,12 @@ v0415 이상 버전에서 UI 요소를 추가하거나 변경할 때 반드시 �
 3. **자동화 검증**:
    - 프론트엔드 수정 후 `scratch/check_i18n.py` 실행하여 KO/EN 키 불일치 0건 확인
 
+4. **[v0415 rev15] Wi-Fi 필드 신규 추가 시**:
+   - `ST_C10_WiFiConfig_t` (H) ↔ `WIFI_FIELD_MAP` (`check_schema_0415.py`) ↔ `WIFI_DOM_MAP` (JS DOM id) 3자 동시 갱신
+   - `index_0415.html` §8 Wi-Fi 섹션에 `<input id="wifi...">` + `data-i18n="cfg.lbl_..."` 부착
+   - `am_config_0415.js::configToUi/uiToConfig` 양방향 매핑 추가
+   - `am_i18n_0415.js` KO/EN 각 1개씩 추가 후 `check_i18n_0415.py` 실행
+
 ---
 
 ## 5. v0415 새 용어 (TV 모드 Descriptor 제약 반영)
@@ -147,3 +179,12 @@ v0415에서 TV Power/입력/채널이 Descriptor 미지원으로 삭제됨에 �
 | 외부 입력 | (삭제) | §7.2 재작성 |
 | 채널 올리기/내리기 | (삭제) | §7.2 재작성 |
 | WWW Home / WWW Back / WWW Search | 홈 / 뒤로 가기 / 검색 | 라벨 유지, 값만 재정의 |
+
+### [v0415 rev15] Wi-Fi 용어 (신규)
+
+| 이전 표기 | v0415 rev15 표기 | 비고 |
+|---|---|---|
+| (없음) | **동작 모드: 자동 / AP 전용 / STA 전용** | Windows "네트워크 모드" 표준 |
+| (없음) | **AP SSID (기기 이름)** | SoftAP 브로드캐스팅 이름 |
+| (없음) | **공유기 SSID / 비밀번호** | STA 접속 대상 (Windows 표준) |
+| (없음) | **mDNS 호스트명** | `elite-airmouse.local` 접속 |

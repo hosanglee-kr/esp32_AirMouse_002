@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`  
-> 최종 갱신: 2026-10-12 (rev14 — D10 Logger 백엔드 로깅 정책 §2.18 보강, W10 리부트 태스크 생성 검증 및 동기 폴백 계약 §2.20 신규 B-4)
+> 최종 갱신: 2026-10-12 (rev15 — 스키마 412 전환 및 Wi-Fi patch 계약 §2.13 보강. `gesture.*` 삭제 및 `flick.*` SSOT 확립. `apiProfilesActivePost` 재부팅 마스크 갱신 계약)
 
 ---
 
@@ -217,6 +217,17 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **Captive Portal 친화 프로브 응답 (AP 모드)**: Android(`/generate_204`, `/gen_204` -> 204 No Content), Apple(`/hotspot-detect.html`, `/canonical.html` -> 302 redirect to index), Windows(`/connecttest.txt`, `/ncsi.txt` -> 200 OK) 프로브에 표준 응답하여 모바일 디바이스가 AP 연결을 안정적으로 유지하고 포털 UI를 원활하게 표시하도록 보장한다.
 - **AP/STA 겸용 mDNS**: mDNS 호스트(`elite-airmouse.local`)는 STA 모드 연결뿐 아니라 AP 모드 활성화 시에도 즉시 구동되어 지원 단말에서 호스트명 접근성을 보장한다.
 
+**[v0415 rev15 추가 — Wi-Fi 웹 UI 저장 경로 계약]**
+- **`cfgSave()` patch 확장**: `am_config_0415.js::cfgSave()`는 `patch = { e10, wifi }`를 `/api/profiles/active` POST로 전송. `wifi` 객체는 `wifi.mode` / `wifi.ap.{ssid,pass}` / `wifi.sta.{ssid,pass}` / `wifi.mdns.host` 6필드 포함.
+- **`validateWiFi` 강화**:
+  - `ap_ssid` 빈 문자열 금지 (필수)
+  - `mdns_host` 빈 문자열 금지 + `MDNS_MAX` 이하
+  - `mode == STA` 시 `sta_ssid` 필수
+  - `ap_pass` 비어있거나 8자 이상
+- **재부팅 트리거**: `apiProfilesActivePost`는 `_bumpRebootMaskFromBoot()`를 호출하여 WiFi diff 감지 시 `/api/status.groups.policy.reboot_required`를 true로 노출. 프론트 상단 배너가 자동 표시됨.
+- **마이그레이션 미구현**: 과거 스키마(411 이하) 파일의 `gesture.*` 값은 무시되고 `makeDefaultsE10`의 `flick.*` 기본값으로 fallback. 저장 시 `buildProfileJson`이 `ver = 412` 자동 기록.
+
+
 ### 2.14 Deep-sleep 셧다운 순서 계약 (v0415 rev12 신규)
 
 `sensorTask`가 deep-sleep에 진입할 때 다음 순서를 **반드시** 준수:
@@ -367,6 +378,7 @@ struct ST_E10_HidCmd_t {
 | `_pairingStartMs` / `_pairingTimeoutMs` (B20) | `webTask` (`enterPairing`) | `sensorTask` (`tick`) | `volatile uint32_t` | Pairing 타임아웃 |
 | `_whitelistActive` / `_whitelistUntilMs` (B20) | `webTask` (`reconnectToActivePeer`) | `sensorTask` (`tick`) | `volatile bool` / `volatile uint32_t` | 재연결 윈도우 추적 |
 | **`_bootWifi`** (W10) | `CL_W10_WebConfig::begin()` | `_bumpRebootMaskFromBoot` | 독점 (No sync) | **v0415: 부팅 WiFi 스냅샷** |
+| **`_wifi`** (W10) | `begin()` / `apiConfigSave` / **`apiProfilesActivePost` (rev15)** | `_bumpRebootMaskFromBoot`, `_setupWiFi` | 독점 (No sync) | **rev15: `/api/profiles/active` POST 경로도 갱신** |
 | **`_thLed`** (E10) | `begin()` (task create) | `getStatus` (관측) | 읽기 전용 | **v0415: LED 태스크 핸들** |
 | **`_consecutiveI2cFail`** (E10) | `sensorTask` (pre-probe) | `sensorTask` | 독점 (No sync) | **rev12: I2C 전용 (10회 시 복구 후 0 리셋)** |
 | **`_bootMutex`** (C10) | `ctor` | – | Mutex | **rev12: `_boot` 보호** |
@@ -566,4 +578,4 @@ _unlock();
 | rev12 | 2026-10-12 | **안정성 하드닝 & D10 Logger rev2 / C10 안전 회전 & 딥슬립 차단 무결성**: D10 RingBuffer=64, MSG_MAX=96 Two-Phase Locking 및 Serial 블로킹 제거, USB CDC 대기 루프(main.cpp). C10 atomic rotate save(`main->old`, `tmp->main`) 및 `_bootMutex` 스레드 안전성 확보. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. `makeDefaultsWiFi` 및 기본 프로파일 STA 자격증명 공백("") 초기화 규약 반영. Deep Sleep 직전 LED suspend 및 MPU6050 PWR_MGMT_1=0x40 슬립 설정. W10 export 헤더 인젝션 방어(64자 제한/특수문자 치환). 정적 파일 ETag 이중 샘플링 방지 및 `/www` 경로 traversal 방지. |
 | rev13 | 2026-10-12 | **Consumer/KB 라벨 SSOT 계약 (§2.19 신규, B-1/B-3)**: `G_W10_CONSUMER[].name` UPPER_SNAKE 통일 (B-1). `_kbName()`과 offline names dict 완전 파리티 (B-3, 106 codes). LED 태스크 스택 워터마크 관측 계약 (B-2, §2.14 연계). |
 | **rev14** | **2026-10-12** | **D10 Logger 백엔드 로깅 정책 (§2.18 보강) 및 W10 리부트 태스크 방어 (§2.20 신규, B-4)**: 8ms/7ms 루프 로깅 배제, 진단/부팅 단일 라인 원자적 D10 로깅 확립, 96B 초과 체크리스트 Serial 보존. `xTaskCreatePinnedToCore(_taskReboot)` 반환값 검증 및 생성 실패 시 동기식 `ESP.restart()` 안전 폴백 확립. |
-
+| **rev15** | **2026-10-12** | **스키마 412 + Wi-Fi 웹 UI 계약 (§2.13 보강)**: `gesture_flick_deg`/`gesture_cooldown_ms` 필드 삭제. `flick.*` SSOT 확립. Config 탭 §8 Wi-Fi UI 신설에 따른 저장 경로 계약 (`cfgSave` patch 확장, `apiProfilesActivePost` 재부팅 마스크 갱신). `validateWiFi` 강화 (AP SSID 필수, STA 모드 SSID 필수, mdns 빈 값 금지). |

@@ -355,6 +355,64 @@
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_accel_th">가속 시작 속도</label><input id="accelThreshold" class="inp" type="number" min="1.0" max="30.0" step="0.5" /></div>
         <div class="frow"><label class="flbl" data-i18n="cfg.lbl_scroll_damp">스크롤 중 감속 비율</label><input id="scrollDamp" class="inp" type="number" min="0.05" max="1.0" step="0.05" /></div>
       </div>
+      
+      
+
+      <!-- ====================================================
+           [v0415 rev15 / Wave C] Precision 상세 파라미터
+           - JSON: e10.precision.{mode, deadzone, gain, ...}
+           ==================================================== -->
+      <details class="adv-opts" style="margin-top:14px;">
+        <summary data-i18n="cfg.adv_precision">⚙ Precision 상세 파라미터</summary>
+        <div class="form two" style="margin-top:12px;">
+          <div class="frow">
+            <label class="flbl" data-i18n="cfg.lbl_prec_mode">정밀 모드 프리셋</label>
+            <select id="precMode" class="select">
+              <option value="0" data-i18n="dash.prec_off">끔</option>
+              <option value="1" data-i18n="dash.prec_low">낮음</option>
+              <option value="2" data-i18n="dash.prec_med">보통</option>
+              <option value="3" data-i18n="dash.prec_high">높음</option>
+              <option value="4" data-i18n="dash.prec_ppt">프레젠테이션</option>
+            </select>
+          </div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_deadzone">정밀 조작 불감대 (deg/s)</label>
+            <input id="precDeadzone" class="inp" type="number" min="0" max="40" step="0.1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_gain">정밀 조작 배율</label>
+            <input id="precGain" class="inp" type="number" min="0.01" max="10" step="0.05" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_accel">정밀 조작 가속</label>
+            <input id="precAccel" class="inp" type="number" min="0" max="5" step="0.05" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_max_step">프레임당 최대 이동 (px)</label>
+            <input id="precMaxStep" class="inp" type="number" min="1" max="200" step="1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_smooth">필터 평활도</label>
+            <input id="precSmooth" class="inp" type="number" min="0" max="0.97" step="0.01" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_entry_ms">진입 안정화 시간 (ms)</label>
+            <input id="precEntryMs" class="inp" type="number" min="50" max="5000" step="50" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_exit_ms">이탈 안정화 시간 (ms)</label>
+            <input id="precExitMs" class="inp" type="number" min="50" max="5000" step="50" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_entry_still">진입 정지 임계 (deg/s)</label>
+            <input id="precEntryStillDeg" class="inp" type="number" min="0.1" max="20" step="0.1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_exit_move">이탈 이동 임계 (deg/s)</label>
+            <input id="precExitMoveDeg" class="inp" type="number" min="0.1" max="50" step="0.1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_prec_profile">조이스틱 프로파일 (0~5)</label>
+            <input id="precProfile" class="inp" type="number" min="0" max="5" step="1" /></div>
+        </div>
+      </details>
+      
+      <!-- ====================================================
+           [v0415 rev15 / Wave C] 자이로 드리프트 튜닝
+           - JSON: e10.gyro_bias.{still_th, still_win_ms, alpha}
+           ==================================================== -->
+      <details class="adv-opts">
+        <summary data-i18n="cfg.adv_gyro_bias">⚙ 자이로 드리프트 튜닝</summary>
+        <div class="form two" style="margin-top:12px;">
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_gyro_still_th">정지 판정 임계 (deg/s)</label>
+            <input id="gyroStillTh" class="inp" type="number" min="0.1" max="20" step="0.1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_gyro_still_win">정지 유지 시간 (ms)</label>
+            <input id="gyroStillWinMs" class="inp" type="number" min="50" max="5000" step="50" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_gyro_alpha">드리프트 추종 계수</label>
+            <input id="gyroAlpha" class="inp" type="number" min="0.0001" max="0.1" step="0.0001" /></div>
+        </div>
+      </details>
 
       <h3 data-i18n="cfg.sec_motion_modes">2. 모드별 포인터 이동 특성</h3>
       <div class="form three">
@@ -370,11 +428,41 @@
           <label class="flbl" data-i18n="cfg.lbl_wheel">휠 스크롤 민감도</label>
           <div class="arr"><input id="wheelTh" class="inp mini" type="number" min="30" max="180" step="5" /><input id="wheelStepMax" class="inp mini" type="number" min="1" max="20" step="1" /></div>
         </div>
+
         <div class="frow">
           <label class="flbl" data-i18n="cfg.lbl_flick">휘두르기 제스처 감도</label>
-          <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="100" max="500" step="10" /><input id="cooldownMs" class="inp mini" type="number" min="200" max="1500" step="50" /></div>
+          <div class="arr"><input id="flickDeg" class="inp mini" type="number" min="50" max="2000" step="10" /><input id="cooldownMs" class="inp mini" type="number" min="100" max="5000" step="50" /></div>
         </div>
+        
       </div>
+      
+      <!-- ====================================================
+           [v0415 rev15 / Wave D] 제스처 세부 감도 (Linear/Flick/Tilt)
+           - JSON: e10.{linear, flick.window_ms, tilt_hold}
+           ==================================================== -->
+      <details class="adv-opts" style="margin-top:14px;">
+        <summary data-i18n="cfg.adv_gesture_detail">⚙ 제스처 세부 감도 (Linear / Flick / Tilt)</summary>
+        <div class="form three" style="margin-top:12px;">
+      
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_lin_th">선형 임펄스 시작 임계 (m/s²)</label>
+            <input id="linTh" class="inp" type="number" min="0.05" max="5" step="0.05" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_lin_impulse">선형 임펄스 크기 임계 (m/s)</label>
+            <input id="linImpulseTh" class="inp" type="number" min="0.1" max="5" step="0.1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_lin_window">선형 적분 윈도우 (ms)</label>
+            <input id="linWindowMs" class="inp" type="number" min="50" max="1000" step="50" /></div>
+      
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_flick_window">휘두르기 감지 윈도우 (ms)</label>
+            <input id="flickWindowMs" class="inp" type="number" min="50" max="500" step="10" /></div>
+      
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_tilt_angle">틸트 트리거 각도 (deg)</label>
+            <input id="tiltAngleDeg" class="inp" type="number" min="5" max="45" step="1" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_tilt_hold">틸트 유지 시간 (ms)</label>
+            <input id="tiltHoldMs" class="inp" type="number" min="100" max="2000" step="50" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_tilt_repeat">틸트 반복 주기 (Hz)</label>
+            <input id="tiltRepeatHz" class="inp" type="number" min="1" max="20" step="1" /></div>
+        </div>
+        <div class="hint2" data-i18n="cfg.tilt_mode3_note" style="margin-top:8px;">틸트 홀드는 모드 3 (스마트 TV) 전용입니다.</div>
+      </details>
 
       <h3 data-i18n="cfg.sec_click_freeze">3. 클릭 시 포인터 고정 (Click-Freeze)</h3>
       <div class="form two">
@@ -498,7 +586,36 @@
             <input id="btnDebounceMinTicks" class="inp" type="number" min="1" max="10" step="1" /></div>
         </div>
       </details>
-
+      
+      <h3 data-i18n="cfg.sec_wifi">8. Wi-Fi 설정</h3>
+      <div class="form two">
+        <div class="frow">
+          <label class="flbl" data-i18n="cfg.lbl_wifi_mode">동작 모드</label>
+          <select id="wifiMode" class="select">
+            <option value="0" data-i18n="cfg.wifi_auto">자동 (STA 실패 시 AP 전환)</option>
+            <option value="1" data-i18n="cfg.wifi_ap">AP 전용 (공유기 없이 직접 접속)</option>
+            <option value="2" data-i18n="cfg.wifi_sta">STA 전용 (공유기에 접속)</option>
+          </select>
+        </div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ap_ssid">AP SSID (기기 이름)</label>
+          <input id="wifiApSsid" class="inp" type="text" maxlength="32" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_ap_pass">AP 비밀번호 (8자 이상)</label>
+          <input id="wifiApPass" class="inp" type="password" maxlength="64" /></div>
+        <div class="frow"><label class="flbl" data-i18n="cfg.lbl_mdns">mDNS 호스트명</label>
+          <input id="wifiMdns" class="inp" type="text" maxlength="32" /></div>
+      </div>
+      <details class="adv-opts">
+        <summary data-i18n="cfg.adv_wifi_sta">⚙ STA (공유기 접속) 설정</summary>
+        <div class="form two" style="margin-top:12px;">
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_sta_ssid">공유기 SSID</label>
+            <input id="wifiStaSsid" class="inp" type="text" maxlength="32" /></div>
+          <div class="frow"><label class="flbl" data-i18n="cfg.lbl_sta_pass">공유기 비밀번호</label>
+            <input id="wifiStaPass" class="inp" type="password" maxlength="64" /></div>
+        </div>
+      </details>
+      <div class="hint2" data-i18n="cfg.wifi_reboot_note">Wi-Fi 변경 후 다시 시작이 필요합니다.</div>
+      
+      <div class="sep"></div>
       <h3 data-i18n="cfg.sec_preset">추천 동작 프리셋</h3>
       <div class="row preset-row">
         <button class="btn mini" id="btnPresetPC" data-i18n="cfg.preset_pc">일반 PC</button>

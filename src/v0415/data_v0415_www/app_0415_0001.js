@@ -108,12 +108,12 @@ function bindBanner() {
    3. Quick Tuning
    ======================================================= */
 function bindQuickTuning() {
+  // ---- DPI 버튼 (1, 2, 3) ----
   [1, 2, 3].forEach(v => {
     qs("btnDpi" + v)?.addEventListener("click", async () => {
       const prof = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile?.config);
       if (prof?.e10) {
-        prof.e10.dpi_level = v;
-        // [F-5] saveOfflineStore 내부에 이미 모드 가드가 있어 호출부 조건 제거
+        prof.e10.dpi_level = v; // ← DPI는 flat 필드 그대로
         if (typeof saveOfflineStore === "function") saveOfflineStore();
       }
       await apiPostJson("/api/control", { cmd: "set_dpi", level: v, snapshot: true });
@@ -123,12 +123,15 @@ function bindQuickTuning() {
     });
   });
   
+  // ---- PREC 버튼 (0~4) ----
   [0, 1, 2, 3, 4].forEach(v => {
     qs("btnPrec" + v)?.addEventListener("click", async () => {
       const prof = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile?.config);
       if (prof?.e10) {
-        prof.e10.precision_mode = v;
-        // [F-5] saveOfflineStore 내부에 이미 모드 가드가 있어 호출부 조건 제거
+        // [v0415 rev15 / Wave C] nested 구조로 저장 (백엔드 JSON 정합)
+        if (!prof.e10.precision) prof.e10.precision = {};
+        prof.e10.precision.mode = v;
+        delete prof.e10.precision_mode; // legacy flat 필드 정리
         if (typeof saveOfflineStore === "function") saveOfflineStore();
       }
       await apiPostJson("/api/control", { cmd: "set_precision", mode: v, snapshot: true });
@@ -138,6 +141,7 @@ function bindQuickTuning() {
     });
   });
 }
+
 
 /* =======================================================
    4. Slots, Macros, Config, Presets, Diag, OTA

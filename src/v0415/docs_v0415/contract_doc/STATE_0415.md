@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-12 (rev14 — W10 _taskReboot 소유권 방어 B-4 및 D10 로깅 상태 전이 명세)
+> 최종 갱신: 2026-10-12 (rev15 — 스키마 412 gesture 삭제 및 Wi-Fi 웹 UI 저장 소유권 명세)
 
 ---
 
@@ -303,3 +303,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev12 | 2026-10-12 | **D10 Two-Phase 뮤텍스 소유권 & C10 _bootMutex 및 딥슬립 LED 차단 상태 전이**: §1 매트릭스에 `_consecutiveI2cFail`, `_bootMutex`, `_dirsEnsured`, D10 `_buf` 및 `_serialMutex`, D10 원자적 카운터 소유권 추가. `sta_ssid/pass` 실 자격증명 제거 및 기본값 공백("") 규약 확정. C10 `_loadIndex` 하위 호환 폴백(`active`/`count`) 및 `active_profile.json` 프로파일 2종(`Default`/`Office`) 동기화. §2.8 Deep Sleep 진입 직전 `_led.suspend(snap)` WS2812 래칭 차단 명시. §2.9 D10 Logger Two-Phase Locking FSM 신설. §2.10 C10 Boot State Mutex FSM 신설. |
 | rev13 | 2026-10-12 | **LED 태스크 스택 관측 완결 (B-2)**: `_stackLedMinWords` 소유권 등록. §2.8 L10 LED FSM에 `_ledTask` 관측 훅 명시. |
 | **rev14** | **2026-10-12** | **W10 Reboot 태스크 소유권 방어 (B-4) 및 D10 로깅 상태 전이 명세**: `_taskReboot` 생성 반환값(`pdPASS`) 검증 및 실패 시 동기식 `ESP.restart()` 안전 폴백 소유권 등록. D10 로거는 상태 전이 및 치명적 에러 한정 호출 규약 동기화. |
+| **rev15** | **2026-10-12** | **스키마 412 gesture 삭제 + Wi-Fi UI 저장 소유권**: §1 매트릭스에서 `_gestureFlickDeg`/`_gestureCooldownMs` 삭제 → `flick.p2p_th`/`flick.cooldown_ms` 단독 소유 명시. `cfgSave()` patch 확장(`{e10, wifi}`)에 따른 W10 `_wifi` 로컬 캐시 갱신 소유권 (§2.13 하위) 반영. |

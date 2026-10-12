@@ -138,6 +138,7 @@ function _updateRebootBanner(policy) {
 /* =======================================================
    [N-7] Quick Tuning 활성 상태
    ======================================================= */
+
 function _updateQuickTuningActive(dpi, prec) {
   [1, 2, 3].forEach(v => {
     const el = qs("btnDpi" + v);
@@ -147,7 +148,13 @@ function _updateQuickTuningActive(dpi, prec) {
     const el = qs("btnPrec" + v);
     if (el) el.classList.toggle("on", (prec === v));
   });
+  // [v0415 rev15 / Wave C] Config 폼의 precMode select 동기화
+  const pm = qs("precMode");
+  if (pm && Number.isFinite(prec) && (prec >= 0 && prec <= 4)) {
+    pm.value = String(prec);
+  }
 }
+
 
 /* =======================================================
    [N-3] Diag 카운터 초기화
