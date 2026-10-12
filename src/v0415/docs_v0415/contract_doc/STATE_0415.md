@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-11 (rev11 — execLiveTest Special 액션 BLE 독립 소유권, LittleFS 디렉토리 선행 생성 보장 및 STA Fallback 자격증명 상태 반영)
+> 최종 갱신: 2026-10-12 (rev12 — D10 Logger Two-Phase 뮤텍스 소유권, C10 _bootMutex 및 디렉토리 캐시 소유권, 딥슬립 LED/센서 완전 격리 상태 전이)
 
 ---
 
@@ -22,6 +22,7 @@
 | `_macroSnapshot` | `commTask` (`_startMacro`) | `commTask` (`_tickMacro`) | `_lock()` (v0415) | 실행 시점 매크로 스냅샷 |
 | `_hid` (BleCompositeHID) | `commTask` | `sensorTask`, `webTask` (`isConnected()`만) | Thread-safe API | 마우스/키보드 전송은 `commTask` 전용 |
 | `_mpu`, `Wire`, `_mpuAddr` | `setup()` (`_diagAndRecoverMpu`) / `sensorTask` | `sensorTask`, `P20` (`setMpuAddr`) | 독점 (No sync) | 부팅 시 0x68/0x69 자동 감지 후 `_power` 동기화. 런타임 pre-probe 및 10회 실패 복구 |
+| `_consecutiveI2cFail` | `sensorTask` | `sensorTask` | 독점 (No sync) | 런타임 pre-probe 독립 연속 실패 카운터 |
 | `NimBLEDevice::isInitialized()` | `B20::begin()` | `B20::getBondCount()` 등 | NimBLE 내부 mutex | 최대 500ms 동기화 대기. 미초기화 시 API 접근 차단(NULL Mutex 방지) |
 | `_biasTracker` | `sensorTask` | `sensorTask` | 독점 (No sync) | 정지 상태 감지 및 자이로 바이어스 보정 |
 | `_gesture` | `sensorTask` | `sensorTask` | 독점 (No sync) | Flick/Linear/Tilt 제스처 감지기 |
@@ -29,6 +30,13 @@
 | `_actExec` | `commTask` | `commTask` | 독점 (No sync) | HID 키/마우스 상태 유지 및 반복 액션 관리 |
 | `_led` | `_ledTask` (tick) | `any` (setModeColor, flash 등) | **Recursive Mutex** (v0415) | 50ms 주기 tick은 `_ledTask` 단독. 상태 변경 API는 mutex 보호 |
 | `_power` | `sensorTask` | `sensorTask` | 독점 (No sync) | Light/Deep-sleep 진입 및 WoM 인터럽트 처리 |
+| `_bootMutex` (C10) | `C10` | `C10` | `SemaphoreHandle_t` | `boot.json` 읽기/쓰기/SafeMode 클리어 전역 동기화 |
+| `_dirsEnsured` (C10) | `C10::begin()` | `C10` | 독점 (No sync) | `/json`, `/json/profiles` 디렉토리 생성 완료 플래그 캐시 |
+| `s_buffer[64]` (D10) | `_pushToRing` (Phase 2) | (write-only) | Two-Phase Locking | critical 외부 96B 복사 (무경합 슬롯 write) |
+| `s_head`/`s_count` (D10) | `_pushToRing` (Phase 1) | `_pushToRing` (Phase 1) | `portENTER_CRITICAL` | 링버퍼 인덱스 할당 임계구역 |
+| `s_overwriteCount`/`s_truncCount` (D10) | `_pushToRing` | `getOverwriteCount`/`getTruncCount` | critical / volatile | 오버라이트 및 메시지 잘림 카운터 |
+| `_logLevel` (D10) | `setLevel` | `log` | `volatile` | 런타임 로그 레벨 |
+
 | `_activeMode` | `sensorTask`, `webTask` | `any` | `volatile uint8_t` + `_lock()` | 3-Mode (1=PC, 2=PPT, 3=TV) 시스템 상태 |
 | `_reqSpecialAction` | `webTask` | `sensorTask` | `volatile uint8_t` | Special 액션 비동기 실행 위임 플래그 |
 | `_reqCommReleaseAll` | `webTask`, `any` (enqueue 실패) | `commTask` | `volatile bool` | 프로파일 전환 시 HID 안전 Release 위임 |
@@ -55,7 +63,7 @@
 
 - **삭제 필드**: `_isPptMode` (E10), `_modeToggleCooldownMs`, `_lastModeToggleMs`, `_topMDownMs` (Dead), **`_state.btn_mask`** (R-2 LC-D), **`ST_E10_Status_t.btn_mask`** (R-2 LC-D)
 - **삭제 심볼**: `setPptMode()` (R-1), `buildWakeMaskAll()` (R-2 LC-F), `_detectLinear(p_gx, p_gy, ...)` 시그니처 (R-3 LC-G)
-- **추가 필드**: `_thLed`, `ST_E10_Status_t::active_mode`, `ST_E10_Status_t::task_stack_led_min_words`, `_bootWifi` (W10), `_mpuAddr` (동적 감지 0x68/0x69)
+- **추가 필드**: `_thLed`, `ST_E10_Status_t::active_mode`, `ST_E10_Status_t::task_stack_led_min_words`, `_bootWifi` (W10), `_mpuAddr` (동적 감지 0x68/0x69), `_consecutiveI2cFail` (E10), `_bootMutex` (C10), `_dirsEnsured` (C10), `_serialMutex` (D10), `_dropQueueCount` 외 관측 카운터 (D10)
 - **정책 변경**: `_macroState` → `_lock()` 하 원자적 갱신 (v0412는 부분 volatile)
 - **L10 thread-safety**: Recursive Mutex (v0412는 무보호)
 - **`_fsm` 판정**: `_isPptMode` → `_activeMode == 2` (v0415 `_fsmUpdate(gyroAbs)` 단일 param)
@@ -231,6 +239,27 @@
 **Snapshot/Resume**:
 - `suspend(snap)`: 상태 스냅샷 + RED fadeout → OFF (blocking)
 - `resume(snap)`: base color fadein → IDLE (async)
+- **Deep Sleep 전제조건 (v0415 하드닝)**: `deepSleepNow` 진입 전 `_led.suspend(snap)` 호출 필수 (WS2812 래칭 차단).
+
+---
+
+### 2.9 D10 Logger 상태머신 (Two-Phase Locking)
+
+| 위상 | 보호 수단 | 대상 리소스 | 실행 특성 | 동작 내용 |
+|---|---|---|---|---|
+| **Phase 1: Index 확보** | `portENTER_CRITICAL(&s_mux)` | `s_head`, `s_count`, `s_overwriteCount` | ISR-safe 초단기 spinlock | 고유 슬롯 인덱스(`v_idx`) 예약 할당 및 오버라이트 판정 |
+| **Phase 2: 슬롯 Write** | 없음 (고유 인덱스 격리) | `s_buffer[v_idx]` (96B) | Lock-Free 무경합 | critical 외부에서 메시지 복사 및 `s_truncCount++` (잘림 방어) |
+| **Serial 출력** | 스택 버퍼 단일 조립 | 하드웨어 UART / USB CDC | 단일 I/O 전송 | 256B 스택 버퍼에 라인 전체 조립 후 `_serial->write()` 1회 호출 (인터리빙 방지) |
+
+- Task 전용 (ISR/타이머 콜백 호출 금지).
+
+
+---
+
+### 2.10 C10 Boot State FSM (Mutex 보호)
+
+- `_bootMutex` (`SemaphoreHandle_t`): `getBootState()`, `_saveBootState()`, `clearSafeMode()`, `bootMarkOkIfGracePassed()` 실행 시 단독 획득.
+- `boot.json` 회전 저장 (`BOOT_TMP_PATH` -> `BOOT_PATH` / `BOOT_OLD_PATH`) 중 다중 태스크 경쟁 상태 원천 차단.
 
 ---
 
@@ -265,4 +294,5 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev7 | 2026-10-09 | **v0415 리팩터**: `_isPptMode` 삭제 → `active_mode` 일원화, `_fsmUpdate(gyroAbs)` 1-param, `_macroState` lock 정책 강화, L10 Recursive Mutex, `_bootWifi` W10 스냅샷, `_thLed` 추가, `task_stack_led_min_words` 관측 |
 | rev8 | 2026-10-11 | **R-1~R-3 통합 patch**: `_state.btn_mask` / `ST_E10_Status_t.btn_mask` 필드 삭제 (R-2 LC-D), `setPptMode()` 삭제 (R-1), `buildWakeMaskAll()` alias 삭제 (R-2 LC-F). **§2.7 resetButton 규약 rev7로 갱신**: downMs/upMs/waitClickStartMs = `millis()` (0 아님, L5-A3-11). **DOUBLE DOWN 흡수** + **LONG/HOLD progressive** + **update() 5~10ms 전제조건** 명시. HW_Def 핀 재배치 (GP7~GP13) 반영. |
 | rev9 | 2026-10-11 | **I2C/NimBLE/SoftAP/마이그레이션 소유권 정합**: `_mpuAddr` 동적 감지(0x68/0x69) 및 `_power.setMpuAddr` 전파, 런타임 pre-probe/10회 복구 소유권, 슬립 복귀 `_restoreMpuAfterWake` 복원, `NimBLEDevice::isInitialized()` 동기화 대기 및 `getBondCount()` 0 반환 소유권, SoftAP `sta_ssid` 공백 시 즉시 시작 및 SafeBoot `-SAFE` 상태 일원화, v410→v411 `saveProfile()` Eager Persist 정책 반영. |
-| **rev11** | **2026-10-11** | **execLiveTest Special 액션 BLE 독립 소유권 및 스토리지 무결성**: `execLiveTest` 내 `EN_C20_ACT_SPECIAL` 판정부를 `_hid.isConnected()` 앞으로 이동하여 Wi-Fi AP 단독 상태에서도 모드 전환/영점/절전의 `_reqSpecialAction` 위임 쓰기 권한 보장. LittleFS `_atomicWriteJson` 및 `begin()`의 `/json/profiles` 디렉토리 생성 보장으로 프로파일 쓰기 소유권 정상화. `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 소유권 반영. |
+| rev11 | 2026-10-11 | **execLiveTest Special 액션 BLE 독립 소유권 및 스토리지 무결성**: `execLiveTest` 내 `EN_C20_ACT_SPECIAL` 판정부를 `_hid.isConnected()` 앞으로 이동하여 Wi-Fi AP 단독 상태에서도 모드 전환/영점/절전의 `_reqSpecialAction` 위임 쓰기 권한 보장. LittleFS `_atomicWriteJson` 및 `begin()`의 `/json/profiles` 디렉토리 생성 보장으로 프로파일 쓰기 소유권 정상화. `makeDefaultsWiFi`에 공유기 자격증명(`NetE89C` / `38D#4FP001`) Fallback 소유권 반영. |
+| **rev12** | **2026-10-12** | **D10 Two-Phase 뮤텍스 소유권 & C10 _bootMutex 및 딥슬립 LED 차단 상태 전이**: §1 매트릭스에 `_consecutiveI2cFail`, `_bootMutex`, `_dirsEnsured`, D10 `_buf` 및 `_serialMutex`, D10 원자적 카운터 소유권 추가. §2.8 Deep Sleep 진입 직전 `_led.suspend(snap)` WS2812 래칭 차단 명시. §2.9 D10 Logger Two-Phase Locking FSM 신설. §2.10 C10 Boot State Mutex FSM 신설. |

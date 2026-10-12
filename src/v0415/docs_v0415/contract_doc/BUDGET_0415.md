@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)
 > 위치: `src/v0415/docs_v0415/contract_doc/BUDGET_0415.md`
-> 최종 갱신: 2026-10-11 (rev8 — JS 번들링 소켓 고갈 방지 예산, apiKeycodes AST 딥카피 제거 힙 90% 절감 예산 반영)
+> 최종 갱신: 2026-10-12 (rev9 — D10 Logger SRAM 28KB 절감 + Two-Phase Locking + Serial 단일 write, I2C pre-probe 카운터 분리, C10 원자적 저장 rotate, Deep-sleep MPU 슬립)
 
 ---
 
@@ -17,9 +17,9 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | `_ledTask` | Core 0 | 1 | 50 ms (20 Hz) | 2048 B | ~0.8 ms (WS2812 RMT + mutex) | 49.2 ms |
 | `AsyncWebServer` | (ESP-IDF 내부) | – | 이벤트 | – | (HTTP body 당 최대 ~30 ms) | – |
 | `main loop` | Core 0 | – | 200 ms (5 Hz) | – | ~1.5 ms (boot grace + tickConfigSave) | 198.5 ms |
-| `setup()` | Core 0 | – | 1회 (부팅) | – | ~7.5 초 (worst: boot key hold 6초 + I2C 진단 ~1.5초) | – |
+| `setup()` | Core 0 | – | 1회 (부팅) | – | ~9.0 초 (worst: boot key hold 6초 + I2C 진단 ~1.5초 + USB CDC 대기 최대 1.5초) | – |
 
-> **참고**: `main loop`는 `main.cpp`의 `delay(200)`로 확인. `setup()` 최악 시간 = Side C 6초 hold(Factory Reset) + MPU6050 I2C 진단/복구(~1.5초) + 모듈 초기화. STA 미설정 시 Wi-Fi SoftAP 즉시 구동(0ms 지연)으로 기존 8초 blocking이 완전 제거됨.
+> **참고**: `main loop`는 `main.cpp`의 `delay(200)`로 확인. `setup()` 최악 시간 = Side C 6초 hold(Factory Reset) + MPU6050 I2C 진단/복구(~1.5초) + USB CDC 열림 대기(최대 1.5초) + 모듈 초기화. STA 미설정 시 Wi-Fi SoftAP 즉시 구동(0ms 지연)으로 기존 8초 blocking이 완전 제거됨.
 
 ---
 
@@ -58,45 +58,27 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 
 | 구간 | 블로킹 여부 | 근거 |
 |---|---|---|
-| `_startMacro` | 논블로킹 | 스냅샷만, 즉시 리턴 |
-| `_tickMacro` delay 대기 | 논블로킹 | 다음 tick까지 리턴 |
-| **`_tickMacro` step 실행 (`_actExec.exec`)** | **블로킹 (~28ms)** | HID tap 물리적 지속 시간 |
-| `_tickMacro` 종료 | 논블로킹 | active=false |
-
-**결론**: 매크로 스텝 8개 × 28ms = 최대 224 ms의 누적 블로킹 (분산 실행). 커서 프레임 소비는 각 step 사이에 계속됨.
-
-### 2.4 Web/기타 컨텍스트
-
-| 함수 / 기능 | 최대 블로킹 | 시스템 영향 | 완화 조치 |
-|---|---|---|---|
-| 프로파일 I/O (LittleFS) | ~35 ms | Web API 응답 지연 | Core 0 백그라운드, sensorTask 독립 |
-| `_setupWiFi` STA 시도 | **0 ms (STA 미설정 시) / ~8 초 (STA 설정 시)** | **setup() 지연** | **v0415: `sta_ssid` 공백 시 8초 대기 생략하고 즉시 SoftAP 구동** |
-| `B20::begin` NimBLE 대기 | **최대 500 ms (통상 ~20 ms)** | BLE 스택 초기화 동기화 | `NimBLEDevice::isInitialized()` 폴링 (10ms yield 루프) |
-| `_holdAtBoot(Side C, 6000)` | ~6000 ms | 부팅 지연 | 조기 릴리즈 시 즉시 탈출 |
-| `_resetProfile` (Factory) | ~500 ms | FS 재생성 | 재부팅 유도 |
+| step delay | **논블로킹** | `v_m._stepStartMs` + `v_now >= delayMs` 비동기 검사 |
+| step 실행 (`execSingleAction`) | **블로킹 허용** (최대 28 ms) | HID tap/release의 `vTaskDelay`는 commTask에만 한정. 8ms 주기 sensorTask는 영향 없음 |
 
 ---
 
-## 3. 데드라인 위반 조건 및 감시 체계
+## 3. 동기화 원시 타입 비용
 
-1. **sensorTask Overrun**:
-   - `vTaskDelayUntil` 실제 대기 지연 0 → 8ms 초과 판정 (`_errTaskOverrun++`)
-   - 10회 누적 시 `EN_E10_ERR_TASK_OVERRUN` 히스토리 기록
-2. **commTask Overrun**:
-   - 프레임 간 지연(`commDt`) > 20.0ms → `_commOverrunCount++`
-3. **Queue Full Dropping**:
-   - `_qActionExec`(8) / `_qHidCmd`(4) Full 시 즉시 Drop (호출 태스크 블로킹 원천 방지)
-4. **HID RELEASE_ALL 안전망**:
-   - `_reqCommReleaseAll` 위임으로 큐 Full 상태에서도 release 100% 보장
-
----
-
-## 4. 큐 용량 및 오버플로 정책
-
-| 큐 식별자 | 용량 | Producer | Consumer | 오버플로 정책 |
+| 원시 타입 | 사용 위치 | 용도 | 시간 오버헤드 | 메모리 |
 |---|---|---|---|---|
-| `_qFrame` | 1 (`ST_E10_Frame_t`) | sensorTask | commTask | `xQueueOverwrite` (최신 프레임 유지) |
-| `_qActionExec` | 8 (`ST_ActionCmd_t`) | sensorTask, webTask | commTask | `xQueueSend(timeout=0)` 실패 시 drop |
+| `portENTER_CRITICAL` | `_macroAbortToken` | 매크로 즉시 abort | ~50 ns | 0 |
+| `xSemaphoreCreateRecursiveMutex` | `_mutex` (E10) | `_state`, `_cfgProfile` 보호 | ~1 μs (uncontended) | 80 B |
+| `xSemaphoreCreateMutex` | `_mutex` (L10) | WS2812 RMT + 애니메이션 보호 | ~1 μs (uncontended) | 80 B |
+
+---
+
+## 4. 큐 깊이 및 드롭 정책
+
+| 큐 | 깊이 / 타입 | 송신 태스크 | 수신 태스크 | 오버플로 정책 |
+|---|---|---|---|---|
+| `_qFrame` | 1 (`ST_E10_Frame_t`) | sensorTask | commTask | `xQueueOverwrite` (최신 프레임 우선) |
+| `_qActionExec` | 8 (`ST_ActionCmd_t`) | sensorTask | commTask | `xQueueSend(timeout=0)` 실패 시 drop + log |
 | `_qHidCmd` | 4 (`ST_E10_HidCmd_t`) | webTask, sensorTask | commTask | `xQueueSend(timeout=0)` 실패 시 drop |
 
 **v0415 변경**:
@@ -119,6 +101,15 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | `err_mutex_miss` | `_state` 락 2ms 타임아웃 |
 | `err_task_overrun` | sensorTask overrun 누적 |
 | `health_score` | 1000 기준 감점 방식. 클램프 헬퍼로 곱셈 오버플로 방어 |
+
+### 5.1 D10 Logger 관측 카운터 (v0415 rev9 신규)
+
+`getStatus()` 미노출, 필요 시 개발자 콘솔에서 직접 조회:
+
+| API | 의미 |
+|---|---|
+| `getOverwriteCount()` | 링버퍼(64) 덮어쓰기 누적 (`s_dropCount` → `s_overwriteCount` 네이밍 정정) |
+| `getTruncCount()` | 메시지 96B 초과 잘림 누적 (신규 관측) |
 
 ---
 
@@ -165,18 +156,48 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **JS 번들링을 통한 소켓 풀 고갈 원천 차단**: 9개 JS 모듈을 `app_bundle_0415.js.gz`로 1개 단일화하여 전체 HTTP 요청 수를 11개 ➔ 3개로 압축. ESP32 lwIP TCP PCB 소켓 한계(8개) 초과로 인한 5분 타임아웃/연결 끊김을 0.5초 이내 고속 응답으로 안정화.
 - **`apiKeycodes` 메모리 복제 0바이트 최적화**: 15KB 크기의 JSON AST 딥카피 제거 및 유효 키코드(55개) Flash 리터럴 zero-copy 스트리밍으로 순간 힙 점유를 30KB 이상에서 ~3KB로 **90% 절감**, OOM에 의한 TCP RST(Connection Reset) 완벽 차단.
 
+### 6.9 D10 Logger SRAM 및 지연 최적화 (v0415 rev9 신규)
+
+- **RingBuffer 축소**: `BUFFER_SIZE 256→64`, `ST_D10_LogEntry 136B→104B` (`G_D10_MSG_MAX 128→96`).
+  - 총량: **34.8 KB → 6.7 KB** (−28.1 KB, −81%)
+  - Dead 조회 API 삭제(Round L) 이후 write-only 상태였으므로 축소 정당성 확보
+- **Two-Phase Locking**: 인덱스 확보만 `portENTER_CRITICAL`, 96B `memcpy`는 critical 외부.
+  - critical 점유 ~300~600ns → ~50~100ns
+  - ISR 지연 리스크 최소화 + 향후 ISR 로그 확장 대비
+- **Serial 단일 write**: 라인 전체를 스택 버퍼(256B)에 조립 후 `_serial->write(buf, len)` 1회.
+  - 기존 2회 printf(HWCDC 내부 분할 + 태스크 인터리빙) → 1회 원자적 write
+- **delay(30) 제거**: USB CDC enumeration 대기는 `setup()` 위임.
+  - Native USB(ESP32-S3): delay(30)로는 enumeration 완료 보장 못 함
+  - UART 브리지(CH340 등): 즉시 열거 → delay 불필요
+- **.h inline → .cpp 이관**: C++17 inline variable 이식성 이슈 회피 (ESP32 Core 2.x gnu++11 / 3.x gnu++17 양쪽 대응)
+
+### 6.10 C10 원자적 저장 rotate 및 idx 가드 (v0415 rev9 신규)
+
+- **`_saveIndex` / `_saveBootState` rotate 방식**: `remove(main) → rename(tmp, main)` 패턴 제거.
+  - 신규: `main → main.old` rotate → `tmp → main` commit → 성공 시 `main.old` 정리
+  - Power-loss 시에도 main 또는 old에서 복구 가능 (기존: index 소실 위험)
+- **`_atomicWriteJson` mkdir 캐시**: `_dirsEnsured` 플래그로 begin() 이후 1회만 mkdir. 매 저장 반복 제거.
+- **`makeProfilePath` / `makeProfileTmpPath` idx 가드**: `p_idx >= PROFILE_MAX` 조기 반환. Phantom 파일 생성 방지.
+
+### 6.11 Deep-sleep 셧다운 예산 (v0415 rev9 신규)
+
+- **MPU6050 sleep bit**: `deepSleepNow` 진입 시 `PWR_MGMT_1 = 0x40`. deep wake는 버튼 EXT1만 사용하므로 MPU WoM 불필요.
+  - 절감: ~4mA 상시 소모 제거
+- **WS2812 LED 소등 선행**: `deepSleepNow` 호출 이전 `_led.suspend()` (기존: light-sleep 경로에만).
+  - WS2812 latch 특성상 RMT disabled 후에도 마지막 색 무한 유지 → 20mA 방전 방지
+
 ---
 
 ## 7. v0415 최종 리소스
 
-| 항목 | v0412 | v0415 | 변화 |
-|---|---|---|---|
-| RAM | ~40% (131 KB) | **41.8% (136.8 KB)** | +5.8 KB |
-| Flash | ~45% (1.42 MB) | **46.1% (1.451 MB)** | **+31 KB** |
+| 항목 | v0412 | v0415 (rev8) | v0415 (rev9 실측) | 변화 (rev8→rev9) |
+|---|---|---|---|---|
+| RAM | ~40% (131 KB) | 41.8% (136.8 KB) | **33.2% (108.7 KB / 108,664 B)** | **−28.1 KB** |
+| Flash | ~45% (1.42 MB) | 46.1% (1.451 MB) | **46.2% (1.453 MB / 1,453,201 B)** | +2 KB |
 
-**Flash 변화 요인**: JS 번들링 및 디렉토리 보장, 에러 처리 추가
+**rev9 RAM 감소 요인**: D10 RingBuffer 34.8 KB → 6.7 KB (−28.1 KB), Dead 조회 API 캐시 정리
+**rev9 Flash 소폭 증가 요인**: C10 rotate 저장 rollback 로직, 딥슬립 직전 MPU 슬립 bit 및 LED suspend 가드, USB CDC 대기
 
-**RAM 변화 요인**: L10 mutex, `_thLed` handle, `_bootWifi` 스냅샷, `active_mode` + `task_stack_led_min_words` 필드
 
 ---
 
@@ -187,4 +208,5 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | rev0 | 2026-09-15 | 최초 작성 (v0412) |
 | rev6 | 2026-10-08 | v0415 리팩터 반영: Safe Wake Mask, B20 HOST_CYCLE, 매크로 step 블로킹, L10 mutex |
 | rev7 | 2026-10-11 | **I2C 진단 및 Wi-Fi 부팅 최적화 예산 반영**: `setup()` MPU6050 9-펄스 진단/동적감지(~1.5초) 예산 반영, 런타임 pre-probe(~0.1ms) 및 10회 복구 가드, NimBLE 동기화 대기(최대 500ms) 반영, `sta_ssid` 공백 시 8초 STA 타임아웃 제거(0ms 즉시 SoftAP 구동) 부팅 단축 명시. |
-| **rev8** | **2026-10-11** | **웹 정적 번들링 및 API 힙 메모리 절감 예산 반영**: HTTP 요청 수 11개→3개 압축으로 lwIP TCP PCB 풀(8개) 보호 및 렌더링 지연 단축. `/api/keycodes` AST 딥카피 제거 및 zero-copy 스트리밍으로 순간 힙 점유 90% 절감(30KB→3KB, OOM/RST 방어). |
+| rev8 | 2026-10-11 | **웹 정적 번들링 및 API 힙 메모리 절감 예산 반영**: HTTP 요청 수 11개→3개 압축으로 lwIP TCP PCB 풀(8개) 보호 및 렌더링 지연 단축. `/api/keycodes` AST 딥카피 제거 및 zero-copy 스트리밍으로 순간 힙 점유 90% 절감(30KB→3KB, OOM/RST 방어). |
+| **rev9** | **2026-10-12** | **D10 Logger 최적화 + 원자적 저장 + Deep-sleep 셧다운**: §5.1 D10 관측 카운터 신규 (`getOverwriteCount`, `getTruncCount`). §6.9 D10 RingBuffer 256→64, MSG_MAX 128→96 (SRAM −28.1KB), Two-Phase Locking, Serial 단일 write, delay(30) 제거, .h inline → .cpp 이관. §6.10 C10 rotate 저장 (`main → main.old`), `_dirsEnsured` 캐시, idx 상한 가드. §6.11 Deep-sleep MPU sleep bit(`0x40`) + WS2812 LED suspend 선행. |
