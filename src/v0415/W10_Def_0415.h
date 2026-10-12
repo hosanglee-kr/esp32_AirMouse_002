@@ -20,6 +20,9 @@
  *    · set_ppt 명령 & ppt_mode 필드는 W10Api_CtlPpt / _Status에서 제거됨
  *  - G_W10_CONSUMER[] 값은 v0412 그대로 유지 (Descriptor 100% 일치, Round A 확정)
  *    · W10이 Descriptor SSOT (C20이 이에 맞춰 수정됨)
+ *  - G_W10_CONSUMER[].name을 EN_C20_Consumer_t 접미사와 동일한
+ *    UPPER_SNAKE_CASE로 통일 (rev13, B-1). am_base_0415.js::
+ *    getConsumerFriendlyName() 매핑 키와 정합.
  * ------------------------------------------------------
  */
 
@@ -106,30 +109,30 @@ struct ST_W10_Consumer_t {
 };
 static constexpr ST_W10_Consumer_t G_W10_CONSUMER[] = {
     {        "None", 0x00000000},
-    {        "Play", 0x00000001},   // Bit 0 : 0xB0
-    {       "Pause", 0x00000002},   // Bit 1 : 0xB1
-    {      "Record", 0x00000004},   // Bit 2 : 0xB2
-    { "FastForward", 0x00000008},   // Bit 3 : 0xB3
-    {      "Rewind", 0x00000010},   // Bit 4 : 0xB4
-    {   "NextTrack", 0x00000020},   // Bit 5 : 0xB5
-    {   "PrevTrack", 0x00000040},   // Bit 6 : 0xB6
-    {        "Stop", 0x00000080},   // Bit 7 : 0xB7
-    {       "Eject", 0x00000100},   // Bit 8 : 0xB8
-    {  "RandomPlay", 0x00000200},   // Bit 9 : 0xB9
-    {      "Repeat", 0x00000400},   // Bit 10: 0xBC
-    {   "PlayPause", 0x00000800},   // Bit 11: 0xCD
-    {        "Mute", 0x00001000},   // Bit 12: 0xE2
-    {    "VolumeUp", 0x00002000},   // Bit 13: 0xE9
-    {  "VolumeDown", 0x00004000},   // Bit 14: 0xEA
-    {     "WWWHome", 0x00008000},   // Bit 15: 0x0223 (AC Home)
-    {  "MyComputer", 0x00010000},   // Bit 16: 0x0194
-    {  "Calculator", 0x00020000},   // Bit 17: 0x0192
-    {"WWWFavorites", 0x00040000},   // Bit 18: 0x022A
-    {   "WWWSearch", 0x00080000},   // Bit 19: 0x0221 (AC Search)
-    {     "WWWStop", 0x00100000},   // Bit 20: 0x0226
-    {     "WWWBack", 0x00200000},   // Bit 21: 0x0224 (AC Back)
-    { "MediaSelect", 0x00400000},   // Bit 22: 0x0183
-    {        "Mail", 0x00800000},   // Bit 23: 0x018A
+    {        "PLAY", 0x00000001},   // Bit 0 : 0xB0 Play
+    {       "PAUSE", 0x00000002},   // Bit 1 : 0xB1 Pause
+    {      "RECORD", 0x00000004},   // Bit 2 : 0xB2 Record
+    {          "FF", 0x00000008},   // Bit 3 : 0xB3 Fast Forward   (구 "FastForward")
+    {      "REWIND", 0x00000010},   // Bit 4 : 0xB4 Rewind
+    {  "NEXT_TRACK", 0x00000020},   // Bit 5 : 0xB5 Next Track
+    {  "PREV_TRACK", 0x00000040},   // Bit 6 : 0xB6 Prev Track
+    {        "STOP", 0x00000080},   // Bit 7 : 0xB7 Stop
+    {       "EJECT", 0x00000100},   // Bit 8 : 0xB8 Eject
+    {      "RANDOM", 0x00000200},   // Bit 9 : 0xB9 Random Play    (구 "RandomPlay")
+    {      "REPEAT", 0x00000400},   // Bit 10: 0xBC Repeat
+    {  "PLAY_PAUSE", 0x00000800},   // Bit 11: 0xCD Play/Pause
+    {        "MUTE", 0x00001000},   // Bit 12: 0xE2 Mute
+    {      "VOL_UP", 0x00002000},   // Bit 13: 0xE9 Volume Increment
+    {    "VOL_DOWN", 0x00004000},   // Bit 14: 0xEA Volume Decrement
+    {    "WWW_HOME", 0x00008000},   // Bit 15: 0x0223 WWW Home
+    {     "MY_COMP", 0x00010000},   // Bit 16: 0x0194 My Computer
+    {        "CALC", 0x00020000},   // Bit 17: 0x0192 Calculator
+    {     "WWW_FAV", 0x00040000},   // Bit 18: 0x022A WWW Favorites
+    {  "WWW_SEARCH", 0x00080000},   // Bit 19: 0x0221 WWW Search
+    {    "WWW_STOP", 0x00100000},   // Bit 20: 0x0226 WWW Stop
+    {    "WWW_BACK", 0x00200000},   // Bit 21: 0x0224 WWW Back
+    {   "MEDIA_SEL", 0x00400000},   // Bit 22: 0x0183 Media Select
+    {        "MAIL", 0x00800000},   // Bit 23: 0x018A Mail
 };
 
 // =======================================================

@@ -650,6 +650,17 @@ void CL_E10_EliteAirMouse::_ledTask(void* p_pv) {
 
     for (;;) {
         v_m->_led.tick();
+
+        // [v0415 rev13 / B-2] LED 태스크 스택 워터마크 관측
+        //   - sensorTask/commTask와 동일 패턴
+        //   - 50ms 주기이므로 부담 없음 (uxTaskGetStackHighWaterMark ~수 μs)
+        UBaseType_t v_hw = uxTaskGetStackHighWaterMark(nullptr);
+        if (v_hw > 0) {
+            if (v_m->_stackLedMinWords == 0 || (uint32_t)v_hw < v_m->_stackLedMinWords) {
+                v_m->_stackLedMinWords = (uint32_t)v_hw;
+            }
+        }
+
         vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(50));
     }
 }

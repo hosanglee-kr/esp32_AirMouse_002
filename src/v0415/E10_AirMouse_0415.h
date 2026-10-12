@@ -221,6 +221,7 @@ class CL_E10_EliteAirMouse {
 
     uint32_t _stackSensorMinWords = 0;
     uint32_t _stackCommMinWords   = 0;
+    uint32_t _stackLedMinWords    = 0;  // [v0415 rev13 / B-2] LED 태스크 스택 워터마크
 
     float    _dtMaxMs = 0.0f;
     uint32_t _dtOverrunCount = 0;

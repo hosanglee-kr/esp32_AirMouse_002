@@ -339,8 +339,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 
     p_out.task_stack_sensor_min_words = _stackSensorMinWords;
     p_out.task_stack_comm_min_words   = _stackCommMinWords;
-    // [v0415] LED 태스크 스택 (0 초기값, Round L/N에서 관측 훅 추가)
-    p_out.task_stack_led_min_words    = 0;
+    // [v0415 rev13 / B-2] LED 태스크 스택 (실측)
+    p_out.task_stack_led_min_words    = _stackLedMinWords;
 
     p_out.i2c_recover_count   = _i2cRecoverCount;
     p_out.i2c_recover_last_ok = _i2cRecoverLastOk;

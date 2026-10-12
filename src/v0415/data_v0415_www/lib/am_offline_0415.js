@@ -131,10 +131,34 @@ const G_OFFLINE_KEYCODES = {
       40: "Enter", 41: "Esc", 42: "Backspace", 43: "Tab", 44: "Space",
       58: "F1", 59: "F2", 60: "F3", 61: "F4", 62: "F5", 63: "F6", 64: "F7", 65: "F8", 66: "F9", 67: "F10", 68: "F11", 69: "F12",
       75: "PageUp", 78: "PageDown", 79: "Right", 80: "Left", 81: "Down", 82: "Up",
-      0x66: "Power"  // [v0415] HID Keyboard Page Power
+      0x66: "Power",  // [v0415] HID Keyboard Page Power
+
+      // [v0415 rev13 / B-3] 기호 키 (0x2D~0x38)
+      0x2D: "Minus", 0x2E: "Equal", 0x2F: "LBracket", 0x30: "RBracket",
+      0x31: "Backslash", 0x32: "NonUSHash", 0x33: "Semicolon", 0x34: "Quote",
+      0x35: "Grave", 0x36: "Comma", 0x37: "Period", 0x38: "Slash",
+
+      // 편집/탐색 (0x39, 0x46~0x4D)
+      0x39: "CapsLock",
+      0x46: "PrtSc", 0x47: "ScrollLock", 0x48: "Pause",
+      0x49: "Insert", 0x4A: "Home", 0x4C: "Delete", 0x4D: "End",
+
+      // 숫자 키패드 (0x53~0x63)
+      0x53: "NumLock",
+      0x54: "KP_Slash", 0x55: "KP_Star", 0x56: "KP_Minus", 0x57: "KP_Plus",
+      0x58: "KP_Enter",
+      0x59: "KP_1", 0x5A: "KP_2", 0x5B: "KP_3", 0x5C: "KP_4",
+      0x5D: "KP_5", 0x5E: "KP_6", 0x5F: "KP_7", 0x60: "KP_8",
+      0x61: "KP_9", 0x62: "KP_0", 0x63: "KP_Dot",
+
+      // 수정자 (0xE0~0xE7)
+      0xE0: "LCtrl", 0xE1: "LShift", 0xE2: "LAlt", 0xE3: "LGui",
+      0xE4: "RCtrl", 0xE5: "RShift", 0xE6: "RAlt", 0xE7: "RGui"
     };
+    // [v0415 rev13 / B-3] 온라인 W10::_kbName과 완전 파리티 (106 codes)
     for (let c = 0; c <= 0xE7; c++) {
-      arr.push({ code: c, name: names[c] || ("0x" + c.toString(16).toUpperCase().padStart(2, "0")) });
+      if (!names[c]) continue;
+      arr.push({ code: c, name: names[c] });
     }
     return arr;
   })(),

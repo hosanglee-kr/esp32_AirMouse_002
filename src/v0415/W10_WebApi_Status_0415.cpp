@@ -18,7 +18,8 @@
  *  - ppt_mode → active_mode (Round G/K/M-1 정합)
  *  - task_stack_led_min_words 노출 (Round G)
  *  - _kbName에 Keyboard Page Power(0x66) 추가 (Round K)
- *  - G_W10_CONSUMER[] 라벨 유지 (Descriptor SSOT, Round A)
+ *  - _kbName에 기호·탐색·키패드·수정자 45건 추가 (rev13, B-3, 총 106 codes)
+ *  - G_W10_CONSUMER[] 라벨 UPPER_SNAKE 동기화 (rev13, B-1)
  *  - Consumer 24-bit 값은 그대로 (C20_Action_0415.h와 정합)
  * ------------------------------------------------------
  * [구현 규칙]
@@ -478,6 +479,66 @@ const char* CL_W10_WebConfig::_kbName(uint16_t p_code) {
         case 0x51: return "Down";
         case 0x52: return "Up";
         case 0x66: return "Power";   // [v0415] HID Keyboard Page Power
+
+        // =====================================================
+        // [v0415 rev13 / B-3] 기호·탐색·키패드·수정자 키 확장
+        //   - offline am_offline_0415.js의 names dict와 정합
+        //   - 온라인/오프라인 KB Usage 목록 완전 일치 (106 codes)
+        // =====================================================
+
+        // ---- 기호 키 (0x2D~0x38) ----
+        case 0x2D: return "Minus";
+        case 0x2E: return "Equal";
+        case 0x2F: return "LBracket";
+        case 0x30: return "RBracket";
+        case 0x31: return "Backslash";
+        case 0x32: return "NonUSHash";
+        case 0x33: return "Semicolon";
+        case 0x34: return "Quote";
+        case 0x35: return "Grave";
+        case 0x36: return "Comma";
+        case 0x37: return "Period";
+        case 0x38: return "Slash";
+
+        // ---- 편집/탐색 키 (0x39, 0x46~0x4D) ----
+        case 0x39: return "CapsLock";
+        case 0x46: return "PrtSc";
+        case 0x47: return "ScrollLock";
+        case 0x48: return "Pause";
+        case 0x49: return "Insert";
+        case 0x4A: return "Home";
+        case 0x4C: return "Delete";
+        case 0x4D: return "End";
+
+        // ---- 숫자 키패드 (0x53~0x63) ----
+        case 0x53: return "NumLock";
+        case 0x54: return "KP_Slash";
+        case 0x55: return "KP_Star";
+        case 0x56: return "KP_Minus";
+        case 0x57: return "KP_Plus";
+        case 0x58: return "KP_Enter";
+        case 0x59: return "KP_1";
+        case 0x5A: return "KP_2";
+        case 0x5B: return "KP_3";
+        case 0x5C: return "KP_4";
+        case 0x5D: return "KP_5";
+        case 0x5E: return "KP_6";
+        case 0x5F: return "KP_7";
+        case 0x60: return "KP_8";
+        case 0x61: return "KP_9";
+        case 0x62: return "KP_0";
+        case 0x63: return "KP_Dot";
+
+        // ---- 수정자 키 (0xE0~0xE7, HID Keyboard Page) ----
+        case 0xE0: return "LCtrl";
+        case 0xE1: return "LShift";
+        case 0xE2: return "LAlt";
+        case 0xE3: return "LGui";
+        case 0xE4: return "RCtrl";
+        case 0xE5: return "RShift";
+        case 0xE6: return "RAlt";
+        case 0xE7: return "RGui";
+
         default: return nullptr;
     }
 }

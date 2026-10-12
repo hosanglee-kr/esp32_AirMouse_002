@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)
 > 위치: `src/v0415/docs_v0415/contract_doc/BUDGET_0415.md`
-> 최종 갱신: 2026-10-12 (rev9 — D10 Logger SRAM 28KB 절감 + Two-Phase Locking + Serial 단일 write, I2C pre-probe 카운터 분리, C10 원자적 저장 rotate, Deep-sleep MPU 슬립)
+> 최종 갱신: 2026-10-12 (rev10 — LED 태스크 스택 관측 실측화, _stackLedMinWords 멤버 + _ledTask 50ms 워터마크 훅 + getStatus 반영, §5 표기 갱신)
 
 ---
 
@@ -96,7 +96,7 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | `sensor_overrun_count` | 16ms 초과 누적 |
 | `comm_dt_avg_ms` / `comm_dt_max_ms` | commTask dt 통계 |
 | `comm_overrun_count` | commTask 20ms 초과 누적 |
-| `task_stack_sensor_min_words` / `task_stack_comm_min_words` / **`task_stack_led_min_words`** | 스택 high-watermark (v0415: LED 추가) |
+| `task_stack_sensor_min_words` / `task_stack_comm_min_words` / **`task_stack_led_min_words`** | 스택 high-watermark (v0415 rev10: LED 실측 반영, _ledTask 50ms 주기 관측) |
 | `failsafe_release_count` | SafeMode/OTA/연결해제 강제 release |
 | `err_mutex_miss` | `_state` 락 2ms 타임아웃 |
 | `err_task_overrun` | sensorTask overrun 누적 |
@@ -209,4 +209,5 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | rev6 | 2026-10-08 | v0415 리팩터 반영: Safe Wake Mask, B20 HOST_CYCLE, 매크로 step 블로킹, L10 mutex |
 | rev7 | 2026-10-11 | **I2C 진단 및 Wi-Fi 부팅 최적화 예산 반영**: `setup()` MPU6050 9-펄스 진단/동적감지(~1.5초) 예산 반영, 런타임 pre-probe(~0.1ms) 및 10회 복구 가드, NimBLE 동기화 대기(최대 500ms) 반영, `sta_ssid` 공백 시 8초 STA 타임아웃 제거(0ms 즉시 SoftAP 구동) 부팅 단축 명시. |
 | rev8 | 2026-10-11 | **웹 정적 번들링 및 API 힙 메모리 절감 예산 반영**: HTTP 요청 수 11개→3개 압축으로 lwIP TCP PCB 풀(8개) 보호 및 렌더링 지연 단축. `/api/keycodes` AST 딥카피 제거 및 zero-copy 스트리밍으로 순간 힙 점유 90% 절감(30KB→3KB, OOM/RST 방어). |
-| **rev9** | **2026-10-12** | **D10 Logger 최적화 + 원자적 저장 + Deep-sleep 셧다운**: §5.1 D10 관측 카운터 신규 (`getOverwriteCount`, `getTruncCount`). §6.9 D10 RingBuffer 256→64, MSG_MAX 128→96 (SRAM −28.1KB), Two-Phase Locking, Serial 단일 write, delay(30) 제거, .h inline → .cpp 이관. §6.10 C10 rotate 저장 (`main → main.old`), `_dirsEnsured` 캐시, idx 상한 가드. §6.11 Deep-sleep MPU sleep bit(`0x40`) + WS2812 LED suspend 선행. |
+| rev9 | 2026-10-12 | **D10 Logger 최적화 + 원자적 저장 + Deep-sleep 셧다운**: §5.1 D10 관측 카운터 신규 (`getOverwriteCount`, `getTruncCount`). §6.9 D10 RingBuffer 256→64, MSG_MAX 128→96 (SRAM −28.1KB), Two-Phase Locking, Serial 단일 write, delay(30) 제거, .h inline → .cpp 이관. §6.10 C10 rotate 저장 (`main → main.old`), `_dirsEnsured` 캐시, idx 상한 가드. §6.11 Deep-sleep MPU sleep bit(`0x40`) + WS2812 LED suspend 선행. |
+| **rev10** | **2026-10-12** | **LED 태스크 스택 관측 실측화 (B-2)**: `_stackLedMinWords` 멤버 + `_ledTask` 워터마크 훅 + `getStatus` 반영. §5 표기 갱신. |

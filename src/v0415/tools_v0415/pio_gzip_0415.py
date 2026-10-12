@@ -108,6 +108,8 @@ def _run_verify_script(script_name, description, timeout_sec=30):
             [sys.executable, script_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout_sec,
             cwd=_PROJECT_DIR,
         )

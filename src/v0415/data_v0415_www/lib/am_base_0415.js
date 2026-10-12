@@ -172,8 +172,17 @@ function _kbUsageGroup(code, name) {
   if (code >= 0x1E && code <= 0x27) return isEn ? "Numbers (1~0)" : "숫자 키 (1~0)";
   if (code >= 0x28 && code <= 0x2C) return isEn ? "Basic Keys (Enter/Space)" : "기본 편집 키 (Enter/Space 등)";
   if (code >= 0x3A && code <= 0x45) return isEn ? "Function Keys (F1~F12)" : "기능 키 (F1~F12)";
-  if (code === 0x4B || code === 0x4E || (code >= 0x4F && code <= 0x52)) {
+  // [v0415 rev13 / B-3] 탐색 범위 확장: PrtSc~PageDown + Arrows
+  if (code >= 0x46 && code <= 0x52) {
     return isEn ? "Navigation & Arrow Keys" : "탐색 및 방향 키";
+  }
+  // [v0415 rev13 / B-3] 숫자 키패드 (0x53~0x63)
+  if (code >= 0x53 && code <= 0x63) {
+    return isEn ? "Keypad (0~9, Enter)" : "숫자 키패드 (0~9, Enter 등)";
+  }
+  // [v0415 rev13 / B-3] 수정자 키 (0xE0~0xE7)
+  if (code >= 0xE0 && code <= 0xE7) {
+    return isEn ? "Modifier Keys (Ctrl/Shift/Alt/GUI)" : "수정자 키 (Ctrl/Shift/Alt/GUI)";
   }
   // [v0415] Keyboard Page Power (HID 0x66) 그룹
   if (code === 0x66) return isEn ? "Power / System" : "전원 및 시스템";
