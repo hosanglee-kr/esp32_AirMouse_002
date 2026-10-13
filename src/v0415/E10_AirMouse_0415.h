@@ -388,9 +388,13 @@ class CL_E10_EliteAirMouse {
     // -------- control --------
     bool setDpiLevel(uint8_t p_level);
     bool setPrecisionMode(uint8_t p_mode);
+    // [v0415 Wave F] 직접 모드 지정 (사이클 오류 원천 차단)
+    bool setActiveMode(uint8_t p_mode);
+
     bool setHardClickLock(bool p_enable);
     bool setSafeMode(bool p_enable);
     bool setOtaGuard(bool p_enable);
+    
 
     // -------- diagnostics --------
     void getStatus(ST_E10_Status_t& p_out);

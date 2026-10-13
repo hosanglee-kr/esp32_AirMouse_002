@@ -156,6 +156,8 @@ struct ST_W10_E10If_t {
     bool (*setPrecisionMode)(void* ctx, uint8_t mode);
     bool (*setHardClickLock)(void* ctx, bool en);
 
+    bool (*setActiveMode)(void* ctx, uint8_t mode);
+
     bool (*setSafeMode)(void* ctx, bool en);
     bool (*setOtaGuard)(void* ctx, bool en);
 

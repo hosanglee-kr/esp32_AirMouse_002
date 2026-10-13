@@ -614,14 +614,18 @@ function handleOfflineApi(url, method, body) {
     const gMem = { heap_free: 245760, heap_min_free: 220000, heap_max_alloc: 245760 };
     const gNet = { mode: "OFFLINE", ssid: "Local / Offline", ip: "127.0.0.1", rssi: 0, mdns: "elite-airmouse.local" };
     const gDiag = { body_too_large: 0, no_body_slot: 0, json_bad: 0, safe_blocked: 0, ota_blocked: 0 };
-    // [v0415] ppt_mode → active_mode
+    
+    // [v0415 Wave F] 오프라인 active_mode를 실제 저장값에서 반영
+    const v_activeE10 = g_offlineStore.profileData[act]?.e10 || {};
     const gE10 = {
       ble_connected: false,
-      active_mode: 1,
-      dpi_level: 2,
-      precision_mode: 0,
+      active_mode: v_activeE10.active_mode ?? 1,
+      ble_peer_name: "",
+      dpi_level: v_activeE10.dpi_level ?? 2,
+      precision_mode: v_activeE10.precision?.mode ?? 0,
       gate: { ota_guard: false }
     };
+
     const gBoot = { safe_mode: false, fail_count: 0, pending: false, last_reset_reason: 0 };
     const gConfig = {
       ver: 412,
@@ -693,9 +697,28 @@ function handleOfflineApi(url, method, body) {
     resObj.data = { cleared: true };
   }
   else if (path === "/api/control") {
-    resObj.msg = "오프라인 모드: 시뮬레이션 명령 실행됨";
-    resObj.data = { cmd: body && body.cmd, simulated: true };
+    // ====================================================
+    // [v0415 Wave F] 오프라인 시뮬레이터 set_mode 지원
+    //   - 활성 프로파일의 e10.active_mode를 실제로 갱신
+    //   - 온라인 C10 저장과 동일한 효과 재현
+    // ====================================================
+    if (body && body.cmd === "set_mode") {
+      const v_mode = Math.max(1, Math.min(3, body.mode | 0));
+      const activeIdx = g_offlineStore.active;
+      const target = g_offlineStore.profileData[activeIdx];
+      if (target) {
+        target.e10 = target.e10 || {};
+        target.e10.active_mode = v_mode;
+        saveOfflineStore();
+      }
+      resObj.msg = "오프라인: 모드 전환 시뮬레이션";
+      resObj.data = { cmd: "set_mode", mode: v_mode, simulated: true };
+    } else {
+      resObj.msg = "오프라인 모드: 시뮬레이션 명령 실행됨";
+      resObj.data = { cmd: body && body.cmd, simulated: true };
+    }
   }
+
   else if (path === "/api/action/test") {
     resObj.msg = "오프라인 모드: 가상 액션 테스트 시뮬레이션";
     resObj.data = body;

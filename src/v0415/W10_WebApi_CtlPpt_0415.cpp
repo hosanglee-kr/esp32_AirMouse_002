@@ -101,6 +101,17 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
             if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setHardClickLock ? e10if->setHardClickLock(e10if->ctx, v_en) : false);
 
+        // [v0415 Wave F] 직접 모드 지정 (사이클 오류 방지)
+        } else if (strcmp(v_cmd, "set_mode") == 0) {
+            uint8_t v_mode = 1;
+            if (!v_jsonDoc["mode"].isNull()) v_mode = (uint8_t)v_jsonDoc["mode"];
+        
+            if (v_mode < 1 || v_mode > 3) {
+                ok = false;
+            } else {
+                ok = ok && (e10if && e10if->setActiveMode ? e10if->setActiveMode(e10if->ctx, v_mode) : false);
+            }
+
         } else {
             ok = false;
         }

@@ -39,6 +39,11 @@ static bool _w10_setPrecisionMode(void* ctx, uint8_t mode) {
     return ((CL_E10_EliteAirMouse*)ctx)->setPrecisionMode(mode);
 }
 
+static bool _w10_setActiveMode(void* ctx, uint8_t mode) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->setActiveMode(mode);
+}
+
 static bool _w10_setSafeMode(void* ctx, bool en) {
     if (!ctx) return false;
     return ((CL_E10_EliteAirMouse*)ctx)->setSafeMode(en);
@@ -198,6 +203,8 @@ void setup() {
     g_w10E10If.getStatus              = _w10_getStatus;
     g_w10E10If.applyRuntimeE10        = _w10_applyRuntimeE10;
     g_w10E10If.setPrecisionMode       = _w10_setPrecisionMode;
+    g_w10E10If.setActiveMode          = _w10_setActiveMode;   // ← 신규
+
     g_w10E10If.setSafeMode            = _w10_setSafeMode;
     g_w10E10If.testPptKey2            = _w10_testPptKey2;
     // [v0415 삭제] g_w10E10If.setPptMode = _w10_setPptMode;

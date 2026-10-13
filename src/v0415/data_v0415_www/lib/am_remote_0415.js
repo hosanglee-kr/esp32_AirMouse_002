@@ -314,46 +314,80 @@ function _updateModeTabs() {
    3. Mode Switching
    - [Phase 3.5 M-8] 서버 저장 (재부팅 후 유지)
    ======================================================= */
+// =======================================================
+// [v0415 Wave F] 모드 전환 — 서버 SSOT + 직접 지정
+// -------------------------------------------------------
+// 문제점 (기존 구현):
+//   ① cur이 stale (g_currentActiveMode가 서버와 다를 수 있음)
+//   ② MODE_CYCLE을 steps번 반복 → cur이 틀리면 엉뚱한 모드 도착
+//   ③ 서버에 set_mode cmd가 없어 1회 정확 진입 불가
+//
+// 해결:
+//   ① refreshStatus로 서버 active_mode 확보 후 cur 결정 (SSOT)
+//   ② set_mode cmd로 정확한 목표 모드 직접 지정 (1회 호출)
+//   ③ 응답 후 refreshStatus로 실측 검증
+// =======================================================
 async function ctlSetMode(target) {
   target = Math.max(1, Math.min(3, target | 0));
-  const cur = g_currentActiveMode;
-  if (target === cur) return true;
+
+  // ---- ① 서버 상태 우선 확보 ----
+  await refreshStatus();
+  const v_serverMode = g_lastStatus?.groups?.e10?.active_mode;
+  const cur = (Number.isFinite(v_serverMode) && v_serverMode >= 1 && v_serverMode <= 3)
+              ? v_serverMode
+              : g_currentActiveMode;
+
+  if (target === cur) {
+    // 이미 목표 모드 → UI만 재정렬
+    applyRemoteMode(target);
+    return true;
+  }
+
   if (!confirm(t("pop.mode_switch_confirm", { cur, tgt: target }))) return false;
 
   const cfg = (typeof getActiveProfile === "function") ? getActiveProfile() : (g_profile ? g_profile.config : null);
+  const v_prevMode = cfg?.e10?.active_mode;
+
   if (cfg && cfg.e10) {
-    cfg.e10.active_mode = target;
+    cfg.e10.active_mode = target;   // 로컬 낙관 갱신
     if (typeof saveOfflineStore === "function") saveOfflineStore();
   }
 
   showLoading(t("loading.processing"));
   try {
     if (g_appMode === APP_MODE_ONLINE) {
-      const steps = ((target - cur) + 3) % 3;
-      for (let i = 0; i < steps; i++) {
-        const u = unwrapApi(await apiPostJson("/api/action/test", { k: 9, h: 0, p16: 3, p32: 0 }));
-        if (!u.ok) {
-          if (cfg && cfg.e10) cfg.e10.active_mode = cur;
-          alert(`${t("pop.mode_switch_fail") || "Mode switch failed:"} ${u.msg || u.code}`);
-          return false;
-        }
-        await new Promise(r => setTimeout(r, 320));
+      // ---- ② set_mode cmd 1회 직접 지정 (사이클 오류 원천 차단) ----
+      const u = unwrapApi(await apiPostJson("/api/control", {
+        cmd: "set_mode", mode: target, snapshot: true
+      }));
+      if (!u.ok) {
+        if (cfg && cfg.e10) cfg.e10.active_mode = v_prevMode;   // 롤백
+        if (typeof saveOfflineStore === "function") saveOfflineStore();
+        alert(`${t("pop.mode_switch_fail") || "모드 전환 실패:"} ${u.msg || u.code}`);
+        return false;
       }
     } else {
-      await new Promise(r => setTimeout(r, 400));
+      // 오프라인 시뮬레이터 (handleOfflineApi set_mode 처리)
+      await apiPostJson("/api/control", { cmd: "set_mode", mode: target });
     }
 
+    // ---- ③ UI 갱신 (홈 카드 layout + 배지 + 탭 + 도구) ----
     applyRemoteMode(target);
     setMsg(t("pop.mode_switch_ok", { tgt: target }), true);
     if (typeof pushRecentLog === "function") pushRecentLog(`MODE → ${target}`, true);
 
-    if (g_appMode === APP_MODE_ONLINE) {
-      const u2 = unwrapApi(await apiPostJson("/api/profiles/active", {
-        e10: { active_mode: target }
-      }));
-      if (!u2.ok) {
-        console.warn("[M-8] active_mode save failed:", u2.code);
-      }
+    // ---- ④ 서버 실측 검증 (polling 1회 강제) ----
+    await refreshStatus();
+    const v_final = g_lastStatus?.groups?.e10?.active_mode;
+    if (Number.isFinite(v_final) && v_final !== target) {
+      console.warn(`[ctlSetMode] 서버 모드 불일치: 요청=${target}, 실측=${v_final}`);
+      setMsg(`⚠ 요청 모드(${target})와 실제(${v_final})가 다릅니다. 다시 시도하세요.`, false);
+      // UI를 실측값으로 강제 정합
+      g_currentActiveMode = v_final;
+      _renderController(v_final);
+      _updateModeTabs();
+      renderModeTools();
+      return false;
     }
 
     return true;
@@ -361,6 +395,7 @@ async function ctlSetMode(target) {
     hideLoading();
   }
 }
+
 
 function applyRemoteMode(mode) {
   g_currentActiveMode = mode;

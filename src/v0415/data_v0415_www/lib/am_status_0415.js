@@ -86,6 +86,24 @@ async function refreshStatus() {
 
   // [N-7] Quick Tuning 활성 상태
   _updateQuickTuningActive(e10.dpi_level, e10.precision_mode);
+  
+  // ====================================================
+  // [v0415 Wave F] 서버 active_mode를 프론트 SSOT로 반영
+  //   - 하드코딩 더블클릭, MODE_CYCLE 등 어떤 경로로 변경되어도
+  //     2.5초 폴링으로 UI 갱신
+  //   - 프론트 steps 계산이 서버 상태 기반으로 정확해짐
+  // ====================================================
+  {
+    const v_serverMode = e10.active_mode;
+    if (Number.isFinite(v_serverMode) && v_serverMode >= 1 && v_serverMode <= 3) {
+      if (g_currentActiveMode !== v_serverMode) {
+        g_currentActiveMode = v_serverMode;
+        if (typeof _renderController === "function") _renderController(v_serverMode);
+        if (typeof _updateModeTabs === "function") _updateModeTabs();
+        if (typeof renderModeTools === "function") renderModeTools();
+      }
+    }
+  }
 
   // [N-2] OTA Guard 상태 반영
   const v_guard = !!(e10.gate && e10.gate.ota_guard);

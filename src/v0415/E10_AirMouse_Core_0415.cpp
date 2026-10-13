@@ -211,6 +211,37 @@ bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
     return true;
 }
 
+// =======================================================
+// [v0415 Wave F] 모드 직접 지정 (사이클 오류 원천 차단)
+// -------------------------------------------------------
+// 기존 _setActiveMode는 private (하드코딩 더블클릭 전용).
+// 본 public API는 W10 set_mode cmd 및 LiveTest용.
+//
+// - 프로필 e10.active_mode 영속 갱신 + _reqSaveCfg
+// - _setActiveMode 내부 로직 재사용 (LED/EMA/큐 abort 등)
+// - 동일 모드 조기 반환 (abort token 낭비 방지)
+// =======================================================
+bool CL_E10_EliteAirMouse::setActiveMode(uint8_t p_mode) {
+    if (p_mode < 1 || p_mode > C10_DEF::MODE_COUNT) return false;
+
+    _lock();
+    const uint8_t v_cur = _activeMode;
+    _unlock();
+
+    if (v_cur == p_mode) return true;   // 조기 반환
+
+    // _setActiveMode 내부에서 LED 색, EMA reset, 매크로 abort, HID release 등
+    // 안전 처리 모두 수행됨 (private 함수 재사용)
+    _setActiveMode(p_mode);
+
+    // 프로필 영속 저장 요청 (main loop tickConfigSave가 처리)
+    if (_cfg && _cfgProfileValid) {
+        _reqSaveCfg = true;
+    }
+    return true;
+}
+
+
 bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
     (void)p_enable;
     D10_LOGD("[E10] setHardClickLock() no-op (Click-Lock removed in v0415)");
