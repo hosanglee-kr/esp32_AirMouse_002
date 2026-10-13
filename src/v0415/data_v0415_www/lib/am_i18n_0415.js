@@ -1,12 +1,20 @@
 /* =======================================================
    File: /www/lib/am_i18n_0415.js
-   Elite AirMouse WebConfig v0415 — i18n Core (Full, 371 keys)
+   Elite AirMouse WebConfig v0415 — i18n Core (Full, 487 keys)
    - 다국어(KO / EN) 사전 및 DOM/런타임 번역 코어
    - 표준 용어 체계(Windows, 마우스, 프레젠테이션, TV 리모컨) 전수 준수
    - [v0415] Consumer mask Descriptor 정합 (AC_* → WWW_*, POWER/CH/TV_INPUT 안내)
    - [v0415] Consumer 신규 라벨 12종 추가 (Play/Pause/Record/Eject/Random/Repeat 등)
    - [v0415] 스키마 411 마이그레이션 안내 키 추가
    - [v0415] I18N_STORAGE_KEY = am_lang_0415 (언어 설정 리셋)
+   - [v0415 Wave A] Wi-Fi UI (mode/ap/sta/mdns) 12키
+   - [v0415 Wave C] Precision + Gyro Bias 16키
+   - [v0415 Wave D] Linear / Flick / Tilt 9키
+   - [v0415 Wave F] 프로필 배지 / switch_hint 2키
+   - [v0415 Wave G] 🔒 잠금 배너 / 동기화 힌트 / 재부팅 진행
+                     / 매크로 예시 10키
+   - [v0415 Wave H] 진단 health 카드 / 필수 조작 / OTA 버전
+                     / 트리거 한글화 27키 / 테마 / 접근성 56키
    ======================================================= */
 
 const I18N_STORAGE_KEY = "am_lang_0415";
@@ -20,11 +28,16 @@ const I18N_DICT = {
     "top.reboot_now": "지금 다시 시작",
     "top.reboot_needed": "다시 시작 필요:",
     "top.language": "언어",
+    "top.theme_toggle": "테마 전환",
     "loading.processing": "처리 중…",
     "prof.label": "프로필",
     "prof.new": "+ 새 프로필",
-    "prof.rename": "이름 변경",
+    "prof.rename": "이름",
     "prof.delete": "삭제",
+
+    /* ============ [v0415 Wave F] 프로필 배지 ============ */
+    "prof.current": "현재 프로필",
+    "prof.switch_hint": "프로필 전환 시 기기에 즉시 반영됩니다.",
 
     /* ============ 탭 ============ */
     "tab.dash": "홈",
@@ -60,6 +73,17 @@ const I18N_DICT = {
     "dash.cur_prof": "현재 프로필",
     "dash.factory_reset": "공장 초기화",
     "dash.batt_na_tip": "배터리 ADC 미구현 (v0415)",
+
+    /* ============ [v0415 Wave H] 필수 조작 카드 ============ */
+    "quickref.title": "💡 필수 조작",
+    "quickref.side_c_double": "Side C 더블클릭",
+    "quickref.side_c_double_desc": "모드 전환 (PC/PPT/TV)",
+    "quickref.side_c_2s": "Side C 2초 유지",
+    "quickref.side_c_2s_desc": "페어링 모드",
+    "quickref.side_c_3s": "Side C 3초 유지",
+    "quickref.side_c_3s_desc": "호스트 기기 전환",
+    "quickref.side_f_hold": "Side F 유지",
+    "quickref.side_f_hold_desc": "스크롤 모드",
 
     /* ============ 가상 컨트롤러 ============ */
     "remote.title": "가상 컨트롤러",
@@ -192,6 +216,38 @@ const I18N_DICT = {
     "slots.opt_none_action": "할당 안 함 (선택 안 함)",
     "slots.opt_no_macro": "(등록된 매크로 없음)",
 
+    /* ============ [v0415 Wave G] 🔒 잠금 슬롯 안내 ============ */
+    "slots.locked_hint": "🔒 표시된 4개 슬롯(S1/S5/S12/S13)은 브릭 방지를 위해 잠겨있습니다. 좌클릭 / Move Gate / Mode Cycle / Pairing 동작은 항상 하드코딩으로 유지됩니다.",
+
+    /* ============ [v0415 Wave H] 트리거 한글화 (27) ============ */
+    "trig.top_l_click": "상단 좌측 클릭",
+    "trig.top_l_double": "상단 좌측 더블클릭",
+    "trig.top_l_long": "상단 좌측 롱프레스",
+    "trig.top_m_click": "상단 중앙 클릭",
+    "trig.top_m_hold": "상단 중앙 유지",
+    "trig.top_r_click": "상단 우측 클릭",
+    "trig.top_r_double": "상단 우측 더블클릭",
+    "trig.top_r_long": "상단 우측 롱프레스",
+    "trig.side_f_click": "측면 F 클릭",
+    "trig.side_f_long": "측면 F 롱프레스",
+    "trig.side_c_click": "측면 C 클릭",
+    "trig.side_c_double": "측면 C 더블클릭",
+    "trig.side_c_hold_2s": "측면 C 2초 유지",
+    "trig.side_r_click": "측면 R 클릭",
+    "trig.side_r_long": "측면 R 롱프레스",
+    "trig.flick_left": "휘두르기 좌",
+    "trig.flick_right": "휘두르기 우",
+    "trig.flick_up": "휘두르기 상",
+    "trig.flick_down": "휘두르기 하",
+    "trig.linear_left": "선형 좌",
+    "trig.linear_right": "선형 우",
+    "trig.linear_up": "선형 상",
+    "trig.linear_down": "선형 하",
+    "trig.tilt_left": "기울여 유지 좌",
+    "trig.tilt_right": "기울여 유지 우",
+    "trig.tilt_up": "기울여 유지 상",
+    "trig.tilt_down": "기울여 유지 하",
+
     /* ============ 매크로 ============ */
     "macros.title": "연속 동작 매크로 관리",
     "macros.hint": "버튼 한 번으로 복잡한 단축키나 연속 입력을 자동으로 실행합니다.",
@@ -207,6 +263,14 @@ const I18N_DICT = {
     "macro.save_ok": "매크로 저장 완료",
     "macro.opt_no_action": "동작 없음 (None)",
 
+    /* ============ [v0415 Wave G] 매크로 사용 예시 ============ */
+    "macros.example_show": "📖 매크로 사용 예시 보기",
+    "macros.example_title": "예시: Ctrl+C → 100ms 대기 → Ctrl+V",
+    "macros.example_step1": "1단계: KB_COMBO, Ctrl+C",
+    "macros.example_step2": "2단계: 지연 100ms",
+    "macros.example_step3": "3단계: KB_COMBO, Ctrl+V",
+    "macros.example_usage": "Slot 매핑에서 Top R Double → 매크로 0번 배정 시, 우클릭 더블탭 한 번으로 복사-붙여넣기 자동 실행됩니다.",
+
     /* ============ 상세 설정 (Config) ============ */
     "cfg.title": "포인터 및 센서 세부 설정",
     "cfg.hint": "현재 프로필의 포인터 속도, 가속도, 제스처 및 세부 감도 값을 조정합니다.",
@@ -221,6 +285,7 @@ const I18N_DICT = {
     "cfg.sec_snap": "5. 직선 이동 보정 (Snap-to-Axis)",
     "cfg.sec_power": "6. 절전 및 전원 관리",
     "cfg.sec_buttons": "7. 버튼 타이밍",
+    "cfg.sec_wifi": "8. Wi-Fi 설정",
     "cfg.sec_preset": "추천 동작 프리셋",
     "cfg.preset_hint": "프리셋 선택 시 프로필의 동작 정밀도 19개 항목 전체가 프리셋 기본값으로 재설정됩니다.",
     "cfg.preset_pc": "일반 PC",
@@ -231,6 +296,9 @@ const I18N_DICT = {
     "cfg.factory_title": "기기 공장 초기화",
     "cfg.factory_hint": "모든 프로필과 설정이 영구적으로 삭제됩니다.",
     "cfg.foot": "v0415 · Elite AirMouse WebConfig · 독립 실행형",
+
+    /* ============ [v0415 Wave G] 동기화 힌트 ============ */
+    "cfg.dpi_sync_hint": "💡 상단 \"포인터 빠른 조정\"과 동일한 값입니다.",
 
     "cfg.lbl_dpi": "기본 포인터 속도",
     "cfg.lbl_hard_click": "하드 클릭 방지 (클릭 중 잠금)",
@@ -270,16 +338,11 @@ const I18N_DICT = {
     "cfg.lbl_btn_long": "길게 누르기 판정 시간 (ms)",
     "cfg.lbl_btn_min_click": "최소 유효 클릭 시간 (ms)",
 
-    "cfg.adv_power": "⚙ 절전 고급 설정",
-    "cfg.adv_button": "⚙ 버튼 고급 설정",
-    
-    /* ============ [v0415 rev15 / Wave A] Wi-Fi ============ */
-    "cfg.sec_wifi": "8. Wi-Fi 설정",
+    /* ============ [v0415 Wave A] Wi-Fi ============ */
     "cfg.lbl_wifi_mode": "동작 모드",
     "cfg.wifi_auto": "자동 (STA 실패 시 AP 전환)",
     "cfg.wifi_ap": "AP 전용 (공유기 없이 직접 접속)",
     "cfg.wifi_sta": "STA 전용 (공유기에 접속)",
-    
     "cfg.lbl_ap_ssid": "AP SSID (기기 이름)",
     "cfg.lbl_ap_pass": "AP 비밀번호 (8자 이상)",
     "cfg.lbl_mdns": "mDNS 호스트명",
@@ -287,9 +350,8 @@ const I18N_DICT = {
     "cfg.lbl_sta_ssid": "공유기 SSID",
     "cfg.lbl_sta_pass": "공유기 비밀번호",
     "cfg.wifi_reboot_note": "Wi-Fi 변경 후 다시 시작이 필요합니다.",
-    
-    
-    /* ============ [v0415 rev15 / Wave C] Precision & Gyro Bias ============ */
+
+    /* ============ [v0415 Wave C] Precision & Gyro Bias ============ */
     "cfg.adv_precision": "⚙ Precision 상세 파라미터",
     "cfg.lbl_prec_mode": "정밀 모드 프리셋",
     "cfg.lbl_prec_deadzone": "정밀 조작 불감대 (deg/s)",
@@ -306,8 +368,8 @@ const I18N_DICT = {
     "cfg.lbl_gyro_still_th": "정지 판정 임계 (deg/s)",
     "cfg.lbl_gyro_still_win": "정지 유지 시간 (ms)",
     "cfg.lbl_gyro_alpha": "드리프트 추종 계수",
-    
-    /* ============ [v0415 rev15 / Wave D] Linear / Flick / Tilt ============ */
+
+    /* ============ [v0415 Wave D] Linear / Flick / Tilt ============ */
     "cfg.adv_gesture_detail": "⚙ 제스처 세부 감도 (Linear / Flick / Tilt)",
     "cfg.lbl_lin_th": "선형 임펄스 시작 임계 (m/s²)",
     "cfg.lbl_lin_impulse": "선형 임펄스 크기 임계 (m/s)",
@@ -318,7 +380,8 @@ const I18N_DICT = {
     "cfg.lbl_tilt_repeat": "틸트 반복 주기 (Hz)",
     "cfg.tilt_mode3_note": "틸트 홀드는 모드 3 (스마트 TV) 전용입니다.",
 
-    
+    "cfg.adv_power": "⚙ 절전 고급 설정",
+    "cfg.adv_button": "⚙ 버튼 고급 설정",
     "cfg.lbl_pwr_idle_pc": "모드 1 (PC) 대기 (초)",
     "cfg.lbl_pwr_idle_ppt": "모드 2 (프레젠테이션) 대기 (초)",
     "cfg.lbl_pwr_idle_tv": "모드 3 (스마트 TV) 대기 (초)",
@@ -370,12 +433,32 @@ const I18N_DICT = {
     "diag.mod_none": "조합 키 없음",
     "diag.reset_ok": "진단 카운터 초기화 완료",
 
+    /* ============ [v0415 Wave H] 진단 health 카드 ============ */
+    "diag.health_ok": "정상",
+    "diag.health_warn": "주의",
+    "diag.health_degraded": "성능 저하",
+    "diag.health_label": "기기 상태",
+    "diag.health_score": "{score} / 1000",
+    "diag.sensor_status": "센서",
+    "diag.ble_status": "BLE",
+    "diag.uptime_short": "가동",
+    "diag.temp_label": "온도",
+    "diag.show_detail": "상세 진단 ▼",
+    "diag.hide_detail": "상세 진단 접기 ▲",
+
     /* ============ OTA ============ */
     "ota.title": "무선 펌웨어 업데이트 (OTA)",
     "ota.guard_label": "업데이트 보안 잠금 (OTA Guard)",
     "ota.guard_desc": "잠금 시 마우스/키보드 입력이 일시 중단되며 비인가 펌웨어 플래시가 차단됩니다.",
     "ota.btn_upload": "펌웨어 업로드",
     "ota.btn_status": "상태 확인",
+
+    /* ============ [v0415 Wave H] OTA 버전 정보 ============ */
+    "ota.fw_ver_label": "펌웨어 버전",
+    "ota.api_ver_label": "API 버전",
+    "ota.cfg_ver_label": "스키마 버전",
+    "ota.build_info": "빌드 정보",
+    "ota.download_hint": "펌웨어 파일(.bin)은 GitHub Releases에서 다운로드할 수 있습니다.",
 
     /* ============ 버튼 ============ */
     "btn.apply": "적용",
@@ -455,6 +538,11 @@ const I18N_DICT = {
     "pop.reboot_delayed": "다시 시작 지연 — 잠시 후 새로 고침하세요",
     "pop.prof_switching": "프로필 #{idx} 전환 중…",
     "pop.unsaved_changes_confirm": "저장하지 않은 변경사항이 있습니다. 계속 진행하면 변경 내용이 사라집니다. 계속하시겠습니까?",
+    "pop.theme_switched": "테마: {mode}",
+
+    /* ============ [v0415 Wave G] 재부팅 진행 ============ */
+    "pop.reboot_in_progress": "기기 다시 시작 중… (약 8초 소요)",
+    "pop.reboot_ap_fallback": "기기 응답 없음.\nSTA 접속 실패 시 AP 모드(EliteAirMouse)로 전환됩니다.\nWi-Fi를 다시 확인하세요.",
 
     /* ============ 네비 / 로그 ============ */
     "nav.menu": "메뉴",
@@ -475,7 +563,11 @@ const I18N_DICT = {
     "consumer.www_favorites": "즐겨찾기",
     "consumer.www_stop": "페이지 중지",
     "consumer.media_select": "미디어 선택",
-    "consumer.mail": "메일"
+    "consumer.mail": "메일",
+
+    /* ============ [v0415 Wave H] 접근성 ============ */
+    "a11y.loading": "처리 중",
+    "a11y.close": "닫기"
   },
 
   en: {
@@ -485,11 +577,16 @@ const I18N_DICT = {
     "top.reboot_now": "Restart Now",
     "top.reboot_needed": "Restart Required:",
     "top.language": "Language",
+    "top.theme_toggle": "Toggle Theme",
     "loading.processing": "Processing…",
     "prof.label": "Profile",
-    "prof.new": "+ New",
+    "prof.new": "+ New Profile",
     "prof.rename": "Rename",
     "prof.delete": "Delete",
+
+    /* ============ [v0415 Wave F] Profile Badge ============ */
+    "prof.current": "Current Profile",
+    "prof.switch_hint": "Switching applies immediately to the device.",
 
     /* ============ Tabs ============ */
     "tab.dash": "Home",
@@ -525,6 +622,17 @@ const I18N_DICT = {
     "dash.cur_prof": "Active Profile",
     "dash.factory_reset": "Factory Reset",
     "dash.batt_na_tip": "Battery ADC not implemented (v0415)",
+
+    /* ============ [v0415 Wave H] Quick Reference ============ */
+    "quickref.title": "💡 Essential Controls",
+    "quickref.side_c_double": "Side C double-click",
+    "quickref.side_c_double_desc": "Cycle Mode (PC/PPT/TV)",
+    "quickref.side_c_2s": "Side C hold 2s",
+    "quickref.side_c_2s_desc": "Pairing mode",
+    "quickref.side_c_3s": "Side C hold 3s",
+    "quickref.side_c_3s_desc": "Host device switch",
+    "quickref.side_f_hold": "Side F hold",
+    "quickref.side_f_hold_desc": "Scroll mode",
 
     /* ============ Virtual Remote ============ */
     "remote.title": "Virtual Controller",
@@ -658,6 +766,38 @@ const I18N_DICT = {
     "slots.opt_none_action": "Unassigned (None)",
     "slots.opt_no_macro": "(No Macros Registered)",
 
+    /* ============ [v0415 Wave G] Locked Slots Hint ============ */
+    "slots.locked_hint": "🔒 Four locked slots (S1/S5/S12/S13) prevent bricking. Left-click / Move Gate / Mode Cycle / Pairing are always hardcoded.",
+
+    /* ============ [v0415 Wave H] Trigger Localization (27) ============ */
+    "trig.top_l_click": "Top Left Click",
+    "trig.top_l_double": "Top Left Double",
+    "trig.top_l_long": "Top Left Long",
+    "trig.top_m_click": "Top Middle Click",
+    "trig.top_m_hold": "Top Middle Hold",
+    "trig.top_r_click": "Top Right Click",
+    "trig.top_r_double": "Top Right Double",
+    "trig.top_r_long": "Top Right Long",
+    "trig.side_f_click": "Side F Click",
+    "trig.side_f_long": "Side F Long",
+    "trig.side_c_click": "Side C Click",
+    "trig.side_c_double": "Side C Double",
+    "trig.side_c_hold_2s": "Side C 2s Hold",
+    "trig.side_r_click": "Side R Click",
+    "trig.side_r_long": "Side R Long",
+    "trig.flick_left": "Flick Left",
+    "trig.flick_right": "Flick Right",
+    "trig.flick_up": "Flick Up",
+    "trig.flick_down": "Flick Down",
+    "trig.linear_left": "Linear Left",
+    "trig.linear_right": "Linear Right",
+    "trig.linear_up": "Linear Up",
+    "trig.linear_down": "Linear Down",
+    "trig.tilt_left": "Tilt Left",
+    "trig.tilt_right": "Tilt Right",
+    "trig.tilt_up": "Tilt Up",
+    "trig.tilt_down": "Tilt Down",
+
     /* ============ Macros ============ */
     "macros.title": "Sequential Macro Manager",
     "macros.hint": "Automate sequential keystrokes or media controls with a single click.",
@@ -673,6 +813,14 @@ const I18N_DICT = {
     "macro.save_ok": "Macro saved",
     "macro.opt_no_action": "No Action (None)",
 
+    /* ============ [v0415 Wave G] Macro Usage Example ============ */
+    "macros.example_show": "📖 View Macro Usage Example",
+    "macros.example_title": "Example: Ctrl+C → 100ms delay → Ctrl+V",
+    "macros.example_step1": "Step 1: KB_COMBO, Ctrl+C",
+    "macros.example_step2": "Step 2: Delay 100ms",
+    "macros.example_step3": "Step 3: KB_COMBO, Ctrl+V",
+    "macros.example_usage": "If Top R Double → Macro #0 in Slot Mapping, one right-click double-tap runs copy-paste automatically.",
+
     /* ============ Config ============ */
     "cfg.title": "Pointer & Sensor Settings",
     "cfg.hint": "Configure pointer speed, acceleration, gestures, and precision for the active profile.",
@@ -687,6 +835,7 @@ const I18N_DICT = {
     "cfg.sec_snap": "5. Linear Axis Snap",
     "cfg.sec_power": "6. Power Management",
     "cfg.sec_buttons": "7. Button Timings",
+    "cfg.sec_wifi": "8. Wi-Fi Settings",
     "cfg.sec_preset": "Recommended Motion Presets",
     "cfg.preset_hint": "Selecting a preset resets all 19 motion precision settings to preset defaults.",
     "cfg.preset_pc": "PC (General)",
@@ -697,6 +846,9 @@ const I18N_DICT = {
     "cfg.factory_title": "Factory Reset",
     "cfg.factory_hint": "All profiles and settings will be permanently erased.",
     "cfg.foot": "v0415 · Elite AirMouse WebConfig · Standalone",
+
+    /* ============ [v0415 Wave G] Sync Hint ============ */
+    "cfg.dpi_sync_hint": "💡 Synced with Quick Tune above.",
 
     "cfg.lbl_dpi": "Base Pointer Speed",
     "cfg.lbl_hard_click": "Hard Click Lock (Lock on Click)",
@@ -736,11 +888,7 @@ const I18N_DICT = {
     "cfg.lbl_btn_long": "Long-Press Threshold (ms)",
     "cfg.lbl_btn_min_click": "Min Click Glitch Filter (ms)",
 
-    "cfg.adv_power": "⚙ Advanced Power Settings",
-    "cfg.adv_button": "⚙ Advanced Button Settings",
-    
-    /* ============ [v0415 rev15 / Wave A] Wi-Fi ============ */
-    "cfg.sec_wifi": "8. Wi-Fi Settings",
+    /* ============ [v0415 Wave A] Wi-Fi ============ */
     "cfg.lbl_wifi_mode": "Operating Mode",
     "cfg.wifi_auto": "Auto (AP fallback on STA failure)",
     "cfg.wifi_ap": "AP Only (direct connection)",
@@ -752,9 +900,8 @@ const I18N_DICT = {
     "cfg.lbl_sta_ssid": "Router SSID",
     "cfg.lbl_sta_pass": "Router Password",
     "cfg.wifi_reboot_note": "A restart is required after Wi-Fi changes.",
-    
-    
-    /* ============ [v0415 rev15 / Wave C] Precision & Gyro Bias ============ */
+
+    /* ============ [v0415 Wave C] Precision & Gyro Bias ============ */
     "cfg.adv_precision": "⚙ Precision Advanced",
     "cfg.lbl_prec_mode": "Precision Mode Preset",
     "cfg.lbl_prec_deadzone": "Precision Deadzone (deg/s)",
@@ -771,8 +918,8 @@ const I18N_DICT = {
     "cfg.lbl_gyro_still_th": "Still Threshold (deg/s)",
     "cfg.lbl_gyro_still_win": "Still Window (ms)",
     "cfg.lbl_gyro_alpha": "Drift Tracking Alpha",
-    
-    /* ============ [v0415 rev15 / Wave D] Linear / Flick / Tilt ============ */
+
+    /* ============ [v0415 Wave D] Linear / Flick / Tilt ============ */
     "cfg.adv_gesture_detail": "⚙ Gesture Detail (Linear / Flick / Tilt)",
     "cfg.lbl_lin_th": "Linear Impulse Threshold (m/s²)",
     "cfg.lbl_lin_impulse": "Linear Impulse Magnitude (m/s)",
@@ -783,6 +930,8 @@ const I18N_DICT = {
     "cfg.lbl_tilt_repeat": "Tilt Repeat Rate (Hz)",
     "cfg.tilt_mode3_note": "Tilt Hold is available only in Mode 3 (Smart TV).",
 
+    "cfg.adv_power": "⚙ Advanced Power Settings",
+    "cfg.adv_button": "⚙ Advanced Button Settings",
     "cfg.lbl_pwr_idle_pc": "Mode 1 (PC) Timeout (s)",
     "cfg.lbl_pwr_idle_ppt": "Mode 2 (Presentation) Timeout (s)",
     "cfg.lbl_pwr_idle_tv": "Mode 3 (Smart TV) Timeout (s)",
@@ -834,12 +983,32 @@ const I18N_DICT = {
     "diag.mod_none": "None",
     "diag.reset_ok": "Diagnostic counters cleared",
 
+    /* ============ [v0415 Wave H] Health Card ============ */
+    "diag.health_ok": "OK",
+    "diag.health_warn": "Warning",
+    "diag.health_degraded": "Degraded",
+    "diag.health_label": "Device Health",
+    "diag.health_score": "{score} / 1000",
+    "diag.sensor_status": "Sensor",
+    "diag.ble_status": "BLE",
+    "diag.uptime_short": "Uptime",
+    "diag.temp_label": "Temp",
+    "diag.show_detail": "Show Details ▼",
+    "diag.hide_detail": "Hide Details ▲",
+
     /* ============ OTA ============ */
     "ota.title": "Firmware Update (OTA)",
     "ota.guard_label": "OTA Security Guard",
     "ota.guard_desc": "When enabled, inputs are suspended and unauthorized flashes are rejected.",
     "ota.btn_upload": "Upload Firmware",
     "ota.btn_status": "Check Status",
+
+    /* ============ [v0415 Wave H] OTA Version Info ============ */
+    "ota.fw_ver_label": "Firmware",
+    "ota.api_ver_label": "API Version",
+    "ota.cfg_ver_label": "Schema Version",
+    "ota.build_info": "Build Info",
+    "ota.download_hint": "Download firmware (.bin) from GitHub Releases.",
 
     /* ============ Buttons ============ */
     "btn.apply": "Apply",
@@ -919,6 +1088,11 @@ const I18N_DICT = {
     "pop.reboot_delayed": "Restart delayed — please refresh shortly",
     "pop.prof_switching": "Switching to Profile #{idx}…",
     "pop.unsaved_changes_confirm": "There are unsaved changes. Continuing will discard them. Continue?",
+    "pop.theme_switched": "Theme: {mode}",
+
+    /* ============ [v0415 Wave G] Reboot Progress ============ */
+    "pop.reboot_in_progress": "Restarting device… (about 8 seconds)",
+    "pop.reboot_ap_fallback": "Device not responding.\nIf STA failed, it falls back to AP mode (EliteAirMouse).\nPlease check Wi-Fi.",
 
     /* ============ Nav / Log ============ */
     "nav.menu": "Menu",
@@ -939,7 +1113,11 @@ const I18N_DICT = {
     "consumer.www_favorites": "WWW Favorites",
     "consumer.www_stop": "WWW Stop",
     "consumer.media_select": "Media Select",
-    "consumer.mail": "Mail"
+    "consumer.mail": "Mail",
+
+    /* ============ [v0415 Wave H] Accessibility ============ */
+    "a11y.loading": "Processing",
+    "a11y.close": "Close"
   }
 };
 

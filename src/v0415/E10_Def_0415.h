@@ -18,6 +18,11 @@
  *    · PPT 상태는 active_mode(=2)로 일원화 → /api/status의 config.profile_idx
  *      및 별도 active_mode 노출 (Round M에서 W10 status 확장)
  *  - 나머지 상수/enum/struct 유지
+ *
+ * [v0415 Wave F 주요 변경]
+ *  - ST_E10_Status_t.ble_peer_name[32] 추가
+ *    · BLE 연결된 peer의 이름/MAC 조회 (관측용)
+ *    · 홈 상단 pill에 노출 (am_status_0415.js)
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -123,6 +128,14 @@ struct ST_E10_State_t {
 
 struct ST_E10_Status_t {
     bool    ble_connected;
+    // ====================================================
+    // [v0415 Wave F] BLE peer 이름 (연결 시만 유효)
+    //   - B20::getPeerName()에서 채움 (getStatus)
+    //   - 홈 상단 pill 노출용
+    //   - 미연결 시 빈 문자열
+    // ====================================================
+    char    ble_peer_name[32];
+
     // [v0415 Round M-1] ppt_mode 삭제 → active_mode 일원화
     //   · E10 _isPptMode 필드 삭제 (Round G)
     //   · W10 status 노출은 active_mode (1=PC, 2=PPT, 3=TV)

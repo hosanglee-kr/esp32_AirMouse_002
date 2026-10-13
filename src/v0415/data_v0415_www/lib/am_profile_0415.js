@@ -1,19 +1,66 @@
-
 /* =======================================================
    File: /www/lib/am_profile_0415.js
    Elite AirMouse WebConfig v0415 — Profile / Slots / ActionEditor
-   - 로드 순서: 3
+   - 로드 순서: 4
    - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
    - [Phase 2.2 H-1] getActiveProfile() 정식 정의
    - [Phase 3.6 L-5] saveProfile 성공 시 clearDirty, emit에 markSlotDirty
-   =======================================================
-*/
-   
+   - [v0415 Wave F] profileReloadAll에 현재 프로필 배지 갱신 (P0-3)
+   - [v0415 Wave G] renderSlotEditor에 🔒 잠금 슬롯 안내 배너 (P1-1)
+   - [v0415 Wave H] 트리거 이름 한글화 (_trigLabel helper, P2-4)
+   ======================================================= */
+
+
 /* =======================================================
    [Phase 2.2 H-1] 활성 프로파일 config 접근자
    ======================================================= */
 function getActiveProfile() {
   return (g_profile && g_profile.config) ? g_profile.config : null;
+}
+
+/* =======================================================
+   [v0415 Wave H] 트리거 이름 → i18n 키 매핑 (P2-4)
+   -------------------------------------------------------
+   - 서버/오프라인의 트리거 name(영문) → i18n 키
+   - 미매핑 시 원본 name 반환 (fallback)
+   - C10_TriggerName (C10_Def_0415.h) 순서와 1:1 유지
+   ======================================================= */
+function _trigLabel(name) {
+  const MAP = {
+    "Top L Click":    "trig.top_l_click",
+    "Top L Double":   "trig.top_l_double",
+    "Top L Long":     "trig.top_l_long",
+    "Top M Click":    "trig.top_m_click",
+    "Top M Hold":     "trig.top_m_hold",
+    "Top R Click":    "trig.top_r_click",
+    "Top R Double":   "trig.top_r_double",
+    "Top R Long":     "trig.top_r_long",
+    "Side F Click":   "trig.side_f_click",
+    "Side F Long":    "trig.side_f_long",
+    "Side C Click":   "trig.side_c_click",
+    "Side C Double":  "trig.side_c_double",
+    "Side C 2s Hold": "trig.side_c_hold_2s",
+    "Side R Click":   "trig.side_r_click",
+    "Side R Long":    "trig.side_r_long",
+    "Flick Left":     "trig.flick_left",
+    "Flick Right":    "trig.flick_right",
+    "Flick Up":       "trig.flick_up",
+    "Flick Down":     "trig.flick_down",
+    "Linear Left":    "trig.linear_left",
+    "Linear Right":   "trig.linear_right",
+    "Linear Up":      "trig.linear_up",
+    "Linear Down":    "trig.linear_down",
+    "Tilt Left":      "trig.tilt_left",
+    "Tilt Right":     "trig.tilt_right",
+    "Tilt Up":        "trig.tilt_up",
+    "Tilt Down":      "trig.tilt_down",
+  };
+  const v_key = MAP[name];
+  if (v_key && typeof t === "function") {
+    const v_out = t(v_key);
+    if (v_out && v_out !== v_key) return v_out;
+  }
+  return name;
 }
 
 /* =======================================================
@@ -38,6 +85,17 @@ async function profileReloadAll() {
       sel.appendChild(o);
     }
     sel.value = String(active);
+  }
+
+  // ====================================================
+  // [v0415 Wave F] 현재 프로필 배지 갱신 (P0-3)
+  //   - 드로어 상단 "현재 프로필: #0 Office" 표시
+  //   - 프로필 전환/생성/삭제 시 자동 반영
+  // ====================================================
+  const v_activeNameEl = qs("profActiveName");
+  if (v_activeNameEl) {
+    const v_cur = list.find(p => p.idx === active);
+    v_activeNameEl.textContent = v_cur ? `#${v_cur.idx} ${v_cur.name}` : `#${active}`;
   }
 
   const btnCreate = qs("btnProfCreate");
@@ -301,6 +359,18 @@ function renderSlotEditor() {
     }
     root.appendChild(head);
 
+    // ====================================================
+    // [v0415 Wave G] 🔒 잠금 슬롯 안내 배너 (P1-1)
+    //   - button 그룹 헤더 뒤에 1회 삽입
+    //   - 사용자가 잠금 이유를 알 수 있도록 (사용자 오해 방지)
+    // ====================================================
+    if (g.key === "button") {
+      const v_lockedBanner = document.createElement("div");
+      v_lockedBanner.className = "tilt-banner info";
+      v_lockedBanner.innerHTML = t("slots.locked_hint");
+      root.appendChild(v_lockedBanner);
+    }
+
     if (isTiltGroup) {
       const banner = document.createElement("div");
       banner.className = "tilt-banner";
@@ -339,7 +409,9 @@ function renderSlotEditor() {
         v_metaSub = `<span class="meta-sub">(${v_meta.btn} / ${v_meta.evt})</span>`;
       }
 
-      nameEl.innerHTML = `${t.locked ? "🔒 " : ""}${t.name}${v_metaSub}`;
+      // [v0415 Wave H] 트리거 이름 한글화 (P2-4)
+      //   - t.name은 영문 (서버/offline) → _trigLabel()로 i18n 매핑
+      nameEl.innerHTML = `${t.locked ? "🔒 " : ""}${_trigLabel(t.name)}${v_metaSub}`;
       row.appendChild(nameEl);
 
       const badge = document.createElement("div");

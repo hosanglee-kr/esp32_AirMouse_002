@@ -8,15 +8,14 @@
    - [Phase 3.4 M-10] 캘리브 피드백 통일
    - [Phase 3.7 L-7] 배터리 N/A 처리
    - [Phase 4.2 M-9] reboot/check 폴링 중복 제거
-======================================================= 
- // [v0415 rev15 / Wave D-2] rebootCheck() 삭제
-//   - /api/reboot/check GET 라우팅 삭제됨
-//   - 재부팅 필요 여부는 /api/status.groups.policy.reboot_required 사용
-//   - 프론트는 refreshStatus()의 _updateRebootBanner()가 자동 처리
+   - [사전 fix] refreshStatus에 서버 active_mode 폴링 반영
+   - [v0415 Wave D-2] ctlSetDpi / ctlSetPrecision / rebootCheck 삭제
+   - [v0415 Wave F] BLE pill에 peer 이름 표시
+   - [v0415 Wave G] 배터리 pill 숨김 (ADC 미구현)
+   - [v0415 Wave H] 진단 health 카드 (P2-1) + OTA 버전 정보 (P2-5)
+   ======================================================= */
 
-=======================================================
-*/
-   
+
 /* =======================================================
    [Phase 3.1 H-4] 배너 dismiss 세션 플래그
    ======================================================= */
@@ -62,23 +61,62 @@ async function refreshStatus() {
   const pProf = qs("pStatProf"), pBat = qs("pStatBat"), pBle = qs("pStatBle");
   if (pProf) pProf.textContent = `#${cfg.profile_idx ?? 0}`;
 
-  // [Phase 3.7 L-7] 배터리 ADC 미구현 → "N/A" + 툴팁
+  // ====================================================
+  // [v0415 Wave G] 배터리 pill 숨김 (ADC 하드웨어 미구현, P1-4)
+  //   - 사용자 지시: N/A 표시 대신 pill 자체 숨김
+  //   - 구분자(·)도 함께 숨겨 시각적 어색함 제거
+  //   - 실 배터리 지원 시점(v0416+)에 복원 예정
+  // ====================================================
   if (pBat) {
     const v_pct = (sys.bat_pct != null) ? sys.bat_pct : null;
     if (v_pct != null) {
+      // 배터리 값이 있으면 표시 (v0416 대비 미리 지원)
       pBat.textContent = `${v_pct}%`;
+      pBat.style.display = "";
       pBat.style.color = "";
-      pBat.removeAttribute("title");
+      const v_prevSep = pBat.previousElementSibling;
+      if (v_prevSep && v_prevSep.classList.contains("pm-sep")) {
+        v_prevSep.style.display = "";
+      }
     } else {
-      pBat.textContent = "N/A";
-      pBat.style.color = "var(--txt-muted)";
-      pBat.title = (typeof t === "function") ? t("dash.batt_na_tip") : "Battery ADC not implemented";
+      // 미지원 → pill + 앞 구분자 숨김
+      pBat.style.display = "none";
+      const v_prevSep = pBat.previousElementSibling;
+      if (v_prevSep && v_prevSep.classList.contains("pm-sep")) {
+        v_prevSep.style.display = "none";
+      }
     }
   }
 
+  // ====================================================
+  // [v0415 Wave F] BLE pill에 peer 이름 표시 (P0-2)
+  //   - 연결 시: "🔗 {peer_name}" (없으면 "BLE ON")
+  //   - 미연결 시: "BLE OFF" + 클릭 액션(페어링 시작)
+  // ====================================================
   if (pBle) {
-    pBle.textContent = e10.ble_connected ? "BLE ON" : "BLE OFF";
-    pBle.style.color = e10.ble_connected ? "var(--success)" : "var(--txt-muted)";
+    const v_peer = (e10.ble_peer_name || "").trim();
+    if (e10.ble_connected) {
+      if (v_peer.length > 0) {
+        // 16자 제한 (긴 이름 ellipsis)
+        const v_short = v_peer.length > 16 ? v_peer.slice(0, 15) + "…" : v_peer;
+        pBle.textContent = `🔗 ${v_short}`;
+        pBle.title = `연결됨: ${v_peer}`;
+      } else {
+        pBle.textContent = "BLE ON";
+        pBle.title = "BLE 연결됨";
+      }
+      pBle.style.color = "var(--success)";
+      pBle.style.cursor = "default";
+      pBle.onclick = null;
+    } else {
+      pBle.textContent = "BLE OFF";
+      pBle.style.color = "var(--txt-muted)";
+      pBle.title = "클릭하여 페어링 모드 진입";
+      pBle.style.cursor = "pointer";
+      pBle.onclick = () => {
+        if (typeof handleTrouble === "function") handleTrouble("pair");
+      };
+    }
   }
 
   // [N-5] 재부팅 배너
@@ -86,12 +124,18 @@ async function refreshStatus() {
 
   // [N-7] Quick Tuning 활성 상태
   _updateQuickTuningActive(e10.dpi_level, e10.precision_mode);
-  
+
   // ====================================================
-  // [v0415 Wave F] 서버 active_mode를 프론트 SSOT로 반영
-  //   - 하드코딩 더블클릭, MODE_CYCLE 등 어떤 경로로 변경되어도
-  //     2.5초 폴링으로 UI 갱신
-  //   - 프론트 steps 계산이 서버 상태 기반으로 정확해짐
+  // [사전 fix] 서버 active_mode를 프론트 SSOT로 반영
+  // ----------------------------------------------------
+  // 문제: 하드코딩 더블클릭(Side C × 2), MODE_CYCLE, set_mode 등
+  //       어떤 경로로 변경되어도 프론트 UI가 갱신 안 됨.
+  //       g_currentActiveMode는 부팅 시 초기값 유지 → stale.
+  //
+  // 해결: 2.5초 폴링(refreshStatus) 시 서버 값과 비교 →
+  //       다르면 g_currentActiveMode 갱신 + UI 재렌더.
+  //
+  // 영향: 홈화면 카드 layout(mode-pc/ppt/tv), 배지, 탭, 도구 모두 동기화.
   // ====================================================
   {
     const v_serverMode = e10.active_mode;
@@ -99,20 +143,22 @@ async function refreshStatus() {
       if (g_currentActiveMode !== v_serverMode) {
         g_currentActiveMode = v_serverMode;
         if (typeof _renderController === "function") _renderController(v_serverMode);
-        if (typeof _updateModeTabs === "function") _updateModeTabs();
-        if (typeof renderModeTools === "function") renderModeTools();
+        if (typeof _updateModeTabs === "function")   _updateModeTabs();
+        if (typeof renderModeTools === "function")   renderModeTools();
       }
     }
   }
+
+  // ====================================================
+  // [v0415 Wave H] 진단 health 카드 갱신 (P2-1)
+  //   + OTA 탭 버전 정보 카드 갱신 (P2-5)
+  // ====================================================
+  _renderHealthCard(e10, sys, cfg);
 
   // [N-2] OTA Guard 상태 반영
   const v_guard = !!(e10.gate && e10.gate.ota_guard);
   const v_guardEl = qs("otaGuardManual");
   if (v_guardEl) v_guardEl.checked = v_guard;
-
-  // [M-9] _updateRebootCheckAsync() 호출 제거
-  //   - /api/status 응답의 policy.reboot_required / reboot_reason_mask로 충분
-  //   - 별도 /api/reboot/check 조회는 중복 트래픽
 }
 
 /* =======================================================
@@ -162,7 +208,6 @@ function _updateRebootBanner(policy) {
 /* =======================================================
    [N-7] Quick Tuning 활성 상태
    ======================================================= */
-
 function _updateQuickTuningActive(dpi, prec) {
   [1, 2, 3].forEach(v => {
     const el = qs("btnDpi" + v);
@@ -179,6 +224,99 @@ function _updateQuickTuningActive(dpi, prec) {
   }
 }
 
+/* =======================================================
+   [v0415 Wave H] 진단 요약 카드 렌더 (P2-1)
+   -------------------------------------------------------
+   - /api/status.groups.e10.health.{state,score} UI화
+   - state: 0=OK, 1=WARN, 2=DEGRADED
+   - score: 0~1000
+   - 메타: 센서/BLE/가동시간/온도
+   ======================================================= */
+function _renderHealthCard(e10, sys, cfg) {
+  const card  = qs("healthCard");
+  const icon  = qs("healthIcon");
+  const score = qs("healthScore");
+  const state = qs("healthState");
+  const fill  = qs("healthBarFill");
+  if (!card || !score) return;
+
+  // 서버 응답에서 읽기
+  const h = e10.health || {};
+  const v_stateVal = Number.isFinite(h.state) ? h.state : 0;   // 0=OK, 1=WARN, 2=DEGRADED
+  const v_scoreVal = Number.isFinite(h.score) ? h.score : 1000;
+
+  // 상태 → 클래스/아이콘/라벨
+  let v_cls = "ok";
+  let v_icon = "✅";
+  let v_label = t("diag.health_ok");
+  if (v_stateVal === 1) {
+    v_cls = "warn"; v_icon = "⚠️"; v_label = t("diag.health_warn");
+  } else if (v_stateVal >= 2) {
+    v_cls = "bad";  v_icon = "❌"; v_label = t("diag.health_degraded");
+  }
+
+  // 카드 클래스 정리 (health-ok / health-warn / health-bad)
+  card.classList.remove("health-ok", "health-warn", "health-bad");
+  card.classList.add("health-" + v_cls);
+
+  if (icon)  icon.textContent = v_icon;
+  if (score) score.textContent = Math.round(v_scoreVal);
+  if (state) {
+    state.textContent = v_label;
+    state.classList.remove("ok", "warn", "bad");
+    state.classList.add(v_cls);
+  }
+  if (fill) {
+    fill.style.width = Math.max(0, Math.min(100, v_scoreVal / 10)) + "%";
+    fill.classList.remove("ok", "warn", "bad");
+    fill.classList.add(v_cls);
+  }
+
+  // 메타 필드
+  const elSensor = qs("healthSensor");
+  const elBle    = qs("healthBle");
+  const elUptime = qs("healthUptime");
+  const elTemp   = qs("healthTemp");
+
+  if (elSensor) {
+    const i2c = e10.i2c || {};
+    elSensor.textContent = (i2c.recover_last_ok === false) ? "⚠️" : "✓";
+  }
+  if (elBle) {
+    elBle.textContent = e10.ble_connected ? "✓" : "✗";
+  }
+  if (elUptime) {
+    const v_ms = sys.uptime_ms || 0;
+    const v_hr = Math.floor(v_ms / 3600000);
+    const v_mn = Math.floor((v_ms % 3600000) / 60000);
+    elUptime.textContent = v_hr > 0 ? `${v_hr}h ${v_mn}m` : `${v_mn}m`;
+  }
+  if (elTemp) {
+    const v_temp = e10.temp_c;
+    elTemp.textContent = Number.isFinite(v_temp) ? `${v_temp.toFixed(1)}°C` : "-";
+  }
+
+  // OTA 탭 버전 정보도 함께 갱신 (P2-5)
+  _renderOtaVersion(e10, cfg);
+}
+
+/* =======================================================
+   [v0415 Wave H] OTA 버전 카드 렌더 (P2-5)
+   -------------------------------------------------------
+   - fw_ver: /api/status top-level (G_APP_FW_VER)
+   - api_ver: /api/status top-level (G_W10_API_VER)
+   - cfg.ver: config 스키마 (412)
+   ======================================================= */
+function _renderOtaVersion(e10, cfg) {
+  const elFw  = qs("otaFwVer");
+  const elApi = qs("otaApiVer");
+  const elCfg = qs("otaCfgVer");
+
+  const top = g_lastStatus || {};
+  if (elFw)  elFw.textContent  = top.fw_ver || "v0415";
+  if (elApi) elApi.textContent = String(top.api_ver || 411);
+  if (elCfg) elCfg.textContent = String(cfg?.ver || 412);
+}
 
 /* =======================================================
    [N-3] Diag 카운터 초기화
@@ -195,27 +333,8 @@ async function diagClear() {
   await refreshDiag();
 }
 
-/* =======================================================
-   [N-7] 실시간 DPI / Precision
-   ======================================================= */
-/* 삭제
-async function ctlSetDpi(level) {
-  const u = unwrapApi(await apiPostJson("/api/control", {
-    cmd: "set_dpi", level: level, snapshot: true
-  }));
-  if (!u.ok) alert(`DPI fail: ${u.msg || u.code}`);
-  else setMsg(t("pop.dpi_applied", { v: level }), true);
-  await refreshStatus();
-}
-
-async function ctlSetPrecision(mode) {
-  const u = unwrapApi(await apiPostJson("/api/control", {
-    cmd: "set_precision", mode: mode, snapshot: true
-  }));
-  if (!u.ok) alert(`Precision fail: ${u.msg || u.code}`);
-  else setMsg(t("pop.prec_applied", { v: mode }), true);
-  await refreshStatus();
-}
+/* [v0415 Wave D-2] ctlSetDpi / ctlSetPrecision 삭제
+   - bindQuickTuning(app_0415_0001.js)이 직접 /api/control 호출
 */
 
 /* =======================================================
@@ -378,17 +497,10 @@ function _getE10Bias() {
   return { x: g.bias_x || 0, y: g.bias_y || 0, z: g.bias_z || 0 };
 }
 
-/* =======================================================
-   [Phase 4.2 M-9] reboot/check (수동 조회 API만 유지)
-   - refreshStatus에서 주기 호출 제거됨
-   - 필요 시 개발자 콘솔에서 rebootCheck() 수동 호출 가능
-   ======================================================= */
-
-/* 삭제
-async function rebootCheck() {
-  const u = unwrapApi(await apiGet("/api/reboot/check"));
-  return (u.ok && u.data) ? u.data : null;
-}
+/* [v0415 Wave D-2] rebootCheck 삭제
+   - /api/reboot/check GET 라우팅 삭제됨
+   - 재부팅 필요 여부는 /api/status.groups.policy.reboot_required 사용
+   - 프론트는 refreshStatus()의 _updateRebootBanner()가 자동 처리
 */
 
 /* =======================================================
@@ -633,4 +745,3 @@ function toggleAppMode() {
     refreshStatus();
   });
 }
-

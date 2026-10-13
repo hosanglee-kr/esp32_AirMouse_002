@@ -17,6 +17,11 @@
  *  - NimBLE-Arduino 2.5.x API 사용
  *  - 실제 advertising은 ESP32-BLE-CompositeHID가 소유. B20은 조회/제어만.
  *  - 재연결 로직은 Phase 9에서 (Host Cycle) 별도 추가.
+ *
+ * [v0415 Wave F 주요 변경]
+ *  - getPeerName() 신규: 연결된 peer의 이름/MAC 조회 (관측용)
+ *    · NimBLE 2.5.x: getConnectedCount + getPeerDevices + getPeerInfo
+ *    · 홈 상단 pill에 peer 이름 노출용
  * ------------------------------------------------------
  * [코드 네이밍 규칙]
  *   - 클래스명 : CL_모듈약어_ 접두사
@@ -47,6 +52,15 @@ class CL_B20_Ble {
 
     // ---- Bond 정보 ----
     uint8_t getBondCount() const;
+
+    // ====================================================
+    // [v0415 Wave F] 연결된 peer 정보 조회 (관측용)
+    // ----------------------------------------------------
+    //  - NimBLE 2.5.x API: getPeerDevices() + getPeerInfo()
+    //  - 반환: p_buf에 peer 이름 (없으면 MAC 주소)
+    //  - 미연결 시 nullptr 반환 + p_buf[0]='\0'
+    // ====================================================
+    const char* getPeerName(char* p_buf, size_t p_bufSize) const;
 
     // ---- Active Peer Index (config 연동) ----
     uint8_t getActivePeerIndex() const { return _activePeerIndex; }

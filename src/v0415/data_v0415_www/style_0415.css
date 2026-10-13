@@ -7,6 +7,13 @@
    - Layout    : .fold-arrow(CSS 삼각형) / paddle 라벨 높이 / 이모지 컬러 보존
                  / touch-action 분리 / folded 최소 높이 / 데스크톱 grid
                  / tool-ico 폰트 고정
+   - [v0415 Wave F] 프로필 배지 (.prof-current-badge / .prof-active-name
+                     / .prof-select-large)
+   - [v0415 Wave G] 동기화 힌트 (.sync-hint) + 매크로 사용 예시 (.usage-example)
+   - [v0415 Wave H] 토스트 (.toast) + 진행 바 (.global-progress)
+                     + 진단 health 카드 (.health-card) + 필수 조작 (.quickref-card)
+                     + OTA 버전 카드 (.ota-version-card) + 라이트 테마
+                     + 접근성 (reduced-motion / 글꼴 크기)
    ======================================================= */
 
 :root {
@@ -35,6 +42,31 @@ body {
   font-size: 14px;
   line-height: 1.5;
   overflow-x: hidden;
+}
+
+/* =======================================================
+   [v0415 Wave H] 전역 진행 바 (P2-7)
+   ======================================================= */
+.global-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(76,125,255,.15);
+  z-index: 9998;
+  display: none;
+}
+.global-progress.on { display: block; }
+.global-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--primary);
+  transition: width .3s ease;
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+@keyframes progressPulse {
+  0%   { opacity: 1;   }
+  50%  { opacity: 0.6; }
+  100% { opacity: 1;   }
 }
 
 /* Header */
@@ -132,6 +164,40 @@ body {
 .drawer-profile-actions { display: flex; gap: 6px; margin-top: 8px; }
 .drawer-profile-actions .btn { flex: 1; justify-content: center; font-size: .78rem; padding: 7px 4px; }
 
+/* =======================================================
+   [v0415 Wave F] 프로필 배지 (P0-3)
+   ======================================================= */
+.prof-current-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.prof-current-badge .flbl {
+  font-size: .78rem;
+  color: var(--txt-muted);
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.prof-active-name {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: rgba(76,125,255,.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+.prof-select-large {
+  width: 100%;
+  font-size: .9rem;
+  padding: 9px 10px;
+  font-weight: 600;
+}
+
 .drawer-nav { padding: 8px; display: flex; flex-direction: column; gap: 2px; }
 
 .drawer-item {
@@ -198,6 +264,40 @@ h3 { font-size: .95rem; font-weight: 700; color: var(--txt-strong); margin-top: 
    ======================================================= */
 .home-flow { display: flex; flex-direction: column; gap: 12px; }
 .remote-center-container { display: flex; justify-content: center; align-items: center; width: 100%; }
+
+/* =======================================================
+   [v0415 Wave H] 필수 조작 카드 (P2-3)
+   ======================================================= */
+.quickref-card {
+  background: linear-gradient(135deg, rgba(76,125,255,.08), rgba(76,125,255,.03));
+  border: 1px solid rgba(76,125,255,.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.quickref-title {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.quickref-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  font-size: .8rem;
+  align-items: center;
+}
+.quickref-key {
+  font-weight: 700;
+  color: var(--txt-strong);
+  padding: 2px 8px;
+  background: rgba(76,125,255,.12);
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: .76rem;
+}
+.quickref-desc { color: var(--txt-muted); }
 
 .virtual-remote-card {
   background: #11151f; border: 2px solid #232c42;
@@ -462,6 +562,60 @@ h3 { font-size: .95rem; font-weight: 700; color: var(--txt-strong); margin-top: 
 .fhelp { font-size: .75rem; color: var(--txt-muted); line-height: 1.4; }
 .arr { display: flex; gap: 8px; align-items: center; }
 
+/* =======================================================
+   [v0415 Wave G] Config 동기화 힌트 (P1-2-B)
+   ======================================================= */
+.sync-hint {
+  color: var(--primary);
+  padding: 6px 10px;
+  background: rgba(76,125,255,.08);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: .78rem;
+}
+
+/* =======================================================
+   [v0415 Wave G] 매크로 사용 예시 박스 (P1-5)
+   ======================================================= */
+.usage-example {
+  margin: 8px 0 12px;
+  border-left: 3px solid var(--primary);
+  background: rgba(76,125,255,.06);
+  border-radius: 6px;
+  padding: 0;
+}
+.usage-example > summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--primary);
+  user-select: none;
+  list-style: none;
+}
+.usage-example > summary::-webkit-details-marker { display: none; }
+.usage-example[open] > summary {
+  border-bottom: 1px solid rgba(76,125,255,.2);
+}
+.usage-body {
+  padding: 10px 14px;
+  font-size: .82rem;
+  line-height: 1.6;
+  color: var(--txt-main);
+}
+.usage-body ol {
+  margin: 6px 0 6px 20px;
+  padding: 0;
+}
+.usage-body li { margin: 2px 0; }
+.usage-body > div:last-child {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(76,125,255,.2);
+  color: var(--txt-muted);
+}
+
 /* Switch */
 .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
 .switch input { opacity: 0; width: 0; height: 0; }
@@ -616,7 +770,7 @@ input:checked + .slider:before { transform: translateX(16px); }
   display: flex;
   align-items: center;
   gap: 6px;
-  
+
   position: relative;
   padding-left: 20px;   /* 삼각형 공간 확보 */
 }
@@ -659,6 +813,138 @@ input:checked + .slider:before { transform: translateX(16px); }
   min-width: 44px;
   text-align: center;
 }
+
+/* =======================================================
+   [v0415 Wave H] 진단 health 카드 (P2-1)
+   ======================================================= */
+.health-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bg-sub);
+  border: 1px solid var(--border);
+  margin: 14px 0;
+}
+.health-card.health-ok    { border-left: 4px solid var(--success); }
+.health-card.health-warn  { border-left: 4px solid var(--warn); }
+.health-card.health-bad   { border-left: 4px solid var(--danger); }
+
+.health-icon {
+  font-size: 2rem;
+  flex: 0 0 auto;
+}
+.health-body { flex: 1; min-width: 0; }
+.health-title {
+  font-size: .78rem;
+  color: var(--txt-muted);
+  margin-bottom: 4px;
+}
+.health-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.health-score {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--txt-strong);
+}
+.health-state-label {
+  font-size: .8rem;
+  font-weight: 600;
+}
+.health-state-label.ok   { color: var(--success); }
+.health-state-label.warn { color: var(--warn); }
+.health-state-label.bad  { color: var(--danger); }
+
+.health-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.health-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .4s ease;
+}
+.health-bar-fill.ok   { background: var(--success); }
+.health-bar-fill.warn { background: var(--warn); }
+.health-bar-fill.bad  { background: var(--danger); }
+
+.health-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  font-size: .75rem;
+  color: var(--txt-muted);
+}
+.health-meta-grid > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border-radius: 6px;
+}
+.health-meta-grid b { color: var(--txt-main); font-weight: 600; }
+
+/* =======================================================
+   [v0415 Wave H] OTA 버전 정보 카드 (P2-5)
+   ======================================================= */
+.ota-version-card {
+  background: var(--bg-sub);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.ota-version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: .82rem;
+  border-bottom: 1px solid rgba(255,255,255,.03);
+}
+.ota-version-row:last-child { border-bottom: none; }
+.ota-version-label { color: var(--txt-muted); }
+.ota-version-value {
+  font-weight: 700;
+  color: var(--txt-strong);
+  font-family: monospace;
+}
+
+/* =======================================================
+   [v0415 Wave H] 토스트 알림 (P2-6)
+   ======================================================= */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-card);
+  color: var(--txt-main);
+  padding: 12px 20px;
+  border-radius: 8px;
+  border-left: 4px solid var(--primary);
+  box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  z-index: 10000;
+  max-width: 90vw;
+  font-size: .88rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-success { border-left-color: var(--success); }
+.toast-error   { border-left-color: var(--danger); }
+.toast-warn    { border-left-color: var(--warn); }
 
 /* Footer / Loading */
 .foot { text-align: center; color: var(--txt-muted); font-size: .75rem; padding: 24px 0; }
@@ -704,8 +990,15 @@ input:checked + .slider:before { transform: translateX(16px); }
   .virtual-remote-card {
     max-width: 100%;       /* grid 컬럼 폭까지 확장 */
   }
+  /* [v0415 Wave H] quickref-card는 grid full-width (홈 최상단) */
+  .quickref-card {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
   #modeToolsCard { grid-column: 2; grid-row: 1; }
   #troubleCard   { grid-column: 2; grid-row: 2; }
+  /* [v0415 Wave H] 데스크톱에서 quickref를 만회하려 grid-row 재배치 */
+  .home-flow { grid-template-rows: auto auto 1fr; }
 }
 
 /* Mobile */
@@ -736,4 +1029,100 @@ input:checked + .slider:before { transform: translateX(16px); }
   .preview-tab { min-height: 66px; padding: 8px 4px; }
   .pt-ico { font-size: 1.3rem; }
   .pt-text { font-size: .72rem; }
+  /* [v0415 Wave H] 모바일에서 health 카드 압축 */
+  .health-card { padding: 12px; gap: 12px; }
+  .health-icon { font-size: 1.6rem; }
+  .health-score { font-size: 1.2rem; }
+  .health-meta-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* =======================================================
+   [v0415 Wave H] 라이트 테마 (P2-9)
+   -------------------------------------------------------
+   - data-theme="light" 속성으로 CSS 변수 override
+   - 드로어 🌙 버튼으로 전환
+   ======================================================= */
+[data-theme="light"] {
+  --bg-main:    #f5f7fb;
+  --bg-card:    #ffffff;
+  --bg-sub:     #eef2f8;
+  --bg-input:   #f8fafd;
+  --border:     #d5dce8;
+  --border-focus: #4c7dff;
+  --txt-main:   #1a2332;
+  --txt-muted:  #6b7891;
+  --txt-strong: #0a0f18;
+  --primary:    #3567ff;
+  --primary-hover: #2954e0;
+  --warn:       #d97706;
+  --danger:     #dc2626;
+  --success:    #059669;
+}
+[data-theme="light"] body { background: var(--bg-main); }
+[data-theme="light"] .health-bar { background: rgba(0,0,0,.06); }
+[data-theme="light"] .log,
+[data-theme="light"] .logline { background: #1a2332; color: #b8c5d6; }
+[data-theme="light"] .virtual-remote-card { background: #f0f4fb; }
+[data-theme="light"] .drawer { background: var(--bg-card); }
+[data-theme="light"] .remote-btn {
+  background: #ffffff;
+  border-color: #cfd8e8;
+  color: #1a2332;
+}
+[data-theme="light"] .dpad-ring {
+  background: radial-gradient(circle, #e6edf7 0%, #d8e1ee 100%);
+  border-color: #c0cbe0;
+}
+[data-theme="light"] .joy-stick-knob {
+  background: radial-gradient(circle at 35% 35%, #f3f6fb 0%, #d8e1ee 100%);
+  border-color: #a9b7d2;
+}
+[data-theme="light"] .joy-knob-text { color: #5f6e88; }
+[data-theme="light"] .ring-btn { color: #5f6e88; }
+[data-theme="light"] .toast {
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15);
+}
+
+/* =======================================================
+   [v0415 Wave H] 접근성 (P2-10)
+   ======================================================= */
+
+/* reduced-motion: 시스템 설정 존중 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* 글꼴 크기 옵션 (data-font-size 속성) */
+[data-font-size="large"]  body { font-size: 15px; }
+[data-font-size="xlarge"] body { font-size: 16px; }
+
+/* 키보드 포커스 가시성 강화 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible,
+.btn:focus-visible,
+.drawer-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 스크린 리더 전용 (시각적 숨김) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

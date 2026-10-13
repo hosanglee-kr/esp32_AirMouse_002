@@ -1,4 +1,3 @@
-
 // =======================================================
 // File: src/v0415/W10_WebApi_Status_0415.cpp
 // =======================================================
@@ -21,6 +20,15 @@
  *  - _kbName에 기호·탐색·키패드·수정자 45건 추가 (rev13, B-3, 총 106 codes)
  *  - G_W10_CONSUMER[] 라벨 UPPER_SNAKE 동기화 (rev13, B-1)
  *  - Consumer 24-bit 값은 그대로 (C20_Action_0415.h와 정합)
+ *
+ * [v0415 Wave F 주요 변경]
+ *  - _fillE10StatusFromSnapshot에 ble_peer_name 노출
+ *    · B20::getPeerName()이 채운 값을 JSON에 반영
+ *    · 홈 상단 pill에 peer 이름 표시 (am_status_0415.js)
+ *
+ * [v0415 Wave H 주요 변경]
+ *  - _apiStatus에 fw_ver 필드 추가 (G_APP_FW_VER)
+ *    · OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
  * ------------------------------------------------------
  * [구현 규칙]
  *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
@@ -58,9 +66,12 @@
 // -----------------------------------------------------
 // [v0415] ppt_mode → active_mode (Round G/K/M-1 소급)
 //         task_stack_led_min_words 노출 (Round G)
+// [v0415 Wave F] ble_peer_name 노출
 // =====================================================
 void CL_W10_WebConfig::_fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
     e["ble_connected"] = s.ble_connected;
+    // [v0415 Wave F] BLE peer 이름 노출 (연결 시만 유효)
+    e["ble_peer_name"] = s.ble_peer_name;
     e["active_mode"]   = s.active_mode;           // [v0415] 신규
     e["dpi_level"]     = s.dpi_level;
     e["precision_mode"] = s.precision_mode;
@@ -159,6 +170,11 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
     v_doc["heap_min_free"] = v_heapMin;
     v_doc["heap_max_alloc"] = v_heapMaxA;
     v_doc["api_ver"] = (uint16_t)G_W10_API_VER;
+    // ====================================================
+    // [v0415 Wave H] 펌웨어 버전 노출 (P2-5)
+    //   - OTA 탭 버전 정보 카드에서 사용
+    // ====================================================
+    v_doc["fw_ver"]  = G_APP_FW_VER;
 
     JsonObject sys = v_doc["sys"].to<JsonObject>();
     sys["uptime_ms"] = v_uptime;
@@ -186,7 +202,7 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
     JsonObject net = v_doc["net"].to<JsonObject>();
     net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
     net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-    
+
     // [FIX-8] SafeBoot SSID: _setupWiFi와 동일한 27자 클램프 규칙 적용
     //   (_setupWiFi: strlen(base) <= 27일 때만 "-SAFE" 부착)
     const char* v_apSsid = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
@@ -343,6 +359,7 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
         v_doc.remove("heap_min_free");
         v_doc.remove("heap_max_alloc");
         v_doc.remove("api_ver");
+        v_doc.remove("fw_ver");
     }
     if (v_compact) {
         v_doc.remove("sys");

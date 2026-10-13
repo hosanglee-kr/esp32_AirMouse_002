@@ -4,6 +4,7 @@
    - 로드 순서: 1
    - [v0415] Consumer mask Descriptor 정합 (AC_* → WWW_*, POWER/CH/TV_INPUT 삭제)
    - [v0415] Keyboard Page Power (0x66) 그룹 추가
+   - [v0415 Wave H] 토스트 알림 / 전역 진행 바 / 테마 관리
    ======================================================= */
 
 /* ---------------- 모드 상수 ---------------- */
@@ -478,4 +479,98 @@ function hideLoading() {
     ov.classList.remove("on");
     ov.style.display = "none";
   }
+}
+
+/* =======================================================
+   [v0415 Wave H] 토스트 알림 시스템 (P2-6)
+   -------------------------------------------------------
+   - setMsg 대체가 아니라 병행 (하단 인라인 + 우측 하단 토스트)
+   - 스크롤 위치 무관하게 항상 보임
+   - duration 후 자동 제거
+   ======================================================= */
+function toast(msg, type = "info", duration = 3000) {
+  if (!msg) return;
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+
+  requestAnimationFrame(() => el.classList.add("on"));
+
+  setTimeout(() => {
+    el.classList.remove("on");
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+/* =======================================================
+   [v0415 Wave H] 전역 진행 바 (P2-7)
+   -------------------------------------------------------
+   - showProgress() : 상단 progress bar 활성
+   - setProgress(p) : 0~100 진행률
+   - hideProgress() : 완료 후 fade out
+   ======================================================= */
+let _g_progressTimer = null;
+
+function showProgress(label) {
+  const bar = qs("globalProgress");
+  const fill = qs("globalProgressFill");
+  if (!bar || !fill) return;
+
+  bar.classList.add("on");
+  fill.style.width = "10%";
+  if (label) setMsg(label, true);
+
+  // 무한 애니메이션 → 90%까지 서서히 채움 (완료 시 100%로 점프)
+  clearInterval(_g_progressTimer);
+  _g_progressTimer = setInterval(() => {
+    const cur = parseFloat(fill.style.width) || 0;
+    if (cur < 85) fill.style.width = (cur + 3) + "%";
+  }, 200);
+}
+
+function setProgress(p) {
+  const fill = qs("globalProgressFill");
+  if (fill) fill.style.width = Math.max(0, Math.min(100, p)) + "%";
+}
+
+function hideProgress() {
+  clearInterval(_g_progressTimer);
+  const fill = qs("globalProgressFill");
+  if (fill) fill.style.width = "100%";
+
+  setTimeout(() => {
+    const bar = qs("globalProgress");
+    if (bar) bar.classList.remove("on");
+    setTimeout(() => { if (fill) fill.style.width = "0"; }, 300);
+  }, 200);
+}
+
+/* =======================================================
+   [v0415 Wave H] 테마 관리 (P2-9)
+   -------------------------------------------------------
+   - localStorage: am_theme_0415 = "dark" | "light"
+   - data-theme 속성으로 CSS 변수 override
+   ======================================================= */
+const THEME_STORAGE_KEY = "am_theme_0415";
+
+function initTheme() {
+  let v_theme = "dark";
+  try { v_theme = localStorage.getItem(THEME_STORAGE_KEY) || "dark"; } catch (e) {}
+  applyTheme(v_theme);
+}
+
+function applyTheme(theme) {
+  const v = (theme === "light") ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", v);
+  const icon = qs("themeIcon");
+  if (icon) icon.textContent = (v === "light") ? "☀️" : "🌙";
+  try { localStorage.setItem(THEME_STORAGE_KEY, v); } catch (e) {}
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = (cur === "dark") ? "light" : "dark";
+  applyTheme(next);
+  toast(t("pop.theme_switched", { mode: next === "light" ? "Light" : "Dark" }), "info", 1500);
 }

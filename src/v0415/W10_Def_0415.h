@@ -23,6 +23,11 @@
  *  - G_W10_CONSUMER[].name을 EN_C20_Consumer_t 접미사와 동일한
  *    UPPER_SNAKE_CASE로 통일 (rev13, B-1). am_base_0415.js::
  *    getConsumerFriendlyName() 매핑 키와 정합.
+ *
+ * [v0415 Wave H 주요 변경]
+ *  - G_APP_FW_VER 상수 추가 ("v0415")
+ *    · /api/status 응답에 fw_ver 필드로 노출
+ *    · OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
  * ------------------------------------------------------
  */
 
@@ -67,6 +72,15 @@ static constexpr uint32_t G_W10_REBOOT_OTHER     = 0x80000000;
 
 // [v0415] API version bump
 static constexpr uint16_t G_W10_API_VER = 411;
+
+// =======================================================
+// [v0415 Wave H] 펌웨어 버전 문자열
+// -------------------------------------------------------
+//  - /api/status 응답의 fw_ver 필드로 노출
+//  - OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
+//  - 릴리스 시 이 상수만 갱신
+// =======================================================
+static constexpr const char* G_APP_FW_VER = "v0415";
 
 static constexpr uint8_t  G_W10_BODY_SLOTS = 4;
 static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500;
@@ -156,6 +170,8 @@ struct ST_W10_E10If_t {
     bool (*setPrecisionMode)(void* ctx, uint8_t mode);
     bool (*setHardClickLock)(void* ctx, bool en);
 
+    // [v0415 Wave F] 모드 직접 지정 (사이클 오류 원천 차단)
+    //   - 사전 fix에서 콜백 추가됨 (본 파일에는 이미 반영)
     bool (*setActiveMode)(void* ctx, uint8_t mode);
 
     bool (*setSafeMode)(void* ctx, bool en);

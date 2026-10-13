@@ -38,6 +38,40 @@ uint8_t CL_B20_Ble::getBondCount() const {
 }
 
 // =======================================================
+// [v0415 Wave F] 연결된 peer 이름 조회
+// -------------------------------------------------------
+// NimBLE-Arduino 2.5.x API 사용:
+//   - getConnectedCount() > 0 확인
+//   - getPeerDevices() → 연결된 connId 벡터
+//   - getPeerInfo(connId) → NimBLEConnInfo
+//   - getName() (없으면 getAddress().toString())
+// =======================================================
+const char* CL_B20_Ble::getPeerName(char* p_buf, size_t p_bufSize) const {
+    if (!p_buf || p_bufSize < 4) return nullptr;
+    p_buf[0] = '\0';
+
+    if (!NimBLEDevice::isInitialized()) return nullptr;
+
+    NimBLEServer* v_srv = NimBLEDevice::getServer();
+    if (!v_srv) return nullptr;
+
+    if (v_srv->getConnectedCount() == 0) return nullptr;
+
+    std::vector<uint16_t> v_peers = v_srv->getPeerDevices();
+    if (v_peers.empty()) return nullptr;
+
+    // 첫 연결 peer의 정보 조회
+    NimBLEConnInfo v_info = v_srv->getPeerInfo(v_peers[0]);
+    std::string v_name = v_info.getName();
+    if (!v_name.empty()) {
+        snprintf(p_buf, p_bufSize, "%s", v_name.c_str());
+    } else {
+        snprintf(p_buf, p_bufSize, "%s", v_info.getAddress().toString().c_str());
+    }
+    return p_buf;
+}
+
+// =======================================================
 // Pairing Mode
 // =======================================================
 bool CL_B20_Ble::enterPairing(uint32_t p_timeoutMs) {

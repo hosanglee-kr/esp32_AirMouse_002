@@ -267,7 +267,7 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
         // [D-2] 캘리브 1초 블로킹 중 BLE pairing 타임아웃 검사 유지
         _ble.tick(_hid.isConnected());
         vTaskDelay(pdMS_TO_TICKS(G_DIAG_CALIB_TICK_MS));
-        
+
     }
 
     // [v0415 L6e-A3-02] v_cnt==0 시 로그 (실패 피드백)
@@ -290,6 +290,10 @@ void CL_E10_EliteAirMouse::_runGyroCalibration() {
 // [v0415] ppt_mode 필드 노출 제거 (Round G/K)
 //   - active_mode는 /api/status의 config.profile_idx + 별도 W10 status 확장으로 대체
 //   - 본 함수에서 E10_Status_t.ppt_mode 미설정 (구조체에서 삭제됨)
+//
+// [v0415 Wave F] ble_peer_name 채우기 추가
+//   - B20::getPeerName()으로 연결된 peer의 이름/MAC 조회
+//   - 홈 상단 pill 노출용 (am_status_0415.js)
 // =======================================================
 
 void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
@@ -298,6 +302,17 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
 
     // [R3-D-5] _hid read 예외 (STATE §1)
     p_out.ble_connected = _hid.isConnected();
+
+    // ====================================================
+    // [v0415 Wave F] BLE peer 이름 조회 (연결 시만)
+    //   - NimBLE API 접근 실패 시 빈 문자열 유지
+    //   - getPeerName은 p_out.ble_peer_name을 채우거나 빈 문자열 유지
+    // ====================================================
+    if (p_out.ble_connected) {
+        (void)_ble.getPeerName(p_out.ble_peer_name, sizeof(p_out.ble_peer_name));
+    } else {
+        p_out.ble_peer_name[0] = '\0';
+    }
 
     // [v0415 Round M-1] ppt_mode → active_mode
     //   - E10 _isPptMode 필드 삭제 (Round G)

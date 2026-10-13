@@ -13,6 +13,8 @@
      · BUG-1 수정: configToUi 잉여 중괄호 제거
      · BUG-2 수정: configToUi Wave D 매핑 추가
      · BUG-3 수정: uiToConfig 내 잘못 삽입된 읽기 블록 제거
+   - [v0415 Wave D-2] safeModeSet / otaGuardSet 삭제
+   - [v0415 Wave G] rebootDevice 폴링 개선 (진행 상황 표시)
    ======================================================= */
    
    
@@ -436,7 +438,7 @@ async function cfgSave() {
 
   if (g_profile.config) {
     g_profile.config.e10 = cfg.e10;
-    g_profile.config.wifi = cfg.wifi; // ← 추가
+    g_profile.config.wifi = cfg.wifi;
   }
   configToUi(g_profile.config);
 
@@ -574,37 +576,9 @@ async function safeBootExit() {
   }, 1000);
 }
 
-/* 삭제
-async function safeModeSet(enable) {
-  const msg = enable
-    ? t("pop.safemode_enter_confirm")
-    : t("pop.safemode_exit_confirm");
-  if (!confirm(msg)) return;
-
-  const u = unwrapApi(await apiPostJson("/api/control", {
-    cmd: "set_safe_mode", enable: !!enable, snapshot: true
-  }));
-  if (!u.ok) {
-    alert(`${t("pop.safemode_change_fail")} ${u.msg || u.code}`);
-    return;
-  }
-  setMsg(enable ? t("pop.safemode_on") : t("pop.safemode_off"), true);
-  await refreshStatus();
-}
-
-async function otaGuardSet(enable) {
-  const u = unwrapApi(await apiPostJson("/api/control", {
-    cmd: "set_ota_guard", enable: !!enable, snapshot: true
-  }));
-  if (!u.ok) {
-    alert("OTA Guard failed: " + (u.msg || u.code));
-    return false;
-  }
-  setMsg("OTA Guard " + (enable ? "ON" : "OFF"), true);
-  await refreshStatus();
-  return true;
-}
-
+/* [v0415 Wave D-2] safeModeSet / otaGuardSet 삭제
+   - safeModeSet: handleTrouble("safemode")가 직접 처리
+   - otaGuardSet: btnOtaGuardApply가 app_0415_0001.js에서 직접 처리
 */
 
 /* [N-20] Factory Reset — [Phase 3.6 L-5] 미저장 경고 추가 */
@@ -660,15 +634,47 @@ async function factoryReset() {
   }
 }
 
-/* [Phase 3.6 L-5] 미저장 경고 추가 */
+/* =======================================================
+   [Phase 3.6 L-5] 미저장 경고 + [v0415 Wave G] 폴링 진행 표시
+   ======================================================= */
 async function rebootDevice() {
   if (typeof hasUnsavedChanges === "function" && hasUnsavedChanges()) {
     if (!confirm(t("pop.unsaved_changes_confirm"))) return;
   }
   if (!confirm(t("pop.reboot_confirm"))) return;
+
   const u = unwrapApi(await apiPostJson("/api/reboot", { delay_ms: 500 }));
-  alert(u.ok ? t("pop.reboot_requested")
-    : `${t("pop.reboot_fail")} ${u.msg || u.code}`);
+  if (!u.ok) {
+    alert(`${t("pop.reboot_fail")} ${u.msg || u.code}`);
+    return;
+  }
+
+  // ====================================================
+  // [v0415 Wave G] 재부팅 진행 폴링 (약 8초)
+  //   - 기존: alert만 (사용자는 페이지 멈춘 줄 앎)
+  //   - 변경: loading overlay + 폴링으로 부활 확인
+  // ====================================================
+  showLoading(t("pop.reboot_in_progress"));
+
+  let v_tries = 0;
+  const v_timer = setInterval(async () => {
+    v_tries++;
+    try {
+      const r = await fetch("/api/status?compact=1", { cache: "no-store" });
+      if (r.ok) {
+        clearInterval(v_timer);
+        hideLoading();
+        location.reload();
+        return;
+      }
+    } catch (e) { /* 미부활 시 계속 시도 */ }
+
+    if (v_tries >= 20) {   // 20초 타임아웃
+      clearInterval(v_timer);
+      hideLoading();
+      alert(t("pop.reboot_ap_fallback"));
+    }
+  }, 1000);
 }
 
 /* =======================================================

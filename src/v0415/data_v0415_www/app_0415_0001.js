@@ -5,6 +5,7 @@
    - [v0415] 파일명/헤더만 _0415로 갱신 (본문 v0414 그대로)
    - [Phase 3.1] 배너 dismiss 플래그 연동
    - [Phase 3.6] bindConfigDirtyTracker 호출
+   - [v0415 Wave H] 해시 라우팅 (P2-8) + 테마 토글 바인딩 (P2-9)
    ======================================================= */
    
 
@@ -35,19 +36,13 @@ function bindDrawer() {
   qs("btnDrawerClose")?.addEventListener("click", closeDrawer);
   qs("drawerBackdrop")?.addEventListener("click", closeDrawer);
   
+  // ====================================================
+  // [v0415 Wave H] 탭 전환 → _switchTab()으로 위임 (해시 라우팅 통합, P2-8)
+  // ====================================================
   qsa(".drawer-item[data-tab]").forEach(btn => {
     btn.addEventListener("click", () => {
       const tabId = btn.getAttribute("data-tab");
-      qsa(".drawer-item[data-tab]").forEach(x => x.classList.remove("on"));
-      btn.classList.add("on");
-      qsa(".tabpane").forEach(x => x.classList.remove("on"));
-      qs("tab-" + tabId)?.classList.add("on");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      closeDrawer();
-      if (tabId === "diag") {
-        if (typeof refreshDiag === "function") refreshDiag().catch(console.error);
-        if (typeof renderRecentLogs === "function") renderRecentLogs(); // [H-9]
-      }
+      _switchTab(tabId);
     });
   });
   
@@ -215,6 +210,13 @@ function bindUi() {
   // [Phase 3.6 L-5] Config 폼 dirty 추적 (1회 바인딩)
   if (typeof bindConfigDirtyTracker === "function") bindConfigDirtyTracker();
   
+  // ====================================================
+  // [v0415 Wave H] 테마 토글 바인딩 (P2-9)
+  // ====================================================
+  qs("btnThemeToggle")?.addEventListener("click", () => {
+    if (typeof toggleTheme === "function") toggleTheme();
+  });
+  
   qs("profSelect")?.addEventListener("change", () => {
     const idx = parseIntFlex(qs("profSelect").value, 0);
     profileSwitch(idx).then(() => {
@@ -243,9 +245,57 @@ function bindUi() {
 }
 
 /* =======================================================
+   [v0415 Wave H] 탭 전환 + 해시 라우팅 (P2-8)
+   ======================================================= */
+function _switchTab(tabId) {
+  if (!tabId) return;
+
+  qsa(".drawer-item[data-tab]").forEach(x => x.classList.remove("on"));
+  qsa(`.drawer-item[data-tab="${tabId}"]`).forEach(x => x.classList.add("on"));
+
+  qsa(".tabpane").forEach(x => x.classList.remove("on"));
+  qs("tab-" + tabId)?.classList.add("on");
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  closeDrawer();
+
+  // [v0415 Wave H] 해시 라우팅 (P2-8)
+  //   - 모바일 뒤로가기 시 앱 이탈 방지
+  if (window.location.hash !== `#tab-${tabId}`) {
+    history.replaceState(null, "", `#tab-${tabId}`);
+  }
+
+  if (tabId === "diag") {
+    if (typeof refreshDiag === "function") refreshDiag().catch(console.error);
+    if (typeof renderRecentLogs === "function") renderRecentLogs();
+  }
+}
+
+function _initHashRouting() {
+  // 초기 로드 시 해시 확인
+  const v_hash = window.location.hash || "";
+  const m = v_hash.match(/^#tab-([a-z]+)$/);
+  if (m && m[1]) {
+    _switchTab(m[1]);
+  }
+
+  // 해시 변경 감지 (뒤로/앞으로 가기)
+  window.addEventListener("hashchange", () => {
+    const v_new = window.location.hash || "";
+    const v_m = v_new.match(/^#tab-([a-z]+)$/);
+    if (v_m && v_m[1]) {
+      _switchTab(v_m[1]);
+    }
+  });
+}
+
+/* =======================================================
    6. Main Entry Point
    ======================================================= */
 async function main() {
+  /* 0. [v0415 Wave H] 테마 초기화 (P2-9) */
+  if (typeof initTheme === "function") initTheme();
+
   /* 1. 오프라인 스토어 및 다국어 초기화 */
   // [F-7] 온라인 모드에서는 스토어 로드 생략 (handleOfflineApi 내부에서 lazy 로드)
   if (g_appMode === APP_MODE_OFFLINE && typeof loadOfflineStore === "function") {
@@ -272,6 +322,7 @@ async function main() {
   /* 5. UI 바인딩 */
   bindUi();
   initHybridJoystick();
+  _initHashRouting();   // [v0415 Wave H] 해시 라우팅 (P2-8)
   
   /* 6. 렌더 */
   renderSlotEditor();
@@ -303,5 +354,3 @@ async function main() {
 document.addEventListener("DOMContentLoaded", () => {
   main().catch(e => console.error("[main] error:", e));
 });
-
-
