@@ -313,11 +313,9 @@ def check_e10_json_parity(root):
 
     src = p.read_text(encoding="utf-8")
 
-    # build 함수 본문 추출
     m_build = re.search(
         r'void\s+CL_C10_Config::_buildE10Json\s*\([^)]*\)\s*\{(.*?)\n\}',
         src, re.DOTALL)
-    # patch 함수 본문 추출
     m_patch = re.search(
         r'bool\s+CL_C10_Config::_patchE10Json\s*\([^)]*\)\s*\{(.*?)\n\}',
         src, re.DOTALL)
@@ -326,8 +324,14 @@ def check_e10_json_parity(root):
         print(f"  [WARN] build/patch 함수 파싱 실패")
         return True
 
-    # 대입 패턴: p_parent["X"] = ... 또는 v_x["X"] = ...
-    key_re = re.compile(r'\b\w+\["([^"]+)"\]\s*=')
+    # =====================================================
+    # [Phase 3-D fix] key 참조 패턴 (읽기/쓰기 공용)
+    # -----------------------------------------------------
+    #  - build: p_parent["key"] = ...   (쓰기 idiom)
+    #  - patch: p_v["key"].isNull()     (읽기 idiom)
+    #  - 대입 여부와 무관하게 `["key"]` 참조만 매칭
+    # =====================================================
+    key_re = re.compile(r'\["([^"]+)"\]')
 
     build_keys = set(key_re.findall(m_build.group(1)))
     patch_keys = set(key_re.findall(m_patch.group(1)))
@@ -345,7 +349,6 @@ def check_e10_json_parity(root):
     if ok:
         print(f"  [OK] E10 JSON 대칭성 확인 ({len(build_keys)} keys)")
     return ok
-
 
 # ======================================================
 # [v0415 Phase 3-D] KB 이름 테이블 정렬 검증
