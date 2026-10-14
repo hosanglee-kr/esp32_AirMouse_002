@@ -1034,6 +1034,11 @@ bool CL_C10_Config::_loadBootState(ST_C10_BootState_t& p_out) {
     if (!v_d["pending"].isNull())           p_out.pending    = (bool)v_d["pending"];
     if (!v_d["boot_ms"].isNull())           p_out.boot_ms    = (uint32_t)v_d["boot_ms"];
     if (!v_d["last_reset_reason"].isNull()) p_out.last_reset_reason = (uint8_t)v_d["last_reset_reason"];
+    if (!v_d["last_host_addr"].isNull()) {
+        strlcpy(p_out.last_host_addr, (const char*)v_d["last_host_addr"], sizeof(p_out.last_host_addr));
+    } else {
+        p_out.last_host_addr[0] = '\0';
+    }
     return true;
 }
 
@@ -1044,6 +1049,7 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
     v_d["pending"]           = p_in.pending;
     v_d["boot_ms"]           = p_in.boot_ms;
     v_d["last_reset_reason"] = p_in.last_reset_reason;
+    v_d["last_host_addr"]    = p_in.last_host_addr;
 
     const char* v_tmp  = C10_DEF::BOOT_TMP_PATH;
     const char* v_old  = C10_DEF::BOOT_OLD_PATH;
@@ -1768,6 +1774,11 @@ bool CL_C10_Config::factoryReset(bool p_recreateDefault) {
     if (LittleFS.exists(C10_DEF::BOOT_PATH))     (void)LittleFS.remove(C10_DEF::BOOT_PATH);
     if (LittleFS.exists(C10_DEF::BOOT_TMP_PATH)) (void)LittleFS.remove(C10_DEF::BOOT_TMP_PATH);
 
+    // [v0415 Multi-Host] 호스트 목록 파일 및 백업 일괄 정리
+    if (LittleFS.exists(C10_DEF::HOSTS_PATH))     (void)LittleFS.remove(C10_DEF::HOSTS_PATH);
+    if (LittleFS.exists(C10_DEF::HOSTS_TMP_PATH)) (void)LittleFS.remove(C10_DEF::HOSTS_TMP_PATH);
+    if (LittleFS.exists(C10_DEF::HOSTS_OLD_PATH)) (void)LittleFS.remove(C10_DEF::HOSTS_OLD_PATH);
+
     memset(&_boot, 0, sizeof(_boot));
     memset(&_index, 0, sizeof(_index));
     _boot.pending = false;
@@ -1784,3 +1795,131 @@ bool CL_C10_Config::factoryReset(bool p_recreateDefault) {
     }
     return true;
 }
+
+// =======================================================
+// [v0415 Multi-Host] Hosts CRUD & LastHostAddr
+// =======================================================
+bool CL_C10_Config::setLastHostAddr(const char* p_addr) {
+    if (_bootMutex) xSemaphoreTake(_bootMutex, portMAX_DELAY);
+    if (p_addr) {
+        strlcpy(_boot.last_host_addr, p_addr, sizeof(_boot.last_host_addr));
+    } else {
+        _boot.last_host_addr[0] = '\0';
+    }
+    ST_C10_BootState_t v_snap = _boot;
+    if (_bootMutex) xSemaphoreGive(_bootMutex);
+    return _saveBootState(v_snap);
+}
+
+bool CL_C10_Config::getLastHostAddr(char* p_out, size_t p_outSize) const {
+    if (!p_out || p_outSize < 18) return false;
+    if (_bootMutex) xSemaphoreTake(_bootMutex, portMAX_DELAY);
+    strlcpy(p_out, _boot.last_host_addr, p_outSize);
+    if (_bootMutex) xSemaphoreGive(_bootMutex);
+    return (p_out[0] != '\0');
+}
+
+bool CL_C10_Config::loadHosts(ST_C10_HostsConfig_t& p_out) {
+    memset(&p_out, 0, sizeof(p_out));
+    p_out.ver = 1;
+
+    const char* v_main = C10_DEF::HOSTS_PATH;
+    const char* v_old  = C10_DEF::HOSTS_OLD_PATH;
+
+    const char* v_target = nullptr;
+    if (LittleFS.exists(v_main) && _verifyJsonFile(v_main)) {
+        v_target = v_main;
+    } else if (LittleFS.exists(v_old) && _verifyJsonFile(v_old)) {
+        v_target = v_old;
+    }
+
+    if (!v_target) {
+        return false;
+    }
+
+    File v_f = LittleFS.open(v_target, "r");
+    if (!v_f) return false;
+
+    JsonDocument v_doc;
+    DeserializationError v_err = deserializeJson(v_doc, v_f);
+    v_f.close();
+    if (v_err) return false;
+
+    if (!v_doc["ver"].isNull()) p_out.ver = (uint16_t)v_doc["ver"];
+
+    JsonArrayConst v_arr = v_doc["hosts"].as<JsonArrayConst>();
+    if (!v_arr.isNull()) {
+        uint8_t v_cnt = 0;
+        for (JsonObjectConst v_h : v_arr) {
+            if (v_cnt >= C10_DEF::HOSTS_MAX) break;
+            ST_C10_Host_t& v_dst = p_out.hosts[v_cnt];
+            if (!v_h["addr"].isNull())   strlcpy(v_dst.addr,  (const char*)v_h["addr"],  sizeof(v_dst.addr));
+            if (!v_h["label"].isNull())  strlcpy(v_dst.label, (const char*)v_h["label"], sizeof(v_dst.label));
+            if (!v_h["color"].isNull())  strlcpy(v_dst.color, (const char*)v_h["color"], sizeof(v_dst.color));
+            if (!v_h["order"].isNull())  v_dst.order  = (uint8_t)v_h["order"].as<int>();
+            if (!v_h["pinned"].isNull()) v_dst.pinned = (bool)v_h["pinned"];
+            v_cnt++;
+        }
+        p_out.count = v_cnt;
+    }
+    return true;
+}
+
+bool CL_C10_Config::saveHosts(const ST_C10_HostsConfig_t& p_in) {
+    JsonDocument v_doc;
+    v_doc["ver"] = p_in.ver > 0 ? p_in.ver : 1;
+    JsonArray v_arr = v_doc["hosts"].to<JsonArray>();
+
+    const uint8_t v_count = p_in.count > C10_DEF::HOSTS_MAX ? C10_DEF::HOSTS_MAX : p_in.count;
+    for (uint8_t i = 0; i < v_count; i++) {
+        const ST_C10_Host_t& v_src = p_in.hosts[i];
+        JsonObject v_h = v_arr.add<JsonObject>();
+        v_h["addr"]   = v_src.addr;
+        v_h["label"]  = v_src.label;
+        v_h["color"]  = v_src.color;
+        v_h["order"]  = v_src.order;
+        v_h["pinned"] = v_src.pinned;
+    }
+
+    const char* v_tmp  = C10_DEF::HOSTS_TMP_PATH;
+    const char* v_old  = C10_DEF::HOSTS_OLD_PATH;
+    const char* v_main = C10_DEF::HOSTS_PATH;
+
+    if (LittleFS.exists(v_tmp)) (void)LittleFS.remove(v_tmp);
+
+    File v_f = LittleFS.open(v_tmp, "w");
+    if (!v_f) return false;
+
+    if (serializeJson(v_doc, v_f) == 0) {
+        v_f.close();
+        (void)LittleFS.remove(v_tmp);
+        return false;
+    }
+    v_f.flush();
+    v_f.close();
+
+    if (!_verifyJsonFile(v_tmp)) {
+        (void)LittleFS.remove(v_tmp);
+        return false;
+    }
+
+    // 3-tier rotate: main → old
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    if (LittleFS.exists(v_main)) {
+        if (!LittleFS.rename(v_main, v_old)) {
+            (void)LittleFS.remove(v_tmp);
+            return false;
+        }
+    }
+
+    // commit: tmp → main
+    if (!LittleFS.rename(v_tmp, v_main)) {
+        if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);
+        (void)LittleFS.remove(v_tmp);
+        return false;
+    }
+
+    if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
+    return true;
+}
+

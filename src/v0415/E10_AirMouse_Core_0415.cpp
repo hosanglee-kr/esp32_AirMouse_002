@@ -776,3 +776,20 @@ bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
     // MACRO / 기타는 큐 경유 (비동기)
     return _enqueueAction(v_slot, true);
 }
+
+bool CL_E10_EliteAirMouse::getHostState(uint8_t* p_outBondCount,
+                                        uint8_t* p_outActiveIdx,
+                                        uint8_t* p_outTargetIdx,
+                                        bool* p_outSelecting,
+                                        char* p_outActivePeerName,
+                                        size_t p_nameBufSize) {
+    if (p_outBondCount) *p_outBondCount = _ble.getBondCount();
+    if (p_outActiveIdx) *p_outActiveIdx = _ble.getActivePeerIndex();
+    if (p_outTargetIdx) *p_outTargetIdx = _ble.getTargetPeerIndex();
+    if (p_outSelecting) *p_outSelecting = _ble.isSelecting();
+    if (p_outActivePeerName && p_nameBufSize > 0) {
+        _ble.getPeerName(p_outActivePeerName, p_nameBufSize);
+    }
+    return true;
+}
+

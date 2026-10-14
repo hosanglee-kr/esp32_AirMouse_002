@@ -41,6 +41,20 @@ namespace B20_BLE {
 }
 
 
+// [v0415 Multi-Host] 광고 상태 머신 enum
+enum EN_B20_AdvMode_t : uint8_t {
+    EN_B20_ADV_IDLE   = 0,  // 일반 대기/연결 상태
+    EN_B20_ADV_CYCLE  = 1,  // 단순 순환 모드 (구 whitelist)
+    EN_B20_ADV_TARGET = 2   // 특정 호스트 지정 전환 (Reject-Until-Target)
+};
+
+// 전방 선언
+class NimBLEAddress;
+struct ble_gap_event;
+
+// 순수 6바이트 MAC 동일성 비교 헬퍼 (NimBLEAddress::equals()의 type 불일치 False Negative 방지)
+bool isSameBleAddress(const NimBLEAddress& a, const NimBLEAddress& b);
+
 class CL_B20_Ble {
   public:
     static constexpr uint8_t MAX_PEERS = 3;
@@ -66,12 +80,18 @@ class CL_B20_Ble {
     uint8_t getActivePeerIndex() const { return _activePeerIndex; }
     void    setActivePeerIndex(uint8_t p_idx) { _activePeerIndex = (p_idx < MAX_PEERS) ? p_idx : 0; }
 
-    // peer 순환 (index만 변경; 재연결은 Phase 9)
-    uint8_t cycleActivePeer() {
-        _activePeerIndex = (_activePeerIndex + 1) % MAX_PEERS;
-        _dirty           = true;
-        return _activePeerIndex;
-    }
+    // peer 순환 (기존 cycleActivePeer를 강제 순환 지정 전환으로 업그레이드)
+    uint8_t cycleActivePeer();
+
+    // ====================================================
+    // [v0415 Multi-Host Phase 2] Reject-Until-Target 지정 전환
+    // ====================================================
+    bool selectHostIdx(uint8_t p_idx, uint32_t p_timeoutMs = 10000);
+    bool selectHostAddr(const char* p_addr, uint32_t p_timeoutMs = 10000);
+    void cancelSelect();
+    bool isSelecting() const { return _advMode == EN_B20_ADV_TARGET; }
+    EN_B20_AdvMode_t getAdvMode() const { return _advMode; }
+    uint8_t getTargetPeerIndex() const { return _targetPeerIdx; }
 
     // ====================================================
     // [Phase 9] 재연결 (disconnect + 재광고)
@@ -97,6 +117,10 @@ class CL_B20_Ble {
     void tick(bool p_connected);
 
   private:
+    static int _gapEventHandler(struct ble_gap_event* p_event, void* p_arg);
+    int  _onCustomGapEvent(struct ble_gap_event* p_event);
+    void _handleGapConnect(uint16_t p_connHandle);
+    void _ensureGapHandler();
 
     uint8_t _activePeerIndex = 0;
 
@@ -107,10 +131,17 @@ class CL_B20_Ble {
 
     volatile bool _dirty = false;
 
+    // [v0415 Multi-Host] 광고 모드 및 타겟 인덱스 통합 관리
+    volatile EN_B20_AdvMode_t _advMode          = EN_B20_ADV_IDLE;
+    volatile uint8_t          _targetPeerIdx    = 0xFF;
+    volatile uint32_t         _advModeStartMs   = 0;
+    volatile uint32_t         _advModeTimeoutMs = 10000;
+
     volatile bool     _whitelistActive  = false;
     volatile uint32_t _whitelistUntilMs = 0;
+    bool              _gapHandlerRegistered = false;
 
     // advertising 재시작 (라이브러리 소유 광고 위에 재구성)
-    //   - NimBLE-Arduino 2.5.1 API 제약으로 whitelist 필터 없이 stop/start만
     bool _restartAdvertising();
 };
+

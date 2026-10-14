@@ -199,6 +199,12 @@ private:
     void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
 
+    // [v0415 Multi-Host]
+    void apiHostsGet   (AsyncWebServerRequest* req);
+    void apiHostsSelect(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiHostsCancel(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+    void apiHostsLabel (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
+
     void apiOtaUpload(AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final);
     void apiOtaStatus(AsyncWebServerRequest* req);
 

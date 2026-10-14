@@ -26,7 +26,32 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
     // [Phase 11.6 / C-3] Wake 콜백 등록
     v_m->_power.setWakeCallback(&CL_E10_EliteAirMouse::_onPowerWake, v_m);
 
+    // [v0415 Multi-Host / 의사결정 3] 부팅 시 마지막 연결 호스트 우선 연결 시도 (10초)
+    if (v_m->_cfg) {
+        char v_lastAddr[18];
+        if (v_m->_cfg->getLastHostAddr(v_lastAddr, sizeof(v_lastAddr))) {
+            D10_LOGI("[E10] Boot priority reconnect to last host: %s", v_lastAddr);
+            v_m->_ble.selectHostAddr(v_lastAddr, 10000);
+        }
+    }
+
     for (;;) {
+        // ============================================================
+        // [v0415 Multi-Host] Web API 비동기 호스트 전환 요청 소비 (신규 큐 대체)
+        // ============================================================
+        if (v_m->_reqHostOp != EN_C20_REQ_HOST_NONE) {
+            EN_C20_ReqHostOp_t v_op = v_m->_reqHostOp;
+            v_m->_reqHostOp = EN_C20_REQ_HOST_NONE;
+            switch (v_op) {
+                case EN_C20_REQ_HOST_SEL_0:  v_m->_ble.selectHostIdx(0, 10000); break;
+                case EN_C20_REQ_HOST_SEL_1:  v_m->_ble.selectHostIdx(1, 10000); break;
+                case EN_C20_REQ_HOST_SEL_2:  v_m->_ble.selectHostIdx(2, 10000); break;
+                case EN_C20_REQ_HOST_TOGGLE: v_m->_handleSpecial(EN_C20_SP_HOST_TOGGLE); break;
+                case EN_C20_REQ_HOST_CANCEL: v_m->_ble.cancelSelect(); break;
+                default: break;
+            }
+        }
+
         // ------------------------------------------------------------
         // [C-4] motion-critical config 스냅샷
         // ------------------------------------------------------------
@@ -78,7 +103,8 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
 
             const bool v_canSleep =
                 !v_m->_moveGateHeld && !v_m->_frontHoldActive && !v_qActBusy &&
-                !v_m->_safeMode && !v_m->_otaGuard;
+                !v_m->_safeMode && !v_m->_otaGuard &&
+                !v_m->_ble.isSelecting();
 
             if (v_canSleep && v_m->_cfgProfileValid) {
                 uint32_t v_timeout;
@@ -234,7 +260,20 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         // ============================================================
         // [Phase 10] BLE tick (pairing timeout / auto-exit)
         // ============================================================
-        v_m->_ble.tick(v_m->_hid.isConnected());
+        const bool v_currConnected = v_m->_hid.isConnected();
+        v_m->_ble.tick(v_currConnected);
+
+        // [v0415 Multi-Host / 의사결정 3] 연결 성공 시 last_host_addr NVS 영구 기억
+        static bool s_prevConnected = false;
+        if (v_currConnected && !s_prevConnected) {
+            char v_peerName[32];
+            if (v_m->_ble.getPeerName(v_peerName, sizeof(v_peerName))) {
+                if (v_m->_cfg) {
+                    (void)v_m->_cfg->setLastHostAddr(v_peerName);
+                }
+            }
+        }
+        s_prevConnected = v_currConnected;
 
         // ---- gyro raw + Zero-rate Bias Tracking ----
         const float v_gxRaw = v_g.gyro.x * RAD_TO_DEG;

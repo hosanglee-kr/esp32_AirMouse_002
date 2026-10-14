@@ -119,7 +119,12 @@ const G_OFFLINE_KEYCODES = {
     { value: 2, name: "SLEEP_NOW" },
     { value: 3, name: "MODE_CYCLE" },
     { value: 4, name: "PAIRING" },
-    { value: 5, name: "HOST_CYCLE" }
+    { value: 5, name: "HOST_CYCLE" },
+    { value: 6, name: "HOST_SELECT_0" },
+    { value: 7, name: "HOST_SELECT_1" },
+    { value: 8, name: "HOST_SELECT_2" },
+    { value: 9, name: "HOST_TOGGLE" },
+    { value: 10, name: "HOST_CANCEL" }
   ],
   // [v0415] Keyboard Page Power (0x66) — TV 전원 대체
   kb: (function () {
@@ -729,6 +734,43 @@ function handleOfflineApi(url, method, body) {
   }
   else if (path === "/api/ppt/test") {
     resObj.msg = "오프라인 모드: 단발 키 테스트 시뮬레이션";
+    resObj.data = body;
+  }
+  else if (path === "/api/hosts") {
+    g_offlineStore.hosts = g_offlineStore.hosts || [
+      { idx: 0, addr: "AA:BB:CC:DD:EE:01", label: "My PC", color: "#3B82F6", is_active: true, is_target: false },
+      { idx: 1, addr: "AA:BB:CC:DD:EE:02", label: "Tablet", color: "#10B981", is_active: false, is_target: false }
+    ];
+    resObj.data = {
+      bond_count: g_offlineStore.hosts.length,
+      active_idx: g_offlineStore.activeHostIdx ?? 0,
+      target_idx: g_offlineStore.targetHostIdx ?? 255,
+      is_selecting: !!g_offlineStore.isSelectingHost,
+      active_peer_name: g_offlineStore.hosts[g_offlineStore.activeHostIdx ?? 0]?.addr || "",
+      hosts: g_offlineStore.hosts
+    };
+  }
+  else if (path === "/api/hosts/select") {
+    const idx = body ? body.idx : 0;
+    g_offlineStore.activeHostIdx = idx;
+    g_offlineStore.hosts?.forEach(h => { h.is_active = (h.idx === idx); });
+    resObj.msg = "오프라인: 호스트 전환 시뮬레이션";
+    resObj.data = { idx: idx, simulated: true };
+  }
+  else if (path === "/api/hosts/cancel") {
+    g_offlineStore.isSelectingHost = false;
+    resObj.msg = "오프라인: 호스트 전환 취소 시뮬레이션";
+    resObj.data = { cancelled: true };
+  }
+  else if (path === "/api/hosts/label") {
+    if (body && body.addr) {
+      const h = g_offlineStore.hosts?.find(x => x.addr === body.addr);
+      if (h) {
+        if (body.label) h.label = body.label;
+        if (body.color) h.color = body.color;
+      }
+    }
+    resObj.msg = "오프라인: 호스트 라벨 저장 시뮬레이션";
     resObj.data = body;
   }
   else if (path === "/api/config/import") {

@@ -163,6 +163,19 @@
             <span class="quickref-desc" data-i18n="quickref.side_c_3s_desc">호스트 기기 전환</span>
             <span class="quickref-key" data-i18n="quickref.side_f_hold">Side F 유지</span>
             <span class="quickref-desc" data-i18n="quickref.side_f_hold_desc">스크롤 모드</span>
+        </div>
+
+        <!-- ====================================================
+             [v0415 Multi-Host] 호스트 기기 전환 카드
+             ==================================================== -->
+        <div class="host-card" id="hostCard">
+          <div class="host-card-title">
+            <span>💻</span>
+            <span data-i18n="host.card_title">호스트 기기 전환</span>
+          </div>
+          <div class="host-card-desc" data-i18n="host.card_desc">원하는 기기를 선택하면 해당 기기로 즉시 전환합니다.</div>
+          <div class="host-list" id="hostListContainer">
+            <div class="hint2">Loading hosts...</div>
           </div>
         </div>
 
@@ -837,7 +850,7 @@
         <div class="hint2" data-i18n="log.none">명령 기록 없음</div>
       </div>
     </section>
-
+/
     <!-- ============ OTA ============ -->
     <section class="card tabpane" id="tab-ota">
       <h2 data-i18n="ota.title">무선 펌웨어 업데이트 (OTA)</h2>
@@ -894,6 +907,7 @@
   <script src="./lib/am_config_0415.js"></script>
   <script src="./lib/am_status_0415.js"></script>
   <script src="./lib/am_remote_0415.js"></script>
+  <script src="./lib/am_host_0415.js"></script>
   <script src="./app_0415_0001.js"></script>
 </body>
 

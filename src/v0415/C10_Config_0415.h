@@ -106,6 +106,12 @@ class CL_C10_Config {
     bool isProfileSwitchInProgress() const { return _profileSwitchInProgress; }
     void setProfileSwitchInProgress(bool p_flag) { _profileSwitchInProgress = p_flag; }
 
+    // ---------- Hosts CRUD (v0415 Multi-Host) ----------
+    bool loadHosts(ST_C10_HostsConfig_t& p_out);
+    bool saveHosts(const ST_C10_HostsConfig_t& p_in);
+    bool setLastHostAddr(const char* p_addr);
+    bool getLastHostAddr(char* p_out, size_t p_outSize) const;
+
     // ---------- Factory Reset ----------
     bool factoryReset(bool p_recreateDefault = true);
 

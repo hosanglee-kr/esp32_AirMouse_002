@@ -112,14 +112,33 @@ enum EN_C20_ActionKind_t : uint8_t {
 // 2) Special Action
 // ======================================================
 enum EN_C20_Special_t : uint8_t {
-    EN_C20_SP_NONE         = 0,
-    EN_C20_SP_GYRO_RECALIB = 1,
-    EN_C20_SP_SLEEP_NOW    = 2,
-    EN_C20_SP_MODE_CYCLE   = 3, // 내부용
-    EN_C20_SP_PAIRING      = 4, // 내부용
-    EN_C20_SP_HOST_CYCLE   = 5, // 내부용
+    EN_C20_SP_NONE          = 0,
+    EN_C20_SP_GYRO_RECALIB  = 1,
+    EN_C20_SP_SLEEP_NOW     = 2,
+    EN_C20_SP_MODE_CYCLE    = 3, // 내부용
+    EN_C20_SP_PAIRING       = 4, // 내부용
+    EN_C20_SP_HOST_CYCLE    = 5, // 내부용
+    // [v0415 Multi-Host] 신규 Special Action 5종
+    EN_C20_SP_HOST_SELECT_0 = 6, // 호스트 0번 직접 지정 전환
+    EN_C20_SP_HOST_SELECT_1 = 7, // 호스트 1번 직접 지정 전환
+    EN_C20_SP_HOST_SELECT_2 = 8, // 호스트 2번 직접 지정 전환
+    EN_C20_SP_HOST_TOGGLE   = 9, // 최근 2개 호스트 빠른 맞교환
+    EN_C20_SP_HOST_CANCEL   = 10,// 호스트 전환 진행 즉시 취소
     EN_C20_SP_MAX
 };
+
+// ======================================================
+// 2-1) Web API -> sensorTask 비동기 요청 위임 (신규 큐 미생성 원칙)
+// ======================================================
+enum EN_C20_ReqHostOp_t : uint8_t {
+    EN_C20_REQ_HOST_NONE   = 0,
+    EN_C20_REQ_HOST_SEL_0  = 1,
+    EN_C20_REQ_HOST_SEL_1  = 2,
+    EN_C20_REQ_HOST_SEL_2  = 3,
+    EN_C20_REQ_HOST_TOGGLE = 4,
+    EN_C20_REQ_HOST_CANCEL = 5
+};
+
 
 // ======================================================
 // 3) 물리 버튼 ID (6버튼)

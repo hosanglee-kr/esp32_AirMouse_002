@@ -363,7 +363,12 @@ function getSpecialFriendlyName(name) {
     "SLEEP_NOW": "지금 절전 모드 시작",
     "MODE_CYCLE": "작동 모드 순환 전환 (PC → 프레젠테이션 → 스마트 TV)",
     "PAIRING": "블루투스 페어링(연결 대기) 시작",
-    "HOST_CYCLE": "호스트 기기 전환 (블루투스 호스트 순환)"
+    "HOST_CYCLE": "호스트 기기 전환 (블루투스 호스트 순환)",
+    "HOST_SELECT_0": "1번 호스트로 즉시 전환 (Host 1)",
+    "HOST_SELECT_1": "2번 호스트로 즉시 전환 (Host 2)",
+    "HOST_SELECT_2": "3번 호스트로 즉시 전환 (Host 3)",
+    "HOST_TOGGLE": "최근 호스트 간 빠른 토글",
+    "HOST_CANCEL": "호스트 전환 모드 즉시 취소"
   };
   const MAP_EN = {
     "NONE": "None",
@@ -371,7 +376,12 @@ function getSpecialFriendlyName(name) {
     "SLEEP_NOW": "Enter Sleep Mode Now",
     "MODE_CYCLE": "Cycle Operating Mode (PC → Presentation → Smart TV)",
     "PAIRING": "Start Bluetooth Pairing",
-    "HOST_CYCLE": "Host Device Cycle (Bluetooth Easy-Switch)"
+    "HOST_CYCLE": "Host Device Cycle (Bluetooth Easy-Switch)",
+    "HOST_SELECT_0": "Switch to Host 1 Immediately",
+    "HOST_SELECT_1": "Switch to Host 2 Immediately",
+    "HOST_SELECT_2": "Switch to Host 3 Immediately",
+    "HOST_TOGGLE": "Quick Host Toggle",
+    "HOST_CANCEL": "Cancel Host Switch Mode"
   };
   const desc = isEn ? MAP_EN[name] : MAP_KO[name];
   return desc ? `${name} — ${desc}` : name;

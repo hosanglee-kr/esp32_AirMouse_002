@@ -213,6 +213,30 @@ void CL_W10_WebConfig::begin(CL_C10_Config* p_cfg,
             apiPptTest(req, data, len, index, total);
         });
 
+    // Multi-Host API
+    _svr.on("/api/hosts", HTTP_GET, [this](AsyncWebServerRequest* req) { apiHostsGet(req); });
+
+    _svr.on("/api/hosts/select", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiHostsSelect(req, data, len, index, total);
+        });
+
+    _svr.on("/api/hosts/cancel", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiHostsCancel(req, data, len, index, total);
+        });
+
+    _svr.on("/api/hosts/label", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { (void)req; },
+        nullptr,
+        [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+            apiHostsLabel(req, data, len, index, total);
+        });
+
     // OTA
     _svr.on("/api/ota/status", HTTP_GET, [this](AsyncWebServerRequest* req) { apiOtaStatus(req); });
 

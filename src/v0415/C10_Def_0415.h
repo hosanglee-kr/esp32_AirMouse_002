@@ -86,6 +86,14 @@ namespace C10_DEF {
     // [P2] 원자적 저장용 .old 경로 (rotate 방식)
     static constexpr const char* BOOT_OLD_PATH      = "/json/boot_state_0415.json.old";
 
+    // [v0415 Multi-Host] 호스트 목록 저장 경로 및 상수
+    static constexpr const char* HOSTS_PATH         = "/json/hosts_0415.json";
+    static constexpr const char* HOSTS_TMP_PATH     = "/json/hosts_0415.json.tmp";
+    static constexpr const char* HOSTS_OLD_PATH     = "/json/hosts_0415.json.old";
+    static constexpr uint8_t     HOSTS_MAX          = 3;
+    static constexpr uint8_t     HOST_LABEL_MAX     = 32;
+    static constexpr uint8_t     HOST_COLOR_LEN     = 8;  // "#RRGGBB\0"
+
     static constexpr uint8_t SAFE_FAIL_THRESHOLD = 2;
 
     static constexpr size_t STA_SSID_MAX = 32;
@@ -463,4 +471,22 @@ struct ST_C10_BootState_t {
     bool     pending;
     uint32_t boot_ms;
     uint8_t  last_reset_reason;
+    char     last_host_addr[18];   // [v0415 Multi-Host] 마지막 연결된 호스트 MAC ("\0"이면 없음)
+};
+
+// ======================================================
+// [v0415 Multi-Host] 호스트 데이터 구조체
+// ======================================================
+struct ST_C10_Host_t {
+    char     addr[18];                       // "AA:BB:CC:DD:EE:FF\0" (Identity Address)
+    char     label[C10_DEF::HOST_LABEL_MAX]; // "내 노트북\0"
+    char     color[C10_DEF::HOST_COLOR_LEN]; // "#00A0FF\0"
+    uint8_t  order;                          // 0, 1, 2
+    bool     pinned;                         // 순서 고정 여부
+};
+
+struct ST_C10_HostsConfig_t {
+    uint16_t      ver;                       // 1
+    uint8_t       count;                     // 0 ~ 3
+    ST_C10_Host_t hosts[C10_DEF::HOSTS_MAX];
 };

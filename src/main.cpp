@@ -131,6 +131,24 @@ static bool _w10_execLiveTest(void* ctx,
     return ((CL_E10_EliteAirMouse*)ctx)->execLiveTest(p_kind, p_hMode, p_p16, p_p32);
 }
 
+static bool _w10_requestHostOp(void* ctx, uint8_t op) {
+    if (!ctx) return false;
+    ((CL_E10_EliteAirMouse*)ctx)->requestHostOp((EN_C20_ReqHostOp_t)op);
+    return true;
+}
+
+static bool _w10_getHostState(void* ctx,
+                              uint8_t* outBondCount,
+                              uint8_t* outActiveIdx,
+                              uint8_t* outTargetIdx,
+                              bool* outSelecting,
+                              char* outActivePeerName,
+                              size_t nameBufSize) {
+    if (!ctx) return false;
+    return ((CL_E10_EliteAirMouse*)ctx)->getHostState(
+        outBondCount, outActiveIdx, outTargetIdx, outSelecting, outActivePeerName, nameBufSize);
+}
+
 // grace
 static constexpr uint32_t G_BOOT_GRACE_MS = 8500;
 
@@ -222,6 +240,10 @@ void setup() {
     g_w10E10If.getProfileInfo         = _w10_getProfileInfo;
     g_w10E10If.switchProfile          = _w10_switchProfile;
     g_w10E10If.execLiveTest           = _w10_execLiveTest;
+
+    // Multi-Host
+    g_w10E10If.requestHostOp          = _w10_requestHostOp;
+    g_w10E10If.getHostState           = _w10_getHostState;
 
     g_w10.begin(&g_cfg, &g_w10E10If);
 

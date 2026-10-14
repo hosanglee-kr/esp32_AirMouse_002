@@ -1,11 +1,11 @@
 {
-  "ver": 411,
+  "ver": 412,
   "name": "Office",
   "wifi": {
     "mode": 0,
     "sta": {
-      "ssid": "U+NetE89C",
-      "pass": "38D#4FP001"
+      "ssid": "",
+      "pass": ""
     },
     "ap": {
       "ssid": "EliteAirMouse",
@@ -33,10 +33,6 @@
     "wheel": {
       "threshold_deg": 90.0,
       "step_max": 6
-    },
-    "gesture": {
-      "flick_deg": 200.0,
-      "cooldown_ms": 600
     },
     "precision": {
       "mode": 0,

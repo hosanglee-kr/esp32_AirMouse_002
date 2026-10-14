@@ -650,6 +650,8 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         static const ST_S G_SP[] = {
             { 0, "NONE" }, { 1, "GYRO_RECALIB" }, { 2, "SLEEP_NOW" },
             { 3, "MODE_CYCLE" }, { 4, "PAIRING" }, { 5, "HOST_CYCLE" },
+            { 6, "HOST_SELECT_0" }, { 7, "HOST_SELECT_1" }, { 8, "HOST_SELECT_2" },
+            { 9, "HOST_TOGGLE" }, { 10, "HOST_CANCEL" },
         };
         for (size_t i = 0; i < sizeof(G_SP)/sizeof(G_SP[0]); i++) {
             JsonObject o = sp.add<JsonObject>();

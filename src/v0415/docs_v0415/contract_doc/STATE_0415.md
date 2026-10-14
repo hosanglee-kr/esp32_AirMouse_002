@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-12 (rev15 — 스키마 412 gesture 삭제 및 Wi-Fi 웹 UI 저장 소유권 명세)
+> 최종 갱신: 2026-10-14 (rev16 — Multi-Host Reject-Until-Target FSM 및 _reqHostOp 위임 소유권 명세)
 
 ---
 
@@ -36,7 +36,12 @@
 | `s_head`/`s_count` (D10) | `_pushToRing` (Phase 1) | `_pushToRing` (Phase 1) | `portENTER_CRITICAL` | 링버퍼 인덱스 할당 임계구역 |
 | `s_overwriteCount`/`s_truncCount` (D10) | `_pushToRing` | `getOverwriteCount`/`getTruncCount` | critical / volatile | 오버라이트 및 메시지 잘림 카운터 |
 | `_logLevel` (D10) | `setLevel` | `log` | `volatile` | 런타임 로그 레벨 |
-
+| **`_reqHostOp`** | `webTask` (`/api/hosts/select`, `cancel`) | `sensorTask` (루프 헤드) | `volatile EN_C20_ReqHostOp_t` | **rev16: Last-Write-Wins 위임 (Web의 BLE 직접 제어 배제)** |
+| **`_advMode`** (B20) | `sensorTask` (`selectHostIdx`, `cancelSelect`, `tick`) | `sensorTask`, `webTask` (`getHostState`) | `volatile EN_B20_AdvMode_t` | **rev16: IDLE / CYCLE / TARGET 광고 FSM** |
+| **`_targetPeerIdx`** (B20) | `sensorTask` | `sensorTask`, `webTask` | `volatile uint8_t` | **rev16: 목표 호스트 인덱스 (0~2 또는 0xFF)** |
+| **`_advModeStartMs` / `_advModeTimeoutMs`** (B20) | `sensorTask` | `sensorTask` (`tick`) | `volatile uint32_t` | **rev16: Strict 10초 타임아웃 추적** |
+| **`last_host_addr[18]`** (C10 Boot) | `sensorTask` (BLE 연결 시) | `sensorTask` (부팅 우선 시도), `webTask` | `_bootMutex` | **rev16: 부팅 시 마지막 기기 우선 연결 주소** |
+| **`hosts_0415.json`** (C10) | `webTask` (`/api/hosts/label` 경유) | `webTask` (`/api/hosts`), `C10` | `_lock()` + 3-tier rotate | **rev16: 호스트 라벨/색상 영구 저장소** |
 | `_activeMode` | `sensorTask`, `webTask` | `any` | `volatile uint8_t` + `_lock()` | 3-Mode (1=PC, 2=PPT, 3=TV) 시스템 상태 |
 | `_reqSpecialAction` | `webTask` | `sensorTask` | `volatile uint8_t` | Special 액션 비동기 실행 위임 플래그 |
 | `_reqCommReleaseAll` | `webTask`, `any` (enqueue 실패) | `commTask` | `volatile bool` | 프로파일 전환 시 HID 안전 Release 위임 |
@@ -268,12 +273,25 @@
 
 ---
 
+### 2.11 Multi-Host Reject-Until-Target FSM (B20 BLE Manager)
+
+다중 호스트 환경에서 사용자가 지정한 단일 목표 호스트만 연결되도록 비대상 기기의 접속을 강제 거절하는 광고 상태머신입니다.
+
+| 상태 (Enum) | 진입 조건 | 동작 내용 | 이탈 조건 및 다음 상태 |
+|---|---|---|---|
+| **EN_B20_ADV_IDLE** (0) | 부팅 완료, 타임아웃 만료, 취소 요청, 타깃 연결 완료 | 일반 BLE 광고 및 임의 호스트 접속 허용 | `selectHostIdx()` / `selectHostAddr()` 호출 시 → **TARGET** |
+| **EN_B20_ADV_CYCLE** (1) | Side C 3초 Hold (`cycleActivePeer()`) | 80ms Settle 후 다음 인덱스로 전환 광고 | 인덱스 지정 완료 시 → **TARGET** |
+| **EN_B20_ADV_TARGET** (2) | `selectHostIdx()`, 부팅 `last_host_addr` 우선 연결 | 1) `isSameBleAddress()` 비교<br>2) 비대상 접속 시 0x16 즉시 Disconnect<br>3) Sleep Gate 활성화 (절전 유예) | 1) 목표 호스트 접속 성공 → **IDLE**<br>2) 10초 타임아웃 만료 (Option B: Strict Stop) → **IDLE** (적색 3회 점멸)<br>3) `cancelSelect()` 호출 → **IDLE** |
+
+---
+
 ## 3. 위임(Delegation) 패턴 정리
 
 Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고 플래그로 위임하는 패턴입니다.
 
 | 플래그 | 소유자 (Writer) | 소비자 (Consumer) | 목적 |
 |---|---|---|---|
+| **`_reqHostOp`** | `webTask` (`/api/hosts/select`, `cancel`) | `sensorTask` 루프 진입부 | Web API의 다중 호스트 전환 요청을 sensorTask에서 안전하게 소비 (신규 큐 미생성) |
 | `_reqSpecialAction` | `webTask` | `sensorTask` 루프 진입부 | Special 액션을 sensorTask 컨텍스트에서 동기 실행 |
 | `_reqCommReleaseAll` | `webTask` (`switchProfile`), `any` (`forceReleaseButtons` 큐 Full 시) | `commTask` 루프 진입부 | 큐 Drop과 무관하게 HID 안전 Release 100% 보장 |
 | `_reqResetBtnDisp` | `webTask` (`switchProfile`) | `sensorTask` 루프 진입부 | `_btnDisp.resetAll()` 위임 |
@@ -304,3 +322,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | rev13 | 2026-10-12 | **LED 태스크 스택 관측 완결 (B-2)**: `_stackLedMinWords` 소유권 등록. §2.8 L10 LED FSM에 `_ledTask` 관측 훅 명시. |
 | **rev14** | **2026-10-12** | **W10 Reboot 태스크 소유권 방어 (B-4) 및 D10 로깅 상태 전이 명세**: `_taskReboot` 생성 반환값(`pdPASS`) 검증 및 실패 시 동기식 `ESP.restart()` 안전 폴백 소유권 등록. D10 로거는 상태 전이 및 치명적 에러 한정 호출 규약 동기화. |
 | **rev15** | **2026-10-12** | **스키마 412 gesture 삭제 + Wi-Fi UI 저장 소유권**: §1 매트릭스에서 `_gestureFlickDeg`/`_gestureCooldownMs` 삭제 → `flick.p2p_th`/`flick.cooldown_ms` 단독 소유 명시. `cfgSave()` patch 확장(`{e10, wifi}`)에 따른 W10 `_wifi` 로컬 캐시 갱신 소유권 (§2.13 하위) 반영. |
+| **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target FSM 및 _reqHostOp 위임 소유권 명세**: §1 매트릭스에 `_reqHostOp`, `_advMode`, `_targetPeerIdx`, `_advModeStartMs`, `last_host_addr`, `hosts_0415.json` 소유권 추가. §2.11 Multi-Host FSM(IDLE/CYCLE/TARGET) 신설. §3 위임 패턴에 `_reqHostOp` 등록. |

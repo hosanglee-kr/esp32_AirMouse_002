@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)
 > 위치: `src/v0415/docs_v0415/contract_doc/BUDGET_0415.md`
-> 최종 갱신: 2026-10-12 (rev11 — D10 Logger 고주파 루프 금지 예산 규약 §2.4 추가, W10 리부트 태스크 방어 B-4 예산 명시)
+> 최종 갱신: 2026-10-14 (rev16 — Multi-Host Option A Reject-Until-Target 및 W10 Web API 예산 명시)
 
 ---
 
@@ -38,6 +38,8 @@ FreeRTOS 태스크별 데드라인, 목표 주기 및 허용 최대 실행 시�
 | `_power.sleepNow(now, safeOrPair)` | (wake까지 블로킹) | sensorTask 정지 | `esp_light_sleep_start()` 리턴까지. wake 후 자동 복귀 |
 | `_power.deepSleepNow(now, hid, pair, safe)` | (reboot까지) | deep-sleep 진입 | `esp_deep_sleep_start()`는 리턴 안 함 |
 | **`_handleSpecial(HOST_CYCLE)`** | **~110 ms** | **sensorTask 14프레임 누락 (커서 112ms 정지)** | **B20 내부 delay(80) + delay(30) — v0415 문서화** (사용자 트리거이므로 즉시성 요구 낮음) |
+| `_reqHostOp` 소비 | < 1 μs | 없음 | 루프 시작부 단순 volatile enum 읽기 및 클리어 |
+| `_handleGapConnect` (`isSameBleAddress`) | < 10 μs | 없음 | GAP connect 콜백 내 순수 6바이트 memcmp 비교 |
 | `_applyClickFreeze` / `_applySnapToAxis` | ≤ 10 μs | 없음 | config 스냅샷 read (_lock 하) |
 | `_lock()` (state read) | ≤ 2 ms (`pdMS_TO_TICKS(2)`) | 초과 시 `_errMutexMiss++` | recursive mutex + 짧은 critical section |
 
@@ -192,18 +194,25 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **WS2812 LED 소등 선행**: `deepSleepNow` 호출 이전 `_led.suspend()` (기존: light-sleep 경로에만).
   - WS2812 latch 특성상 RMT disabled 후에도 마지막 색 무한 유지 → 20mA 방전 방지
 
+### 6.12 Multi-Host Reject-Until-Target 및 Web API 예산 (v0415 rev16 신규)
+
+- **GAP connect 콜백 오버헤드**: `_handleGapConnect()` 내부에서 `isSameBleAddress()` (순수 6바이트 `memcmp`)만 수행하므로 실행 시간 < 10 μs로 BLE 스택 인터럽트 지연 없음.
+- **비동기 타임아웃 및 블로킹 배제**: 전환 시도 중 `vTaskDelay` 블로킹을 일체 배제하고 `millis() - _advModeStartMs > 10000` 비동기 타임스탬프 검사로 처리하여 `sensorTask` 루프 지연 0ms 유지.
+- **C10 `hosts_0415.json` 3-tier 저장 오버헤드**: 소형 JSON(~300B) 파일 회전 쓰기 및 무결성 검증은 3ms 이내 완료되며, 웹 API 핸들러(`apiHostsLabel`) 컨텍스트에서만 실행되어 8ms 센서 루프에 간섭 없음.
+- **신규 FreeRTOS 큐 미생성**: 원자적 enum 변수 `_reqHostOp` (1바이트) 위임으로 큐 오버헤드(메모리 ~100B, 컨텍스트 스위칭) 0바이트/0초 달성.
+
 ---
 
 ## 7. v0415 최종 리소스
 
-| 항목 | v0412 | v0415 (rev8) | v0415 (rev9 실측) | 변화 (rev8→rev9) |
-|---|---|---|---|---|
-| RAM | ~40% (131 KB) | 41.8% (136.8 KB) | **33.2% (108.7 KB / 108,664 B)** | **−28.1 KB** |
-| Flash | ~45% (1.42 MB) | 46.1% (1.451 MB) | **46.2% (1.453 MB / 1,453,201 B)** | +2 KB |
+| 항목 | v0412 | v0415 (rev8) | v0415 (rev9) | v0415 (rev16 실측) | 변화 (rev9→rev16) |
+|---|---|---|---|---|---|
+| RAM | ~40% (131 KB) | 41.8% (136.8 KB) | 33.2% (108.7 KB / 108,664 B) | **33.2% (108,704 B / 327,680 B)** | **+40 B (극미)** |
+| Flash | ~45% (1.42 MB) | 46.1% (1.451 MB) | 46.2% (1.453 MB / 1,453,201 B) | **46.6% (1,464,901 B / 3,145,728 B)** | **+11.7 KB** |
 
-**rev9 RAM 감소 요인**: D10 RingBuffer 34.8 KB → 6.7 KB (−28.1 KB), Dead 조회 API 캐시 정리
-**rev9 Flash 소폭 증가 요인**: C10 rotate 저장 rollback 로직, 딥슬립 직전 MPU 슬립 bit 및 LED suspend 가드, USB CDC 대기
-
+**rev16 리소스 변동 요인**:
+- **RAM**: 단일 플래그 `_reqHostOp` 및 `_advMode` enum 등 수 바이트 추가에 그쳐 108.7 KB(33.2%)로 동일 수준 유지.
+- **Flash**: B20 커스텀 GAP 핸들러, Reject 엔진, C10 `hosts_0415.json` 3-tier 회전 저장, W10 호스트 REST API 4종 및 `am_host_0415.js` 정적 자산 추가로 +11.7 KB 소폭 증가 (총 46.6%로 8MB 플래시 대비 극히 여유).
 
 ---
 
@@ -219,3 +228,4 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 | rev10 | 2026-10-12 | **LED 태스크 스택 관측 실측화 (B-2)**: `_stackLedMinWords` 멤버 + `_ledTask` 워터마크 훅 + `getStatus` 반영. §5 표기 갱신. |
 | **rev11** | **2026-10-12** | **D10 로깅 예산 규칙 (§2.4 신규) 및 W10 Reboot 태스크 방어 예산**: 8ms/7ms 루프 내 로깅 배제 원칙 명시, 부팅/진단/단발성 API 한정 D10 허용. 리부트 태스크 실패 시 동기식 재부팅 폴백 예산 반영. |
 | **rev15** | **2026-10-12** | **스키마 412 전환 및 Wi-Fi UI 신설 (예산 영향 없음)**: `gesture.*` 삭제 → `flick.*` SSOT (Flash/RAM 영향 미미). Wi-Fi UI 필드는 기존 `ST_C10_WiFiConfig_t` 재사용으로 추가 예산 없음. `apiProfilesActivePost`의 `_bumpRebootMaskFromBoot()` 호출은 논블로킹 (예산 영향 없음). |
+| **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target 및 Web API 예산 (§6.12 신규)**: GAP connect <10μs, 논블로킹 타임아웃, C10 3-tier 저장 <3ms, 신규 큐 미생성(SRAM 0B). 실측 리소스 갱신 (RAM 33.2%, Flash 46.6%). |

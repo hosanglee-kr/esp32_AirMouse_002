@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`  
-> 최종 갱신: 2026-10-12 (rev15 — 스키마 412 전환 및 Wi-Fi patch 계약 §2.13 보강. `gesture.*` 삭제 및 `flick.*` SSOT 확립. `apiProfilesActivePost` 재부팅 마스크 갱신 계약)
+> 최종 갱신: 2026-10-14 (rev16 — Multi-Host Option A: Reject-Until-Target 통합 계약 §2.21, 비동기 위임 플래그 `_reqHostOp`, B20 BLE 엔진 경계, C10 `hosts_0415.json` 3-tier 저장 및 Boot State `last_host_addr` 계약 확립)
 
 ---
 
@@ -26,7 +26,7 @@
 | `_tickMacro()` | `commTask` only | 매 프레임 논블로킹 (lock 없음, step 실행만 블로킹) | 딜레이 경과 시 액션 실행, 스텝 전진 | 토큰 불일치(`_macroAbortToken`) 시 즉시 중단 + WARN 로그 |
 | `_resolveSlot(mode, trig)` | `sensorTask`, `commTask`, `webTask` | Read-only (`_lock` 하 스냅샷) | 없음 (Global + Mode Override O(1) 해석) | 비정상 인덱스 시 `EN_C20_ACT_NONE` 반환 |
 | `switchProfile(idx)` | `webTask` only | 진행 중 재진입 차단 (`_cfgProfileValid` + `_profileSwitchInProgress`) | `_lock` 하 `_macroAbortToken++`, 큐 드레인, 리셋 위임, HID release, `_engine.resetEmaState()` | 전환 중이면 `false` 반환 및 조기 종료 |
-| `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링, 캘리브, 호스트 순환, **SLEEP_NOW (즉시 진입)** | 알 수 없는 코드 시 무시. **HOST_CYCLE 시 `_ble.exitPairing()` 선행 호출** |
+| `_handleSpecial(special)` | `sensorTask` only | 타 태스크 호출 금지 | 모드 변경, 페어링, 캘리브, 호스트 순환/지정/취소, **SLEEP_NOW (즉시 진입)** | 알 수 없는 코드 시 무시. **HOST_CYCLE 시 `_ble.exitPairing()` 선행 호출** |
 | `forceReleaseButtons()` | `any` (web, sensor, comm) | 논블로킹 (`_lock` 하 매크로 abort + state 리셋) | `_macroAbortToken++` (lock 하) + `_qHidCmd`에 `RELEASE_ALL` 인큐 | **큐 Full 시 `_reqCommReleaseAll = true` 위임 + false 반환** |
 | `_applyClickFreeze(...)` | `sensorTask` only | 파이프라인 최종단 | `_lock()` 하 config 스냅샷 read + `_freezeState` 전이 | `motion_adv.click_freeze` 로컬 복사 |
 | `_applySnapToAxis(...)` | `sensorTask` only | Click-Freeze 직전 | `_lock()` 하 config 스냅샷 read + 활성 축 감쇠 | `motion_adv.snap` 로컬 복사 |
@@ -42,6 +42,10 @@
 | `_pushFrame(fr)` | `sensorTask` only | 논블로킹 Overwrite | `_qFrame` 최신 프레임 유지 | size=1 Overwrite로 항상 성공 |
 | `applyRuntimeE10(e10)` | `W10` (`/api/control` apply-only) | `_lock()` 하 `_applyRuntimeLocked` | E10 파라미터만 런타임 반영 (persist X) | 항상 true (범위 클램프 다수) |
 | `execLiveTest(kind, h, p16, p32)` | `webTask` | SPECIAL은 위임, 그 외 큐 경유 | `_reqSpecialAction` 또는 `_qActionExec` | **v0415 rev11**: SPECIAL 액션(모드전환/영점 등)은 BLE 연결 무관 위임 성공. 일반 HID 테스트만 BLE 미연결 시 `ble_disconnected`(400) 반환 |
+| `requestHostOp(op)` | `webTask` only | 논블로킹 (단일 volatile enum write) | `_reqHostOp` 원자적 세팅 (Last-Write-Wins) | Web에서 B20 직접 호출 차단, `sensorTask` 위임 |
+| `_ble.selectHostIdx(idx, to)` | `sensorTask` only | 타 태스크 호출 금지 | `_advMode = EN_B20_ADV_TARGET`, 비대상 접속 시 0x16 거절 | 타임아웃(10초) 경과 시 `cancelSelect()` |
+| `_ble.cancelSelect()` | `sensorTask` only | 타 태스크 호출 금지 | `_advMode = EN_B20_ADV_IDLE`, 타겟 인덱스 초기화 | 대기 모드로 안전 복귀 |
+| `_cfg->saveHosts(cfg)` | `C10` only | 논블로킹 파일 I/O (`_lock` 하 스냅샷) | `hosts_0415.json` 3-tier 원자적 회전 저장 (`main->old`, `tmp->main`, 롤백) | 실패 시 롤백 후 false |
 | `_led.suspend(snap)` | `sensorTask` only | **blocking** (≤ `led_fadeout_ms + 200ms`) | 스냅샷 백업 + RED fadeout → OFF | sleep 진입 직전. 실패 시 `resume`으로 원복 |
 | `_led.resume(snap)` | `sensorTask` only | **async** (즉시 리턴) | FADEIN 상태 진입 → `_ledTask`가 IDLE 전이 | sleep 복귀 직후 |
 | `_led.setFadeTimings(fo, fi)` | `webTask` (`_applyE10ToRuntime`) | 논블로킹 (`_lock` 하) | fade 타이밍 주입 (0 → 1ms 방어) | – |
@@ -305,6 +309,23 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - **실패 (`!= pdPASS`)**: 힙/스택 고갈로 태스크 생성이 거부된 경우 `D10_LOGE`로 실패(오류 코드)를 기록하고, 웹 클라이언트에 HTTP 응답이 완전히 송출될 수 있도록 `delay(200); ESP.restart();`를 호출하는 **동기식 안전 폴백**을 즉시 실행한다.
 - **목적**: 시스템이 재부팅 요청을 받았으나 백그라운드 태스크 생성 실패로 인해 무한 대기 상태(좀비 상태)에 빠지는 결함을 원천 차단.
 
+### 2.21 Multi-Host Reject-Until-Target 및 비동기 위임 계약 (rev16 신규)
+
+1. **Web Task의 B20/NimBLE 직접 제어 배제 (비동기 플래그 위임)**:
+   - Web API 핸들러(`/api/hosts/select`, `/api/hosts/cancel`)는 NimBLE 스택이나 B20 인스턴스를 직접 호출하지 않고 `_e10if->requestHostOp(op)`를 경유하여 원자적 단일 변수 `_reqHostOp` (Last-Write-Wins)에만 기록한다.
+   - `sensorTask` 루프 시작점에서 `_reqHostOp`를 안전하게 소비하고 `EN_C20_REQ_HOST_NONE`으로 클리어한 뒤 `_ble.selectHostIdx()` 또는 `_ble.cancelSelect()`를 동기 실행한다. (CONTRACT §3 신규 큐 미생성 원칙 준수)
+2. **순수 6바이트 MAC 동일성 검사 (V-4 False Negative 방지)**:
+   - GAP connect 콜백에서 Identity Address 비교 시 `NimBLEAddress::equals()`의 주소 타입 불일치 오류를 방지하기 위해 `isSameBleAddress()` (순수 6바이트 `memcmp`)를 단일 진실 판정 함수로 사용한다.
+3. **Reject 동작 규약 (Option A: Reject-Until-Target)**:
+   - `_advMode == EN_B20_ADV_TARGET` 상태에서 비대상 호스트 접속 시 `0x16 (Connection Terminated By Local Host)` 코드로 즉시 강제 연결 해제(Disconnect)한다.
+   - 목표 호스트(Target MAC) 접속 완료 시 `_advMode`를 즉시 `EN_B20_ADV_IDLE`로 전이하고 타겟 인덱스를 `0xFF`로 리셋한다.
+4. **Strict 타임아웃 Fallback 및 Sleep Gate**:
+   - 10초(`_advModeTimeoutMs = 10000`) 내에 목표 기기가 연결되지 않으면 임의 기기로 연결하지 않고 `cancelSelect()`를 호출하여 IDLE 모드로 중단(Option B - Strict / Stop)한다.
+   - `_advMode == EN_B20_ADV_TARGET`(`_ble.isSelecting()`) 구간 동안은 Sleep 진입을 유예(Sleep Gate)하여 전환 연결 시도 중 마우스가 잠드는 현상을 원천 방지한다.
+5. **C10 3-Tier Atomic Rotate 및 Boot Host Priority**:
+   - `hosts_0415.json` 저장은 `main ↔ old ↔ tmp` 3-tier 회전 및 파싱 검증 절차를 필히 거쳐 전원 차단 시에도 호스트 라벨/색상 무결성을 보장한다.
+   - 부팅 시 `boot_state_0415.json`의 `last_host_addr`가 유효할 경우 10초간 `EN_B20_ADV_TARGET` 모드로 우선 재연결을 시도한다 (Option A - Last Host Memory).
+
 ---
 
 ## 3. FreeRTOS 큐 계약
@@ -382,6 +403,11 @@ struct ST_E10_HidCmd_t {
 | **`_consecutiveI2cFail`** (E10) | `sensorTask` (pre-probe) | `sensorTask` | 독점 (No sync) | **rev12: I2C 전용 (10회 시 복구 후 0 리셋)** |
 | **`_bootMutex`** (C10) | `ctor` | – | Mutex | **rev12: `_boot` 보호** |
 | **`_dirsEnsured`** (C10) | `begin()` / `_atomicWriteJson` | `_atomicWriteJson` | 독점 (No sync) | **rev12: mkdir 캐시** |
+| **`_reqHostOp`** (E10) | `webTask` (`/api/hosts/select`, `cancel`) | `sensorTask` (루프 헤드) | `volatile EN_C20_ReqHostOp_t` | **rev16: Last-Write-Wins 위임 (신규 큐 미생성)** |
+| **`_advMode`** (B20) | `sensorTask` (`selectHostIdx`, `cancelSelect`, `tick`) | `sensorTask`, `webTask` (`getHostState`) | `volatile EN_B20_AdvMode_t` | **rev16: IDLE / CYCLE / TARGET 광고 FSM** |
+| **`_targetPeerIdx`** (B20) | `sensorTask` | `sensorTask`, `webTask` | `volatile uint8_t` | **rev16: 0~2 또는 0xFF(미지정)** |
+| **`_advModeStartMs` / `_advModeTimeoutMs`** (B20) | `sensorTask` | `sensorTask` (`tick`) | `volatile uint32_t` | **rev16: Strict 10초 타임아웃** |
+| **`last_host_addr[18]`** (C10 Boot) | `sensorTask` (BLE 연결 이벤트) | `sensorTask` (부팅 우선 연결), `webTask` | `_bootMutex` (`.cpp`) | **rev16: 부팅 시 마지막 기기 우선 연결** |
 | **`s_buffer[64]`** (D10) | `_pushToRing` (Phase 2) | (write-only) | Two-Phase Locking | **rev12: critical 외부 96B 복사** |
 | **`s_head`/`s_count`** (D10) | `_pushToRing` (Phase 1) | `_pushToRing` (Phase 1) | `portENTER_CRITICAL` | **rev12** |
 | **`s_overwriteCount`/`s_truncCount`** (D10) | `_pushToRing` | `getOverwriteCount`/`getTruncCount` | critical + `volatile` | **rev12** |
@@ -405,6 +431,20 @@ execLiveTest (webTask)
 CL_C20_ActionExec::exec()
   └─ EN_C20_ACT_SPECIAL case → 안전망으로 무시(drop)
 ```
+
+**[v0415 rev16 확장: Special 액션 11종 전체 일람]**
+1. `EN_C20_SP_CALIBRATE` (1): 자이로 캘리브레이션 동기 실행
+2. `EN_C20_SP_PAIRING` (2): BLE 페어링 모드 진입
+3. `EN_C20_SP_PROFILE_CYCLE` (3): 프로파일 순환 (1→2→3)
+4. `EN_C20_SP_POWER_OFF` (4): 즉시 절전 모드 진입 (`SLEEP_NOW`)
+5. `EN_C20_SP_HOST_CYCLE` (5): 등록된 호스트 순환 지정 전환 (`cycleActivePeer()`)
+6. `EN_C20_SP_HOST_SELECT_0` (6): 1번 호스트(인덱스 0) 직접 지정 전환 (`selectHostIdx(0)`)
+7. `EN_C20_SP_HOST_SELECT_1` (7): 2번 호스트(인덱스 1) 직접 지정 전환 (`selectHostIdx(1)`)
+8. `EN_C20_SP_HOST_SELECT_2` (8): 3번 호스트(인덱스 2) 직접 지정 전환 (`selectHostIdx(2)`)
+9. `EN_C20_SP_HOST_TOGGLE` (9): 최근 2대 호스트 간 빠른 토글
+10. `EN_C20_SP_HOST_CANCEL` (10): 호스트 전환 모드 즉시 취소 (`cancelSelect()`)
+
+모든 호스트 Special 액션(5~10)은 `sensorTask` 내부에서 동기 실행되며 `_ble.exitPairing()`을 선행 호출하여 페어링 모드와의 충돌을 원천 차단합니다.
 
 ### 5.1 SLEEP_NOW 계약 (v0415 Q4-a)
 

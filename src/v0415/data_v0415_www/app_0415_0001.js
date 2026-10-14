@@ -336,14 +336,18 @@ async function main() {
   const initMode = prof?.e10?.active_mode || 1;
   applyRemoteMode(initMode);
   
-  /* 8. 상태 폴링 */
+  /* 8. 상태 폴링 & 호스트 모듈 초기화 */
   _updateNetLabel();
   await refreshStatus();
+  if (typeof initHostModule === "function") initHostModule();
   
   /* 9. 2.5초 주기 폴링 */
   setInterval(async () => {
     try {
       await refreshStatus();
+      if (typeof hostFetchList === "function" && isTabOn("dash")) {
+        await hostFetchList();
+      }
       if (isTabOn("diag") && !isDiagTyping()) {
         await refreshDiag();
       }

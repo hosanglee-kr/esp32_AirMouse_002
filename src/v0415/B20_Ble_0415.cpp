@@ -9,14 +9,26 @@
 #include "D10_Logger_0415.h"
 
 // =======================================================
+// [v0415 Multi-Host] 6바이트 MAC 동일성 비교 헬퍼
+// =======================================================
+bool isSameBleAddress(const NimBLEAddress& a, const NimBLEAddress& b) {
+    return memcmp(a.getVal(), b.getVal(), 6) == 0;
+}
+
+// =======================================================
 // ctor / begin
 // =======================================================
-CL_B20_Ble::CL_B20_Ble() {}
+CL_B20_Ble::CL_B20_Ble() {
+    _advMode = EN_B20_ADV_IDLE;
+    _targetPeerIdx = 0xFF;
+}
 
 void CL_B20_Ble::begin() {
     _activePeerIndex = 0;
     _pairing         = false;
     _dirty           = false;
+    _advMode         = EN_B20_ADV_IDLE;
+    _targetPeerIdx   = 0xFF;
 
     // taskServer가 비동기로 NimBLEDevice::init()을 완료할 때까지 대기 (최대 500ms)
     const uint32_t v_t0 = (uint32_t)millis();
@@ -24,7 +36,12 @@ void CL_B20_Ble::begin() {
         delay(10);
     }
 
-    D10_LOGI("[B20] begin: bond_count=%u", (unsigned)getBondCount());
+    // [v0415 Multi-Host] RPA (호스트 기반 프라이버시) 활성화 (iOS/macOS RPA 호환)
+    NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RPA_RANDOM_DEFAULT);
+
+    _ensureGapHandler();
+
+    D10_LOGI("[B20] begin: bond_count=%u, rpa_enabled", (unsigned)getBondCount());
 }
 
 // =======================================================
@@ -101,9 +118,159 @@ void CL_B20_Ble::exitPairing() {
 }
 
 // =======================================================
+// [v0415 Multi-Host Phase 2] GAP Event Handler & Reject Engine
+// =======================================================
+void CL_B20_Ble::_ensureGapHandler() {
+    if (_gapHandlerRegistered) return;
+    if (NimBLEDevice::isInitialized()) {
+        if (NimBLEDevice::setCustomGapHandler(_gapEventHandler, this)) {
+            _gapHandlerRegistered = true;
+            D10_LOGI("[B20] custom GAP event handler registered");
+        }
+    }
+}
+
+int CL_B20_Ble::_gapEventHandler(struct ble_gap_event* p_event, void* p_arg) {
+    CL_B20_Ble* v_this = static_cast<CL_B20_Ble*>(p_arg);
+    if (v_this) {
+        return v_this->_onCustomGapEvent(p_event);
+    }
+    return 0;
+}
+
+int CL_B20_Ble::_onCustomGapEvent(struct ble_gap_event* p_event) {
+    if (!p_event) return 0;
+    if (p_event->type == BLE_GAP_EVENT_CONNECT) {
+        if (p_event->connect.status == 0) {
+            _handleGapConnect(p_event->connect.conn_handle);
+        }
+    }
+    return 0;
+}
+
+void CL_B20_Ble::_handleGapConnect(uint16_t p_connHandle) {
+    if (_advMode != EN_B20_ADV_TARGET) {
+        _advMode = EN_B20_ADV_IDLE;
+        return;
+    }
+
+    NimBLEServer* v_srv = NimBLEDevice::getServer();
+    if (!v_srv) return;
+
+    NimBLEConnInfo v_info = v_srv->getPeerInfoByHandle(p_connHandle);
+    NimBLEAddress v_connIdAddr = v_info.getIdAddress(); // Identity Address
+
+    const int v_bonds = (int)NimBLEDevice::getNumBonds();
+    if (_targetPeerIdx < v_bonds) {
+        NimBLEAddress v_targetAddr = NimBLEDevice::getBondedAddress(_targetPeerIdx);
+        if (!isSameBleAddress(v_connIdAddr, v_targetAddr)) {
+            // 비대상 기기: 즉시 0x16 (Connection Terminated By Local Host) 거절
+            D10_LOGW("[B20] Reject non-target peer (connHandle=%u, addr=%s)",
+                     (unsigned)p_connHandle, v_connIdAddr.toString().c_str());
+            v_srv->disconnect(p_connHandle, 0x16);
+            return;
+        }
+    }
+
+    // 목표 기기 접속 성공!
+    D10_LOGI("[B20] Target host connected! idx=%u, addr=%s",
+             (unsigned)_targetPeerIdx, v_connIdAddr.toString().c_str());
+    _advMode = EN_B20_ADV_IDLE;
+    _activePeerIndex = _targetPeerIdx;
+    _targetPeerIdx = 0xFF;
+    _dirty = true;
+}
+
+// =======================================================
+// [v0415 Multi-Host Phase 2] selectHostIdx & cycleActivePeer
+// =======================================================
+bool CL_B20_Ble::selectHostIdx(uint8_t p_idx, uint32_t p_timeoutMs) {
+    const int v_bonds = (int)getBondCount();
+    if (v_bonds <= 0 || p_idx >= v_bonds) {
+        D10_LOGW("[B20] selectHostIdx failed: invalid idx=%u (bonds=%d)", (unsigned)p_idx, v_bonds);
+        return false;
+    }
+
+    _ensureGapHandler();
+
+    NimBLEServer* v_srv = NimBLEDevice::getServer();
+    // 이미 대상 기기에 연결되어 있으면 no-op
+    if (v_srv && v_srv->getConnectedCount() > 0) {
+        std::vector<uint16_t> v_peers = v_srv->getPeerDevices();
+        if (!v_peers.empty()) {
+            NimBLEAddress v_currAddr = v_srv->getPeerInfo(v_peers[0]).getIdAddress();
+            NimBLEAddress v_targetAddr = NimBLEDevice::getBondedAddress(p_idx);
+            if (isSameBleAddress(v_currAddr, v_targetAddr)) {
+                D10_LOGI("[B20] already connected to target host idx=%u", (unsigned)p_idx);
+                _activePeerIndex = p_idx;
+                _targetPeerIdx   = 0xFF;
+                _advMode         = EN_B20_ADV_IDLE;
+                return true;
+            }
+        }
+    }
+
+    // 1) 기존 연결 모두 강제 해제 (0x16)
+    if (v_srv && v_srv->getConnectedCount() > 0) {
+        std::vector<uint16_t> v_peers = v_srv->getPeerDevices();
+        for (uint16_t v_h : v_peers) {
+            v_srv->disconnect(v_h, 0x16);
+        }
+        delay(B20_BLE::DISCONN_SETTLE_MS);
+    }
+
+    // 2) Target 모드 설정 및 재광고
+    _targetPeerIdx    = p_idx;
+    _advModeStartMs   = (uint32_t)millis();
+    _advModeTimeoutMs = p_timeoutMs > 0 ? p_timeoutMs : 10000;
+    _advMode          = EN_B20_ADV_TARGET;
+    _whitelistActive  = false;
+
+    const bool v_ok = _restartAdvertising();
+    D10_LOGI("[B20] selectHostIdx(%u): started (timeout=%ums)", (unsigned)p_idx, (unsigned)_advModeTimeoutMs);
+    return v_ok;
+}
+
+bool CL_B20_Ble::selectHostAddr(const char* p_addr, uint32_t p_timeoutMs) {
+    if (!p_addr || strlen(p_addr) < 17) return false;
+    const int v_bonds = (int)getBondCount();
+    for (int i = 0; i < v_bonds; i++) {
+        NimBLEAddress v_b = NimBLEDevice::getBondedAddress(i);
+        if (strcasecmp(v_b.toString().c_str(), p_addr) == 0) {
+            return selectHostIdx((uint8_t)i, p_timeoutMs);
+        }
+    }
+    D10_LOGW("[B20] selectHostAddr: not in bond list '%s'", p_addr);
+    return false;
+}
+
+void CL_B20_Ble::cancelSelect() {
+    if (_advMode != EN_B20_ADV_TARGET) return;
+    _advMode       = EN_B20_ADV_IDLE;
+    _targetPeerIdx = 0xFF;
+    D10_LOGI("[B20] host select cancelled -> IDLE");
+}
+
+uint8_t CL_B20_Ble::cycleActivePeer() {
+    const uint8_t v_bonds = getBondCount();
+    if (v_bonds > 0) {
+        _activePeerIndex = (_activePeerIndex + 1) % v_bonds;
+    } else {
+        _activePeerIndex = 0;
+    }
+    _dirty = true;
+    D10_LOGI("[B20] cycleActivePeer: next idx=%u", (unsigned)_activePeerIndex);
+    // [의사결정 2] 순환 시 다음 타깃으로 즉시 강제 전환 시작!
+    (void)selectHostIdx(_activePeerIndex, 10000);
+    return _activePeerIndex;
+}
+
+// =======================================================
 // Tick (sensorTask)
 // =======================================================
 void CL_B20_Ble::tick(bool p_connected) {
+    _ensureGapHandler();
+
     // ---- pairing mode ----
     if (_pairing) {
         if (p_connected) {
@@ -115,21 +282,33 @@ void CL_B20_Ble::tick(bool p_connected) {
         }
     }
 
-    // ---- [Phase 9] whitelist 타임아웃 ----
+    // ---- [v0415 Multi-Host] Target 모드 타임아웃 검사 ----
+    if (_advMode == EN_B20_ADV_TARGET) {
+        if (p_connected && _targetPeerIdx == 0xFF) {
+            _advMode = EN_B20_ADV_IDLE;
+            return;
+        }
+        if ((uint32_t)millis() - _advModeStartMs >= _advModeTimeoutMs) {
+            // [의사결정 1: Strict] 타임아웃 시 연결 시도 즉시 중단 (대기 IDLE 복귀)
+            D10_LOGW("[B20] selectHost timeout (%ums) -> Strict Stop (IDLE)", (unsigned)_advModeTimeoutMs);
+            cancelSelect();
+        }
+    }
+
+    // ---- [Phase 9] legacy whitelist 타임아웃 ----
     if (_whitelistActive) {
-        // 연결 성공 시 즉시 해제
         if (p_connected) {
             D10_LOGI("[B20] whitelist: connected, clearing");
             clearWhitelist();
             return;
         }
-        // 타임아웃
         if ((int32_t)((uint32_t)millis() - _whitelistUntilMs) >= 0) {
             D10_LOGW("[B20] whitelist: timeout, clearing");
             clearWhitelist();
         }
     }
 }
+
 
 // =======================================================
 // [Phase 9] advertising 재시작 (disconnect-only 방식)

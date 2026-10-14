@@ -567,7 +567,23 @@ const I18N_DICT = {
 
     /* ============ [v0415 Wave H] 접근성 ============ */
     "a11y.loading": "처리 중",
-    "a11y.close": "닫기"
+    "a11y.close": "닫기",
+
+    /* ============ [v0415 Multi-Host] 호스트 기기 관리 ============ */
+    "host.card_title": "호스트 기기 전환",
+    "host.card_desc": "원하는 기기를 선택하면 해당 기기로 즉시 전환합니다.",
+    "host.no_hosts": "등록된 페어링 기기가 없습니다. Side C 2초 길게 눌러 페어링하세요.",
+    "host.btn_select": "전환",
+    "host.btn_cancel": "전환 취소",
+    "host.badge_active": "현재 연결",
+    "host.badge_target": "전환 시도 중...",
+    "host.edit_label": "이름 변경",
+    "host.save": "저장",
+    "host.color": "색상",
+    "host.toast_select": "호스트 전환을 요청했습니다.",
+    "host.toast_cancel": "호스트 전환을 취소했습니다.",
+    "host.toast_saved": "호스트 정보를 저장했습니다.",
+    "host.addr_title": "MAC 주소"
   },
 
   en: {
@@ -1117,7 +1133,23 @@ const I18N_DICT = {
 
     /* ============ [v0415 Wave H] Accessibility ============ */
     "a11y.loading": "Processing",
-    "a11y.close": "Close"
+    "a11y.close": "Close",
+
+    /* ============ [v0415 Multi-Host] Host Device Management ============ */
+    "host.card_title": "Host Device Switch",
+    "host.card_desc": "Select a target device to switch connection immediately.",
+    "host.no_hosts": "No bonded devices. Hold Side C for 2s to enter pairing mode.",
+    "host.btn_select": "Switch",
+    "host.btn_cancel": "Cancel",
+    "host.badge_active": "Connected",
+    "host.badge_target": "Switching...",
+    "host.edit_label": "Rename",
+    "host.save": "Save",
+    "host.color": "Color",
+    "host.toast_select": "Host switch requested.",
+    "host.toast_cancel": "Host switch cancelled.",
+    "host.toast_saved": "Host info saved.",
+    "host.addr_title": "MAC Address"
   }
 };
 

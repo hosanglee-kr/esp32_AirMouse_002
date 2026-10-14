@@ -210,6 +210,9 @@ class CL_E10_EliteAirMouse {
     volatile bool _reqResetBtnDisp = false;
     volatile bool _reqResetGesture = false;
 
+    // [v0415 Multi-Host] Web API -> sensorTask 비동기 요청 위임 (신규 큐 미생성)
+    volatile EN_C20_ReqHostOp_t _reqHostOp = EN_C20_REQ_HOST_NONE;
+
     float    _tempC   = 0.0f;
     uint32_t _uptime0 = 0;
     float    _dtAvgMs = 8.0f;
@@ -388,6 +391,17 @@ class CL_E10_EliteAirMouse {
     // -------- control --------
     bool setDpiLevel(uint8_t p_level);
     bool setPrecisionMode(uint8_t p_mode);
+
+    // -------- [v0415 Multi-Host] Web API 호스트 전환 요청 위임 --------
+    void requestHostOp(EN_C20_ReqHostOp_t p_op) {
+        _reqHostOp = p_op;
+    }
+    bool getHostState(uint8_t* p_outBondCount,
+                      uint8_t* p_outActiveIdx,
+                      uint8_t* p_outTargetIdx,
+                      bool* p_outSelecting,
+                      char* p_outActivePeerName,
+                      size_t p_nameBufSize);
     // [v0415 Wave F] 직접 모드 지정 (사이클 오류 원천 차단)
     bool setActiveMode(uint8_t p_mode);
 

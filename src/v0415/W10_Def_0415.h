@@ -198,6 +198,16 @@ struct ST_W10_E10If_t {
                          uint8_t p_kind, uint8_t p_hMode,
                          uint16_t p_p16, uint32_t p_p32);
 
+    // Multi-Host
+    bool (*requestHostOp)(void* ctx, uint8_t op);
+    bool (*getHostState)(void* ctx,
+                         uint8_t* outBondCount,
+                         uint8_t* outActiveIdx,
+                         uint8_t* outTargetIdx,
+                         bool* outSelecting,
+                         char* outActivePeerName,
+                         size_t nameBufSize);
+
     // [v0415 삭제] bool (*setPptMode)(void* ctx, bool en);
 };
 

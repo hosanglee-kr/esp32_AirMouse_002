@@ -263,17 +263,58 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             // [BB-2] 2초 시점에 진입한 Pairing 모드 해제
             _ble.exitPairing();
 
+            // [v0415 Multi-Host / 의사결정 2] 순환 지정 전환 실행
             const uint8_t v_idx = _ble.cycleActivePeer();
-            const bool v_reconn = _ble.reconnectToActivePeer(10000);
-
             _led.flash(EN_L10_COLOR_WHITE, 500);
 
-            D10_LOGI("[E10] SP_HOST_CYCLE → peer=%u bond=%u reconnect=%d",
+            D10_LOGI("[E10] SP_HOST_CYCLE → target=%u bond=%u",
                      (unsigned)v_idx,
-                     (unsigned)_ble.getBondCount(),
-                     (int)v_reconn);
+                     (unsigned)_ble.getBondCount());
             break;
         }
+
+        // [v0415 Multi-Host] 호스트 직접 지정 전환 액션 5종
+        case EN_C20_SP_HOST_SELECT_0: {
+            _ble.exitPairing();
+            _ble.selectHostIdx(0, 10000);
+            _led.flash(EN_L10_COLOR_WHITE, 300);
+            D10_LOGI("[E10] SP_HOST_SELECT_0");
+            break;
+        }
+
+        case EN_C20_SP_HOST_SELECT_1: {
+            _ble.exitPairing();
+            _ble.selectHostIdx(1, 10000);
+            _led.flash(EN_L10_COLOR_WHITE, 300);
+            D10_LOGI("[E10] SP_HOST_SELECT_1");
+            break;
+        }
+
+        case EN_C20_SP_HOST_SELECT_2: {
+            _ble.exitPairing();
+            _ble.selectHostIdx(2, 10000);
+            _led.flash(EN_L10_COLOR_WHITE, 300);
+            D10_LOGI("[E10] SP_HOST_SELECT_2");
+            break;
+        }
+
+        case EN_C20_SP_HOST_TOGGLE: {
+            _ble.exitPairing();
+            // 활성 호스트가 0번이면 1번, 아니면 0번으로 토글
+            uint8_t v_next = (_ble.getActivePeerIndex() == 0) ? 1 : 0;
+            _ble.selectHostIdx(v_next, 10000);
+            _led.flash(EN_L10_COLOR_WHITE, 300);
+            D10_LOGI("[E10] SP_HOST_TOGGLE -> target=%u", (unsigned)v_next);
+            break;
+        }
+
+        case EN_C20_SP_HOST_CANCEL: {
+            _ble.cancelSelect();
+            _led.flash(EN_L10_COLOR_RED, 300);
+            D10_LOGI("[E10] SP_HOST_CANCEL");
+            break;
+        }
+
 
         default:
             break;
