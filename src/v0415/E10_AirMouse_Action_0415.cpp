@@ -276,7 +276,7 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
         // [v0415 Multi-Host] 호스트 직접 지정 전환 액션 5종
         case EN_C20_SP_HOST_SELECT_0: {
             _ble.exitPairing();
-            _ble.selectHostIdx(0, 10000);
+            _ble.selectHostIdx(0, B20_HOST::CONN_TIMEOUT_MS);
             _led.flash(EN_L10_COLOR_WHITE, 300);
             D10_LOGI("[E10] SP_HOST_SELECT_0");
             break;
@@ -284,7 +284,7 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
 
         case EN_C20_SP_HOST_SELECT_1: {
             _ble.exitPairing();
-            _ble.selectHostIdx(1, 10000);
+            _ble.selectHostIdx(1, B20_HOST::CONN_TIMEOUT_MS);
             _led.flash(EN_L10_COLOR_WHITE, 300);
             D10_LOGI("[E10] SP_HOST_SELECT_1");
             break;
@@ -292,7 +292,7 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
 
         case EN_C20_SP_HOST_SELECT_2: {
             _ble.exitPairing();
-            _ble.selectHostIdx(2, 10000);
+            _ble.selectHostIdx(2, B20_HOST::CONN_TIMEOUT_MS);
             _led.flash(EN_L10_COLOR_WHITE, 300);
             D10_LOGI("[E10] SP_HOST_SELECT_2");
             break;
@@ -302,7 +302,7 @@ void CL_E10_EliteAirMouse::_handleSpecial(uint8_t p_special) {
             _ble.exitPairing();
             // 활성 호스트가 0번이면 1번, 아니면 0번으로 토글
             uint8_t v_next = (_ble.getActivePeerIndex() == 0) ? 1 : 0;
-            _ble.selectHostIdx(v_next, 10000);
+            _ble.selectHostIdx(v_next, B20_HOST::CONN_TIMEOUT_MS);
             _led.flash(EN_L10_COLOR_WHITE, 300);
             D10_LOGI("[E10] SP_HOST_TOGGLE -> target=%u", (unsigned)v_next);
             break;

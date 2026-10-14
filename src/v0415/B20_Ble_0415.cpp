@@ -20,7 +20,7 @@ bool isSameBleAddress(const NimBLEAddress& a, const NimBLEAddress& b) {
 // =======================================================
 CL_B20_Ble::CL_B20_Ble() {
     _advMode = EN_B20_ADV_IDLE;
-    _targetPeerIdx = 0xFF;
+    _targetPeerIdx = B20_HOST::TARGET_IDX_NONE;
 }
 
 void CL_B20_Ble::begin() {
@@ -28,7 +28,7 @@ void CL_B20_Ble::begin() {
     _pairing         = false;
     _dirty           = false;
     _advMode         = EN_B20_ADV_IDLE;
-    _targetPeerIdx   = 0xFF;
+    _targetPeerIdx   = B20_HOST::TARGET_IDX_NONE;
 
     // taskServer가 비동기로 NimBLEDevice::init()을 완료할 때까지 대기 (최대 500ms)
     const uint32_t v_t0 = (uint32_t)millis();
@@ -177,7 +177,7 @@ void CL_B20_Ble::_handleGapConnect(uint16_t p_connHandle) {
              (unsigned)_targetPeerIdx, v_connIdAddr.toString().c_str());
     _advMode = EN_B20_ADV_IDLE;
     _activePeerIndex = _targetPeerIdx;
-    _targetPeerIdx = 0xFF;
+    _targetPeerIdx = B20_HOST::TARGET_IDX_NONE;
     _dirty = true;
 }
 
@@ -200,15 +200,17 @@ bool CL_B20_Ble::selectHostIdx(uint8_t p_idx, uint32_t p_timeoutMs) {
         if (!v_peers.empty()) {
             NimBLEAddress v_currAddr = v_srv->getPeerInfo(v_peers[0]).getIdAddress();
             NimBLEAddress v_targetAddr = NimBLEDevice::getBondedAddress(p_idx);
+    
             if (isSameBleAddress(v_currAddr, v_targetAddr)) {
                 D10_LOGI("[B20] already connected to target host idx=%u", (unsigned)p_idx);
                 _activePeerIndex = p_idx;
-                _targetPeerIdx   = 0xFF;
+                _targetPeerIdx   = B20_HOST::TARGET_IDX_NONE;
                 _advMode         = EN_B20_ADV_IDLE;
                 return true;
             }
         }
     }
+
 
     // 1) 기존 연결 모두 강제 해제 (0x16)
     if (v_srv && v_srv->getConnectedCount() > 0) {
@@ -222,7 +224,7 @@ bool CL_B20_Ble::selectHostIdx(uint8_t p_idx, uint32_t p_timeoutMs) {
     // 2) Target 모드 설정 및 재광고
     _targetPeerIdx    = p_idx;
     _advModeStartMs   = (uint32_t)millis();
-    _advModeTimeoutMs = p_timeoutMs > 0 ? p_timeoutMs : 10000;
+    _advModeTimeoutMs = (p_timeoutMs > 0) ? p_timeoutMs : B20_HOST::CONN_TIMEOUT_MS;
     _advMode          = EN_B20_ADV_TARGET;
     _whitelistActive  = false;
 
@@ -247,7 +249,7 @@ bool CL_B20_Ble::selectHostAddr(const char* p_addr, uint32_t p_timeoutMs) {
 void CL_B20_Ble::cancelSelect() {
     if (_advMode != EN_B20_ADV_TARGET) return;
     _advMode       = EN_B20_ADV_IDLE;
-    _targetPeerIdx = 0xFF;
+    _targetPeerIdx = B20_HOST::TARGET_IDX_NONE;
     D10_LOGI("[B20] host select cancelled -> IDLE");
 }
 
@@ -258,10 +260,11 @@ uint8_t CL_B20_Ble::cycleActivePeer() {
     } else {
         _activePeerIndex = 0;
     }
+    
     _dirty = true;
     D10_LOGI("[B20] cycleActivePeer: next idx=%u", (unsigned)_activePeerIndex);
     // [의사결정 2] 순환 시 다음 타깃으로 즉시 강제 전환 시작!
-    (void)selectHostIdx(_activePeerIndex, 10000);
+    (void)selectHostIdx(_activePeerIndex, B20_HOST::CONN_TIMEOUT_MS);
     return _activePeerIndex;
 }
 
@@ -284,10 +287,11 @@ void CL_B20_Ble::tick(bool p_connected) {
 
     // ---- [v0415 Multi-Host] Target 모드 타임아웃 검사 ----
     if (_advMode == EN_B20_ADV_TARGET) {
-        if (p_connected && _targetPeerIdx == 0xFF) {
+        if (p_connected && _targetPeerIdx == B20_HOST::TARGET_IDX_NONE) {
             _advMode = EN_B20_ADV_IDLE;
             return;
         }
+    
         if ((uint32_t)millis() - _advModeStartMs >= _advModeTimeoutMs) {
             // [의사결정 1: Strict] 타임아웃 시 연결 시도 즉시 중단 (대기 IDLE 복귀)
             D10_LOGW("[B20] selectHost timeout (%ums) -> Strict Stop (IDLE)", (unsigned)_advModeTimeoutMs);

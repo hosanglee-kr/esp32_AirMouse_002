@@ -72,10 +72,14 @@ EXCLUDE_NAMES = {
     "index_0415_standalone.html", "index_0415_standalone2.html", "index_0415_standalone3.html"
 }
 
-# -------------------------------------------------------
+
+# =======================================================
 # [JS 번들링 설정]
-# ESP32 LWIP TCP 소켓 고갈(8개 한계) 방지를 위해 9개 JS 모듈을 단일 번들로 결합
-# -------------------------------------------------------
+# ESP32 LWIP TCP 소켓 고갈(8개 한계) 방지를 위해
+# 10개 JS 모듈(9 lib + 1 app)을 단일 번들로 결합
+#   - v0415 rev16: am_host_0415.js 편입 (Multi-Host UI)
+#   - 로드 순서 SSOT: SPEC §프로젝트 구조 (rev16)
+# =======================================================
 BUNDLE_JS_ORDER = [
     "lib/am_base_0415.js",
     "lib/am_i18n_0415.js",
@@ -85,8 +89,10 @@ BUNDLE_JS_ORDER = [
     "lib/am_config_0415.js",
     "lib/am_status_0415.js",
     "lib/am_remote_0415.js",
+    "lib/am_host_0415.js",        # ★ rev16 필수
     "app_0415_0001.js",
 ]
+
 BUNDLE_OUTPUT_NAME = "app_bundle_0415.js"
 BUNDLE_SET = {p.replace("\\", "/") for p in BUNDLE_JS_ORDER}
 
@@ -201,19 +207,23 @@ def copy_file(src_path, dst_path):
 # [JS 번들링 및 HTML 번들 태그 치환]
 # =======================================================
 def create_js_bundle(src_dir, dst_dir):
-    """SRC_WWW_DIR의 9개 모듈 JS를 순서대로 결합하여 단일 app_bundle_0415.js.gz 생성."""
     bundle_chunks = []
     total_raw_bytes = 0
+    missing = []
 
     for rel_path in BUNDLE_JS_ORDER:
         src_path = os.path.join(src_dir, rel_path.replace("/", os.sep))
         if not os.path.isfile(src_path):
-            print(f"[BUNDLE] WARN: missing bundle component {rel_path}")
+            missing.append(rel_path)
             continue
         with open(src_path, "r", encoding="utf-8") as f:
             content = f.read()
         total_raw_bytes += len(content.encode("utf-8"))
         bundle_chunks.append(f"/* === {os.path.basename(src_path)} === */\n" + content + "\n;")
+
+    # ★ 누락 시 빌드 중단 (조용한 기능 사망 방지)
+    if missing:
+        raise SystemExit(f"[BUNDLE][FATAL] missing components: {missing}")
 
     bundle_content = "\n".join(bundle_chunks)
     dst_gz_path = os.path.join(dst_dir, BUNDLE_OUTPUT_NAME + ".gz")
@@ -229,9 +239,8 @@ def create_js_bundle(src_dir, dst_dir):
 
 
 def process_and_gzip_html(src_path, dst_gz_path):
-    """HTML 파일의 9개 개별 script 태그를 단일 app_bundle_0415.js 태그로 치환 후 gzip."""
-    with open(src_path, "r", encoding="utf-8") as f:
-        html = f.read()
+    """HTML 파일의 10개 개별 script 태그를 단일 app_bundle_0415.js 태그로 치환 후 gzip."""    with open(src_path, "r", encoding="utf-8") as f:
+    html = f.read()
 
     # 9개 개별 script 태그 패턴 검색 및 치환
     script_pattern = re.compile(
@@ -304,7 +313,7 @@ def sync_www():
             # 3) 기타 파일은 무시 (원치 않는 파일 유입 방지)
             # print(f"  [SKIP] {rel}")
 
-    # C) 9개 JS 모듈 결합 단일 번들 생성
+    # C) 10개 JS 모듈(9 lib + 1 app) 결합 단일 번들 생성
     create_js_bundle(SRC_WWW_DIR, DST_WWW_DIR)
 
 

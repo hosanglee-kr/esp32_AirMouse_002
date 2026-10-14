@@ -31,7 +31,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         char v_lastAddr[18];
         if (v_m->_cfg->getLastHostAddr(v_lastAddr, sizeof(v_lastAddr))) {
             D10_LOGI("[E10] Boot priority reconnect to last host: %s", v_lastAddr);
-            v_m->_ble.selectHostAddr(v_lastAddr, 10000);
+            v_m->_ble.selectHostAddr(v_lastAddr, B20_HOST::CONN_TIMEOUT_MS);
         }
     }
 
@@ -43,9 +43,9 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             EN_C20_ReqHostOp_t v_op = v_m->_reqHostOp;
             v_m->_reqHostOp = EN_C20_REQ_HOST_NONE;
             switch (v_op) {
-                case EN_C20_REQ_HOST_SEL_0:  v_m->_ble.selectHostIdx(0, 10000); break;
-                case EN_C20_REQ_HOST_SEL_1:  v_m->_ble.selectHostIdx(1, 10000); break;
-                case EN_C20_REQ_HOST_SEL_2:  v_m->_ble.selectHostIdx(2, 10000); break;
+                case EN_C20_REQ_HOST_SEL_0:  v_m->_ble.selectHostIdx(0, B20_HOST::CONN_TIMEOUT_MS); break;
+                case EN_C20_REQ_HOST_SEL_1:  v_m->_ble.selectHostIdx(1, B20_HOST::CONN_TIMEOUT_MS); break;
+                case EN_C20_REQ_HOST_SEL_2:  v_m->_ble.selectHostIdx(2, B20_HOST::CONN_TIMEOUT_MS); break;
                 case EN_C20_REQ_HOST_TOGGLE: v_m->_handleSpecial(EN_C20_SP_HOST_TOGGLE); break;
                 case EN_C20_REQ_HOST_CANCEL: v_m->_ble.cancelSelect(); break;
                 default: break;

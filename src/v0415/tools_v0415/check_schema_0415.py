@@ -220,6 +220,133 @@ def _strip_comments_multi(text):
     text = re.sub(r'//[^\n]*', '', text)
     return text
 
+# ======================================================
+# [Wave E] JS 번들 완전성 검증 (재발 방지)
+# ------------------------------------------------------
+#  - pio_gzip_0415.py::BUNDLE_JS_ORDER
+#  - index_0415.html <script src> 순서
+#  - data_v0415_www/lib/*.js 실제 파일
+#  3자 1:1 대응 검증 → 번들 누락/유령 참조 조기 검출
+# ======================================================
+def check_bundle_completeness(root):
+    print(f"\n--- Bundle Completeness (Wave E) ---")
+
+    # 1) index_0415.html의 <script src> 순서 추출
+    html_path = root / "data_v0415_www" / "index_0415.html"
+    if not html_path.exists():
+        print(f"  [WARN] index_0415.html not found: {html_path}")
+        return True
+    html = html_path.read_text(encoding="utf-8")
+    script_re = re.compile(
+        r'<script\s+src="\./((?:lib/am_[^"]+\.js)|(?:app_[^"]+\.js))"\s*>\s*</script>'
+    )
+    html_order = script_re.findall(html)
+
+    # 2) pio_gzip_0415.py의 BUNDLE_JS_ORDER 추출
+    pio_path = root / "tools_v0415" / "pio_gzip_0415.py"
+    if not pio_path.exists():
+        print(f"  [WARN] pio_gzip_0415.py not found: {pio_path}")
+        return True
+    pio_src = pio_path.read_text(encoding="utf-8")
+    m = re.search(r'BUNDLE_JS_ORDER\s*=\s*\[(.*?)\]', pio_src, re.DOTALL)
+    if not m:
+        print(f"  [FAIL] BUNDLE_JS_ORDER 파싱 실패")
+        return False
+    bundle_order = re.findall(r'"([^"]+)"', m.group(1))
+
+    # 3) 실제 lib/*.js 파일 존재 검증
+    lib_dir = root / "data_v0415_www" / "lib"
+    lib_files = sorted(p.name for p in lib_dir.glob("am_*.js")) if lib_dir.exists() else []
+
+    ok = True
+
+    # (a) HTML ↔ BUNDLE_JS_ORDER 순서/집합 비교
+    if html_order != bundle_order:
+        print(f"  [FAIL] HTML script 순서 ≠ BUNDLE_JS_ORDER")
+        only_html   = [x for x in html_order   if x not in bundle_order]
+        only_bundle = [x for x in bundle_order if x not in html_order]
+        if only_html:
+            print(f"    HTML에만: {only_html}")
+        if only_bundle:
+            print(f"    BUNDLE에만: {only_bundle}")
+        if html_order == sorted(html_order) and bundle_order == sorted(bundle_order):
+            print(f"    (집합은 동일, 순서만 다름)")
+        ok = False
+    else:
+        print(f"  [OK] HTML ↔ BUNDLE_JS_ORDER 순서 일치 ({len(bundle_order)}개)")
+
+    # (b) BUNDLE_JS_ORDER의 lib/*.js가 실제 파일로 존재
+    for rel in bundle_order:
+        if not rel.startswith("lib/"):
+            continue
+        fpath = root / "data_v0415_www" / rel
+        if not fpath.exists():
+            print(f"  [FAIL] 번들 대상 파일 없음: {rel}")
+            ok = False
+
+    # (c) lib/*.js 파일이 모두 번들에 포함되어 있는지 (누락 검출)
+    bundled_libs = {r for r in bundle_order if r.startswith("lib/")}
+    actual_libs = {f"lib/{n}" for n in lib_files}
+    missing = actual_libs - bundled_libs
+    if missing:
+        print(f"  [FAIL] 번들에서 누락된 lib 파일:")
+        for m_ in sorted(missing):
+            print(f"    - {m_}")
+        ok = False
+
+    return ok
+
+# ======================================================
+# [v0415 rev17] B20_HOST 상수 3자 정합 검증
+# ------------------------------------------------------
+#  - C10_Def_0415.h  : HOSTS_MAX
+#  - B20_Ble_0415.h  : BOND_MAX / CONN_TIMEOUT_MS / TARGET_IDX_NONE
+#  - SPEC_0415.md    : 부록 상수 표
+# ======================================================
+def check_b20_host_constants(root):
+    print(f"\n--- B20_HOST Constants (rev17) ---")
+    ok = True
+
+    # C10 HOSTS_MAX
+    c10_path = root / "C10_Def_0415.h"
+    if c10_path.exists():
+        c10_src = c10_path.read_text(encoding="utf-8")
+        m = re.search(r'HOSTS_MAX\s*=\s*(\d+)', c10_src)
+        c10_hosts_max = int(m.group(1)) if m else None
+    else:
+        c10_hosts_max = None
+
+    # B20 상수
+    b20_path = root / "B20_Ble_0415.h"
+    if not b20_path.exists():
+        print(f"  [WARN] B20_Ble_0415.h not found")
+        return True
+    b20_src = b20_path.read_text(encoding="utf-8")
+
+    m_bond  = re.search(r'BOND_MAX\s*=\s*(\d+)', b20_src)
+    m_to    = re.search(r'CONN_TIMEOUT_MS\s*=\s*(\d+)', b20_src)
+    m_sent  = re.search(r'TARGET_IDX_NONE\s*=\s*(0x[0-9A-Fa-f]+|\d+)', b20_src)
+
+    b20_bond = int(m_bond.group(1)) if m_bond else None
+    b20_to   = int(m_to.group(1))   if m_to   else None
+    b20_sent = int(m_sent.group(1), 0) if m_sent else None
+
+    print(f"  C10_DEF::HOSTS_MAX      = {c10_hosts_max}")
+    print(f"  B20_HOST::BOND_MAX      = {b20_bond}")
+    print(f"  B20_HOST::CONN_TIMEOUT_MS = {b20_to}")
+    print(f"  B20_HOST::TARGET_IDX_NONE = {hex(b20_sent) if b20_sent is not None else None}")
+
+    if c10_hosts_max is not None and b20_bond is not None and c10_hosts_max != b20_bond:
+        print(f"  [FAIL] HOSTS_MAX({c10_hosts_max}) != BOND_MAX({b20_bond})")
+        ok = False
+    if b20_sent is not None and b20_sent != 0xFF:
+        print(f"  [FAIL] TARGET_IDX_NONE != 0xFF")
+        ok = False
+
+    if ok:
+        print(f"  [OK] B20_HOST constants consistent")
+    return ok
+
 def main():
     ok = True
 
@@ -302,6 +429,13 @@ def main():
             ok = False
     else:
         print(f"\n[WARN] index_0415.html not found: {HTML_INDEX}")
+    
+    # ---- [Wave E] 번들 완전성 ----
+    if not check_bundle_completeness(ROOT):
+        ok = False
+    
+    if not check_b20_host_constants(ROOT):
+        ok = False
     
     if ok:
         print("\n[OK] schema field names match (H ↔ JS ↔ Offline) + Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids")

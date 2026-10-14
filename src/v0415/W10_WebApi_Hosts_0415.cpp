@@ -118,8 +118,9 @@ void CL_W10_WebConfig::apiHostsSelect(AsyncWebServerRequest* req, uint8_t* data,
     }
 
     uint8_t v_idx = v_doc["idx"].as<uint8_t>();
-    if (v_idx > 2) {
-        _sendErr(req, "out_of_range", "Host index must be 0, 1, or 2");
+
+    if (v_idx >= C10_DEF::HOSTS_MAX) {
+        _sendErr(req, "out_of_range", "Host index out of range");
         return;
     }
 

@@ -40,6 +40,18 @@ namespace B20_BLE {
     static constexpr uint32_t DISCONN_SETTLE_MS    = 80;
 }
 
+// ======================================================
+// [v0415 rev17] Multi-Host 상수 SSOT
+// ------------------------------------------------------
+//  - SPEC_0415.md §부록 및 CONTRACT §2.21과 1:1 정합
+//  - 하드코딩 리터럴(10000, 0xFF, 3)을 명명 상수로 통합
+//  - 상위 C10_DEF::HOSTS_MAX(=3)와 반드시 동일 값 유지
+// ======================================================
+namespace B20_HOST {
+    static constexpr uint32_t CONN_TIMEOUT_MS  = 10000;  // 타겟 호스트 연결 대기 (Strict, Option B)
+    static constexpr uint8_t  BOND_MAX         = 3;      // 본딩 최대 개수 (C10_DEF::HOSTS_MAX 정합)
+    static constexpr uint8_t  TARGET_IDX_NONE  = 0xFF;   // 타겟 미지정 센티넬
+}
 
 // [v0415 Multi-Host] 광고 상태 머신 enum
 enum EN_B20_AdvMode_t : uint8_t {
@@ -57,7 +69,8 @@ bool isSameBleAddress(const NimBLEAddress& a, const NimBLEAddress& b);
 
 class CL_B20_Ble {
   public:
-    static constexpr uint8_t MAX_PEERS = 3;
+    // [v0415 rev17] B20_HOST::BOND_MAX와 alias (기존 심볼 호환)
+    static constexpr uint8_t MAX_PEERS = B20_HOST::BOND_MAX;
 
     CL_B20_Ble();
 
@@ -86,10 +99,13 @@ class CL_B20_Ble {
     // ====================================================
     // [v0415 Multi-Host Phase 2] Reject-Until-Target 지정 전환
     // ====================================================
-    bool selectHostIdx(uint8_t p_idx, uint32_t p_timeoutMs = 10000);
-    bool selectHostAddr(const char* p_addr, uint32_t p_timeoutMs = 10000);
+    bool selectHostIdx(uint8_t p_idx,
+                       uint32_t p_timeoutMs = B20_HOST::CONN_TIMEOUT_MS);
+    bool selectHostAddr(const char* p_addr,
+                        uint32_t p_timeoutMs = B20_HOST::CONN_TIMEOUT_MS);
     void cancelSelect();
     bool isSelecting() const { return _advMode == EN_B20_ADV_TARGET; }
+
     EN_B20_AdvMode_t getAdvMode() const { return _advMode; }
     uint8_t getTargetPeerIndex() const { return _targetPeerIdx; }
 
@@ -133,9 +149,9 @@ class CL_B20_Ble {
 
     // [v0415 Multi-Host] 광고 모드 및 타겟 인덱스 통합 관리
     volatile EN_B20_AdvMode_t _advMode          = EN_B20_ADV_IDLE;
-    volatile uint8_t          _targetPeerIdx    = 0xFF;
+    volatile uint8_t          _targetPeerIdx    = B20_HOST::TARGET_IDX_NONE;
     volatile uint32_t         _advModeStartMs   = 0;
-    volatile uint32_t         _advModeTimeoutMs = 10000;
+    volatile uint32_t         _advModeTimeoutMs = B20_HOST::CONN_TIMEOUT_MS;
 
     volatile bool     _whitelistActive  = false;
     volatile uint32_t _whitelistUntilMs = 0;

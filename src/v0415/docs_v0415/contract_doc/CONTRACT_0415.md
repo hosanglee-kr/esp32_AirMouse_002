@@ -318,10 +318,9 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
    - GAP connect 콜백에서 Identity Address 비교 시 `NimBLEAddress::equals()`의 주소 타입 불일치 오류를 방지하기 위해 `isSameBleAddress()` (순수 6바이트 `memcmp`)를 단일 진실 판정 함수로 사용한다.
 3. **Reject 동작 규약 (Option A: Reject-Until-Target)**:
    - `_advMode == EN_B20_ADV_TARGET` 상태에서 비대상 호스트 접속 시 `0x16 (Connection Terminated By Local Host)` 코드로 즉시 강제 연결 해제(Disconnect)한다.
-   - 목표 호스트(Target MAC) 접속 완료 시 `_advMode`를 즉시 `EN_B20_ADV_IDLE`로 전이하고 타겟 인덱스를 `0xFF`로 리셋한다.
+   - 목표 호스트(Target MAC) 접속 완료 시 `_advMode`를 즉시 `EN_B20_ADV_IDLE`로 전이하고 타겟 인덱스를 `B20_HOST::TARGET_IDX_NONE` (0xFF)로 리셋한다.
 4. **Strict 타임아웃 Fallback 및 Sleep Gate**:
-   - 10초(`_advModeTimeoutMs = 10000`) 내에 목표 기기가 연결되지 않으면 임의 기기로 연결하지 않고 `cancelSelect()`를 호출하여 IDLE 모드로 중단(Option B - Strict / Stop)한다.
-   - `_advMode == EN_B20_ADV_TARGET`(`_ble.isSelecting()`) 구간 동안은 Sleep 진입을 유예(Sleep Gate)하여 전환 연결 시도 중 마우스가 잠드는 현상을 원천 방지한다.
+   - `B20_HOST::CONN_TIMEOUT_MS` (기본 10초) 내에 목표 기기가 연결되지 않으면 임의 기기로 연결하지 않고 `cancelSelect()`를 호출하여 IDLE 모드로 중단(Option B - Strict / Stop)한다.
 5. **C10 3-Tier Atomic Rotate 및 Boot Host Priority**:
    - `hosts_0415.json` 저장은 `main ↔ old ↔ tmp` 3-tier 회전 및 파싱 검증 절차를 필히 거쳐 전원 차단 시에도 호스트 라벨/색상 무결성을 보장한다.
    - 부팅 시 `boot_state_0415.json`의 `last_host_addr`가 유효할 경우 10초간 `EN_B20_ADV_TARGET` 모드로 우선 재연결을 시도한다 (Option A - Last Host Memory).
@@ -432,17 +431,17 @@ CL_C20_ActionExec::exec()
   └─ EN_C20_ACT_SPECIAL case → 안전망으로 무시(drop)
 ```
 
-**[v0415 rev16 확장: Special 액션 11종 전체 일람]**
-1. `EN_C20_SP_CALIBRATE` (1): 자이로 캘리브레이션 동기 실행
-2. `EN_C20_SP_PAIRING` (2): BLE 페어링 모드 진입
-3. `EN_C20_SP_PROFILE_CYCLE` (3): 프로파일 순환 (1→2→3)
-4. `EN_C20_SP_POWER_OFF` (4): 즉시 절전 모드 진입 (`SLEEP_NOW`)
-5. `EN_C20_SP_HOST_CYCLE` (5): 등록된 호스트 순환 지정 전환 (`cycleActivePeer()`)
-6. `EN_C20_SP_HOST_SELECT_0` (6): 1번 호스트(인덱스 0) 직접 지정 전환 (`selectHostIdx(0)`)
-7. `EN_C20_SP_HOST_SELECT_1` (7): 2번 호스트(인덱스 1) 직접 지정 전환 (`selectHostIdx(1)`)
-8. `EN_C20_SP_HOST_SELECT_2` (8): 3번 호스트(인덱스 2) 직접 지정 전환 (`selectHostIdx(2)`)
-9. `EN_C20_SP_HOST_TOGGLE` (9): 최근 2대 호스트 간 빠른 토글
-10. `EN_C20_SP_HOST_CANCEL` (10): 호스트 전환 모드 즉시 취소 (`cancelSelect()`)
+**[v0415 rev17 확장: Special 액션 10종 전체 일람 (EN_C20_SP_NONE=0 제외)]**
+1. `EN_C20_SP_GYRO_RECALIB` (1): 자이로 캘리브레이션 위임 — `requestGyroCalibration()` (sensorTask 처리)
+2. `EN_C20_SP_SLEEP_NOW` (2): 즉시 절전 진입 — `_led.suspend()` → `_power.sleepNow(now, safeOrPair)` → `_led.resume()` → Fast Recalib (Q4-a)
+3. `EN_C20_SP_MODE_CYCLE` (3): 모드 순환 전환 — `_setActiveMode((_activeMode % 3) + 1)`
+4. `EN_C20_SP_PAIRING` (4): BLE 페어링 모드 진입 — `_ble.enterPairing(30000)` + LED blink
+5. `EN_C20_SP_HOST_CYCLE` (5): 호스트 순환 지정 전환 — `_ble.exitPairing()` + `_ble.cycleActivePeer()` (Reject-Until-Target)
+6. `EN_C20_SP_HOST_SELECT_0` (6): 호스트 슬롯 0 직행 전환 — `_ble.selectHostIdx(0, 10000)`
+7. `EN_C20_SP_HOST_SELECT_1` (7): 호스트 슬롯 1 직행 전환 — `_ble.selectHostIdx(1, 10000)`
+8. `EN_C20_SP_HOST_SELECT_2` (8): 호스트 슬롯 2 직행 전환 — `_ble.selectHostIdx(2, 10000)`
+9. `EN_C20_SP_HOST_TOGGLE` (9): 최근 2대 호스트 간 빠른 토글 — `_ble.getActivePeerIndex()` 반전
+10. `EN_C20_SP_HOST_CANCEL` (10): 호스트 전환 즉시 취소 — `_ble.cancelSelect()`
 
 모든 호스트 Special 액션(5~10)은 `sensorTask` 내부에서 동기 실행되며 `_ble.exitPairing()`을 선행 호출하여 페어링 모드와의 충돌을 원천 차단합니다.
 
