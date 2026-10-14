@@ -38,13 +38,13 @@ uint8_t CL_B20_Ble::getBondCount() const {
 }
 
 // =======================================================
-// [v0415 Wave F] 연결된 peer 이름 조회
+// [v0415 Wave F] 연결된 peer 정보 조회
 // -------------------------------------------------------
-// NimBLE-Arduino 2.5.x API 사용:
-//   - getConnectedCount() > 0 확인
-//   - getPeerDevices() → 연결된 connId 벡터
-//   - getPeerInfo(connId) → NimBLEConnInfo
-//   - getName() (없으면 getAddress().toString())
+// NimBLE-Arduino 2.5.1 API 한계:
+//   - NimBLEConnInfo는 getName() 미제공 (client API 전용)
+//   - Server-side peer의 Device Name은 GATT read가 필요
+//   - 관측 API 단순성 유지를 위해 MAC 주소만 노출
+//   - getPeerInfo(connId).getAddress().toString() → "AA:BB:CC:DD:EE:FF"
 // =======================================================
 const char* CL_B20_Ble::getPeerName(char* p_buf, size_t p_bufSize) const {
     if (!p_buf || p_bufSize < 4) return nullptr;
@@ -60,14 +60,11 @@ const char* CL_B20_Ble::getPeerName(char* p_buf, size_t p_bufSize) const {
     std::vector<uint16_t> v_peers = v_srv->getPeerDevices();
     if (v_peers.empty()) return nullptr;
 
-    // 첫 연결 peer의 정보 조회
+    // NimBLE 2.5.1: NimBLEConnInfo는 getAddress() 제공
+    //   - getName()은 client API 전용이라 server-side peer 이름 접근 불가
+    //   - MAC 주소를 노출하여 연결 peer 식별
     NimBLEConnInfo v_info = v_srv->getPeerInfo(v_peers[0]);
-    std::string v_name = v_info.getName();
-    if (!v_name.empty()) {
-        snprintf(p_buf, p_bufSize, "%s", v_name.c_str());
-    } else {
-        snprintf(p_buf, p_bufSize, "%s", v_info.getAddress().toString().c_str());
-    }
+    snprintf(p_buf, p_bufSize, "%s", v_info.getAddress().toString().c_str());
     return p_buf;
 }
 
