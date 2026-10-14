@@ -513,11 +513,20 @@ class CL_E10_EliteAirMouse {
     }
 
     // =====================================================
-    // [v0415 Phase 1-2] 범위 클램프 헬퍼
+    // [v0415 Phase 1-2] 범위 클램프 헬퍼 (혼합 타입 지원)
+    // -----------------------------------------------------
+    //  - T: 값 타입, U: 경계 리터럴 타입
+    //  - 예: _clamp(uint16_t_val, 50, 500)  ← U=int, T=uint16_t
+    //        _clamp(float_val, 0.05f, 5.0f) ← U=float, T=float
+    //  - T로 캐스팅 후 비교·반환 (오버플로 방지 위해 경계값은 T 범위 내 사용)
     // =====================================================
-    template <typename T>
-    static constexpr T _clamp(T p_v, T p_lo, T p_hi) {
-        return (p_v < p_lo) ? p_lo : ((p_v > p_hi) ? p_hi : p_v);
+    template <typename T, typename U>
+    static constexpr T _clamp(T p_v, U p_lo, U p_hi) {
+        static_assert(sizeof(U) <= sizeof(T) || std::is_signed<U>::value,
+                      "Bounds type too large for value type");
+        return (p_v < (T)p_lo) ? (T)p_lo
+             : (p_v > (T)p_hi) ? (T)p_hi
+             : p_v;
     }
 
     // =====================================================
