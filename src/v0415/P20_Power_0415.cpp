@@ -126,11 +126,12 @@ void CL_P20_Power::begin() {
     rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::PIN_MPU_INT);
 
     for (uint8_t i = 0; i < HW_DEF::BTN_COUNT; i++) {
-        rtc_gpio_pullup_en((gpio_num_t)HW_DEF::PIN_BTN_PINS[i]);
-        rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::PIN_BTN_PINS[i]);
+        rtc_gpio_pullup_en((gpio_num_t)HW_DEF::BTN_PINS[i]);      // ← 수정
+        rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::BTN_PINS[i]);   // ← 수정
     }
 
-    D10_LOGI("[P20] begin: idle_timeout_m1=%ums", (unsigned)_cfg.idle_timeout_ms[0]);
+    D10_LOGI("[P20] begin: idle_timeout_m1=%ums",
+             (unsigned)_cfg.idle_timeout_ms[0]);
 }
 
 void CL_P20_Power::setConfig(const ST_Config_t& p_cfg) {

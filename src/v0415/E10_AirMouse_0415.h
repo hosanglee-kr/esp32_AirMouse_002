@@ -287,6 +287,13 @@ class CL_E10_EliteAirMouse {
     CL_P20_Power   _power;
     CL_M20_BiasTracker _biasTracker;
     CL_M30_Gesture     _gesture;
+    
+    // ====================================================
+    // [Phase 11.6 / C-1] 커서 이동 기반 deferred 활동 알림
+    //   - sensorTask가 프레임 push 후 set
+    //   - _handlePowerManagement 진입부에서 소비
+    // ====================================================
+    volatile bool _powerNotifyPending = false;
 
     CL_C20_BtnDispatcher _btnDisp;
     CL_C20_ActionExec    _actExec;
