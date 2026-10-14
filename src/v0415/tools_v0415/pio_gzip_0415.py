@@ -239,8 +239,9 @@ def create_js_bundle(src_dir, dst_dir):
 
 
 def process_and_gzip_html(src_path, dst_gz_path):
-    """HTML 파일의 10개 개별 script 태그를 단일 app_bundle_0415.js 태그로 치환 후 gzip."""    with open(src_path, "r", encoding="utf-8") as f:
-    html = f.read()
+    """HTML 파일의 10개 개별 script 태그를 단일 app_bundle_0415.js 태그로 치환 후 gzip."""
+    with open(src_path, "r", encoding="utf-8") as f:
+        html = f.read()
 
     # 9개 개별 script 태그 패턴 검색 및 치환
     script_pattern = re.compile(
