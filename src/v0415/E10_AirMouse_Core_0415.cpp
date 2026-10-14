@@ -60,25 +60,21 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
     _hid.addDevice(&_mouse);
     _hid.begin();
 
-    // ====================================================
-    // [Phase 6-J] LED 초기화 + Mode 색 반영
-    // ====================================================
+    // [Phase 6-J] LED 초기화
     _led.begin(_cfgProfileValid ? _cfgProfile.e10.led_brightness : 128);
     _led.setModeColor(_activeMode);
 
-    // [Phase 10] BLE Manager 초기화
+    // [Phase 10] BLE Manager
     _ble.begin();
 
-    // [Phase 8] Power Manager 초기화
+    // [Phase 8] Power Manager
     _power.setMpuAddr(_mpuAddr);
     _power.begin();
 
-    // [v0415 L6a-A1-02] LED 태스크 핸들 저장 (스택 워터마크 관측용)
+    // LED 태스크
     xTaskCreatePinnedToCore(_ledTask, "E10_Led", 2048, this, 1, &_thLed, 0);
 
-    // ====================================================
-    // [Phase 5] Dispatcher + Executor 초기화
-    // ====================================================
+    // [Phase 5] Dispatcher + Executor
     _btnDisp.begin();
     _btnDisp.setCallback(&CL_E10_EliteAirMouse::_onBtnEvent, this);
 
@@ -103,8 +99,6 @@ void CL_E10_EliteAirMouse::begin(CL_C10_Config* p_cfg) {
 
 // =======================================================
 // HID cmd enqueue (producer: any task)
-// - timeout 0: 웹 태스크 블로킹 금지
-// - 큐 full이면 drop(false)
 // =======================================================
 bool CL_E10_EliteAirMouse::_enqueueHidCmd(const ST_E10_HidCmd_t& p_cmd) {
     if (!_qHidCmd) return false;
@@ -122,13 +116,7 @@ bool CL_E10_EliteAirMouse::applyRuntimeE10(const ST_C10_E10Config_t& p_e) {
 }
 
 // =======================================================
-// [H-3] caller가 _lock() 보유 상태에서 호출 (recursive mutex)
-// -------------------------------------------------------
-// [v0415 L6b-A3-01 부수 수정]
-//   - 이전: _snapshotRuntimeToE10Config(_cfgProfile.e10)만 호출
-//     → p_e의 config 전용 필드(gyro_bias/flick/tilt_hold 등)가
-//       _cfgProfile.e10에 미반영. W10 applyRuntimeE10 경로에서 문제.
-//   - 이후: p_e를 baseline으로 먼저 복사 → 런타임 클램프 값 sync back
+// [H-3] caller가 _lock() 보유 상태에서 호출
 // =======================================================
 void CL_E10_EliteAirMouse::_applyRuntimeLocked(const ST_C10_E10Config_t& p_e) {
     // 1) config → runtime (clamp 포함)
@@ -162,19 +150,13 @@ void CL_E10_EliteAirMouse::_applyRuntimeLocked(const ST_C10_E10Config_t& p_e) {
 // =======================================================
 // control
 // =======================================================
-
 bool CL_E10_EliteAirMouse::setDpiLevel(uint8_t p_level) {
     uint8_t v_lv = p_level;
     if (v_lv < 1) v_lv = 1;
     if (v_lv > 3) v_lv = 3;
 
-    // [H-3] read-modify-write 원자화
     _lock();
 
-    // [v0415] 초기화 경로: _cfgProfile 전체 defaults 필요
-    //   - 이전엔 _snapshotRuntimeToE10Config가 초기화를 겸했으나
-    //     uninit 필드(name/slots/macros) 문제 + wipe 문제
-    //   - 명시적 makeDefaultsProfile 사용
     if (!_cfgProfileValid) {
         if (_cfg) {
             _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), _cfgProfile);
@@ -212,14 +194,7 @@ bool CL_E10_EliteAirMouse::setPrecisionMode(uint8_t p_mode) {
 }
 
 // =======================================================
-// [v0415 Wave F] 모드 직접 지정 (사이클 오류 원천 차단)
-// -------------------------------------------------------
-// 기존 _setActiveMode는 private (하드코딩 더블클릭 전용).
-// 본 public API는 W10 set_mode cmd 및 LiveTest용.
-//
-// - 프로필 e10.active_mode 영속 갱신 + _reqSaveCfg
-// - _setActiveMode 내부 로직 재사용 (LED/EMA/큐 abort 등)
-// - 동일 모드 조기 반환 (abort token 낭비 방지)
+// 모드 직접 지정 (사이클 오류 원천 차단)
 // =======================================================
 bool CL_E10_EliteAirMouse::setActiveMode(uint8_t p_mode) {
     if (p_mode < 1 || p_mode > C10_DEF::MODE_COUNT) return false;
@@ -228,19 +203,15 @@ bool CL_E10_EliteAirMouse::setActiveMode(uint8_t p_mode) {
     const uint8_t v_cur = _activeMode;
     _unlock();
 
-    if (v_cur == p_mode) return true;   // 조기 반환
+    if (v_cur == p_mode) return true;
 
-    // _setActiveMode 내부에서 LED 색, EMA reset, 매크로 abort, HID release 등
-    // 안전 처리 모두 수행됨 (private 함수 재사용)
     _setActiveMode(p_mode);
 
-    // 프로필 영속 저장 요청 (main loop tickConfigSave가 처리)
     if (_cfg && _cfgProfileValid) {
         _reqSaveCfg = true;
     }
     return true;
 }
-
 
 bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
     (void)p_enable;
@@ -251,17 +222,11 @@ bool CL_E10_EliteAirMouse::setHardClickLock(bool p_enable) {
 bool CL_E10_EliteAirMouse::setSafeMode(bool p_enable) {
     _lock();
     _safeMode = p_enable;
-
-    // [v0415 LC-D] _state.btn_mask write 삭제 (필드 자체 삭제됨)
     _state.updated  = true;
-
-    // [M-4] 전용 코드 (SafeMode 진입/이탈)
     _pushErr(p_enable ? EN_E10_ERR_SAFE_MODE_ENTER : EN_E10_ERR_SAFE_MODE_EXIT, 0);
-
     _unlock();
     return true;
 }
-
 
 bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
     _lock();
@@ -273,8 +238,7 @@ bool CL_E10_EliteAirMouse::setOtaGuard(bool p_enable) {
             _otaGuardT0Ms = (uint32_t)(millis() - _uptime0);
             _pushErr(EN_E10_ERR_OTA_GUARD_ENTER, 0);
         }
-        // [v0415 LC-D] btn_mask write 삭제
-        _state.updated  = true;
+        _state.updated = true;
     } else {
         if (_otaGuard) {
             _otaGuard = false;
@@ -296,12 +260,6 @@ bool CL_E10_EliteAirMouse::_applyFromConfig() {
 
 // =======================================================
 // 활성 프로파일 로드/저장
-// -------------------------------------------------------
-// [v0415 L6b-A3-02] 스택 절감
-//   - ST_C10_ProfileConfig_t는 ~2.2KB (MacroStep 12B 최적화 반영)
-//   - 호출 컨텍스트: begin(main) / switchProfile(web) / reloadActiveProfile(web)
-//   - 재진입 방지: _profileSwitchInProgress + W10 단일 태스크
-//   - static 변수로 스택 압박 해소 (ESP32 8KB 스택 환경 보호)
 // =======================================================
 bool CL_E10_EliteAirMouse::_reloadActiveProfile() {
     if (!_cfg) return false;
@@ -324,10 +282,6 @@ bool CL_E10_EliteAirMouse::_reloadActiveProfile() {
 bool CL_E10_EliteAirMouse::_saveActiveProfile() {
     if (!_cfg || !_cfgProfileValid) return false;
 
-    // [v0415 OPT-A] static 사용: 스택 2.4KB 절감
-    //   - 호출 컨텍스트: main loop(tickConfigSave), webTask(apiProfilesActivePost)
-    //   - 재진입 방지: _lock() 하 원자화 + 단일 writer (main/web 순차)
-    //   - static 공유 안전성: _lock() 하 유지, 다른 태스크가 동시 호출 시 직렬화
     static ST_C10_ProfileConfig_t s_v_copy;
 
     _lock();
@@ -342,7 +296,6 @@ bool CL_E10_EliteAirMouse::_saveActiveProfile() {
 // 슬롯 조회 (Global + Mode Override)
 // =======================================================
 ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p_trig) const {
-    // [C-4] 프로파일 스위치 중 부분 갱신된 _cfgProfile을 읽지 않도록 락
     auto* v_self = const_cast<CL_E10_EliteAirMouse*>(this);
     v_self->_lock();
 
@@ -359,21 +312,9 @@ ST_C20_ActionSlot_t CL_E10_EliteAirMouse::_resolveSlot(uint8_t p_mode, uint8_t p
 
 // =======================================================
 // [v0415 L6b-A3-01] Critical Fix — wipe bug 제거
-// -------------------------------------------------------
-// 이전 (v0412):
-//   makeDefaultsE10(p_out)로 wipe 후 일부만 복원
-//   → gyro_bias/linear/flick/tilt_hold/active_mode/active_peer_index/
-//     led_brightness/battery_adc_enabled/sleep_idle_timeout_ms 소실
-//   → 사용자 설정 영속화 실패 (재현 확실)
-//
-// v0415:
-//   p_out을 baseline으로 유지, 런타임 소스 필드만 덮어쓰기
-//   - config 전용 필드는 호출자(_applyRuntimeLocked/_reloadActiveProfile)가
-//     미리 채워둔 상태를 그대로 유지
-//   - 런타임 미러 필드(21개)만 갱신
 // =======================================================
 void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out) {
-    // ---- 런타임 소스 필드만 갱신 (config 전용은 유지) ----
+    // ---- 런타임 소스 필드만 갱신 ----
     p_out.dpi_level       = (uint8_t)_dpiLevel;
     p_out.hard_click_lock = _hardClickLock;
 
@@ -385,7 +326,6 @@ void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out
     p_out.accel_threshold     = _accelTh;
     p_out.wheel_threshold_deg = _wheelThDeg;
     p_out.wheel_step_max      = (uint8_t)_wheelStepMax;
-    // [v0415 rev15 / 스키마 412] gesture_* 역동기화 삭제
     p_out.scroll_cursor_damp  = _scrollCursorDamp;
 
     p_out.precision_mode       = (uint8_t)_precision_mode;
@@ -399,97 +339,50 @@ void CL_E10_EliteAirMouse::_snapshotRuntimeToE10Config(ST_C10_E10Config_t& p_out
     p_out.prec_entry_still_deg = _precEntryStillDeg;
     p_out.prec_exit_move_deg   = _precExitMoveDeg;
     p_out.prec_profile         = (uint8_t)_precProfile;
-
-    // ---- 유지 필드 (config 전용) ----
-    //   gyro_bias.*         : E10 config 단독 (M20이 자체 copy 보유)
-    //   linear.*            : E10 config 단독 (M30 config copy)
-    //   flick.*             : E10 config 단독 (M30 config copy)
-    //   tilt_hold.*         : E10 config 단독 (M30 config copy)
-    //   sleep_idle_timeout_ms : legacy (v0412 잔존, SPEC 미사용)
-    //   active_mode         : tickConfigSave / _setActiveMode가 명시적 관리
-    //   active_peer_index   : tickConfigSave / _applyE10ToRuntime이 명시적 관리
-    //   led_brightness      : L10이 copy 보유 (setBrightness)
-    //   battery_adc_enabled : 미사용 (하드웨어 미구현)
-    //   motion_adv.*        : E10 config 단독 (_applyClickFreeze/_applySnapToAxis가
-    //                         _cfgProfile.e10.motion_adv.* 직접 read)
-    //   power.*             : P20 config copy
-    //   button.*            : BtnDispatcher config copy
 }
 
 // =======================================================
 // config → runtime
+// -------------------------------------------------------
+// [v0415 Phase 1-2] _clamp<T>() 템플릿 적용
+//   - 3줄 클램프 블록 → 1줄
+//   - 클램프 경계값/순서는 원본과 동일
 // =======================================================
 void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
-    int v_dpi = (int)p_e.dpi_level;
-    if (v_dpi < 1) v_dpi = 1;
-    if (v_dpi > 3) v_dpi = 3;
-    _dpiLevel = v_dpi;
+    // ---- DPI ----
+    _dpiLevel = _clamp((int)p_e.dpi_level, 1, 3);
 
     _hardClickLock = p_e.hard_click_lock;
 
+    // ---- scale_base / accel_gain ----
     for (int v_i = 0; v_i < 3; v_i++) {
-        float v_sb = p_e.scale_base[v_i];
-        float v_ag = p_e.accel_gain[v_i];
-        if (v_sb < 0.05f) v_sb = 0.05f;
-        if (v_sb > 5.00f) v_sb = 5.00f;
-        if (v_ag < 0.00f) v_ag = 0.00f;
-        if (v_ag > 8.00f) v_ag = 8.00f;
-        _scaleBase[v_i] = v_sb;
-        _accelGain[v_i] = v_ag;
+        _scaleBase[v_i] = _clamp(p_e.scale_base[v_i], 0.05f, 5.00f);
+        _accelGain[v_i] = _clamp(p_e.accel_gain[v_i], 0.00f, 8.00f);
     }
 
-    _accelTh = p_e.accel_threshold;
-    if (_accelTh < 0.5f) _accelTh = 0.5f;
-    if (_accelTh > 80.f) _accelTh = 80.f;
+    // ---- accel_threshold / wheel ----
+    _accelTh      = _clamp(p_e.accel_threshold, 0.5f, 80.0f);
+    _wheelThDeg   = _clamp(p_e.wheel_threshold_deg, 5.0f, 300.0f);
+    _wheelStepMax = _clamp((int)p_e.wheel_step_max, 1, 25);
 
-    _wheelThDeg = p_e.wheel_threshold_deg;
-    if (_wheelThDeg < 5.0f)   _wheelThDeg = 5.0f;
-    if (_wheelThDeg > 300.0f) _wheelThDeg = 300.0f;
+    // ---- scroll_cursor_damp ----
+    _scrollCursorDamp = _clamp(p_e.scroll_cursor_damp, 0.01f, 1.00f);
 
-    _wheelStepMax = (int)p_e.wheel_step_max;
-    if (_wheelStepMax < 1)  _wheelStepMax = 1;
-    if (_wheelStepMax > 25) _wheelStepMax = 25;
-
-    // [v0415 rev15 / 스키마 412] gesture_* 미러 갱신 삭제
-    //   - M30 config 주입은 하단의 _gesture.setConfig()에서 flick.* 직접 참조
-
-    _scrollCursorDamp = p_e.scroll_cursor_damp;
-    if (_scrollCursorDamp < 0.01f) _scrollCursorDamp = 0.01f;
-    if (_scrollCursorDamp > 1.00f) _scrollCursorDamp = 1.00f;
-
+    // ---- Precision knobs ----
     _precision_mode    = p_e.precision_mode;
-    _precDeadzone      = p_e.precision_deadzone;
-    _precGain          = p_e.precision_gain;
-    _precAccel         = p_e.precision_accel;
-    _precMaxStep       = p_e.precision_max_step;
-    _precSmooth        = p_e.precision_smooth;
+    _precDeadzone      = _clamp(p_e.precision_deadzone, 0.0f, 40.0f);
+    _precGain          = _clamp(p_e.precision_gain, 0.01f, 10.0f);
+    _precAccel         = _clamp(p_e.precision_accel, 0.0f, 5.0f);
+    _precMaxStep       = (uint8_t)_clamp((int)p_e.precision_max_step, 1, 127);
+    _precSmooth        = _clamp(p_e.precision_smooth, 0.0f, 0.97f);
     _precEntryMs       = p_e.prec_entry_ms;
     _precExitMs        = p_e.prec_exit_ms;
-    _precEntryStillDeg = p_e.prec_entry_still_deg;
+    _precEntryStillDeg = _clamp(p_e.prec_entry_still_deg, 0.1f, 20.0f);
     _precExitMoveDeg   = p_e.prec_exit_move_deg;
+    if (_precExitMoveDeg < _precEntryStillDeg) {
+        _precExitMoveDeg = _precEntryStillDeg + 0.5f;
+    }
     _precProfile       = p_e.prec_profile;
-
-    if (_precDeadzone < 0.0f) _precDeadzone = 0.0f;
-    if (_precDeadzone > 40.f) _precDeadzone = 40.f;
-
-    if (_precGain < 0.01f) _precGain = 0.01f;
-    if (_precGain > 10.0f) _precGain = 10.0f;
-
-    if (_precAccel < 0.0f) _precAccel = 0.0f;
-    if (_precAccel > 5.0f) _precAccel = 5.0f;
-
-    if (_precMaxStep < 1)   _precMaxStep = 1;
-    if (_precMaxStep > 127) _precMaxStep = 127;
-
-    if (_precSmooth < 0.0f)  _precSmooth = 0.0f;
-    if (_precSmooth > 0.97f) _precSmooth = 0.97f;
-
-    if (_precEntryMs < 0) _precEntryMs = 0;
-    if (_precExitMs < 0)  _precExitMs  = 0;
-
-    if (_precEntryStillDeg < 0.1f) _precEntryStillDeg = 0.1f;
-    if (_precExitMoveDeg < _precEntryStillDeg) _precExitMoveDeg = _precEntryStillDeg + 0.5f;
-
     if (_precProfile == 0) _precProfile = 1;
 
     if (_precision_mode > (uint8_t)EN_C10_E10_PREC_PPT) {
@@ -509,44 +402,33 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
         }
     }
 
+    // ---- BiasTracker config ----
     _biasTracker.setConfig(
         p_e.gyro_bias.still_th,
         p_e.gyro_bias.still_win_ms,
         p_e.gyro_bias.alpha);
 
     // ====================================================
-    // [Phase 7] 제스처 감지기 config 반영
-    // ----------------------------------------------------
-    // [v0415 rev15 / 스키마 412]
-    //   - gesture.* 미러 삭제 → flick.* 직접 참조 (SSOT)
-    //   - 클램프로 방어적 적용 (validateE10 통과 값이지만 이중 안전)
+    // M30 제스처 config 주입 (flick.* SSOT)
     // ====================================================
     {
         CL_M30_Gesture::ST_Config_t v_gc;
-    
+
         // Flick
-        v_gc.flick_p2p_th = p_e.flick.p2p_th;
-        if (v_gc.flick_p2p_th < 50.0f)   v_gc.flick_p2p_th = 50.0f;
-        if (v_gc.flick_p2p_th > 2000.0f) v_gc.flick_p2p_th = 2000.0f;
-    
-        v_gc.flick_window_ms = p_e.flick.window_ms;
-        if (v_gc.flick_window_ms < 50)  v_gc.flick_window_ms = 50;
-        if (v_gc.flick_window_ms > 500) v_gc.flick_window_ms = 500;
-    
-        v_gc.flick_cooldown_ms = p_e.flick.cooldown_ms;
-        if (v_gc.flick_cooldown_ms < 100)  v_gc.flick_cooldown_ms = 100;
-        if (v_gc.flick_cooldown_ms > 5000) v_gc.flick_cooldown_ms = 5000;
-    
+        v_gc.flick_p2p_th = _clamp(p_e.flick.p2p_th, 50.0f, 2000.0f);
+        v_gc.flick_window_ms   = _clamp(p_e.flick.window_ms, 50, 500);
+        v_gc.flick_cooldown_ms = _clamp(p_e.flick.cooldown_ms, 100, 5000);
+
         // Linear
         v_gc.linear_th         = p_e.linear.th;
         v_gc.linear_impulse_th = p_e.linear.impulse_th;
         v_gc.linear_window_ms  = p_e.linear.window_ms;
-    
+
         // Tilt Hold
         v_gc.tilt_angle_deg    = p_e.tilt_hold.angle_deg;
         v_gc.tilt_hold_ms      = p_e.tilt_hold.hold_ms;
         v_gc.tilt_repeat_hz    = p_e.tilt_hold.repeat_hz;
-    
+
         _gesture.setConfig(v_gc);
     }
 
@@ -555,7 +437,6 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
 
     // ====================================================
     // [Phase 11.6] Power config 반영
-    //   [v0415] fast_recalib_ms 제외 (P20 필드 삭제, E10 config 단독)
     // ====================================================
     {
         CL_P20_Power::ST_Config_t v_pcfg;
@@ -568,7 +449,6 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
         v_pcfg.wake_min_active_ms      = p_e.power.wake_min_active_ms;
         v_pcfg.wom_threshold           = p_e.power.wom_threshold;
         v_pcfg.wom_duration            = p_e.power.wom_duration;
-        // [v0415 삭제] v_pcfg.fast_recalib_ms = p_e.power.fast_recalib_ms;
         _power.setConfig(v_pcfg);
     }
 
@@ -588,7 +468,7 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     _engine.setDPI(_dpiLevel);
 
     // ====================================================
-    // [Phase 2] Adaptive EMA config 주입
+    // Adaptive EMA config 주입
     // ====================================================
     {
         CL_M10_AdvancedMotionProcessor::ST_EmaCfg_t v_ema;
@@ -611,8 +491,7 @@ void CL_E10_EliteAirMouse::_applyE10ToRuntime(const ST_C10_E10Config_t& p_e) {
     _led.setBrightness(p_e.led_brightness);
     _led.setFadeTimings(p_e.power.led_fadeout_ms, p_e.power.led_fadein_ms);
 
-    // [Phase 5] Mode → _activeMode 동기화
-    //   [v0415] _isPptMode 필드 삭제. PPT 판정은 _activeMode == 2 일원화.
+    // Mode → _activeMode 동기화
     if (p_e.active_mode >= 1 && p_e.active_mode <= C10_DEF::MODE_COUNT) {
         _activeMode = p_e.active_mode;
     }
@@ -629,7 +508,6 @@ void CL_E10_EliteAirMouse::tickConfigSave() {
 
     if (!_cfg || !_cfgProfileValid) { _reqSaveCfg = false; return; }
 
-    // 활성 프로파일 스냅샷 갱신 (BLE peer / Mode)
     _lock();
     _cfgProfile.e10.active_peer_index = _ble.getActivePeerIndex();
     _cfgProfile.e10.active_mode       = _activeMode;
@@ -676,10 +554,14 @@ bool CL_E10_EliteAirMouse::getActiveProfileInfo(uint8_t& p_outIdx, uint8_t& p_ou
     return true;
 }
 
+// =======================================================
+// 프로파일 전환
+// -------------------------------------------------------
+// [v0415 Phase 1-5] _abortMacroLocked() 헬퍼 사용
+// =======================================================
 bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     if (!_cfg) return false;
 
-    // [C-4] 재진입 방어 (AsyncWebServer 단일 태스크 → 실무적 race 없음)
     if (_cfg->isProfileSwitchInProgress()) {
         D10_LOGW("[E10] switchProfile: already in progress");
         return false;
@@ -692,11 +574,10 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
 
     _cfg->setProfileSwitchInProgress(true);
 
-    // 1) 매크로 취소 (H-1: 토큰 카운터)
-    _macroAbortToken++;
-    _macroState.active = false;
+    // 1) 매크로 취소 (Phase 1-5 SSOT 헬퍼)
+    _abortMacroLocked();
 
-    // 2) 큐 드레인 (H-2): 이전 프로파일의 잔여 커맨드 제거
+    // 2) 큐 드레인
     {
         ST_ActionCmd_t v_adrop;
         while (_qActionExec && xQueueReceive(_qActionExec, &v_adrop, 0) == pdTRUE) {}
@@ -704,13 +585,13 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
         while (_qHidCmd && xQueueReceive(_qHidCmd, &v_hdrop, 0) == pdTRUE) {}
     }
 
-    // 3) 리셋 플래그 위임 (H-3): 실제 리셋은 sensorTask에서
+    // 3) 리셋 플래그 위임
     _reqResetBtnDisp = true;
     _reqResetGesture = true;
     _frontHoldActive = false;
     _moveGateHeld    = false;
 
-    // 4) HID 안전 release (C-2: 큐 경유 + REQ-FIX-03 위임)
+    // 4) HID 안전 release
     _reqCommReleaseAll = true;
     (void)forceReleaseButtons();
 
@@ -722,10 +603,10 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
         return false;
     }
 
-    // 6) 새 프로파일 로드 + 런타임 반영
+    // 6) 새 프로파일 로드
     const bool v_reloadOk = _reloadActiveProfile();
 
-    // 7) Active Mode도 새 프로파일 기준으로 (_lock 보호 하 원자적 갱신)
+    // 7) Active Mode 반영
     if (v_reloadOk && _cfgProfileValid) {
         const uint8_t v_m = _cfgProfile.e10.active_mode;
         if (v_m >= 1 && v_m <= C10_DEF::MODE_COUNT) {
@@ -740,8 +621,7 @@ bool CL_E10_EliteAirMouse::switchProfile(uint8_t p_idx) {
     _led.flash(EN_L10_COLOR_WHITE, 500);
 
     _cfg->setProfileSwitchInProgress(false);
-    
-    // [v0415 Phase 5 Q2-a] 프로파일 전환 시 EMA 상태 리셋
+
     _engine.resetEmaState();
 
     D10_LOGI("[E10] switchProfile: idx=%u reload=%d",
@@ -759,7 +639,6 @@ bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
                                         uint16_t p_p16, uint32_t p_p32) {
     if (_safeMode || _otaGuard) return false;
 
-    // [REQ-FIX-02] SPECIAL은 Web 태스크에서 직접 실행 금지 → sensorTask 위임
     if (p_kind == (uint8_t)EN_C20_ACT_SPECIAL) {
         _reqSpecialAction = (uint8_t)p_p16;
         return true;
@@ -773,7 +652,6 @@ bool CL_E10_EliteAirMouse::execLiveTest(uint8_t p_kind, uint8_t p_hMode,
     v_slot.param16  = p_p16;
     v_slot.param32  = p_p32;
 
-    // MACRO / 기타는 큐 경유 (비동기)
     return _enqueueAction(v_slot, true);
 }
 
@@ -792,4 +670,3 @@ bool CL_E10_EliteAirMouse::getHostState(uint8_t* p_outBondCount,
     }
     return true;
 }
-

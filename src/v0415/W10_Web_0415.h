@@ -7,14 +7,12 @@
  * 모듈약어 : W10
  * 모듈명 : Web Config/Status/UI/OTA Server
  * ------------------------------------------------------
- * [v0415 주요 변경]
- *  - begin() 4-arg 오버로드 삭제 (Phase 7 L7a-A1-01, CONTRACT rev3 위반 해소)
- *    · 2-arg(cfg, e10if) 단일 진입
- *  - _bootWifi 멤버 추가 — 부팅 시 WiFi 스냅샷
- *    · _markNeedReboot 되돌림 fix (Phase 7 L7e-A3-01)
- *    · 저장 시마다 boot → 현재 비교로 마스크 재계산
- *  - _bumpRebootMaskFromBoot() 신규 private
- *  - include 경로 _0415
+ * [v0415 Phase 2-1]
+ *  - `_parseBodyAndGate()` POST API 공통 사전 처리 헬퍼 추가
+ *
+ * [v0415 이전 주요 변경]
+ *  - begin() 4-arg 오버로드 삭제 (2-arg 단일 진입)
+ *  - _bootWifi 멤버 추가 (되돌림 감지)
  * ------------------------------------------------------
  */
 
@@ -42,8 +40,6 @@ private:
     ST_W10_E10If_t* _e10if = nullptr;
 
     ST_C10_WiFiConfig_t _wifi;
-
-    // [v0415] 부팅 시 WiFi 스냅샷 — 되돌림 감지용
     ST_C10_WiFiConfig_t _bootWifi;
 
     bool _mdnsStarted = false;
@@ -82,11 +78,22 @@ private:
 public:
     CL_W10_WebConfig();
 
-    // [v0415] 단일 진입 (4-arg 오버로드 삭제)
     void begin(CL_C10_Config* p_cfg,
                ST_W10_E10If_t* p_e10if);
 
 private:
+    // =====================================================
+    // [v0415 Phase 2-1] POST API 공통 사전 처리
+    //   ① SafeMode 게이트
+    //   ② Body 수집
+    //   ③ JSON 파싱
+    //   실패 시 응답 자동 송출 후 false 반환
+    // =====================================================
+    bool _parseBodyAndGate(AsyncWebServerRequest* req,
+                           uint8_t* data, size_t len,
+                           size_t index, size_t total,
+                           JsonDocument& p_outDoc);
+
     // WiFi
     void _setupWiFi();
     void _startAp();
@@ -109,7 +116,8 @@ private:
 
     // SafeMode gate
     bool _isSafeMode() const;
-    bool _isApiAllowedInSafeMode(const char* p_uri, WebRequestMethodComposite p_method) const;
+    bool _isApiAllowedInSafeMode(const char* p_uri,
+                                 WebRequestMethodComposite p_method) const;
     bool _gateSafeModeOrReply(AsyncWebServerRequest* req);
 
     // JSON helpers
@@ -119,7 +127,8 @@ private:
     void _send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag);
     bool _calcFileEtag32(const char* p_path, uint32_t& p_outEtag, size_t* p_outSize);
     void _send304StaticWithCacheControl(AsyncWebServerRequest* req, uint32_t p_etag,
-                                        const char* p_cacheControl, bool p_varyAcceptEncoding);
+                                        const char* p_cacheControl,
+                                        bool p_varyAcceptEncoding);
     void _sendStaticWithCacheControlEtag(AsyncWebServerRequest* req,
                                          const char* p_sendPath,
                                          const char* p_contentType,
@@ -139,7 +148,8 @@ private:
     void _diagPush(const char* p_code);
 
     bool _wantsJson(AsyncWebServerRequest* req) const;
-    void _sendStaticErr(AsyncWebServerRequest* req, int p_http, const char* p_code, const char* p_msg);
+    void _sendStaticErr(AsyncWebServerRequest* req, int p_http,
+                        const char* p_code, const char* p_msg);
 
     bool _collectBodyOrReply(AsyncWebServerRequest* req,
                              uint8_t* data, size_t len,
@@ -147,16 +157,15 @@ private:
                              String& p_outBody);
 
     // reboot helpers
-    uint32_t _wifiDiffMask(const ST_C10_WiFiConfig_t& a, const ST_C10_WiFiConfig_t& b);
+    uint32_t _wifiDiffMask(const ST_C10_WiFiConfig_t& a,
+                           const ST_C10_WiFiConfig_t& b);
     void _markNeedReboot(uint32_t reasonMask);
-
-    // [v0415] boot 스냅샷 기반 마스크 재계산 (되돌림 fix)
     void _bumpRebootMaskFromBoot();
 
     void _markLastApply(bool ok, const char* src, const char* code);
     String _rebootReasonsString(uint32_t m);
 
-    // [v0412 유지] /api/profiles
+    // API 핸들러
     void apiProfilesList    (AsyncWebServerRequest* req);
     void apiProfilesSwitch  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiProfilesCreate  (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
@@ -180,18 +189,6 @@ private:
     const char* _precModeName(uint8_t p_mode);
     void apiKeycodes(AsyncWebServerRequest* req);
 
-    // [DEL] apiGetConfig — /api/config GET 삭제
-    // void apiGetConfig(AsyncWebServerRequest* req);
-    
-    // [DEL] apiConfigSave — /api/config/save POST 삭제
-    // void apiConfigSave(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
-    
-    // [DEL] apiConfigApply — /api/config/apply POST 삭제
-    // void apiConfigApply(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
-    
-    // [DEL] apiRebootCheck — /api/reboot/check GET 삭제
-    // void apiRebootCheck(AsyncWebServerRequest* req);
-    
     void apiExport(AsyncWebServerRequest* req);
     void apiImport(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiRollback(AsyncWebServerRequest* req);
@@ -199,13 +196,14 @@ private:
     void apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
 
-    // [v0415 Multi-Host]
+    // Multi-Host
     void apiHostsGet   (AsyncWebServerRequest* req);
     void apiHostsSelect(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiHostsCancel(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
     void apiHostsLabel (AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
 
-    void apiOtaUpload(AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final);
+    void apiOtaUpload(AsyncWebServerRequest* req, const String& filename,
+                      size_t index, uint8_t* data, size_t len, bool final);
     void apiOtaStatus(AsyncWebServerRequest* req);
 
     void apiSafeBootGet(AsyncWebServerRequest* req);
@@ -214,5 +212,4 @@ private:
 
     static void _taskReboot(void* p_arg);
     void apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total);
-
 };

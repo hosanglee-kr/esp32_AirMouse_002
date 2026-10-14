@@ -22,18 +22,19 @@ static constexpr uint8_t G_MPU_INT_EN     = 0x38;
 static constexpr uint8_t G_MPU_INT_STATUS = 0x3A;
 
 // -------------------------------------------------------
-// [v0415] MPU register 값 상수 (매직 비트 제거, L4-A2-07)
+// MPU register 값 상수
 // -------------------------------------------------------
 // PWR_MGMT_1
-static constexpr uint8_t G_MPU_PWR1_WAKE         = 0x00;  // sleep 해제, 내부 osc
-static constexpr uint8_t G_MPU_PWR1_CYCLE        = 0x20;  // cycle mode
-static constexpr uint8_t G_MPU_PWR1_PLL_XGYRO    = 0x01;  // PLL w/ X Gyro ref
+static constexpr uint8_t G_MPU_PWR1_WAKE      = 0x00;  // sleep 해제, 내부 osc
+static constexpr uint8_t G_MPU_PWR1_CYCLE     = 0x20;  // cycle mode
+static constexpr uint8_t G_MPU_PWR1_PLL_XGYRO = 0x01;  // PLL w/ X Gyro ref
+static constexpr uint8_t G_MPU_PWR1_SLEEP     = 0x40;  // deep-sleep 시 사용
 
 // PWR_MGMT_2
-static constexpr uint8_t G_MPU_PWR2_LP_WAKE_5HZ  = 0xC7;  // LP_WAKE_CTRL=5Hz, accel only
+static constexpr uint8_t G_MPU_PWR2_LP_WAKE_5HZ = 0xC7;  // LP_WAKE_CTRL=5Hz
 
 // ACCEL_CONFIG
-static constexpr uint8_t G_MPU_ACCEL_HPF_RESET   = 0x01;  // HPF 리셋 (WoM 초기화)
+static constexpr uint8_t G_MPU_ACCEL_HPF_RESET = 0x01;  // HPF 리셋
 
 // INT_PIN_CFG (0x37)
 static constexpr uint8_t G_MPU_INT_CFG_LATCH_EN  = 0x80;  // 래치 유지
@@ -41,10 +42,10 @@ static constexpr uint8_t G_MPU_INT_CFG_INT_OPEN  = 0x40;  // open-drain
 static constexpr uint8_t G_MPU_INT_CFG_INT_LEVEL = 0x20;  // active-low
 
 // INT_ENABLE (0x38)
-static constexpr uint8_t G_MPU_INT_EN_MOTION     = 0x40;  // Motion Detection
+static constexpr uint8_t G_MPU_INT_EN_MOTION = 0x40;  // Motion Detection
 
 // -------------------------------------------------------
-// [v0415] MPU 안정화 지연
+// MPU 안정화 지연
 // -------------------------------------------------------
 static constexpr uint16_t G_MPU_SETTLE_SHORT_MS = 2;
 static constexpr uint16_t G_MPU_SETTLE_LONG_MS  = 5;
@@ -68,6 +69,40 @@ static inline uint8_t mpuRd(uint8_t reg) {
 }
 
 // =======================================================
+// [v0415 Phase 2-4] WoM 초기화 시퀀스 테이블
+// -------------------------------------------------------
+//  - 순서 중요: PWR_MGMT_1(wake) → ACCEL_CFG → MOT_THR
+//              → MOT_DUR → INT_CFG → INT_EN
+//              → PWR_MGMT_1(cycle) → PWR_MGMT_2(LP_WAKE)
+//  - val = 0 인 항목은 "동적" (loop에서 config 기반 결정)
+//  - delayAfterMs = 0은 지연 없음
+// =======================================================
+namespace {
+
+struct ST_WomSeq_t {
+    uint8_t     reg;
+    uint8_t     val;             // 0 = 동적 (MOT_THR / MOT_DUR / INT_CFG)
+    const char* name;
+    uint16_t    delayAfterMs;
+};
+
+static const ST_WomSeq_t G_WOM_SEQ[] = {
+    {G_MPU_PWR_MGMT_1, G_MPU_PWR1_WAKE,        "PWR_MGMT_1 wake",    2},
+    {G_MPU_ACCEL_CFG,  G_MPU_ACCEL_HPF_RESET,  "ACCEL_CFG HPF",      0},
+    {G_MPU_MOT_THR,    0,                      "MOT_THR",            0},
+    {G_MPU_MOT_DUR,    0,                      "MOT_DUR",            0},
+    {G_MPU_INT_CFG,    0,                      "INT_CFG",            0},
+    {G_MPU_INT_EN,     G_MPU_INT_EN_MOTION,    "INT_EN",             0},
+    {G_MPU_PWR_MGMT_1, G_MPU_PWR1_CYCLE,       "PWR_MGMT_1 cycle",   0},
+    {G_MPU_PWR_MGMT_2, G_MPU_PWR2_LP_WAKE_5HZ, "PWR_MGMT_2 LP_WAKE", 5},
+};
+
+static constexpr size_t G_WOM_SEQ_COUNT =
+    sizeof(G_WOM_SEQ) / sizeof(G_WOM_SEQ[0]);
+
+}  // namespace
+
+// =======================================================
 // ctor / begin
 // =======================================================
 CL_P20_Power::CL_P20_Power() {
@@ -80,7 +115,6 @@ CL_P20_Power::CL_P20_Power() {
     _cfg.wake_min_active_ms      = 500;
     _cfg.wom_threshold           = 25;
     _cfg.wom_duration            = 4;
-    // [v0415] fast_recalib_ms 삭제
 }
 
 void CL_P20_Power::begin() {
@@ -88,13 +122,12 @@ void CL_P20_Power::begin() {
     _lastWakeMs     = 0;
     _ext1Armed      = false;
 
-    // MPU INT / 버튼 모두 RTC 도메인 풀업 (light-sleep 중 유지, HW_DEF 참조)
     rtc_gpio_pullup_en((gpio_num_t)HW_DEF::PIN_MPU_INT);
     rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::PIN_MPU_INT);
 
     for (uint8_t i = 0; i < HW_DEF::BTN_COUNT; i++) {
-        rtc_gpio_pullup_en((gpio_num_t)HW_DEF::BTN_PINS[i]);
-        rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::BTN_PINS[i]);
+        rtc_gpio_pullup_en((gpio_num_t)HW_DEF::PIN_BTN_PINS[i]);
+        rtc_gpio_pulldown_dis((gpio_num_t)HW_DEF::PIN_BTN_PINS[i]);
     }
 
     D10_LOGI("[P20] begin: idle_timeout_m1=%ums", (unsigned)_cfg.idle_timeout_ms[0]);
@@ -119,76 +152,58 @@ void CL_P20_Power::setMpuAddr(uint8_t p_addr) {
 // =======================================================
 void CL_P20_Power::notifyActivity(uint32_t p_nowMs) {
     _lastActivityMs = p_nowMs;
-    // [v0415] _idle 갱신 삭제 (Dead)
 }
 
 // =======================================================
-// MPU WoM 구성 (motion detection)
+// [v0415 Phase 2-4] MPU WoM 구성 (motion detection)
+// -------------------------------------------------------
+//  - 테이블 기반 루프
+//  - 동적 값: MOT_THR / MOT_DUR / INT_CFG는 config 기반 결정
+//  - 실패 시 조기 반환 (I2C 장애 시 sleep 진입 방지)
+//  - 순서·로그·지연·초기 래치 클리어 원본과 동일
 // =======================================================
 bool CL_P20_Power::_prepareMpuWom() {
-    // [R2-M-2] 각 write 실패 시 조기 반환 (I2C 장애 시 sleep 진입 방지)
-
-    if (!mpuWr(G_MPU_PWR_MGMT_1, G_MPU_PWR1_WAKE)) {
-        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_1 wake");
-        return false;
-    }
-    delay(G_MPU_SETTLE_SHORT_MS);
-
-    if (!mpuWr(G_MPU_ACCEL_CFG, G_MPU_ACCEL_HPF_RESET)) {
-        D10_LOGW("[P20] WoM prep fail: ACCEL_CFG HPF");
-        return false;
-    }
-
+    // 동적 값 사전 계산
     const uint8_t v_th  = (_cfg.wom_threshold > 0) ? _cfg.wom_threshold : 25;
-    if (!mpuWr(G_MPU_MOT_THR, v_th)) {
-        D10_LOGW("[P20] WoM prep fail: MOT_THR");
-        return false;
-    }
-
-    const uint8_t v_dur = (_cfg.wom_duration > 0) ? _cfg.wom_duration : 4;
-    if (!mpuWr(G_MPU_MOT_DUR, v_dur)) {
-        D10_LOGW("[P20] WoM prep fail: MOT_DUR");
-        return false;
-    }
-
+    const uint8_t v_dur = (_cfg.wom_duration  > 0) ? _cfg.wom_duration  : 4;
     const uint8_t v_intCfg =
         G_MPU_INT_CFG_LATCH_EN | G_MPU_INT_CFG_INT_OPEN | G_MPU_INT_CFG_INT_LEVEL;
-    if (!mpuWr(G_MPU_INT_CFG, v_intCfg)) {
-        D10_LOGW("[P20] WoM prep fail: INT_CFG");
-        return false;
+
+    // 테이블 순회
+    for (size_t i = 0; i < G_WOM_SEQ_COUNT; i++) {
+        const ST_WomSeq_t& s = G_WOM_SEQ[i];
+
+        // 동적 값 결정 (테이블의 val==0은 "동적" 의미)
+        uint8_t v_val = s.val;
+        if (s.reg == G_MPU_MOT_THR) {
+            v_val = v_th;
+        } else if (s.reg == G_MPU_MOT_DUR) {
+            v_val = v_dur;
+        } else if (s.reg == G_MPU_INT_CFG) {
+            v_val = v_intCfg;
+        }
+
+        if (!mpuWr(s.reg, v_val)) {
+            D10_LOGW("[P20] WoM prep fail: %s", s.name);
+            return false;
+        }
+
+        if (s.delayAfterMs > 0) {
+            delay(s.delayAfterMs);
+        }
     }
 
-    if (!mpuWr(G_MPU_INT_EN, G_MPU_INT_EN_MOTION)) {
-        D10_LOGW("[P20] WoM prep fail: INT_EN");
-        return false;
-    }
-
-    if (!mpuWr(G_MPU_PWR_MGMT_1, G_MPU_PWR1_CYCLE)) {
-        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_1 cycle");
-        return false;
-    }
-
-    if (!mpuWr(G_MPU_PWR_MGMT_2, G_MPU_PWR2_LP_WAKE_5HZ)) {
-        D10_LOGW("[P20] WoM prep fail: PWR_MGMT_2 LP_WAKE");
-        return false;
-    }
-    delay(G_MPU_SETTLE_LONG_MS);
-
-    (void)mpuRd(G_MPU_INT_STATUS);   // 초기 래치 클리어
+    // 초기 래치 클리어
+    (void)mpuRd(G_MPU_INT_STATUS);
     return true;
 }
 
 // =======================================================
 // Wake 후 MPU 정상 모드 복귀
-// -------------------------------------------------------
-// [v0415 L4-A3-13] p_sleepOccurred=false(UNDEFINED) 시 skip
-//   - esp_light_sleep_start()가 실패하거나 즉시 리턴된 경우
-//     MPU는 아직 정상 상태이므로 register 재설정 불필요.
 // =======================================================
 void CL_P20_Power::_restoreMpuAfterWake(bool p_sleepOccurred) {
     if (!p_sleepOccurred) return;
 
-    // Wake 직후 ESP32 I2C 하드웨어 클럭 복구 및 Wire 재초기화
     Wire.end();
     delay(G_MPU_SETTLE_SHORT_MS);
     Wire.begin(HW_DEF::PIN_I2C_SDA, HW_DEF::PIN_I2C_SCL);
@@ -211,10 +226,6 @@ void CL_P20_Power::_restoreMpuAfterWake(bool p_sleepOccurred) {
 
 // =======================================================
 // EXT1 wake arm (Safe/Pairing 분기)
-// -------------------------------------------------------
-// [v0415 Phase 1 방안 2-A]
-//   - p_safeOrPairing=true  → buildWakeMaskSafe()   (Side C 단독)
-//   - p_safeOrPairing=false → buildWakeMaskNormal() (MPU + 6버튼)
 // =======================================================
 void CL_P20_Power::_armExt1(bool p_safeOrPairing) {
     const uint64_t v_mask = p_safeOrPairing
@@ -226,19 +237,20 @@ void CL_P20_Power::_armExt1(bool p_safeOrPairing) {
 }
 
 // =======================================================
-// 실제 Light-sleep 진입
+// Light-sleep 진입
 // =======================================================
 bool CL_P20_Power::sleepNow(uint32_t p_nowMs, bool p_safeOrPairing) {
-    // [C-4] Wake 후 최소 활성 시간 보장 (Thrashing 방지)
+    // Wake 후 최소 활성 시간 보장 (Thrashing 방지)
     if (_lastWakeMs != 0) {
-        const uint16_t v_minActive = (_cfg.wake_min_active_ms > 0) ? _cfg.wake_min_active_ms : 500;
+        const uint16_t v_minActive = (_cfg.wake_min_active_ms > 0)
+                                     ? _cfg.wake_min_active_ms : 500;
         if ((p_nowMs - _lastWakeMs) < v_minActive) return false;
     }
 
     // MPU WoM 준비 실패 시 sleep 금지
     if (!_prepareMpuWom()) return false;
 
-    // [v0415] Safe/Pairing 분기 마스크
+    // Safe/Pairing 분기 마스크
     _armExt1(p_safeOrPairing);
 
     D10_LOGI("[P20] entering light sleep (idle=%ums, safeOrPair=%d)",
@@ -250,20 +262,16 @@ bool CL_P20_Power::sleepNow(uint32_t p_nowMs, bool p_safeOrPairing) {
     // ---- wake ----
     const esp_sleep_wakeup_cause_t v_cause = esp_sleep_get_wakeup_cause();
 
-    // MPU WoM 준비로 저전력 모드로 변경되었으므로 반드시 복원 실행
+    // MPU 복원
     _restoreMpuAfterWake(true);
 
     _lastWakeMs     = (uint32_t)millis();
     _lastActivityMs = _lastWakeMs;
     _ext1Armed      = false;
 
-    // [v0415] _wakeCount / _lastWakeReason 삭제 (Phase 4 Q5-b)
-    //   wake 통계는 esp_sleep_get_wakeup_cause()로 on-demand 확인 가능
+    D10_LOGI("[P20] woke: cause=%d", (int)v_cause);
 
-    D10_LOGI("[P20] woke: cause=%d",
-             (int)v_cause);
-
-    // [C-3] commTask 즉시 통지
+    // commTask 즉시 통지
     if (_wakeCb) {
         _wakeCb(_wakeCtx);
     }
@@ -272,7 +280,7 @@ bool CL_P20_Power::sleepNow(uint32_t p_nowMs, bool p_safeOrPairing) {
 }
 
 // =======================================================
-// [N-1] Deep-sleep 진입 (Safe 분기)
+// Deep-sleep 진입 (Safe 분기)
 // =======================================================
 bool CL_P20_Power::deepSleepNow(uint32_t p_nowMs,
                                 bool p_hidConnected,
@@ -286,14 +294,10 @@ bool CL_P20_Power::deepSleepNow(uint32_t p_nowMs,
              (unsigned)(p_nowMs - _lastActivityMs),
              (int)p_safe);
 
-    // [W1] MPU6050 sleep bit 설정 (~4mA 절감, SPEC §전원관리 정합)
-    //   - deep sleep wake는 버튼 EXT1만 사용하므로 MPU WoM 불필요
-    static constexpr uint8_t G_MPU_PWR1_SLEEP = 0x40;
+    // MPU6050 sleep bit 설정 (~4mA 절감)
     (void)mpuWr(G_MPU_PWR_MGMT_1, G_MPU_PWR1_SLEEP);
 
-    // [v0415] Safe 분기 마스크
-    //   - Safe  → buildWakeMaskSafe()    (Side C 단독)
-    //   - 일반  → buildWakeMaskButtons() (6버튼, MPU 제외)
+    // Safe 분기 마스크
     const uint64_t v_mask = p_safe
         ? HW_DEF::buildWakeMaskSafe()
         : HW_DEF::buildWakeMaskButtons();
@@ -301,7 +305,6 @@ bool CL_P20_Power::deepSleepNow(uint32_t p_nowMs,
     esp_sleep_enable_ext1_wakeup(v_mask, ESP_EXT1_WAKEUP_ANY_LOW);
     esp_deep_sleep_start();
 
-    // [v0415 L4-A3-11] unreachable — esp_deep_sleep_start()는 리턴하지 않음
-    //   컴파일러 경고 방지 및 API 일관성을 위해 false 반환.
+    // unreachable
     return false;
 }

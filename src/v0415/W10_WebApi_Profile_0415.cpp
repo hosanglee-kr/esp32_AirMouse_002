@@ -5,26 +5,12 @@
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_Profile_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Profile / Triggers / Live Test API (v0415)
+ * 모듈명 : Profile / Triggers / Live Test API
  * ------------------------------------------------------
- * 기능 요약
- *  - /api/profiles                (GET)  목록 + active
- *  - /api/profiles/switch         (POST) 활성 전환
- *  - /api/profiles/create         (POST) 새 프로파일
- *  - /api/profiles/delete         (POST) 삭제 (swap-with-last)
- *  - /api/profiles/rename         (POST) 이름 변경
- *  - /api/profiles/active         (GET)  활성 프로파일 전체 config
- *  - /api/profiles/active         (POST) 활성 프로파일 patch + 저장
- *  - /api/triggers                (GET)  트리거 라이브러리 (27)
- *  - /api/action/test             (POST) Live Test (단일 액션)
- *
- * [v0415 주요 변경]
- *  - 파일명/심볼 _0415
- *  - include W10_Web_0415.h
- *  - deleteProfile swap-with-last 정책 반영 (C10_Config_0415)
- *    · 응답에 삭제된 idx를 lastIdx 정보로 노출 (클라이언트 안내용)
- *  - ST_W10_E10If_t::setPptMode 삭제 (Round M) — 본 파일에서 미사용
- *  - apiProfilesActiveGet 수동 스트리밍 유지 (R2-M-3)
+ * [v0415 Phase 2-1]
+ *  - 7개 POST 핸들러에서 _parseBodyAndGate 사용
+ *    · apiProfilesSwitch / Create / Delete / Rename
+ *    · apiProfilesActivePost / apiActionTest / apiActionTestMacro
  * ------------------------------------------------------
  */
 
@@ -58,24 +44,13 @@ void CL_W10_WebConfig::apiProfilesList(AsyncWebServerRequest* req) {
 }
 
 // =====================================================
-// POST /api/profiles/switch  { idx }
+// POST /api/profiles/switch
 // =====================================================
 void CL_W10_WebConfig::apiProfilesSwitch(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     if (v_d["idx"].isNull()) {
         _sendErr(req, "bad_json", "Missing idx.");
@@ -91,11 +66,11 @@ void CL_W10_WebConfig::apiProfilesSwitch(AsyncWebServerRequest* req,
 
     const bool v_ok = _e10if->switchProfile(_e10if->ctx, v_idx);
     if (!v_ok) {
-        _sendErr(req, "profile_switch_failed", "Switch failed (invalid idx / in progress).");
+        _sendErr(req, "profile_switch_failed",
+                 "Switch failed (invalid idx / in progress).");
         return;
     }
 
-    // 로컬 캐시 재로드
     if (_cfg) {
         ST_C10_ProfileConfig_t v_p;
         _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
@@ -110,29 +85,18 @@ void CL_W10_WebConfig::apiProfilesSwitch(AsyncWebServerRequest* req,
 }
 
 // =====================================================
-// POST /api/profiles/create  { name }
+// POST /api/profiles/create
 // =====================================================
 void CL_W10_WebConfig::apiProfilesCreate(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
     if (!_cfg) {
         _sendErr(req, "no_config", "Config manager not ready.");
         return;
     }
 
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     const char* v_name = nullptr;
     if (!v_d["name"].isNull()) v_name = (const char*)v_d["name"];
@@ -158,33 +122,18 @@ void CL_W10_WebConfig::apiProfilesCreate(AsyncWebServerRequest* req,
 }
 
 // =====================================================
-// POST /api/profiles/delete  { idx }
-// -----------------------------------------------------
-// [v0415] deleteProfile은 swap-with-last (C10_Config_0415)
-//   - 중간 삭제 시 마지막 프로파일이 삭제 슬롯으로 이동
-//   - 응답에 swapped_from 정보 노출 (클라이언트가 이름 재조회 가능)
+// POST /api/profiles/delete
 // =====================================================
 void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
     if (!_cfg) {
         _sendErr(req, "no_config", "Config manager not ready.");
         return;
     }
 
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     if (v_d["idx"].isNull()) {
         _sendErr(req, "bad_json", "Missing idx.");
@@ -193,7 +142,6 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
 
     const uint8_t v_idx = (uint8_t)v_d["idx"];
 
-    // swap 여부 판정 (삭제 전 count/idx 비교)
     const uint8_t v_prevCount = _cfg->getProfileCount();
     const bool v_wasSwap = (v_idx < (v_prevCount - 1)) && (v_prevCount > 1);
     const uint8_t v_swappedFrom = (uint8_t)(v_prevCount - 1);
@@ -203,13 +151,11 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
         return;
     }
 
-    // active index가 shift될 수 있으므로 E10 재로드
     bool v_reloaded = false;
     if (_e10if && _e10if->reloadProfile) {
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
     }
 
-    // 로컬 캐시 재로드
     if (_cfg) {
         ST_C10_ProfileConfig_t v_p;
         _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
@@ -224,7 +170,7 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
     v_out["reloaded"]    = v_reloaded;
     v_out["swap"]        = v_wasSwap;
     if (v_wasSwap) {
-        v_out["swapped_from"] = v_swappedFrom;   // 마지막 idx가 삭제 슬롯으로 이동
+        v_out["swapped_from"] = v_swappedFrom;
         v_out["swapped_to"]   = v_idx;
     }
 
@@ -232,29 +178,18 @@ void CL_W10_WebConfig::apiProfilesDelete(AsyncWebServerRequest* req,
 }
 
 // =====================================================
-// POST /api/profiles/rename  { idx, name }
+// POST /api/profiles/rename
 // =====================================================
 void CL_W10_WebConfig::apiProfilesRename(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
     if (!_cfg) {
         _sendErr(req, "no_config", "Config manager not ready.");
         return;
     }
 
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     if (v_d["idx"].isNull() || v_d["name"].isNull()) {
         _sendErr(req, "bad_json", "Missing idx or name.");
@@ -310,7 +245,7 @@ void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
         return;
     }
 
-    // [R2-M-3] envelope 수동 스트리밍 (triple-copy 회피)
+    // envelope 수동 스트리밍 (triple-copy 회피)
     AsyncResponseStream* res = req->beginResponseStream("application/json");
     res->setCode(200);
     res->addHeader("Cache-Control", G_W10_CACHE_NOSTORE);
@@ -327,27 +262,28 @@ void CL_W10_WebConfig::apiProfilesActiveGet(AsyncWebServerRequest* req) {
 }
 
 // =====================================================
-// POST /api/profiles/active  { ...partial profile... }
+// POST /api/profiles/active
 // =====================================================
 void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
                                              uint8_t* data, size_t len,
                                              size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
     if (!_cfg) {
         _sendErr(req, "no_config", "Config manager not ready.");
         return;
     }
 
+    // [Phase 2-1] SafeMode gate + Body + JSON parse 통합
+    //   ※ patchProfileFromJson이 v_body(String)을 필요로 하므로
+    //     _parseBodyAndGate 대신 개별 처리 유지
+    if (_gateSafeModeOrReply(req)) return;
+
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
-    // 현재 활성 프로파일 로드
     ST_C10_ProfileConfig_t v_p;
     _cfg->makeDefaultsProfile(_cfg->getActiveIndex(), v_p);
     (void)_cfg->loadActiveProfile(v_p);
 
-    // patch
     if (!_cfg->patchProfileFromJson(v_body, v_p)) {
         _cnt_json_bad++;
         _diagPush("bad_json");
@@ -355,37 +291,29 @@ void CL_W10_WebConfig::apiProfilesActivePost(AsyncWebServerRequest* req,
         return;
     }
 
-    // 검증
     if (!_cfg->validateProfile(v_p)) {
         _sendErr(req, "validation_failed", "Profile validation failed.");
         return;
     }
 
-    // 저장
     const uint8_t v_idx = _cfg->getActiveIndex();
     if (!_cfg->saveProfile(v_idx, v_p)) {
         _sendErr(req, "profile_save_failed", "Failed to save profile.");
         return;
     }
 
-    // W10 로컬 캐시
     _wifi = v_p.wifi;
-    
-    // [v0415 rev15] WiFi 변경 감지 → 재부팅 배너 트리거
-    //   - 이전 누락: apiConfigSave에만 있고 여기엔 없었음
-    //   - /api/profiles/active POST 경로에서도 WiFi 변경 반영
     _bumpRebootMaskFromBoot();
-    
-    // E10 재로드
+
     bool v_reloaded = false;
     if (_e10if && _e10if->reloadProfile) {
         v_reloaded = _e10if->reloadProfile(_e10if->ctx);
     }
-    
+
     JsonDocument v_out;
     v_out["idx"]             = v_idx;
     v_out["reloaded"]        = v_reloaded;
-    v_out["reboot_required"] = _needReboot;   // ← 추가 (WiFi 변경 시 배너 트리거)
+    v_out["reboot_required"] = _needReboot;
 
     _markLastApply(true, "profile", "profile_save");
     _sendOk(req, "profile_set", "", &v_out, 200);
@@ -411,24 +339,13 @@ void CL_W10_WebConfig::apiTriggers(AsyncWebServerRequest* req) {
 }
 
 // =====================================================
-// POST /api/action/test  { k, h, p16, p32 }
+// POST /api/action/test
 // =====================================================
 void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
                                      uint8_t* data, size_t len,
                                      size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     const uint8_t  v_k   = (uint8_t) (v_d["k"].isNull()   ? 0 : (int)v_d["k"]);
     const uint8_t  v_h   = (uint8_t) (v_d["h"].isNull()   ? 0 : (int)v_d["h"]);
@@ -442,10 +359,6 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
 
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx, v_k, v_h, v_p16, v_p32);
     if (!v_ok) {
-        // [FIX-9] execLiveTest 실패 사유 구분:
-        //   - SafeMode/OTAGuard → gate 실패
-        //   - SPECIAL은 BLE 무관 성공 위임 (rev12) → 여기 도달 안 함
-        //   - 그 외 → 실제 BLE 미연결
         bool v_otaGuard = false;
         if (_e10if->getStatus) {
             ST_E10_Status_t s;
@@ -455,7 +368,8 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
         if (_isSafeMode() || v_otaGuard) {
             _sendErr(req, "ota_guard_blocked", "Live test blocked by gate.");
         } else {
-            _sendErr(req, "ble_disconnected", "Live test failed (BLE disconnected to host PC).");
+            _sendErr(req, "ble_disconnected",
+                     "Live test failed (BLE disconnected to host PC).");
         }
         return;
     }
@@ -470,24 +384,13 @@ void CL_W10_WebConfig::apiActionTest(AsyncWebServerRequest* req,
 }
 
 // =====================================================
-// POST /api/action/test_macro  { idx }
+// POST /api/action/test_macro
 // =====================================================
 void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
                                           uint8_t* data, size_t len,
                                           size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
     JsonDocument v_d;
-    DeserializationError v_err = deserializeJson(v_d, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_d)) return;
 
     if (v_d["idx"].isNull()) {
         _sendErr(req, "bad_json", "Missing idx.");
@@ -502,12 +405,11 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
     }
 
     const bool v_ok = _e10if->execLiveTest(_e10if->ctx,
-                                       (uint8_t)EN_C20_ACT_MACRO,
-                                       (uint8_t)EN_C20_HOLD_NONE,
-                                       0,
-                                       (uint32_t)v_idx);
+                                           (uint8_t)EN_C20_ACT_MACRO,
+                                           (uint8_t)EN_C20_HOLD_NONE,
+                                           0,
+                                           (uint32_t)v_idx);
     if (!v_ok) {
-        // [FIX-9] gate 실패 vs BLE 미연결 구분
         bool v_otaGuard = false;
         if (_e10if->getStatus) {
             ST_E10_Status_t s;
@@ -517,7 +419,8 @@ void CL_W10_WebConfig::apiActionTestMacro(AsyncWebServerRequest* req,
         if (_isSafeMode() || v_otaGuard) {
             _sendErr(req, "ota_guard_blocked", "Macro test blocked by gate.");
         } else {
-            _sendErr(req, "ble_disconnected", "Macro test failed (BLE disconnected to host PC).");
+            _sendErr(req, "ble_disconnected",
+                     "Macro test failed (BLE disconnected to host PC).");
         }
         return;
     }

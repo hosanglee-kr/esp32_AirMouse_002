@@ -1,59 +1,33 @@
 // =======================================================
-// File: W10_WebApi_Com_0415.cpp
+// File: src/v0415/W10_WebApi_Com_0415.cpp
 // =======================================================
-
 /*
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_Com_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: API Common Helpers/Policies)
+ * 모듈명 : API 공통 유틸/정책
  * ------------------------------------------------------
  * 기능 요약
  *  - (0316) API 공통 유틸/정책 분리
  *  - JSON Stream helper, ETag/304(API), SafeMode Gate, reboot helper 등
+ *
+ * [v0415 Phase 2-1]
+ *  - _parseBodyAndGate() 구현 추가
+ *    · SafeMode 게이트 + Body 수집 + JSON 파싱을 단일 헬퍼로 통합
+ *    · 15개 POST API 핸들러의 3단 보일러플레이트 제거
+ *
+ * [v0415 Phase 2-2]
+ *  - _httpFromCode() if-else 40줄 → 이진 탐색 15줄
+ *    · G_W10_ERR_MAP[] 테이블 (W10_Def_0415.h)
+ *    · 반드시 사전순 정렬 유지
  * ------------------------------------------------------
  * [구현 규칙]
- *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
- *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
+ *  - ArduinoJson v7.x.x 사용
  *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
- *  - 주석/필드명은 JSON 구조와 동일하게 유지
- *  - 변수명은 가능한 해석 가능하게
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - namespace 명        : 모듈약어_ 접두사
- *   - namespace 내 상수    : 모둘약어 접두시 미사용
- *   - 전역 상수,매크로      : G_모듈약어_ 접두사
- *   - 전역 변수             : g_모듈약어_ 접두사
- *   - 전역 함수             : 모듈약어_ 접두사
- *   - type                  : T_모듈약어_ 접두사
- *   - typedef               : _t  접미사
- *   - enum 상수             : EN_모듈약어_ 접두사
- *   - 구조체                : ST_모듈약어_ 접두사
- *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
- *   - 클래스 private 멤버 함수/변수   : _ 접두사
- *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
- *   - 클래스 정적 멤버      : s_ 접두사
- *   - 함수 로컬 변수        : v_ 접두사
- *   - 함수 인자             : p_ 접두사
  * ------------------------------------------------------
  */
 
- // API 공통 헬퍼 구현:
-// - _sendJsonStream
-// - _formatEtagQuoted
-// - _ifNoneMatchHit
-// - _send304NoStoreEtag
-// - _sendOk / _httpFromCode / _sendErr
-// - _isSafeMode / _isApiAllowedInSafeMode / _gateSafeModeOrReply
-// - _wifiDiffMask / _markNeedReboot / _markLastApply / _rebootReasonsString
-
-
 #include "W10_Web_0415.h"
-
-
 
 
 // =====================================================
@@ -79,10 +53,7 @@ void CL_W10_WebConfig::_formatEtagQuoted(uint32_t p_etag, char* p_out, size_t p_
 
 
 // =====================================================
-// If-None-Match 호환 체크 (최소 대응)
-// - "abcd", abcd, W/"abcd", W/abcd, 콤마 리스트 모두 대응
-// - 공백/CRLF 제거
-// - "*" 지원
+// If-None-Match 호환 체크
 // =====================================================
 bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_etag) const {
     if (!req) return false;
@@ -97,43 +68,35 @@ bool CL_W10_WebConfig::_ifNoneMatchHit(AsyncWebServerRequest* req, uint32_t p_et
 
     String v_inm = h->value();
 
-    // 공백/개행 제거(대략)
     v_inm.replace(" ", "");
     v_inm.replace("\t", "");
     v_inm.replace("\r", "");
     v_inm.replace("\n", "");
 
-    // 여러 ETag가 콤마로 올 수 있음: "a","b",W/"c"
     int start = 0;
     while (start < v_inm.length()) {
         int comma = v_inm.indexOf(',', start);
-        String tok = (comma < 0) ? v_inm.substring(start) : v_inm.substring(start, comma);
+        String tok = (comma < 0) ? v_inm.substring(start)
+                                 : v_inm.substring(start, comma);
         start = (comma < 0) ? v_inm.length() : (comma + 1);
 
         if (tok.length() == 0) continue;
 
-        // Weak ETag 접두 제거: W/ 또는 w/
         if (tok.startsWith("W/") || tok.startsWith("w/")) tok = tok.substring(2);
 
-        // 따옴표 제거: "ABCD" -> ABCD
         if (tok.startsWith("\"") && tok.endsWith("\"") && tok.length() >= 2) {
             tok = tok.substring(1, tok.length() - 1);
         }
 
-        // If-None-Match: * (리소스가 존재하면 매치로 간주)
         if (tok == "*") return true;
-
-        // tok는 보통 ABCDEF01 형태(따옴표/weak 제거됨)
         if (tok.equalsIgnoreCase(v_tagRaw)) return true;
     }
     return false;
 }
 
 
-
 // =====================================================
 // 304 공통 (API/public json): no-store + ETag
-// - Vary는 여기서 넣지 않음(정책: Vary는 정적(gzip)에서만)
 // =====================================================
 void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t p_etag) {
     if (!req) return;
@@ -150,12 +113,11 @@ void CL_W10_WebConfig::_send304NoStoreEtag(AsyncWebServerRequest* req, uint32_t 
 }
 
 
-
 // =====================================================
-// (C) Standard API response helpers
-// - { ok, code, msg, data }
+// Standard API response helpers
 // =====================================================
-void CL_W10_WebConfig::_sendOk(AsyncWebServerRequest* req, const char* p_code, const char* p_msg, JsonDocument* p_data, int p_http) {
+void CL_W10_WebConfig::_sendOk(AsyncWebServerRequest* req, const char* p_code,
+                               const char* p_msg, JsonDocument* p_data, int p_http) {
     JsonDocument d;
     d["ok"] = true;
     d["code"] = (p_code ? p_code : "ok");
@@ -166,48 +128,30 @@ void CL_W10_WebConfig::_sendOk(AsyncWebServerRequest* req, const char* p_code, c
     _sendJsonStream(req, d, p_http);
 }
 
+// =====================================================
+// [v0415 Phase 2-2] 에러 코드 → HTTP 매핑
+// -----------------------------------------------------
+//   - G_W10_ERR_MAP[] (W10_Def_0415.h) 이진 탐색
+//   - 사전순 정렬 필수
+//   - 26개 코드
+// =====================================================
 int CL_W10_WebConfig::_httpFromCode(const char* p_code) {
     if (!p_code) return 500;
 
-    if (!strcmp(p_code, "bad_json")) return 400;
-    if (!strcmp(p_code, "validation_failed")) return 400;
-    if (!strcmp(p_code, "no_map")) return 400;
-    if (!strcmp(p_code, "ble_disconnected")) return 400;
-
-    if (!strcmp(p_code, "safe_mode_blocked")) return 403;
-    if (!strcmp(p_code, "ota_guard_blocked")) return 403;
-    if (!strcmp(p_code, "static_forbidden")) return 403;
-
-    if (!strcmp(p_code, "api_not_found")) return 404;
-    if (!strcmp(p_code, "static_not_found")) return 404;
-
-    if (!strcmp(p_code, "no_reboot_needed")) return 409;
-    if (!strcmp(p_code, "reason_mask_mismatch")) return 409;
-
-    if (!strcmp(p_code, "body_too_large")) return 413;
-
-    if (!strcmp(p_code, "no_body_slot")) return 503;
-
-    if (!strcmp(p_code, "no_config")) return 503;
-
-    if (!strcmp(p_code, "config_get_failed")) return 500;
-    if (!strcmp(p_code, "config_save_failed")) return 500;
-    if (!strcmp(p_code, "config_apply_failed")) return 500;
-    if (!strcmp(p_code, "config_export_failed")) return 500;
-    if (!strcmp(p_code, "config_import_failed")) return 500;
-    if (!strcmp(p_code, "config_rollback_failed")) return 500;
-
-    if (!strcmp(p_code, "control_failed")) return 500;
-    if (!strcmp(p_code, "ppt_set_failed")) return 500;
-    if (!strcmp(p_code, "ppt_test_failed")) return 500;
-    if (!strcmp(p_code, "ota_failed")) return 500;
-    if (!strcmp(p_code, "factory_reset_failed")) return 500;
-    if (!strcmp(p_code, "safeboot_exit_failed")) return 500;
-
+    size_t v_lo = 0;
+    size_t v_hi = G_W10_ERR_MAP_COUNT;
+    while (v_lo < v_hi) {
+        size_t v_mid = (v_lo + v_hi) / 2;
+        int v_cmp = strcmp(p_code, G_W10_ERR_MAP[v_mid].code);
+        if (v_cmp < 0)      v_hi = v_mid;
+        else if (v_cmp > 0) v_lo = v_mid + 1;
+        else                return G_W10_ERR_MAP[v_mid].http;
+    }
     return 500;
 }
 
-void CL_W10_WebConfig::_sendErr(AsyncWebServerRequest* req, const char* code, const char* msg, JsonDocument* data) {
+void CL_W10_WebConfig::_sendErr(AsyncWebServerRequest* req, const char* code,
+                                const char* msg, JsonDocument* data) {
     int v_http = _httpFromCode(code);
 
     JsonDocument doc;
@@ -224,6 +168,37 @@ void CL_W10_WebConfig::_sendErr(AsyncWebServerRequest* req, const char* code, co
 }
 
 
+// =====================================================
+// [v0415 Phase 2-1] POST API 공통 사전 처리 헬퍼
+// -----------------------------------------------------
+//  ① SafeMode 게이트
+//  ② Body 수집
+//  ③ JSON 파싱
+//  실패 시 응답 자동 송출 후 false 반환
+// =====================================================
+bool CL_W10_WebConfig::_parseBodyAndGate(AsyncWebServerRequest* req,
+                                         uint8_t* data, size_t len,
+                                         size_t index, size_t total,
+                                         JsonDocument& p_outDoc) {
+    // ① SafeMode 게이트
+    if (_gateSafeModeOrReply(req)) return false;
+
+    // ② Body 수집
+    String v_body;
+    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return false;
+
+    // ③ JSON 파싱
+    DeserializationError v_err = deserializeJson(p_outDoc, v_body);
+    if (v_err) {
+        _cnt_json_bad++;
+        _diagPush("bad_json");
+        _sendErr(req, "bad_json", "Invalid JSON.");
+        return false;
+    }
+    return true;
+}
+
+
 // -----------------------
 // SafeMode API Gate Policy
 // -----------------------
@@ -231,10 +206,10 @@ bool CL_W10_WebConfig::_isSafeMode() const {
     return (_cfg && _cfg->isSafeMode());
 }
 
-bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMethodComposite p_method) const {
+bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri,
+                                               WebRequestMethodComposite p_method) const {
     if (!p_uri) return false;
-    
-    // 대부분의 API는 GET만 존재 → method 검사 불필요
+
     if (strcmp(p_uri, "/api/status") == 0) return true;
     if (strcmp(p_uri, "/api/diag") == 0) return true;
     if (strcmp(p_uri, "/api/diag/clear") == 0) return true;
@@ -245,16 +220,10 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
     if (strcmp(p_uri, "/api/ota") == 0) return true;
     if (strcmp(p_uri, "/api/factory_reset") == 0) return true;
     if (strcmp(p_uri, "/api/reboot") == 0) return true;
-    
-    // write 계열은 save/apply/import 모두 차단 (아래 목록에 없으므로 자동 차단)
-    // 복구 경로(export/rollback)만 허용
+
     if (strcmp(p_uri, "/api/config/export") == 0) return true;
     if (strcmp(p_uri, "/api/config/rollback") == 0) return true;
 
-    // [M-2] v0412 읽기 전용 profile/triggers API: GET만 허용
-    //   - /api/profiles/active: GET(read) + POST(write) 양쪽 등록됨 → method 필수 검사
-    //   - /api/profiles: GET만 등록되어 있으나 방어적으로 GET만 허용
-    //   - /api/triggers: GET만 등록 (method 검사 생략 가능)
     if (strcmp(p_uri, "/api/profiles/active") == 0) {
         return (p_method == HTTP_GET);
     }
@@ -269,26 +238,20 @@ bool CL_W10_WebConfig::_isApiAllowedInSafeMode(const char* p_uri, WebRequestMeth
 
 // =====================================================
 // SafeMode Gate (공통)
-// -------------------------------------------------------
-// [v0415 L7d-A1-02] req->url() 임시 String의 c_str() dangling 방지
-//   - 지역 String(v_uri_str)으로 복사 후 c_str() 사용
-//   - req 수명 동안 유효한 String 복사본 확보
 // =====================================================
 bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
     if (!_isSafeMode()) return false;
 
-    // [v0415] url dangling 방지: 지역 String으로 복사
     String v_uri_str;
     WebRequestMethodComposite v_method = HTTP_ANY;
 
     if (req) {
-        v_uri_str = req->url();       // ← String 복사 (수명 보장)
+        v_uri_str = req->url();
         v_method  = req->method();
     }
 
     const char* v_uri = v_uri_str.c_str();
 
-    // [M-2] method-aware 검사
     if (_isApiAllowedInSafeMode(v_uri, v_method)) return false;
 
     _cnt_safe_blocked++;
@@ -300,7 +263,8 @@ bool CL_W10_WebConfig::_gateSafeModeOrReply(AsyncWebServerRequest* req) {
 // =====================================================
 // reboot reason helpers
 // =====================================================
-uint32_t CL_W10_WebConfig::_wifiDiffMask(const ST_C10_WiFiConfig_t& a, const ST_C10_WiFiConfig_t& b) {
+uint32_t CL_W10_WebConfig::_wifiDiffMask(const ST_C10_WiFiConfig_t& a,
+                                         const ST_C10_WiFiConfig_t& b) {
     uint32_t m = 0;
     if (a.mode != b.mode) m |= G_W10_REBOOT_WIFI_MODE;
     if (strncmp(a.sta_ssid, b.sta_ssid, sizeof(a.sta_ssid)) != 0 ||
@@ -345,4 +309,3 @@ String CL_W10_WebConfig::_rebootReasonsString(uint32_t m) {
     if (m & G_W10_REBOOT_OTHER) add("other");
     return s;
 }
-

@@ -2,49 +2,24 @@
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_CtlPpt_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: Control + PPT Test)
+ * 모듈명 : Control + PPT Test API
  * ------------------------------------------------------
- * 기능 요약
- *  - /api/control  : Quick Control (PPT/DPI/Precision/SafeMode/OTA Guard/I2C/Gyro)
- *  - /api/ppt/test : 단발 키 테스트 (page/mod/code)
- *
- * [v0412 변경]
- *  - /api/ppt GET/POST는 폐기됨 (라우팅 미등록). 프로파일 API(/api/profiles)로 통합.
- *  - /api/ppt/test는 기존 유지 (page/mod/code)
- * ------------------------------------------------------
- * [구현 규칙]
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
+ * [v0415 Phase 2-1]
+ *  - apiControl / apiPptTest: _parseBodyAndGate 사용
  * ------------------------------------------------------
  */
 
-// =======================================================
 #include "W10_Web_0415.h"
 
 // =====================================================
 // /api/control
-// -----------------------------------------------------
-// [v0415 변경] set_ppt cmd / ppt_mode legacy 필드 삭제
-//   - E10 _isPptMode 필드 삭제 (Round G)
-//   - PPT 판정은 active_mode == 2 로 일원화
 // =====================================================
-void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
+void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req,
+                                  uint8_t* data, size_t len,
+                                  size_t index, size_t total) {
+    // [Phase 2-1] SafeMode gate + Body + JSON parse 통합
     JsonDocument v_jsonDoc;
-    DeserializationError v_err = deserializeJson(v_jsonDoc, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_jsonDoc)) return;
 
     ST_W10_E10If_t* e10if = _e10if;
     bool ok = true;
@@ -57,7 +32,6 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
     if (!e10if) ok = false;
 
     if (ok && v_cmd && v_cmd[0] != '\0') {
-        // [v0415] set_ppt cmd 삭제
         if (strcmp(v_cmd, "set_dpi") == 0) {
             uint8_t v_lv = 2;
             if (!v_jsonDoc["level"].isNull()) v_lv = (uint8_t)v_jsonDoc["level"];
@@ -96,16 +70,14 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
             ok = ok && (e10if && e10if->setOtaGuard ? e10if->setOtaGuard(e10if->ctx, v_en) : false);
 
         } else if (strcmp(v_cmd, "set_hard_click_lock") == 0) {
-            // [v0415] M10 Click-Lock 삭제. E10의 setHardClickLock은 no-op 스텁.
             bool v_en = false;
             if (!v_jsonDoc["enable"].isNull()) v_en = (bool)v_jsonDoc["enable"];
             ok = ok && (e10if && e10if->setHardClickLock ? e10if->setHardClickLock(e10if->ctx, v_en) : false);
 
-        // [v0415 Wave F] 직접 모드 지정 (사이클 오류 방지)
         } else if (strcmp(v_cmd, "set_mode") == 0) {
             uint8_t v_mode = 1;
             if (!v_jsonDoc["mode"].isNull()) v_mode = (uint8_t)v_jsonDoc["mode"];
-        
+
             if (v_mode < 1 || v_mode > 3) {
                 ok = false;
             } else {
@@ -117,7 +89,6 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
         }
 
     } else if (ok) {
-        // [v0415] legacy 필드: ppt_mode 삭제. dpi_level / precision_mode / safe_mode 유지
         if (!v_jsonDoc["dpi_level"].isNull()) {
             ok = ok && (e10if && e10if->setDpiLevel ? e10if->setDpiLevel(e10if->ctx, (uint8_t)v_jsonDoc["dpi_level"]) : false);
         }
@@ -142,30 +113,22 @@ void CL_W10_WebConfig::apiControl(AsyncWebServerRequest* req, uint8_t* data, siz
 }
 
 // =====================================================
-// /api/ppt/test (유지)
+// /api/ppt/test
 // =====================================================
-void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    D10_LOGI("[W10] POST /api/ppt/test: len=%u, tot=%u", (unsigned)len, (unsigned)total);
+void CL_W10_WebConfig::apiPptTest(AsyncWebServerRequest* req,
+                                  uint8_t* data, size_t len,
+                                  size_t index, size_t total) {
+    D10_LOGI("[W10] POST /api/ppt/test: len=%u, tot=%u",
+             (unsigned)len, (unsigned)total);
 
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
+    // [Phase 2-1] SafeMode gate + Body + JSON parse 통합
     JsonDocument v_jsonDoc;
-    DeserializationError v_err = deserializeJson(v_jsonDoc, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_jsonDoc)) return;
 
     uint8_t  page = (uint8_t)EN_C10_KEYPAGE_KB;
     uint8_t  mod  = 0;
     uint32_t code = 0;
 
-    // [v0415 L7f-A3-02] page 타입 검사 추가
     JsonVariant v_page = v_jsonDoc["page"];
     if (!v_page.isNull() && v_page.is<const char*>()) {
         const char* s = v_page.as<const char*>();

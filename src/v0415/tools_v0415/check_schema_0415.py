@@ -6,8 +6,13 @@ check_schema_0415.py — 백엔드↔프론트 필드명 정합성 검증
 - am_offline_0415.js 기본 프로파일의 power/button 키 추출
 - 3자 비교 → 불일치 시 exit code 1
 
+[v0415 Phase 3-D 확장]
+- check_e10_json_parity(): _buildE10Json ↔ _patchE10Json 필드 대칭성
+- check_w10_kb_names_sorted(): G_W10_KB_NAMES[] 이진 탐색 전제 검증
+- check_w10_err_map_sorted(): G_W10_ERR_MAP[] 이진 탐색 전제 검증
+
 사용:
-    python check_schema.py
+    python check_schema_0415.py
 """
 
 import re
@@ -21,11 +26,7 @@ JS_OFFLINE    = ROOT / "data_v0415_www" / "lib" / "am_offline_0415.js"
 
 
 # ======================================================
-# [v0415 rev15 / Wave B] Wi-Fi 필드 매핑 (H struct → JSON 경로)
-# ------------------------------------------------------
-#  - ST_C10_WiFiConfig_t 는 flat 구조체 (mode/sta_ssid/sta_pass/...)
-#  - JSON/JS는 nested 구조 (wifi.sta.ssid 등)
-#  - H → JSON 경로 매핑을 명시 테이블로 관리 (문서-코드 SSOT)
+# [v0415 rev15 / Wave B] Wi-Fi 필드 매핑
 # ======================================================
 WIFI_FIELD_MAP = {
     "mode":       "wifi.mode",
@@ -36,7 +37,6 @@ WIFI_FIELD_MAP = {
     "mdns_host":  "wifi.mdns.host",
 }
 
-# JS DOM id ↔ JSON 경로 매핑 (configToUi/uiToConfig 검증용)
 WIFI_DOM_MAP = {
     "wifiMode":    "wifi.mode",
     "wifiStaSsid": "wifi.sta.ssid",
@@ -48,10 +48,6 @@ WIFI_DOM_MAP = {
 
 # ======================================================
 # [v0415 rev15 / Wave D] E10 nested 구조체 화이트리스트
-# ------------------------------------------------------
-#  - ST_C10_E10Config_t 내 인라인 struct 필드
-#  - 화이트리스트 SSOT: 문서-코드-UI 삼각 정합 검증
-#  - 각 key: H 필드명 / value: JSON 경로 (nested)
 # ======================================================
 E10_NESTED_MAP = {
     "precision": {
@@ -89,7 +85,6 @@ E10_NESTED_MAP = {
     },
 }
 
-
 # [v0415 rev15 / 스키마 412] 삭제된 gesture 필드 (Negative check)
 GESTURE_REMOVED_H_FIELDS = ["gesture_flick_deg", "gesture_cooldown_ms"]
 
@@ -103,16 +98,12 @@ def extract_c_struct_fields(lines, struct_name):
     if start < 0:
         return []
 
-    # [FIX v2] struct 시작 이후 전체를 한 번에 주석 제거 후 라인 배열 재구성
-    #   - 라인별 _strip_comments는 멀티라인 블록 주석 미지원
-    #   - `/* ... */`가 필드 사이에 걸쳐 있으면 필드 오탐 발생 가능
     tail_text = "\n".join(lines[start:])
     tail_clean = _strip_comments_multi(tail_text)
     tail_lines = tail_clean.splitlines()
 
     fields = []
     depth = 1
-    # tail_lines[0] = struct 선언 라인 (이미 '{' 포함)
     for i in range(1, len(tail_lines)):
         code = tail_lines[i]
 
@@ -120,7 +111,9 @@ def extract_c_struct_fields(lines, struct_name):
         if depth <= 0:
             break
 
-        m = re.match(r'\s*(?:uint\d+_t|int\d+_t|bool|float|double|char)\s+(\w+)\s*(?:\[[^\]]*\])?\s*;', code)
+        m = re.match(
+            r'\s*(?:uint\d+_t|int\d+_t|bool|float|double|char)\s+(\w+)\s*(?:\[[^\]]*\])?\s*;',
+            code)
         if m:
             name = m.group(1)
             if name == '_pad' or name.startswith('_'):
@@ -129,16 +122,11 @@ def extract_c_struct_fields(lines, struct_name):
 
     return fields
 
+
 def extract_js_field_refs(text, section):
-    """
-    am_config_0415.js에서 특정 섹션(power/button) 필드 참조 추출.
-    예: 'e.power.idle_timeout_ble_ms' 또는 'e.button.long_delay_ms'
-    """
-    # 'e.power.XXX' 패턴
     pattern = re.compile(rf'\be\.{section}\.(\w+)')
     refs = set(pattern.findall(text))
 
-    # 'pw.XXX', 'bt.XXX' 접근자 (configToUi 내부)
     if section == "power":
         alias_pattern = re.compile(r'\bpw\.(\w+)')
     elif section == "button":
@@ -149,21 +137,16 @@ def extract_js_field_refs(text, section):
     if alias_pattern:
         refs |= set(alias_pattern.findall(text))
 
-    # '_pwClamp(e.power.X, ...)' 패턴 커버는 위 e.power 패턴이 처리
     return refs
 
 
 def extract_offline_default_keys(text, section):
-    """
-    am_offline_0415.js의 G_OFFLINE_DEFAULT_PROFILE_0.e10.{power,button} 블록 필드명 추출.
-    """
-    # 'power: { ... }' 블록 찾기
     pattern = re.compile(rf'\b{section}\s*:\s*\{{', re.MULTILINE)
     m = pattern.search(text)
     if not m:
         return set()
 
-    start = m.end() - 1  # '{' 위치
+    start = m.end() - 1
     depth = 0
     keys = set()
 
@@ -177,11 +160,9 @@ def extract_offline_default_keys(text, section):
             if depth == 0:
                 break
         elif depth == 1:
-            # 키: '  key: value' 또는 '  "key": value'
             km = re.match(r'\s*"?(\w+)"?\s*:', text[i:i+64])
             if km:
                 key = km.group(1)
-                # 다음 non-space 위치가 '(' 또는 '{' 또는 '[' 이면 nested. 상관없이 키 추가
                 keys.add(key)
                 i += km.end()
                 continue
@@ -191,47 +172,25 @@ def extract_offline_default_keys(text, section):
 
 
 def _strip_comments(line):
-    # // 주석 제거
     idx = line.find('//')
     if idx >= 0:
         line = line[:idx]
-    # /* */ 는 라인 내 완결만 처리 (멀티라인은 미지원)
     line = re.sub(r'/\*.*?\*/', '', line)
     return line
 
+
 def _strip_comments_multi(text):
-    """
-    [v0415 rev15 / BUG-5 fix v2] 멀티라인 블록 주석까지 완전 제거
-    -------------------------------------------------------
-    - 기존 _strip_comments(line)는 라인 단위 처리만 가능
-    - C10_Def_0415.h 상단 헤더 `/* ... */` 블록은 여러 라인에 걸쳐 있어
-      라인별 처리 시 잔존 → gesture_* 부분 문자열 오탐 발생
-    - 본 함수는 전체 텍스트를 한 번에 처리하여 블록 주석을 완전 제거
-    -------------------------------------------------------
-    순서 중요:
-      1) /* ... */ (DOTALL, 논그리디) 먼저 제거
-      2) // ... (줄 끝까지) 이후 제거
-    이유: `// /* ...` 같은 조합에서 // 를 먼저 제거하면 `/*`가 남을 수 있음
-    """
-    
-    # 1) Block comment: /* ... */ (멀티라인 지원)
     text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
-    # 2) Line comment: // ... (줄 끝까지)
     text = re.sub(r'//[^\n]*', '', text)
     return text
 
+
 # ======================================================
-# [Wave E] JS 번들 완전성 검증 (재발 방지)
-# ------------------------------------------------------
-#  - pio_gzip_0415.py::BUNDLE_JS_ORDER
-#  - index_0415.html <script src> 순서
-#  - data_v0415_www/lib/*.js 실제 파일
-#  3자 1:1 대응 검증 → 번들 누락/유령 참조 조기 검출
+# [Wave E] JS 번들 완전성 검증
 # ======================================================
 def check_bundle_completeness(root):
     print(f"\n--- Bundle Completeness (Wave E) ---")
 
-    # 1) index_0415.html의 <script src> 순서 추출
     html_path = root / "data_v0415_www" / "index_0415.html"
     if not html_path.exists():
         print(f"  [WARN] index_0415.html not found: {html_path}")
@@ -242,7 +201,6 @@ def check_bundle_completeness(root):
     )
     html_order = script_re.findall(html)
 
-    # 2) pio_gzip_0415.py의 BUNDLE_JS_ORDER 추출
     pio_path = root / "tools_v0415" / "pio_gzip_0415.py"
     if not pio_path.exists():
         print(f"  [WARN] pio_gzip_0415.py not found: {pio_path}")
@@ -254,13 +212,11 @@ def check_bundle_completeness(root):
         return False
     bundle_order = re.findall(r'"([^"]+)"', m.group(1))
 
-    # 3) 실제 lib/*.js 파일 존재 검증
     lib_dir = root / "data_v0415_www" / "lib"
     lib_files = sorted(p.name for p in lib_dir.glob("am_*.js")) if lib_dir.exists() else []
 
     ok = True
 
-    # (a) HTML ↔ BUNDLE_JS_ORDER 순서/집합 비교
     if html_order != bundle_order:
         print(f"  [FAIL] HTML script 순서 ≠ BUNDLE_JS_ORDER")
         only_html   = [x for x in html_order   if x not in bundle_order]
@@ -275,7 +231,6 @@ def check_bundle_completeness(root):
     else:
         print(f"  [OK] HTML ↔ BUNDLE_JS_ORDER 순서 일치 ({len(bundle_order)}개)")
 
-    # (b) BUNDLE_JS_ORDER의 lib/*.js가 실제 파일로 존재
     for rel in bundle_order:
         if not rel.startswith("lib/"):
             continue
@@ -284,7 +239,6 @@ def check_bundle_completeness(root):
             print(f"  [FAIL] 번들 대상 파일 없음: {rel}")
             ok = False
 
-    # (c) lib/*.js 파일이 모두 번들에 포함되어 있는지 (누락 검출)
     bundled_libs = {r for r in bundle_order if r.startswith("lib/")}
     actual_libs = {f"lib/{n}" for n in lib_files}
     missing = actual_libs - bundled_libs
@@ -296,18 +250,14 @@ def check_bundle_completeness(root):
 
     return ok
 
+
 # ======================================================
 # [v0415 rev17] B20_HOST 상수 3자 정합 검증
-# ------------------------------------------------------
-#  - C10_Def_0415.h  : HOSTS_MAX
-#  - B20_Ble_0415.h  : BOND_MAX / CONN_TIMEOUT_MS / TARGET_IDX_NONE
-#  - SPEC_0415.md    : 부록 상수 표
 # ======================================================
 def check_b20_host_constants(root):
     print(f"\n--- B20_HOST Constants (rev17) ---")
     ok = True
 
-    # C10 HOSTS_MAX
     c10_path = root / "C10_Def_0415.h"
     if c10_path.exists():
         c10_src = c10_path.read_text(encoding="utf-8")
@@ -316,16 +266,15 @@ def check_b20_host_constants(root):
     else:
         c10_hosts_max = None
 
-    # B20 상수
     b20_path = root / "B20_Ble_0415.h"
     if not b20_path.exists():
         print(f"  [WARN] B20_Ble_0415.h not found")
         return True
     b20_src = b20_path.read_text(encoding="utf-8")
 
-    m_bond  = re.search(r'BOND_MAX\s*=\s*(\d+)', b20_src)
-    m_to    = re.search(r'CONN_TIMEOUT_MS\s*=\s*(\d+)', b20_src)
-    m_sent  = re.search(r'TARGET_IDX_NONE\s*=\s*(0x[0-9A-Fa-f]+|\d+)', b20_src)
+    m_bond = re.search(r'BOND_MAX\s*=\s*(\d+)', b20_src)
+    m_to   = re.search(r'CONN_TIMEOUT_MS\s*=\s*(\d+)', b20_src)
+    m_sent = re.search(r'TARGET_IDX_NONE\s*=\s*(0x[0-9A-Fa-f]+|\d+)', b20_src)
 
     b20_bond = int(m_bond.group(1)) if m_bond else None
     b20_to   = int(m_to.group(1))   if m_to   else None
@@ -347,10 +296,116 @@ def check_b20_host_constants(root):
         print(f"  [OK] B20_HOST constants consistent")
     return ok
 
+
+# ======================================================
+# [v0415 Phase 3-D] E10 JSON 대칭성 검증
+# ------------------------------------------------------
+#  _buildE10Json ↔ _patchE10Json 필드 대칭성
+#  - 정규식으로 key 참조를 추출하여 좌우 비교
+#  - 완전 파싱이 아닌 "휴리스틱" → false positive 가능
+# ======================================================
+def check_e10_json_parity(root):
+    print(f"\n--- E10 JSON Parity (build ↔ patch) ---")
+    p = root / "C10_Config_0415.cpp"
+    if not p.exists():
+        print(f"  [WARN] C10_Config_0415.cpp not found")
+        return True
+
+    src = p.read_text(encoding="utf-8")
+
+    # build 함수 본문 추출
+    m_build = re.search(
+        r'void\s+CL_C10_Config::_buildE10Json\s*\([^)]*\)\s*\{(.*?)\n\}',
+        src, re.DOTALL)
+    # patch 함수 본문 추출
+    m_patch = re.search(
+        r'bool\s+CL_C10_Config::_patchE10Json\s*\([^)]*\)\s*\{(.*?)\n\}',
+        src, re.DOTALL)
+
+    if not m_build or not m_patch:
+        print(f"  [WARN] build/patch 함수 파싱 실패")
+        return True
+
+    # 대입 패턴: p_parent["X"] = ... 또는 v_x["X"] = ...
+    key_re = re.compile(r'\b\w+\["([^"]+)"\]\s*=')
+
+    build_keys = set(key_re.findall(m_build.group(1)))
+    patch_keys = set(key_re.findall(m_patch.group(1)))
+
+    only_build = build_keys - patch_keys
+    only_patch = patch_keys - build_keys
+
+    ok = True
+    if only_build:
+        print(f"  [FAIL] build에만 존재 (patch 누락): {sorted(only_build)}")
+        ok = False
+    if only_patch:
+        print(f"  [FAIL] patch에만 존재 (build 누락): {sorted(only_patch)}")
+        ok = False
+    if ok:
+        print(f"  [OK] E10 JSON 대칭성 확인 ({len(build_keys)} keys)")
+    return ok
+
+
+# ======================================================
+# [v0415 Phase 3-D] KB 이름 테이블 정렬 검증
+# ======================================================
+def check_w10_kb_names_sorted(root):
+    print(f"\n--- W10 KB Names (sorted) ---")
+    p = root / "W10_Def_0415.h"
+    if not p.exists():
+        print(f"  [WARN] W10_Def_0415.h not found")
+        return True
+
+    src = p.read_text(encoding="utf-8")
+    m = re.search(r'G_W10_KB_NAMES\[\]\s*=\s*\{(.*?)\};', src, re.DOTALL)
+    if not m:
+        print(f"  [WARN] G_W10_KB_NAMES not found")
+        return True
+
+    codes = [int(c, 0) for c in re.findall(r'\{(0x[0-9A-Fa-f]+|\d+)\s*,', m.group(1))]
+    if codes == sorted(codes):
+        print(f"  [OK] {len(codes)} codes sorted")
+        return True
+
+    print(f"  [FAIL] codes not sorted")
+    for i in range(1, len(codes)):
+        if codes[i-1] > codes[i]:
+            print(f"    {hex(codes[i-1])} > {hex(codes[i])}")
+    return False
+
+
+# ======================================================
+# [v0415 Phase 3-D] 에러 코드 테이블 정렬 검증
+# ======================================================
+def check_w10_err_map_sorted(root):
+    print(f"\n--- W10 Err Map (sorted) ---")
+    p = root / "W10_Def_0415.h"
+    if not p.exists():
+        print(f"  [WARN] W10_Def_0415.h not found")
+        return True
+
+    src = p.read_text(encoding="utf-8")
+    m = re.search(r'G_W10_ERR_MAP\[\]\s*=\s*\{(.*?)\};', src, re.DOTALL)
+    if not m:
+        print(f"  [WARN] G_W10_ERR_MAP not found")
+        return True
+
+    codes = re.findall(r'\{"([^"]+)"', m.group(1))
+    if codes == sorted(codes):
+        print(f"  [OK] {len(codes)} codes sorted")
+        return True
+
+    print(f"  [FAIL] codes not sorted")
+    for i in range(1, len(codes)):
+        if codes[i-1] > codes[i]:
+            print(f"    {codes[i-1]} > {codes[i]}")
+    return False
+
+
 def main():
     ok = True
 
-    # ---- 백엔드 H 필드 ----
     if not H_DEF.exists():
         print(f"[FAIL] file not found: {H_DEF}", file=sys.stderr)
         return 1
@@ -363,7 +418,6 @@ def main():
     print(f"  power:  {sorted(h_power)}")
     print(f"  button: {sorted(h_button)}")
 
-    # ---- 프론트 configToUi/uiToConfig 참조 ----
     if not JS_CONFIG.exists():
         print(f"[FAIL] file not found: {JS_CONFIG}", file=sys.stderr)
         return 1
@@ -374,7 +428,6 @@ def main():
 
     print(f"\n[check_schema] JS config refs: power={len(js_power)} button={len(js_button)}")
 
-    # ---- 오프라인 기본 프로파일 ----
     if not JS_OFFLINE.exists():
         print(f"[FAIL] file not found: {JS_OFFLINE}", file=sys.stderr)
         return 1
@@ -385,8 +438,6 @@ def main():
 
     print(f"[check_schema] Offline defaults: power={len(off_power)} button={len(off_button)}")
 
-    # ---- 비교 ----
-    # (a) H ↔ JS_CONFIG 참조
     print(f"\n--- Power ---")
     _diff_and_report("H↔JS_config", h_power, js_power)
     if h_power != js_power:
@@ -397,7 +448,6 @@ def main():
     if h_button != js_button:
         ok = False
 
-    # (b) H ↔ Offline 기본값
     print(f"\n--- Power (H ↔ Offline) ---")
     _diff_and_report("H↔Offline", h_power, off_power)
     if h_power != off_power:
@@ -407,21 +457,16 @@ def main():
     _diff_and_report("H↔Offline", h_button, off_button)
     if h_button != off_button:
         ok = False
-        
-    # ---- [Wave B] Wi-Fi 3자 매핑 검증 ----
+
     if not check_wifi_mapping(h_lines, cfg_text, off_text):
         ok = False
-    
-    # ---- [Wave B] gesture 삭제 검증 (스키마 412) ----
+
     if not check_gesture_removed(h_lines, cfg_text, off_text):
         ok = False
 
-    # ---- [Wave C+D] E10 nested 매핑 검증 ----
     if not check_e10_nested_mapping(h_lines, cfg_text, off_text):
         ok = False
-    
-    # ---- [Wave C+D] DOM id 존재 검증 ----
-    # HTML 파일 로드 필요
+
     HTML_INDEX = ROOT / "data_v0415_www" / "index_0415.html"
     if HTML_INDEX.exists():
         html_text = HTML_INDEX.read_text(encoding="utf-8")
@@ -429,20 +474,28 @@ def main():
             ok = False
     else:
         print(f"\n[WARN] index_0415.html not found: {HTML_INDEX}")
-    
-    # ---- [Wave E] 번들 완전성 ----
+
     if not check_bundle_completeness(ROOT):
         ok = False
-    
+
     if not check_b20_host_constants(ROOT):
         ok = False
-    
+
+    # [Phase 3-D] 신규 검증
+    if not check_e10_json_parity(ROOT):
+        ok = False
+    if not check_w10_kb_names_sorted(ROOT):
+        ok = False
+    if not check_w10_err_map_sorted(ROOT):
+        ok = False
+
     if ok:
-        print("\n[OK] schema field names match (H ↔ JS ↔ Offline) + Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids")
+        print("\n[OK] schema field names match (H ↔ JS ↔ Offline) + Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids + E10 JSON parity + W10 tables sorted")
         return 0
     else:
         print("\n[FAIL] schema mismatch detected")
         return 1
+
 
 def _diff_and_report(label, backend, front):
     only_backend = backend - front
@@ -457,10 +510,8 @@ def _diff_and_report(label, backend, front):
 
 
 def check_wifi_mapping(h_lines, js_config_text, off_text):
-    """Wi-Fi 필드 3자 매핑 검증 (H ↔ JS config ↔ Offline)"""
     print(f"\n--- Wi-Fi ---")
 
-    # 1) H struct 필드 추출
     h_wifi = set(extract_c_struct_fields(h_lines, "ST_C10_WiFiConfig_t"))
     expected = set(WIFI_FIELD_MAP.keys())
 
@@ -471,7 +522,6 @@ def check_wifi_mapping(h_lines, js_config_text, off_text):
         return False
     print(f"  [OK] H fields match ({len(h_wifi)})")
 
-    # 2) JS configToUi/uiToConfig에 DOM id 존재 확인
     missing_dom = [d for d in WIFI_DOM_MAP.keys() if d not in js_config_text]
     if missing_dom:
         print(f"  [FAIL] JS config에서 Wi-Fi DOM id 누락:")
@@ -480,7 +530,6 @@ def check_wifi_mapping(h_lines, js_config_text, off_text):
         return False
     print(f"  [OK] JS DOM ids present ({len(WIFI_DOM_MAP)})")
 
-    # 3) Offline 기본 프로파일에 wifi 블록 존재 확인
     has_wifi_block = ("wifi:" in off_text) or ('"wifi"' in off_text)
     if not has_wifi_block:
         print(f"  [FAIL] Offline 기본 프로파일에 'wifi' 블록 없음")
@@ -489,17 +538,15 @@ def check_wifi_mapping(h_lines, js_config_text, off_text):
 
     return True
 
+
 def check_wave_cd_dom_ids(html_text, js_config_text):
-    """[Wave C+D] Config 탭의 신규 DOM id가 HTML + JS 양쪽에 존재하는지 검증"""
     print(f"\n--- Wave C+D DOM IDs ---")
 
     dom_ids = [
-        # Wave C
         "precMode", "precDeadzone", "precGain", "precAccel", "precMaxStep",
         "precSmooth", "precEntryMs", "precExitMs", "precEntryStillDeg",
         "precExitMoveDeg", "precProfile",
         "gyroStillTh", "gyroStillWinMs", "gyroAlpha",
-        # Wave D
         "linTh", "linImpulseTh", "linWindowMs",
         "flickWindowMs",
         "tiltAngleDeg", "tiltHoldMs", "tiltRepeatHz",
@@ -523,17 +570,12 @@ def check_wave_cd_dom_ids(html_text, js_config_text):
 
 
 def check_gesture_removed(h_lines, js_config_text, off_text):
-    """[v0415 rev15 / 스키마 412] gesture.* 삭제 검증 (Negative check)"""
     print(f"\n--- Gesture Removal (Schema 412) ---")
 
-    # [FIX v2] 멀티라인 블록 주석 완전 제거 후 검사
-    #   - 기존: 라인별 _strip_comments(l) → 헤더 블록 주석 잔존 → 오탐
-    #   - 변경: _strip_comments_multi(전체) → 블록 주석 완전 제거
     h_text_code = _strip_comments_multi("\n".join(h_lines))
 
     ok = True
 
-    # 1) H 코드에서 gesture_* 필드 잔존 검사 (모든 주석 제외)
     h_hits = [f for f in GESTURE_REMOVED_H_FIELDS if f in h_text_code]
     if h_hits:
         print(f"  [FAIL] H에 gesture_* 필드 잔존 (스키마 412 위반):")
@@ -543,7 +585,6 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
     else:
         print(f"  [OK] H gesture_* 필드 없음")
 
-    # 2) JS config에서 e.gesture 참조 잔존 검사
     js_hits = []
     if "e.gesture" in js_config_text:
         js_hits.append("e.gesture")
@@ -557,8 +598,6 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
     else:
         print(f"  [OK] JS gesture 참조 없음")
 
-    # 3) Offline 기본 프로파일에 gesture 블록 잔존 검사
-    #    [FIX v2] 멀티라인 블록 주석 + 라인 주석 완전 제거
     off_code = _strip_comments_multi(off_text)
     off_hits = []
     if re.search(r'\bgesture\s*:', off_code):
@@ -571,7 +610,6 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
     else:
         print(f"  [OK] Offline gesture 블록 없음")
 
-    # 4) flick.* SSOT 참조 확인
     if "flick" not in js_config_text:
         print(f"  [FAIL] JS config에 flick 참조 없음 (SSOT 위반)")
         ok = False
@@ -579,29 +617,23 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
         print(f"  [OK] JS flick 참조 존재")
 
     return ok
-    
+
+
 def check_e10_nested_mapping(h_lines, js_config_text, off_text):
-    """[Wave C+D] E10 nested 필드 3자 매핑 검증 (H ↔ JS config ↔ Offline)"""
     print(f"\n--- E10 Nested Mapping (Wave C+D) ---")
     ok = True
 
     for struct_name, fields in E10_NESTED_MAP.items():
-        # 1) JS configToUi/uiToConfig에서 DOM id 참조 존재
-        #    (e.{struct}.* 또는 {struct} = ... 패턴)
         missing_js = []
         for field in fields.keys():
-            # 3가지 패턴 중 하나라도 있으면 통과
             patterns = [
-                f".{struct_name}.{field}",         # e.precision.mode
-                f"{struct_name}[\"{field}\"]",     # precision["mode"]
+                f".{struct_name}.{field}",
+                f"{struct_name}[\"{field}\"]",
             ]
             if not any(p in js_config_text for p in patterns):
                 missing_js.append(field)
 
-        # 2) Offline 기본 프로파일 블록 존재
         off_has_block = (f"{struct_name}:" in off_text)
-
-        # 3) H 파일에 struct 이름 존재
         h_has_struct = (struct_name in "\n".join(h_lines))
 
         if missing_js:

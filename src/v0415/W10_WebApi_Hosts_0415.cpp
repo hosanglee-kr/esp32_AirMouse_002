@@ -2,25 +2,39 @@
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_Hosts_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: Multi-Host API)
+ * 모듈명 : Multi-Host API
  * ------------------------------------------------------
- * 기능 요약
- *  - /api/hosts        : 호스트 목록 및 현재 활성/선택 상태 조회 (GET)
- *  - /api/hosts/select : 목표 호스트 지정 전환 요청 (POST)
- *  - /api/hosts/cancel : 호스트 전환 모드 즉시 취소 (POST)
- *  - /api/hosts/label  : 사용자 정의 호스트 라벨 및 색상 저장 (POST)
- * ------------------------------------------------------
- * [구현 규칙]
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
- *  - CONTRACT §3 준수: Web Task에서 BLE 직접 제어 금지, requestHostOp() 위임
+ * [v0415 Phase 2-1]
+ *  - apiHostsSelect / apiHostsLabel: _parseBodyAndGate 사용
+ *  - apiHostsCancel: Body 없음 (게이트만)
+ *
+ * [v0415 Phase 2-5]
+ *  - _findHostByAddr() 헬퍼 (익명 namespace)
+ *    · apiHostsGet / apiHostsLabel의 MAC 순회 통합
  * ------------------------------------------------------
  */
 
 #include "W10_Web_0415.h"
 #include <NimBLEDevice.h>
+
+namespace {
+
+// =====================================================
+// [v0415 Phase 2-5] C10 호스트 목록에서 MAC 주소로 인덱스 검색
+//   - 대소문자 무시 (strcasecmp)
+//   - 미발견 시 -1 반환
+// =====================================================
+int8_t _findHostByAddr(const ST_C10_HostsConfig_t& p_cfg, const char* p_addr) {
+    if (!p_addr || p_addr[0] == '\0') return -1;
+    for (uint8_t i = 0; i < p_cfg.count; i++) {
+        if (strcasecmp(p_cfg.hosts[i].addr, p_addr) == 0) {
+            return (int8_t)i;
+        }
+    }
+    return -1;
+}
+
+}  // namespace
 
 // =====================================================
 // GET /api/hosts
@@ -79,13 +93,11 @@ void CL_W10_WebConfig::apiHostsGet(AsyncWebServerRequest* req) {
 
         // C10 설정 매칭 (라벨, 색상)
         const char* v_label = "";
-        const char* v_color = "#3B82F6"; // 기본 블루
-        for (uint8_t h = 0; h < v_hostsCfg.count; h++) {
-            if (strcasecmp(v_hostsCfg.hosts[h].addr, v_strAddr.c_str()) == 0) {
-                v_label = v_hostsCfg.hosts[h].label;
-                v_color = v_hostsCfg.hosts[h].color;
-                break;
-            }
+        const char* v_color = "#3B82F6";
+        int8_t v_h = _findHostByAddr(v_hostsCfg, v_strAddr.c_str());
+        if (v_h >= 0) {
+            v_label = v_hostsCfg.hosts[v_h].label;
+            v_color = v_hostsCfg.hosts[v_h].color;
         }
         v_item["label"] = v_label;
         v_item["color"] = v_color;
@@ -97,20 +109,11 @@ void CL_W10_WebConfig::apiHostsGet(AsyncWebServerRequest* req) {
 // =====================================================
 // POST /api/hosts/select
 // =====================================================
-void CL_W10_WebConfig::apiHostsSelect(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
+void CL_W10_WebConfig::apiHostsSelect(AsyncWebServerRequest* req,
+                                      uint8_t* data, size_t len,
+                                      size_t index, size_t total) {
     JsonDocument v_doc;
-    DeserializationError v_err = deserializeJson(v_doc, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON body");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_doc)) return;
 
     if (v_doc["idx"].isNull()) {
         _sendErr(req, "bad_param", "Missing 'idx' field");
@@ -141,9 +144,11 @@ void CL_W10_WebConfig::apiHostsSelect(AsyncWebServerRequest* req, uint8_t* data,
 }
 
 // =====================================================
-// POST /api/hosts/cancel
+// POST /api/hosts/cancel (Body 없음 - 게이트만)
 // =====================================================
-void CL_W10_WebConfig::apiHostsCancel(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+void CL_W10_WebConfig::apiHostsCancel(AsyncWebServerRequest* req,
+                                      uint8_t* data, size_t len,
+                                      size_t index, size_t total) {
     if (_gateSafeModeOrReply(req)) return;
 
     (void)data; (void)len; (void)index; (void)total;
@@ -162,20 +167,11 @@ void CL_W10_WebConfig::apiHostsCancel(AsyncWebServerRequest* req, uint8_t* data,
 // =====================================================
 // POST /api/hosts/label
 // =====================================================
-void CL_W10_WebConfig::apiHostsLabel(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    if (_gateSafeModeOrReply(req)) return;
-
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
+void CL_W10_WebConfig::apiHostsLabel(AsyncWebServerRequest* req,
+                                     uint8_t* data, size_t len,
+                                     size_t index, size_t total) {
     JsonDocument v_doc;
-    DeserializationError v_err = deserializeJson(v_doc, v_body);
-    if (v_err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON body");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, v_doc)) return;
 
     const char* v_addr  = v_doc["addr"].as<const char*>();
     const char* v_label = v_doc["label"].as<const char*>();
@@ -195,31 +191,34 @@ void CL_W10_WebConfig::apiHostsLabel(AsyncWebServerRequest* req, uint8_t* data, 
     memset(&v_hostsCfg, 0, sizeof(v_hostsCfg));
     _cfg->loadHosts(v_hostsCfg);
 
-    // 기존 항목 탐색 또는 신규 추가
-    int8_t v_matchIdx = -1;
-    for (uint8_t i = 0; i < v_hostsCfg.count; i++) {
-        if (strcasecmp(v_hostsCfg.hosts[i].addr, v_addr) == 0) {
-            v_matchIdx = i;
-            break;
-        }
-    }
+    // [Phase 2-5] 통합 헬퍼 사용
+    int8_t v_matchIdx = _findHostByAddr(v_hostsCfg, v_addr);
 
     if (v_matchIdx >= 0) {
-        if (v_label) strlcpy(v_hostsCfg.hosts[v_matchIdx].label, v_label, sizeof(v_hostsCfg.hosts[v_matchIdx].label));
-        if (v_color) strlcpy(v_hostsCfg.hosts[v_matchIdx].color, v_color, sizeof(v_hostsCfg.hosts[v_matchIdx].color));
+        if (v_label) strlcpy(v_hostsCfg.hosts[v_matchIdx].label, v_label,
+                             sizeof(v_hostsCfg.hosts[v_matchIdx].label));
+        if (v_color) strlcpy(v_hostsCfg.hosts[v_matchIdx].color, v_color,
+                             sizeof(v_hostsCfg.hosts[v_matchIdx].color));
     } else {
         if (v_hostsCfg.count < C10_DEF::HOSTS_MAX) {
             uint8_t v_newIdx = v_hostsCfg.count++;
-            strlcpy(v_hostsCfg.hosts[v_newIdx].addr, v_addr, sizeof(v_hostsCfg.hosts[v_newIdx].addr));
-            if (v_label) strlcpy(v_hostsCfg.hosts[v_newIdx].label, v_label, sizeof(v_hostsCfg.hosts[v_newIdx].label));
-            else         strlcpy(v_hostsCfg.hosts[v_newIdx].label, "Host",  sizeof(v_hostsCfg.hosts[v_newIdx].label));
-            if (v_color) strlcpy(v_hostsCfg.hosts[v_newIdx].color, v_color, sizeof(v_hostsCfg.hosts[v_newIdx].color));
-            else         strlcpy(v_hostsCfg.hosts[v_newIdx].color, "#3B82F6", sizeof(v_hostsCfg.hosts[v_newIdx].color));
+            strlcpy(v_hostsCfg.hosts[v_newIdx].addr, v_addr,
+                    sizeof(v_hostsCfg.hosts[v_newIdx].addr));
+            if (v_label) strlcpy(v_hostsCfg.hosts[v_newIdx].label, v_label,
+                                 sizeof(v_hostsCfg.hosts[v_newIdx].label));
+            else         strlcpy(v_hostsCfg.hosts[v_newIdx].label, "Host",
+                                 sizeof(v_hostsCfg.hosts[v_newIdx].label));
+            if (v_color) strlcpy(v_hostsCfg.hosts[v_newIdx].color, v_color,
+                                 sizeof(v_hostsCfg.hosts[v_newIdx].color));
+            else         strlcpy(v_hostsCfg.hosts[v_newIdx].color, "#3B82F6",
+                                 sizeof(v_hostsCfg.hosts[v_newIdx].color));
         } else {
-            // 가득 찬 경우 첫번째 항목 교체
-            strlcpy(v_hostsCfg.hosts[0].addr, v_addr, sizeof(v_hostsCfg.hosts[0].addr));
-            if (v_label) strlcpy(v_hostsCfg.hosts[0].label, v_label, sizeof(v_hostsCfg.hosts[0].label));
-            if (v_color) strlcpy(v_hostsCfg.hosts[0].color, v_color, sizeof(v_hostsCfg.hosts[0].color));
+            strlcpy(v_hostsCfg.hosts[0].addr, v_addr,
+                    sizeof(v_hostsCfg.hosts[0].addr));
+            if (v_label) strlcpy(v_hostsCfg.hosts[0].label, v_label,
+                                 sizeof(v_hostsCfg.hosts[0].label));
+            if (v_color) strlcpy(v_hostsCfg.hosts[0].color, v_color,
+                                 sizeof(v_hostsCfg.hosts[0].color));
         }
     }
 

@@ -1,67 +1,30 @@
 // =======================================================
-// File: W10_WebApi_OtaBoot_0415.cpp
+// File: src/v0415/W10_WebApi_OtaBoot_0415.cpp
 // =======================================================
-
 /*
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_OtaBoot_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: OTA + SafeBoot/FactoryReset/Reboot)
+ * 모듈명 : OTA + SafeBoot/FactoryReset/Reboot API
  * ------------------------------------------------------
- * 기능 요약
- *  - (0316) OTA 업로드/상태 + SafeBoot/FactoryReset/Reboot 분리
- * ------------------------------------------------------
- * [구현 규칙]
- *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
- *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
- *  - 주석/필드명은 JSON 구조와 동일하게 유지
- *  - 변수명은 가능한 해석 가능하게
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - namespace 명        : 모듈약어_ 접두사
- *   - namespace 내 상수    : 모둘약어 접두시 미사용
- *   - 전역 상수,매크로      : G_모듈약어_ 접두사
- *   - 전역 변수             : g_모듈약어_ 접두사
- *   - 전역 함수             : 모듈약어_ 접두사
- *   - type                  : T_모듈약어_ 접두사
- *   - typedef               : _t  접미사
- *   - enum 상수             : EN_모듈약어_ 접두사
- *   - 구조체                : ST_모듈약어_ 접두사
- *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
- *   - 클래스 private 멤버 함수/변수   : _ 접두사
- *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
- *   - 클래스 정적 멤버      : s_ 접두사
- *   - 함수 로컬 변수        : v_ 접두사
- *   - 함수 인자             : p_ 접두사
+ * [v0415 Phase 2-1]
+ *  - apiSafeBootPost / apiRebootPost: _parseBodyAndGate 사용
+ *  - apiRebootPost: Body 없어도 동작 가능 (빈 JSON 허용)
  * ------------------------------------------------------
  */
 
 #include "W10_Web_0415.h"
 #include "D10_Logger_0415.h"
 
-
-// - apiOtaUpload
-// - apiOtaStatus
-// - apiSafeBootGet / apiSafeBootPost
-// - apiFactoryReset
-// - _taskReboot
-// - apiRebootPost
-
 // =====================================================
 // OTA
 // =====================================================
-
-void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& filename,
-                                    size_t index, uint8_t* data, size_t len, bool final) {
+void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req,
+                                    const String& filename,
+                                    size_t index, uint8_t* data,
+                                    size_t len, bool final) {
     (void)filename;
 
-    // [v0415 L7g-A3-01] Guard 체크를 index==0으로 국한 (성능 개선)
-    //   - 매 청크마다 getStatus() 호출 → 락/CPU 부담 제거
-    //   - 이미 시작된 업로드는 정책 변경 대상 아님 (진행 중지 원함)
     if (index == 0) {
         if (!_isSafeMode()) {
             ST_W10_E10If_t* e10if = _e10if;
@@ -82,7 +45,6 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
             }
         }
 
-        // Guard 통과 → 초기화
         const uint32_t v_now = (uint32_t)millis();
 
         if (_otaInProgress) {
@@ -119,7 +81,6 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
         }
     }
 
-    // Guard 체크 없이 이후 청크는 바로 write
     if (len) {
         size_t w = Update.write(data, len);
         _otaWritten += (uint32_t)w;
@@ -141,7 +102,6 @@ void CL_W10_WebConfig::apiOtaUpload(AsyncWebServerRequest* req, const String& fi
     }
 }
 
-
 void CL_W10_WebConfig::apiOtaStatus(AsyncWebServerRequest* req) {
     JsonDocument v_doc;
     v_doc["in_progress"] = _otaInProgress;
@@ -153,9 +113,8 @@ void CL_W10_WebConfig::apiOtaStatus(AsyncWebServerRequest* req) {
     _sendOk(req, "ota_status", "", &v_doc, 200);
 }
 
-
 // =====================================================
-// SafeBoot / FactoryReset
+// SafeBoot
 // =====================================================
 void CL_W10_WebConfig::apiSafeBootGet(AsyncWebServerRequest* req) {
     if (_cfg) {
@@ -171,18 +130,11 @@ void CL_W10_WebConfig::apiSafeBootGet(AsyncWebServerRequest* req) {
     _sendErr(req, "no_config", "Config manager not ready.");
 }
 
-void CL_W10_WebConfig::apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-    String v_body;
-    if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
-
+void CL_W10_WebConfig::apiSafeBootPost(AsyncWebServerRequest* req,
+                                       uint8_t* data, size_t len,
+                                       size_t index, size_t total) {
     JsonDocument d;
-    DeserializationError err = deserializeJson(d, v_body);
-    if (err) {
-        _cnt_json_bad++;
-        _diagPush("bad_json");
-        _sendErr(req, "bad_json", "Invalid JSON.");
-        return;
-    }
+    if (!_parseBodyAndGate(req, data, len, index, total, d)) return;
 
     bool v_exit = false;
     if (!d["exit"].isNull()) v_exit = (bool)d["exit"];
@@ -210,8 +162,9 @@ void CL_W10_WebConfig::apiSafeBootPost(AsyncWebServerRequest* req, uint8_t* data
     }
 }
 
-
-
+// =====================================================
+// Factory Reset
+// =====================================================
 void CL_W10_WebConfig::apiFactoryReset(AsyncWebServerRequest* req) {
     bool ok = (_cfg && _cfg->factoryReset(true));
 
@@ -232,9 +185,8 @@ void CL_W10_WebConfig::apiFactoryReset(AsyncWebServerRequest* req) {
     }
 }
 
-
 // =====================================================
-// /api/reboot (POST)
+// POST /api/reboot
 // =====================================================
 void CL_W10_WebConfig::_taskReboot(void* p_arg) {
     (void)p_arg;
@@ -242,7 +194,15 @@ void CL_W10_WebConfig::_taskReboot(void* p_arg) {
     ESP.restart();
 }
 
-void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req,
+                                     uint8_t* data, size_t len,
+                                     size_t index, size_t total) {
+    // [Phase 2-1] SafeMode gate + Body + JSON parse 통합
+    //   ※ Body가 빈 경우(force=false + mask 미지정)에도 동작해야 함
+    //     → _parseBodyAndGate는 빈 body에 대해 bad_json 실패를 반환하므로
+    //       여기서는 개별 처리 유지
+    if (_gateSafeModeOrReply(req)) return;
+
     String v_body;
     if (!_collectBodyOrReply(req, data, len, index, total, v_body)) return;
 
@@ -286,7 +246,8 @@ void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, 
             JsonDocument v_doc;
             v_doc["need_reboot"] = _needReboot;
             v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
-            _sendErr(req, "reason_mask_mismatch", "Reboot is not allowed for the given reason_mask.", &v_doc);
+            _sendErr(req, "reason_mask_mismatch",
+                     "Reboot is not allowed for the given reason_mask.", &v_doc);
             return;
         }
     }
@@ -296,13 +257,14 @@ void CL_W10_WebConfig::apiRebootPost(AsyncWebServerRequest* req, uint8_t* data, 
     v_doc["need_reboot_mask"] = (uint32_t)_needRebootMask;
     _sendOk(req, "reboot_scheduled", "Reboot scheduled.", &v_doc, 200);
 
-    BaseType_t v_rc = xTaskCreatePinnedToCore(_taskReboot, "w10_reboot", 2048, nullptr, 1, nullptr, 0);
+    BaseType_t v_rc = xTaskCreatePinnedToCore(_taskReboot, "w10_reboot",
+                                              2048, nullptr, 1, nullptr, 0);
     if (v_rc == pdPASS) {
         D10_LOGI("[W10] Reboot task scheduled successfully");
     } else {
-        D10_LOGE("[W10] Failed to create reboot task (rc=%d), executing sync restart", (int)v_rc);
+        D10_LOGE("[W10] Failed to create reboot task (rc=%d), executing sync restart",
+                 (int)v_rc);
         delay(200);
         ESP.restart();
     }
 }
-

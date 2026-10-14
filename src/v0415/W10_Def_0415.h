@@ -13,21 +13,19 @@
  *  - 동적 서빙 허용 확장자 목록
  *  - Content-Type 매핑 + gzip 후보 확장자
  *
- * [v0415 주요 변경]
- *  - G_W10_API_VER: 410 → 411 (스키마 v411 정합)
- *  - G_W10_DEFAULT_INDEX_PATH: index_0414.html → index_0415.html
- *  - ST_W10_E10If_t::setPptMode 콜백 삭제 (Round G/H 정합)
- *    · set_ppt 명령 & ppt_mode 필드는 W10Api_CtlPpt / _Status에서 제거됨
- *  - G_W10_CONSUMER[] 값은 v0412 그대로 유지 (Descriptor 100% 일치, Round A 확정)
- *    · W10이 Descriptor SSOT (C20이 이에 맞춰 수정됨)
- *  - G_W10_CONSUMER[].name을 EN_C20_Consumer_t 접미사와 동일한
- *    UPPER_SNAKE_CASE로 통일 (rev13, B-1). am_base_0415.js::
- *    getConsumerFriendlyName() 매핑 키와 정합.
+ * [v0415 Phase 1-3]
+ *  - `G_W10_KB_NAMES[]` 테이블 도입 (KB Usage 이름)
+ *    · `_kbName()` switch 200줄 → 이진 탐색 15줄
  *
- * [v0415 Wave H 주요 변경]
- *  - G_APP_FW_VER 상수 추가 ("v0415")
- *    · /api/status 응답에 fw_ver 필드로 노출
- *    · OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
+ * [v0415 Phase 2-2]
+ *  - `G_W10_ERR_MAP[]` 테이블 도입 (에러 코드 → HTTP)
+ *    · `_httpFromCode` if-else 40줄 → 이진 탐색 15줄
+ *    · 반드시 사전순 정렬 유지 (이진 탐색 전제)
+ *
+ * [v0415 rev15 이전]
+ *  - G_W10_API_VER: 410 → 411
+ *  - G_W10_DEFAULT_INDEX_PATH: index_0415.html
+ *  - setPptMode 콜백 삭제
  * ------------------------------------------------------
  */
 
@@ -49,7 +47,6 @@ static constexpr const char* G_W10_URI_JSON_PUBLIC_PREFIX = "/json/public/";
 static constexpr const char* G_W10_PATH_WWW_PREFIX         = "/www/";
 static constexpr const char* G_W10_PATH_JSON_PUBLIC_PREFIX = "/json/public/";
 
-// [v0415] index 갱신
 static constexpr const char* G_W10_DEFAULT_INDEX_PATH = "/www/index_0415.html";
 
 // -------------------------------------------------------
@@ -61,24 +58,19 @@ static constexpr const char* G_W10_CACHE_SHORT     = "public, max-age=3600";
 
 static constexpr size_t G_W10_BODY_MAX = 8192;
 
-// ----------------------------------------------------
+// -------------------------------------------------------
 // Reboot reason bits
-// ----------------------------------------------------
+// -------------------------------------------------------
 static constexpr uint32_t G_W10_REBOOT_WIFI_MODE = 0x00000001;
 static constexpr uint32_t G_W10_REBOOT_WIFI_STA  = 0x00000002;
 static constexpr uint32_t G_W10_REBOOT_WIFI_AP   = 0x00000004;
 static constexpr uint32_t G_W10_REBOOT_WIFI_MDNS = 0x00000008;
 static constexpr uint32_t G_W10_REBOOT_OTHER     = 0x80000000;
 
-// [v0415] API version bump
 static constexpr uint16_t G_W10_API_VER = 411;
 
 // =======================================================
 // [v0415 Wave H] 펌웨어 버전 문자열
-// -------------------------------------------------------
-//  - /api/status 응답의 fw_ver 필드로 노출
-//  - OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
-//  - 릴리스 시 이 상수만 갱신
 // =======================================================
 static constexpr const char* G_APP_FW_VER = "v0415";
 
@@ -87,6 +79,9 @@ static constexpr uint32_t G_W10_BODY_SLOT_STALE_MS = 1500;
 
 static constexpr uint8_t G_W10_DIAG_EVT_MAX = 16;
 
+// -------------------------------------------------------
+// Body Slot / Diag Event
+// -------------------------------------------------------
 struct ST_W10_BodySlot {
     AsyncWebServerRequest* req;
     size_t len;
@@ -114,8 +109,6 @@ static constexpr ST_W10_Mod_t G_W10_MODS[] = {
 
 // -------------------------------------------------------
 // Consumer (24-bit HID Consumer Page, Descriptor SSOT)
-//   [v0415] 값은 v0412와 동일 (Descriptor 100% 일치)
-//   C20_Action_0415.h의 EN_C20_Consumer_t와 값 체계 동일 (Phase 1 방안 1-B)
 // -------------------------------------------------------
 struct ST_W10_Consumer_t {
     const char* name;
@@ -123,38 +116,148 @@ struct ST_W10_Consumer_t {
 };
 static constexpr ST_W10_Consumer_t G_W10_CONSUMER[] = {
     {        "None", 0x00000000},
-    {        "PLAY", 0x00000001},   // Bit 0 : 0xB0 Play
-    {       "PAUSE", 0x00000002},   // Bit 1 : 0xB1 Pause
-    {      "RECORD", 0x00000004},   // Bit 2 : 0xB2 Record
-    {          "FF", 0x00000008},   // Bit 3 : 0xB3 Fast Forward   (구 "FastForward")
-    {      "REWIND", 0x00000010},   // Bit 4 : 0xB4 Rewind
-    {  "NEXT_TRACK", 0x00000020},   // Bit 5 : 0xB5 Next Track
-    {  "PREV_TRACK", 0x00000040},   // Bit 6 : 0xB6 Prev Track
-    {        "STOP", 0x00000080},   // Bit 7 : 0xB7 Stop
-    {       "EJECT", 0x00000100},   // Bit 8 : 0xB8 Eject
-    {      "RANDOM", 0x00000200},   // Bit 9 : 0xB9 Random Play    (구 "RandomPlay")
-    {      "REPEAT", 0x00000400},   // Bit 10: 0xBC Repeat
-    {  "PLAY_PAUSE", 0x00000800},   // Bit 11: 0xCD Play/Pause
-    {        "MUTE", 0x00001000},   // Bit 12: 0xE2 Mute
-    {      "VOL_UP", 0x00002000},   // Bit 13: 0xE9 Volume Increment
-    {    "VOL_DOWN", 0x00004000},   // Bit 14: 0xEA Volume Decrement
-    {    "WWW_HOME", 0x00008000},   // Bit 15: 0x0223 WWW Home
-    {     "MY_COMP", 0x00010000},   // Bit 16: 0x0194 My Computer
-    {        "CALC", 0x00020000},   // Bit 17: 0x0192 Calculator
-    {     "WWW_FAV", 0x00040000},   // Bit 18: 0x022A WWW Favorites
-    {  "WWW_SEARCH", 0x00080000},   // Bit 19: 0x0221 WWW Search
-    {    "WWW_STOP", 0x00100000},   // Bit 20: 0x0226 WWW Stop
-    {    "WWW_BACK", 0x00200000},   // Bit 21: 0x0224 WWW Back
-    {   "MEDIA_SEL", 0x00400000},   // Bit 22: 0x0183 Media Select
-    {        "MAIL", 0x00800000},   // Bit 23: 0x018A Mail
+    {        "PLAY", 0x00000001},
+    {       "PAUSE", 0x00000002},
+    {      "RECORD", 0x00000004},
+    {          "FF", 0x00000008},
+    {      "REWIND", 0x00000010},
+    {  "NEXT_TRACK", 0x00000020},
+    {  "PREV_TRACK", 0x00000040},
+    {        "STOP", 0x00000080},
+    {       "EJECT", 0x00000100},
+    {      "RANDOM", 0x00000200},
+    {      "REPEAT", 0x00000400},
+    {  "PLAY_PAUSE", 0x00000800},
+    {        "MUTE", 0x00001000},
+    {      "VOL_UP", 0x00002000},
+    {    "VOL_DOWN", 0x00004000},
+    {    "WWW_HOME", 0x00008000},
+    {     "MY_COMP", 0x00010000},
+    {        "CALC", 0x00020000},
+    {     "WWW_FAV", 0x00040000},
+    {  "WWW_SEARCH", 0x00080000},
+    {    "WWW_STOP", 0x00100000},
+    {    "WWW_BACK", 0x00200000},
+    {   "MEDIA_SEL", 0x00400000},
+    {        "MAIL", 0x00800000},
 };
+
+// =====================================================
+// [v0415 Phase 1-3] KB Usage 이름 테이블
+// -----------------------------------------------------
+//  - code 오름차순 정렬 필수 (이진 탐색)
+//  - 106개 항목
+//  - check_schema_0415.py::check_w10_kb_names_sorted 로 검증
+//  - _kbName() 이진 탐색으로 O(log n) 조회
+// =====================================================
+struct ST_W10_KbName_t {
+    uint16_t    code;
+    const char* name;
+};
+
+static constexpr ST_W10_KbName_t G_W10_KB_NAMES[] = {
+    {0x00, "None"},
+
+    // 영문 알파벳
+    {0x04, "A"}, {0x05, "B"}, {0x06, "C"}, {0x07, "D"},
+    {0x08, "E"}, {0x09, "F"}, {0x0A, "G"}, {0x0B, "H"},
+    {0x0C, "I"}, {0x0D, "J"}, {0x0E, "K"}, {0x0F, "L"},
+    {0x10, "M"}, {0x11, "N"}, {0x12, "O"}, {0x13, "P"},
+    {0x14, "Q"}, {0x15, "R"}, {0x16, "S"}, {0x17, "T"},
+    {0x18, "U"}, {0x19, "V"}, {0x1A, "W"}, {0x1B, "X"},
+    {0x1C, "Y"}, {0x1D, "Z"},
+
+    // 숫자
+    {0x1E, "1"}, {0x1F, "2"}, {0x20, "3"}, {0x21, "4"},
+    {0x22, "5"}, {0x23, "6"}, {0x24, "7"}, {0x25, "8"},
+    {0x26, "9"}, {0x27, "0"},
+
+    // 기본 편집 키
+    {0x28, "Enter"}, {0x29, "Esc"}, {0x2A, "Backspace"},
+    {0x2B, "Tab"},   {0x2C, "Space"},
+
+    // 기호 (0x2D ~ 0x38)
+    {0x2D, "Minus"},     {0x2E, "Equal"},     {0x2F, "LBracket"},
+    {0x30, "RBracket"},  {0x31, "Backslash"}, {0x32, "NonUSHash"},
+    {0x33, "Semicolon"}, {0x34, "Quote"},     {0x35, "Grave"},
+    {0x36, "Comma"},     {0x37, "Period"},    {0x38, "Slash"},
+
+    // 편집 / 탐색
+    {0x39, "CapsLock"},
+    {0x3A, "F1"},  {0x3B, "F2"},  {0x3C, "F3"},  {0x3D, "F4"},
+    {0x3E, "F5"},  {0x3F, "F6"},  {0x40, "F7"},  {0x41, "F8"},
+    {0x42, "F9"},  {0x43, "F10"}, {0x44, "F11"}, {0x45, "F12"},
+    {0x46, "PrtSc"},      {0x47, "ScrollLock"}, {0x48, "Pause"},
+    {0x49, "Insert"},     {0x4A, "Home"},
+    {0x4B, "PageUp"},     {0x4C, "Delete"},     {0x4D, "End"},
+    {0x4E, "PageDown"},
+    {0x4F, "Right"}, {0x50, "Left"}, {0x51, "Down"}, {0x52, "Up"},
+
+    // 숫자 키패드 (0x53 ~ 0x63)
+    {0x53, "NumLock"}, {0x54, "KP_Slash"}, {0x55, "KP_Star"},
+    {0x56, "KP_Minus"}, {0x57, "KP_Plus"}, {0x58, "KP_Enter"},
+    {0x59, "KP_1"}, {0x5A, "KP_2"}, {0x5B, "KP_3"}, {0x5C, "KP_4"},
+    {0x5D, "KP_5"}, {0x5E, "KP_6"}, {0x5F, "KP_7"}, {0x60, "KP_8"},
+    {0x61, "KP_9"}, {0x62, "KP_0"}, {0x63, "KP_Dot"},
+
+    // Power (v0415 신규)
+    {0x66, "Power"},
+
+    // 수정자 (0xE0 ~ 0xE7)
+    {0xE0, "LCtrl"},  {0xE1, "LShift"}, {0xE2, "LAlt"},  {0xE3, "LGui"},
+    {0xE4, "RCtrl"},  {0xE5, "RShift"}, {0xE6, "RAlt"},  {0xE7, "RGui"},
+};
+
+static constexpr size_t G_W10_KB_NAMES_COUNT =
+    sizeof(G_W10_KB_NAMES) / sizeof(G_W10_KB_NAMES[0]);
+
+// =====================================================
+// [v0415 Phase 2-2] 에러 코드 → HTTP 매핑 테이블
+// -----------------------------------------------------
+//  - code 사전순 정렬 필수 (이진 탐색)
+//  - 26개 항목
+//  - check_schema_0415.py::check_w10_err_map_sorted 로 검증
+//  - _httpFromCode() 이진 탐색으로 O(log n) 조회
+// =====================================================
+struct ST_W10_ErrMap_t {
+    const char* code;
+    int         http;
+};
+
+static constexpr ST_W10_ErrMap_t G_W10_ERR_MAP[] = {
+    {"api_not_found",          404},
+    {"bad_json",               400},
+    {"ble_disconnected",       400},
+    {"body_too_large",         413},
+    {"config_apply_failed",    500},
+    {"config_export_failed",   500},
+    {"config_get_failed",      500},
+    {"config_import_failed",   500},
+    {"config_rollback_failed", 500},
+    {"config_save_failed",     500},
+    {"control_failed",         500},
+    {"factory_reset_failed",   500},
+    {"no_body_slot",           503},
+    {"no_config",              503},
+    {"no_map",                 400},
+    {"no_reboot_needed",       409},
+    {"ota_failed",             500},
+    {"ota_guard_blocked",      403},
+    {"ppt_set_failed",         500},
+    {"ppt_test_failed",        500},
+    {"reason_mask_mismatch",   409},
+    {"safe_mode_blocked",      403},
+    {"safeboot_exit_failed",   500},
+    {"static_forbidden",       403},
+    {"static_not_found",       404},
+    {"validation_failed",      400},
+};
+
+static constexpr size_t G_W10_ERR_MAP_COUNT =
+    sizeof(G_W10_ERR_MAP) / sizeof(G_W10_ERR_MAP[0]);
 
 // =======================================================
 // [W10-E10 Interface]
-// -------------------------------------------------------
-// [v0415] setPptMode 콜백 삭제 (Round G/H 정합)
-//   - E10의 setPptMode는 no-op 스텁이지만, W10에서 PPT 제어 자체가
-//     더 이상 필요 없음 (active_mode로 일원화)
 // =======================================================
 struct ST_W10_E10If_t {
     void* ctx;
@@ -162,7 +265,7 @@ struct ST_W10_E10If_t {
     // Status snapshot
     bool (*getStatus)(void* ctx, ST_E10_Status_t* out);
 
-    // Runtime apply-only (no persist)
+    // Runtime apply-only
     bool (*applyRuntimeE10)(void* ctx, const ST_C10_E10Config_t* e10);
 
     // Runtime controls
@@ -170,8 +273,7 @@ struct ST_W10_E10If_t {
     bool (*setPrecisionMode)(void* ctx, uint8_t mode);
     bool (*setHardClickLock)(void* ctx, bool en);
 
-    // [v0415 Wave F] 모드 직접 지정 (사이클 오류 원천 차단)
-    //   - 사전 fix에서 콜백 추가됨 (본 파일에는 이미 반영)
+    // 모드 직접 지정
     bool (*setActiveMode)(void* ctx, uint8_t mode);
 
     bool (*setSafeMode)(void* ctx, bool en);
@@ -207,8 +309,6 @@ struct ST_W10_E10If_t {
                          bool* outSelecting,
                          char* outActivePeerName,
                          size_t nameBufSize);
-
-    // [v0415 삭제] bool (*setPptMode)(void* ctx, bool en);
 };
 
 // -------------------------------------------------------
@@ -294,7 +394,9 @@ static inline const char* W10_contentTypeFromExt(const char* p_extLower) {
     return "application/octet-stream";
 }
 
-static inline const char* W10_cacheControlForStatic(const char* p_path, const char* p_extLower, bool p_isPublicJson) {
+static inline const char* W10_cacheControlForStatic(const char* p_path,
+                                                    const char* p_extLower,
+                                                    bool p_isPublicJson) {
     if (p_isPublicJson) return G_W10_CACHE_NOSTORE;
     if (p_extLower && strcmp(p_extLower, "html") == 0) return G_W10_CACHE_NOSTORE;
     if (W10_hasVersionToken(p_path)) return G_W10_CACHE_IMMUTABLE;

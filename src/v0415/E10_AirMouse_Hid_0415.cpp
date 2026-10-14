@@ -30,7 +30,7 @@ void CL_E10_EliteAirMouse::_tapConsumerMask(uint32_t p_mask, uint16_t p_ms) {
 }
 
 // =======================================================
-// [v0415] _sendPptKey2 — KB usage 상한 상수화
+// _sendPptKey2 — KB usage 상한 상수화
 // =======================================================
 static constexpr uint32_t G_E10_KB_USAGE_MAX = 0xE7;
 
@@ -51,7 +51,6 @@ void CL_E10_EliteAirMouse::_sendPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t 
 bool CL_E10_EliteAirMouse::testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p_code) {
     if (!_hid.isConnected()) return false;
 
-    // "실행 성공" → "큐 적재 성공"
     ST_E10_HidCmd_t v_cmd;
     memset(&v_cmd, 0, sizeof(v_cmd));
     v_cmd.cmd  = (uint8_t)EN_E10_HIDCMD_TEST_PPT;
@@ -64,10 +63,15 @@ bool CL_E10_EliteAirMouse::testPptKey2(uint8_t p_page, uint8_t p_mod, uint32_t p
 // =======================================================
 // [H-2] 공개 API: 상태 리셋(즉시) + RELEASE_ALL enqueue
 // -------------------------------------------------------
-// [v0415] forceReleaseAllButtons() 삭제 (Round G 선언 + Round K 정의)
+// [v0415 Phase 1-5]
+//   - 매크로 abort + state reset이 "동일 lock 블록 내"에서
+//     원자적으로 이루어져야 하므로 _abortMacroLocked() 헬퍼를
+//     사용하지 않고 lock 블록을 유지함 (정책 예외)
+//   - 다른 호출 지점(_setActiveMode, switchProfile, _commTask)은
+//     state reset이 필요 없어 헬퍼 사용
 // =======================================================
 bool CL_E10_EliteAirMouse::forceReleaseButtons() {
-    // [H-1 / v0415] 매크로 취소 토큰 + 상태머신 종료 (lock 하 원자화)
+    // [Phase 1-5 예외] state reset + macro abort 동일 임계구역 유지
     _lock();
     _macroAbortToken++;
     _macroState.active = false;
@@ -92,10 +96,6 @@ bool CL_E10_EliteAirMouse::forceReleaseButtons() {
 
 // =======================================================
 // [commTask ONLY] HID 실행 프리미티브
-// -------------------------------------------------------
-// [v0415 L6c-A4-01] 5버튼 mask 통합 호출 (5회 → 1회)
-//   - 라이브러리 mouseRelease(mask) 시그니처가 다중 bit 지원
-//   - 결과는 동일, RMT/queue 호출 횟수 절감
 // =======================================================
 void CL_E10_EliteAirMouse::_doReleaseAllButtons() {
     const uint8_t v_mask = (uint8_t)(EN_C20_M_L | EN_C20_M_R | EN_C20_M_M |
@@ -103,10 +103,10 @@ void CL_E10_EliteAirMouse::_doReleaseAllButtons() {
     _mouse.mouseRelease(v_mask);
 }
 
-// 상태 리셋 + 즉시 HID release (commTask 내부 전용, enqueue 경유하지 않음)
+// 상태 리셋 + 즉시 HID release (commTask 내부 전용)
 void CL_E10_EliteAirMouse::_doForceReleaseNow() {
     _lock();
-    
+
     _state.x        = 0;
     _state.y        = 0;
     _state.wheel    = 0;

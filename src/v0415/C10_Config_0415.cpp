@@ -14,9 +14,7 @@ static const char* _C10_defaultProfileName(uint8_t p_idx) {
 }
 
 // =======================================================
-// [v0415] Consumer mask 410 → 411 매핑 (비트 단위)
-//   - 0412의 16-bit 압축 값 → 0415의 Descriptor 정합 24-bit
-//   - 매핑 테이블은 C20_Action_0415.h의 G_C20_LEGACY_410_TO_415
+// Consumer mask 410 → 411 매핑 (비트 단위)
 // =======================================================
 static uint32_t _migrateConsumerMaskV410ToV415(uint32_t p_old) {
     uint32_t v_new = 0;
@@ -31,24 +29,201 @@ static uint32_t _migrateConsumerMaskV410ToV415(uint32_t p_old) {
 static void _migrateSlotConsumerV410ToV415(ST_C20_ActionSlot_t& p_slot) {
     if (p_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_TAP ||
         p_slot.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
-        // [v0415] 구형 v0410 키 대체 규칙
-        // 1) 0x1000 (old POWER) -> v0415 Keyboard Page Power(0x66)
         if (p_slot.param32 == 0x1000) {
             p_slot = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_POWER);
             return;
         }
-        // 2) 0x2000 (old TV_INPUT) -> v0415 WWW_SEARCH (makeDefaultsSlots 정합)
         if (p_slot.param32 == 0x2000) {
             p_slot = C20_MakeConsumer(EN_C20_CON_WWW_SEARCH);
             return;
         }
         p_slot.param32 = _migrateConsumerMaskV410ToV415(p_slot.param32);
-        // 3) 매핑 없는 구형 키(CH_UP, CH_DOWN 등)로 인해 mask가 0이 되면 유효하지 않은 슬롯이 되지 않도록 NONE 변환
         if (p_slot.param32 == 0) {
             p_slot = C20_MakeNone();
         }
     }
 }
+
+// =====================================================
+// [v0415 Phase 3-C] validateE10 범위 규칙 테이블
+// -----------------------------------------------------
+//  - 정수/실수 통합을 위해 float로 정규화
+//  - 관계 검증(press >= release 등)은 테이블로 표현 불가 → 별도 유지
+//  - 신규 필드 추가 시 이 테이블에 1행만 추가
+// =====================================================
+namespace {
+
+struct ST_RangeRule_t {
+    const char* name;
+    float       min;
+    float       max;
+    float       (*getter)(const ST_C10_E10Config_t&);
+};
+
+static const ST_RangeRule_t G_E10_RULES[] = {
+    // ---- 기본 DPI / 하드클릭 ----
+    {"dpi_level",             1.0f,    3.0f,
+        [](const auto& e){ return (float)e.dpi_level; }},
+
+    // ---- 가속도 / 스크롤 감쇠 ----
+    {"accel_threshold",       0.0f,    50.0f,
+        [](const auto& e){ return e.accel_threshold; }},
+    {"wheel_threshold_deg",   1.0f,    360.0f,
+        [](const auto& e){ return e.wheel_threshold_deg; }},
+    {"wheel_step_max",        1.0f,    50.0f,
+        [](const auto& e){ return (float)e.wheel_step_max; }},
+    {"scroll_cursor_damp",    0.0f,    1.0f,
+        [](const auto& e){ return e.scroll_cursor_damp; }},
+
+    // ---- Precision ----
+    {"precision_mode",        0.0f,    4.0f,
+        [](const auto& e){ return (float)e.precision_mode; }},
+    {"precision_deadzone",    0.0f,    50.0f,
+        [](const auto& e){ return e.precision_deadzone; }},
+    {"precision_gain",        0.0f,    5.0f,
+        [](const auto& e){ return e.precision_gain; }},
+    {"precision_accel",       0.0f,    5.0f,
+        [](const auto& e){ return e.precision_accel; }},
+    {"precision_max_step",    1.0f,    200.0f,
+        [](const auto& e){ return (float)e.precision_max_step; }},
+    {"precision_smooth",      0.0f,    1.0f,
+        [](const auto& e){ return e.precision_smooth; }},
+    {"prec_entry_ms",         50.0f,   5000.0f,
+        [](const auto& e){ return (float)e.prec_entry_ms; }},
+    {"prec_exit_ms",          50.0f,   5000.0f,
+        [](const auto& e){ return (float)e.prec_exit_ms; }},
+    {"prec_entry_still_deg",  0.1f,    20.0f,
+        [](const auto& e){ return e.prec_entry_still_deg; }},
+    {"prec_exit_move_deg",    0.1f,    50.0f,
+        [](const auto& e){ return e.prec_exit_move_deg; }},
+    {"prec_profile",          0.0f,    5.0f,
+        [](const auto& e){ return (float)e.prec_profile; }},
+
+    // ---- Gyro bias ----
+    {"gyro_bias.still_th",    0.1f,    20.0f,
+        [](const auto& e){ return e.gyro_bias.still_th; }},
+    {"gyro_bias.still_win_ms",50.0f,   5000.0f,
+        [](const auto& e){ return (float)e.gyro_bias.still_win_ms; }},
+    {"gyro_bias.alpha",       0.0001f, 0.1f,
+        [](const auto& e){ return e.gyro_bias.alpha; }},
+
+    // ---- Linear ----
+    {"linear.th",             0.05f,   5.0f,
+        [](const auto& e){ return e.linear.th; }},
+    {"linear.impulse_th",     0.1f,    5.0f,
+        [](const auto& e){ return e.linear.impulse_th; }},
+    {"linear.window_ms",      50.0f,   1000.0f,
+        [](const auto& e){ return (float)e.linear.window_ms; }},
+
+    // ---- Flick ----
+    {"flick.p2p_th",          50.0f,   2000.0f,
+        [](const auto& e){ return e.flick.p2p_th; }},
+    {"flick.window_ms",       50.0f,   500.0f,
+        [](const auto& e){ return (float)e.flick.window_ms; }},
+    {"flick.cooldown_ms",     100.0f,  5000.0f,
+        [](const auto& e){ return (float)e.flick.cooldown_ms; }},
+
+    // ---- Tilt hold ----
+    {"tilt_hold.angle_deg",   5.0f,    45.0f,
+        [](const auto& e){ return e.tilt_hold.angle_deg; }},
+    {"tilt_hold.hold_ms",     100.0f,  2000.0f,
+        [](const auto& e){ return (float)e.tilt_hold.hold_ms; }},
+    {"tilt_hold.repeat_hz",   1.0f,    20.0f,
+        [](const auto& e){ return (float)e.tilt_hold.repeat_hz; }},
+
+    // ---- Sleep / Mode ----
+    {"sleep_idle_timeout_ms", 5000.0f, 3600000.0f,
+        [](const auto& e){ return (float)e.sleep_idle_timeout_ms; }},
+    {"active_mode",           1.0f,    3.0f,
+        [](const auto& e){ return (float)e.active_mode; }},
+    {"active_peer_index",     0.0f,    2.0f,
+        [](const auto& e){ return (float)e.active_peer_index; }},
+
+    // ---- Motion Advanced: click_freeze ----
+    {"motion_adv.click_freeze.gyro_th",        5.0f,  30.0f,
+        [](const auto& e){ return e.motion_adv.click_freeze.gyro_th; }},
+    {"motion_adv.click_freeze.max_ms",         50.0f, 300.0f,
+        [](const auto& e){ return (float)e.motion_adv.click_freeze.max_ms; }},
+    {"motion_adv.click_freeze.hold_ms",        0.0f,  50.0f,
+        [](const auto& e){ return (float)e.motion_adv.click_freeze.hold_ms; }},
+    {"motion_adv.click_freeze.fadeout_ms",     0.0f,  80.0f,
+        [](const auto& e){ return (float)e.motion_adv.click_freeze.fadeout_ms; }},
+    {"motion_adv.click_freeze.move_th",        1.0f,  10.0f,
+        [](const auto& e){ return e.motion_adv.click_freeze.move_th; }},
+    {"motion_adv.click_freeze.freeze_move_th", 10.0f, 60.0f,
+        [](const auto& e){ return e.motion_adv.click_freeze.freeze_move_th; }},
+
+    // ---- Motion Advanced: ema ----
+    {"motion_adv.ema.alpha_min",    0.01f, 0.2f,
+        [](const auto& e){ return e.motion_adv.ema.alpha_min; }},
+    {"motion_adv.ema.alpha_max",    0.5f,  0.95f,
+        [](const auto& e){ return e.motion_adv.ema.alpha_max; }},
+    {"motion_adv.ema.deadzone_th",  1.0f,  10.0f,
+        [](const auto& e){ return e.motion_adv.ema.deadzone_th; }},
+    {"motion_adv.ema.fast_th",      10.0f, 30.0f,
+        [](const auto& e){ return e.motion_adv.ema.fast_th; }},
+    {"motion_adv.ema.reversal_th",  5.0f,  20.0f,
+        [](const auto& e){ return e.motion_adv.ema.reversal_th; }},
+
+    // ---- Motion Advanced: snap ----
+    {"motion_adv.snap.mode_mask",      0.0f, 7.0f,
+        [](const auto& e){ return (float)e.motion_adv.snap.mode_mask; }},
+    {"motion_adv.snap.axis_mode",      0.0f, 2.0f,
+        [](const auto& e){ return (float)e.motion_adv.snap.axis_mode; }},
+    {"motion_adv.snap.confirm_frames", 1.0f, 10.0f,
+        [](const auto& e){ return (float)e.motion_adv.snap.confirm_frames; }},
+    {"motion_adv.snap.ratio_enter",    2.0f, 10.0f,
+        [](const auto& e){ return e.motion_adv.snap.ratio_enter; }},
+    {"motion_adv.snap.strength",       0.5f, 1.0f,
+        [](const auto& e){ return e.motion_adv.snap.strength; }},
+
+    // ---- Power (idle_timeout 배열 개별) ----
+    {"power.idle_timeout_ms[0]", 5000.0f, 3600000.0f,
+        [](const auto& e){ return (float)e.power.idle_timeout_ms[0]; }},
+    {"power.idle_timeout_ms[1]", 5000.0f, 3600000.0f,
+        [](const auto& e){ return (float)e.power.idle_timeout_ms[1]; }},
+    {"power.idle_timeout_ms[2]", 5000.0f, 3600000.0f,
+        [](const auto& e){ return (float)e.power.idle_timeout_ms[2]; }},
+    {"power.idle_timeout_ble_ms", 60000.0f, 3600000.0f,
+        [](const auto& e){ return (float)e.power.idle_timeout_ble_ms; }},
+    {"power.pairing_idle_timeout_ms", 10000.0f, 60000.0f,
+        [](const auto& e){ return (float)e.power.pairing_idle_timeout_ms; }},
+    {"power.wake_min_active_ms", 100.0f, 2000.0f,
+        [](const auto& e){ return (float)e.power.wake_min_active_ms; }},
+    {"power.wom_threshold",      5.0f,   100.0f,
+        [](const auto& e){ return (float)e.power.wom_threshold; }},
+    {"power.wom_duration",       1.0f,   50.0f,
+        [](const auto& e){ return (float)e.power.wom_duration; }},
+    {"power.fast_recalib_ms",    100.0f, 1000.0f,
+        [](const auto& e){ return (float)e.power.fast_recalib_ms; }},
+    {"power.led_fadeout_ms",     0.0f,   1000.0f,
+        [](const auto& e){ return (float)e.power.led_fadeout_ms; }},
+    {"power.led_fadein_ms",      0.0f,   1000.0f,
+        [](const auto& e){ return (float)e.power.led_fadein_ms; }},
+
+    // ---- Button ----
+    {"button.debounce_press_ms",   8.0f,    100.0f,
+        [](const auto& e){ return (float)e.button.debounce_press_ms; }},
+    {"button.debounce_release_ms", 8.0f,    100.0f,
+        [](const auto& e){ return (float)e.button.debounce_release_ms; }},
+    {"button.long_delay_ms",       300.0f,  2000.0f,
+        [](const auto& e){ return (float)e.button.long_delay_ms; }},
+    {"button.double_delay_ms",     150.0f,  800.0f,
+        [](const auto& e){ return (float)e.button.double_delay_ms; }},
+    {"button.hold_2s_ms",          1000.0f, 5000.0f,
+        [](const auto& e){ return (float)e.button.hold_2s_ms; }},
+    {"button.hold_3s_ms",          2000.0f, 8000.0f,
+        [](const auto& e){ return (float)e.button.hold_3s_ms; }},
+    {"button.min_click_ms",        0.0f,    100.0f,
+        [](const auto& e){ return (float)e.button.min_click_ms; }},
+    {"button.debounce_min_ticks",  1.0f,    10.0f,
+        [](const auto& e){ return (float)e.button.debounce_min_ticks; }},
+};
+
+static constexpr size_t G_E10_RULES_COUNT =
+    sizeof(G_E10_RULES) / sizeof(G_E10_RULES[0]);
+
+}  // namespace
 
 // =======================================================
 // ctor / begin
@@ -58,7 +233,7 @@ CL_C10_Config::CL_C10_Config() {
     memset(&_index, 0, sizeof(_index));
     _bootOkRetryAtMs = 0;
     _profileSwitchInProgress = false;
-    _bootMutex = xSemaphoreCreateMutex();   // [W6]
+    _bootMutex = xSemaphoreCreateMutex();
 }
 
 void CL_C10_Config::begin(bool p_formatOnFail) {
@@ -66,7 +241,7 @@ void CL_C10_Config::begin(bool p_formatOnFail) {
 
     (void)LittleFS.mkdir("/json");
     (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
-    _dirsEnsured = true;   // [P5] 이후 _atomicWriteJson에서 mkdir 생략
+    _dirsEnsured = true;
 
     // ---------- boot state ----------
     _loadBootState(_boot);
@@ -164,8 +339,8 @@ bool CL_C10_Config::_saveIndex() {
     v_d["active"]        = _index.activeIndex;
     v_d["count"]         = _index.profileCount;
 
-    const char* v_tmp = C10_DEF::PROFILE_ACTIVE_TMP;
-    const char* v_old = C10_DEF::PROFILE_ACTIVE_OLD;
+    const char* v_tmp  = C10_DEF::PROFILE_ACTIVE_TMP;
+    const char* v_old  = C10_DEF::PROFILE_ACTIVE_OLD;
     const char* v_main = C10_DEF::PROFILE_ACTIVE;
 
     if (LittleFS.exists(v_tmp)) (void)LittleFS.remove(v_tmp);
@@ -182,7 +357,6 @@ bool CL_C10_Config::_saveIndex() {
         return false;
     }
 
-    // [P1] rotate: main → old (main을 먼저 삭제하지 않음)
     if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
     if (LittleFS.exists(v_main)) {
         if (!LittleFS.rename(v_main, v_old)) {
@@ -191,9 +365,8 @@ bool CL_C10_Config::_saveIndex() {
         }
     }
 
-    // commit: tmp → main
     if (!LittleFS.rename(v_tmp, v_main)) {
-        if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);   // rollback
+        if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);
         (void)LittleFS.remove(v_tmp);
         return false;
     }
@@ -211,21 +384,8 @@ bool CL_C10_Config::setActiveIndex(uint8_t p_idx) {
 // =======================================================
 // Profile CRUD
 // =======================================================
-// [v0415] loadProfile: 스키마 410 → 411 자동 마이그레이션 + validate
-//   흐름:
-//     1) JSON 로드 & 파싱
-//     2) makeDefaultsProfile로 초기화
-//     3) ver = 0 (sentinel) → patch가 JSON의 ver로 덮어씀
-//     4) patch (partial)
-//     5) ver < 411 이면 _migrateProfileV410ToV411()
-//     6) validateProfile() — 실패 시 defaults 유지 + false
-//     7) 성공 시 true
-//
-//   - JSON ver 필드 부재 시: 0 → 마이그레이션 수행 (v410으로 간주)
-//   - v411 프로파일: ver = 411 → 마이그레이션 skip
-//   - 영구 반영은 caller의 saveProfile 시점에 수행 (부작용 최소화)
 bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
-    if (p_idx >= C10_DEF::PROFILE_MAX) return false;   // [P4]
+    if (p_idx >= C10_DEF::PROFILE_MAX) return false;
     char v_path[64];
     if (!C10_DEF::makeProfilePath(v_path, sizeof(v_path), p_idx)) return false;
 
@@ -236,35 +396,28 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
     v_f.close();
     if (v_json.length() == 0) return false;
 
-    // 1) defaults 초기화
     makeDefaultsProfile(p_idx, p_out);
 
-    // 2) sentinel: JSON의 ver 필드로 overwrite 예정
     p_out.ver = 0;
 
-    // 3) partial patch
     if (!patchProfileFromJson(v_json, p_out)) {
         D10_LOGW_C("C10::loadProfile", "patch failed: idx=%u", (unsigned)p_idx);
         makeDefaultsProfile(p_idx, p_out);
         return false;
     }
 
-    // 4) [v0415 rev15] 스키마 마이그레이션 — legacy 410만 대상
-    //    - 스키마 412 전환: 마이그레이션 함수 신설 없음
-    //    - 411 이하 파일은 legacy 410 마이그레이션 조건에서만 처리
-    //    - 411 파일은 makeDefaults의 flick 기본값으로 fallback (gesture 무시)
+    // 스키마 마이그레이션 (legacy 410만 대상)
     bool v_migrated = false;
-    if (p_out.ver < G_C10_CFG_VER_V410 + 1) {      // ver < 411 = 410 이하
+    if (p_out.ver < G_C10_CFG_VER_V410 + 1) {
         D10_LOGI_C("C10::loadProfile",
                    "migrate profile idx=%u (ver %u → %u)",
                    (unsigned)p_idx,
                    (unsigned)p_out.ver,
-                   (unsigned)G_C10_CFG_VER);       // ← 저장 시점 ver = 412
+                   (unsigned)G_C10_CFG_VER);
         _migrateProfileV410ToV411(p_out);
         v_migrated = true;
     }
-    
-    // 5) [v0415] validate — 손상 프로파일 방어
+
     if (!validateProfile(p_out)) {
         D10_LOGW_C("C10::loadProfile",
                    "validate failed: idx=%u → using defaults",
@@ -273,7 +426,6 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
         return false;
     }
 
-    // [v0415] 마이그레이션 성공 시 파일에 영구 저장 (매 부팅 재마이그레이션/경고 방지)
     if (v_migrated) {
         (void)saveProfile(p_idx, p_out);
     }
@@ -282,7 +434,7 @@ bool CL_C10_Config::loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out) {
 }
 
 bool CL_C10_Config::saveProfile(uint8_t p_idx, const ST_C10_ProfileConfig_t& p_in) {
-    if (p_idx >= C10_DEF::PROFILE_MAX) return false;   // [P4]
+    if (p_idx >= C10_DEF::PROFILE_MAX) return false;
     if (!validateProfile(p_in)) return false;
 
     char v_path[64];
@@ -311,7 +463,6 @@ bool CL_C10_Config::createProfile(const char* p_newName, uint8_t& p_outIdx) {
 
     _index.profileCount = v_newIdx + 1;
     if (!_saveIndex()) {
-        // 롤백
         char v_p[64];
         if (C10_DEF::makeProfilePath(v_p, sizeof(v_p), v_newIdx))
             (void)LittleFS.remove(v_p);
@@ -323,57 +474,32 @@ bool CL_C10_Config::createProfile(const char* p_newName, uint8_t& p_outIdx) {
     return true;
 }
 
-// =======================================================
-// [v0415] deleteProfile — swap-with-last (원자성 강화)
-// ------------------------------------------------------
-//   v0412 gap-shift 방식은 중간 실패 시 프로파일 인덱스가
-//   불연속 상태로 남는 문제(L3-A3-01) 발생.
-//
-//   v0415:
-//     - 삭제 대상이 마지막이면: 파일만 삭제
-//     - 아니면: 마지막 프로파일을 삭제 슬롯으로 rename (swap)
-//
-//   특징:
-//     - 파일 rename 1회 (원자적)
-//     - 실패 시 rename 실패 → 이전 상태 유지
-//     - copy fallback 시에도 원본은 유지되며 완료 후 remove
-//
-//   정책 변경:
-//     - 프로파일 "순서"가 보존되지 않음 (마지막이 삭제 슬롯으로 이동)
-//     - SPEC/UserManual 갱신 필요
-// =======================================================
 bool CL_C10_Config::deleteProfile(uint8_t p_idx) {
-    if (_index.profileCount <= 1) return false;   // 최소 1개 유지
+    if (_index.profileCount <= 1) return false;
     if (p_idx >= _index.profileCount) return false;
 
     const uint8_t v_last = (uint8_t)(_index.profileCount - 1);
 
-    // ---- Case 1: 삭제 대상이 마지막 ----
     if (p_idx == v_last) {
         char v_path[64];
         if (C10_DEF::makeProfilePath(v_path, sizeof(v_path), p_idx)) {
             (void)LittleFS.remove(v_path);
 
-            // .old 잔재
             char v_old[96];
             snprintf(v_old, sizeof(v_old), "%s.old", v_path);
             if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
 
-            // .tmp 잔재
             char v_tmp[80];
             if (C10_DEF::makeProfileTmpPath(v_tmp, sizeof(v_tmp), p_idx)) {
                 if (LittleFS.exists(v_tmp)) (void)LittleFS.remove(v_tmp);
             }
         }
-    }
-    // ---- Case 2: 중간 삭제 → 마지막을 삭제 슬롯으로 이동 ----
-    else {
-        char v_src[64];  // 마지막 프로파일
-        char v_dst[64];  // 삭제 대상 슬롯
+    } else {
+        char v_src[64];
+        char v_dst[64];
         if (!C10_DEF::makeProfilePath(v_src, sizeof(v_src), v_last)) return false;
         if (!C10_DEF::makeProfilePath(v_dst, sizeof(v_dst), p_idx))  return false;
 
-        // [P3] 삭제 대상 슬롯의 main + old + tmp 잔재 전부 정리
         if (LittleFS.exists(v_dst)) (void)LittleFS.remove(v_dst);
 
         char v_dstOld[96];
@@ -385,7 +511,6 @@ bool CL_C10_Config::deleteProfile(uint8_t p_idx) {
             if (LittleFS.exists(v_dstTmp)) (void)LittleFS.remove(v_dstTmp);
         }
 
-        // 마지막 → 삭제 슬롯 이동
         if (!LittleFS.rename(v_src, v_dst)) {
             if (!_copyFile(v_src, v_dst)) {
                 D10_LOGE_C("C10::deleteProfile",
@@ -396,7 +521,6 @@ bool CL_C10_Config::deleteProfile(uint8_t p_idx) {
             (void)LittleFS.remove(v_src);
         }
 
-        // 마지막 슬롯의 잔재 정리
         char v_lastOld[96];
         snprintf(v_lastOld, sizeof(v_lastOld), "%s.old", v_src);
         if (LittleFS.exists(v_lastOld)) (void)LittleFS.remove(v_lastOld);
@@ -445,9 +569,6 @@ void CL_C10_Config::makeDefaultsWiFi(ST_C10_WiFiConfig_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     p_out.mode = (uint8_t)EN_C10_WIFI_AUTO;
 
-    // [FIX-1] 실 WiFi 자격증명 embed 제거 (보안 + BUDGET §6.7 정합)
-    //   - sta_ssid 공백 → W10이 8초 STA 대기 생략하고 즉시 SoftAP 구동
-    //   - 사용자가 웹 UI에서 STA 자격증명 명시 입력 시에만 STA 시도
     p_out.sta_ssid[0] = '\0';
     p_out.sta_pass[0] = '\0';
 
@@ -468,10 +589,7 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
 
     p_out.wheel_threshold_deg = 90.0f;
     p_out.wheel_step_max      = 6;
-    
-    // [v0415 rev15 / 스키마 412] gesture_* 초기화 삭제
-    //   - flick.* 는 하단에서 별도 초기화 (SSOT)
-    
+
     p_out.scroll_cursor_damp = 0.25f;
 
     p_out.precision_mode       = (uint8_t)EN_C10_E10_PREC_OFF;
@@ -509,7 +627,7 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     p_out.active_mode           = 1;
     p_out.active_peer_index     = 0;
 
-    // ---- Motion Advanced ----
+    // Motion Advanced
     p_out.motion_adv.click_freeze.enable         = true;
     p_out.motion_adv.click_freeze.gyro_th        = 15.0f;
     p_out.motion_adv.click_freeze.max_ms         = 150;
@@ -528,14 +646,14 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     memset(p_out.motion_adv.ema._pad, 0, sizeof(p_out.motion_adv.ema._pad));
 
     p_out.motion_adv.snap.enable         = true;
-    p_out.motion_adv.snap.mode_mask      = 0x02;   // Mode 2 (PPT)만
-    p_out.motion_adv.snap.axis_mode      = 0;      // both
+    p_out.motion_adv.snap.mode_mask      = 0x02;
+    p_out.motion_adv.snap.axis_mode      = 0;
     p_out.motion_adv.snap.confirm_frames = 3;
     p_out.motion_adv.snap.ratio_enter    = 4.0f;
     p_out.motion_adv.snap.strength       = 0.85f;
     memset(p_out.motion_adv.snap._pad, 0, sizeof(p_out.motion_adv.snap._pad));
 
-    // ---- Power Management ----
+    // Power Management
     p_out.power.idle_timeout_ms[0]      = 60000;
     p_out.power.idle_timeout_ms[1]      = 120000;
     p_out.power.idle_timeout_ms[2]      = 300000;
@@ -550,7 +668,7 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     p_out.power.led_fadein_ms           = 300;
     memset(p_out.power._pad, 0, sizeof(p_out.power._pad));
 
-    // ---- Button Timing ----
+    // Button Timing
     p_out.button.debounce_press_ms   = 32;
     p_out.button.debounce_release_ms = 16;
     p_out.button.long_delay_ms       = 800;
@@ -562,34 +680,25 @@ void CL_C10_Config::makeDefaultsE10(ST_C10_E10Config_t& p_out) {
     memset(p_out.button._pad, 0, sizeof(p_out.button._pad));
 }
 
-// =======================================================
-// [v0415] makeDefaultsSlots — Mode 3 재배치
-//   Q1-b 확정 반영:
-//     - AC_* → WWW_* (Descriptor 정합)
-//     - POWER → KB_TAP(0, 0x66) (Keyboard Page)
-//     - TV_INPUT/CH_UP/CH_DOWN → NONE (Descriptor 미지원)
-// =======================================================
 void CL_C10_Config::makeDefaultsSlots(ST_C10_ProfileSlots_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
 
-    // ---- Global = Mode 1 (PC Air Mouse) 기본값 ----
     p_out.global[EN_C10_TRIG_TOP_L_CLICK]    = C20_MakeMouseHold(EN_C20_M_L);
     p_out.global[EN_C10_TRIG_TOP_L_DOUBLE]   = C20_MakeMouseClick(EN_C20_M_L);
     p_out.global[EN_C10_TRIG_TOP_L_LONG]     = C20_MakeKbTap(EN_C20_MOD_LALT, EN_C20_KB_TAB);
     p_out.global[EN_C10_TRIG_TOP_M_CLICK]    = C20_MakeMouseClick(EN_C20_M_M);
-    p_out.global[EN_C10_TRIG_TOP_M_HOLD]     = C20_MakeNone();   // 잠금: Move Gate
+    p_out.global[EN_C10_TRIG_TOP_M_HOLD]     = C20_MakeNone();
     p_out.global[EN_C10_TRIG_TOP_R_CLICK]    = C20_MakeMouseClick(EN_C20_M_R);
     p_out.global[EN_C10_TRIG_TOP_R_DOUBLE]   = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_ESC);
     p_out.global[EN_C10_TRIG_TOP_R_LONG]     = C20_MakeKbTap(EN_C20_MOD_LGUI | EN_C20_MOD_LSHIFT, EN_C20_KB_S);
     p_out.global[EN_C10_TRIG_SIDE_F_CLICK]   = C20_MakeConsumer(EN_C20_CON_VOL_UP);
     p_out.global[EN_C10_TRIG_SIDE_F_LONG]    = C20_MakeConsumer(EN_C20_CON_NEXT_TRACK);
     p_out.global[EN_C10_TRIG_SIDE_C_CLICK]   = C20_MakeConsumer(EN_C20_CON_PLAY_PAUSE);
-    p_out.global[EN_C10_TRIG_SIDE_C_DOUBLE]  = C20_MakeNone();   // 잠금: Mode Cycle
-    p_out.global[EN_C10_TRIG_SIDE_C_HOLD_2S] = C20_MakeNone();   // 잠금: Pairing
+    p_out.global[EN_C10_TRIG_SIDE_C_DOUBLE]  = C20_MakeNone();
+    p_out.global[EN_C10_TRIG_SIDE_C_HOLD_2S] = C20_MakeNone();
     p_out.global[EN_C10_TRIG_SIDE_R_CLICK]   = C20_MakeConsumer(EN_C20_CON_VOL_DOWN);
     p_out.global[EN_C10_TRIG_SIDE_R_LONG]    = C20_MakeConsumer(EN_C20_CON_PREV_TRACK);
 
-    // Flick (Mode 1)
     {
         ST_C20_ActionSlot_t v = { EN_C20_ACT_KB_COMBO, EN_C20_HOLD_NONE, 0,
                                   C20_EncodeCombo(EN_C20_MOD_LCTRL | EN_C20_MOD_LGUI, EN_C20_KB_LEFT) };
@@ -603,10 +712,10 @@ void CL_C10_Config::makeDefaultsSlots(ST_C10_ProfileSlots_t& p_out) {
     p_out.global[EN_C10_TRIG_FLICK_UP]   = C20_MakeKbTap(EN_C20_MOD_LGUI, EN_C20_KB_D);
     p_out.global[EN_C10_TRIG_FLICK_DOWN] = C20_MakeKbTap(EN_C20_MOD_LALT, EN_C20_KB_TAB);
 
-    // ---- Mode 1: 완전 상속 (mask=0) ----
+    // Mode 1: 완전 상속
     p_out.overrideMask[0] = 0;
 
-    // ---- Mode 2: 완전 오버라이드 (mask = FULL) ----
+    // Mode 2: 완전 오버라이드
     p_out.overrideMask[1] = G_C10_FULL_OVERRIDE_MASK;
 
     p_out.modes[1][EN_C10_TRIG_TOP_L_CLICK]    = C20_MakeKbTap(EN_C20_MOD_NONE,   EN_C20_KB_PAGEDOWN);
@@ -628,10 +737,9 @@ void CL_C10_Config::makeDefaultsSlots(ST_C10_ProfileSlots_t& p_out) {
     p_out.modes[1][EN_C10_TRIG_FLICK_RIGHT]    = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_PAGEUP);
     p_out.modes[1][EN_C10_TRIG_FLICK_UP]       = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_B);
 
-    // ---- Mode 3: 완전 오버라이드 (mask = FULL) [v0415 재배치] ----
+    // Mode 3: 완전 오버라이드
     p_out.overrideMask[2] = G_C10_FULL_OVERRIDE_MASK;
 
-    // Q1-b: AC_* → WWW_*, POWER → KB_TAP(0, 0x66), CH_UP/DOWN/TV_INPUT → NONE
     p_out.modes[2][EN_C10_TRIG_TOP_L_CLICK]    = C20_MakeConsumer(EN_C20_CON_WWW_BACK);
     p_out.modes[2][EN_C10_TRIG_TOP_L_DOUBLE]   = C20_MakeConsumer(EN_C20_CON_WWW_HOME);
     p_out.modes[2][EN_C10_TRIG_TOP_L_LONG]     = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_POWER);
@@ -644,14 +752,14 @@ void CL_C10_Config::makeDefaultsSlots(ST_C10_ProfileSlots_t& p_out) {
     p_out.modes[2][EN_C10_TRIG_TOP_R_LONG]     = C20_MakeKbTap(EN_C20_MOD_NONE, EN_C20_KB_POWER);
 
     p_out.modes[2][EN_C10_TRIG_SIDE_F_CLICK]   = C20_MakeConsumer(EN_C20_CON_VOL_UP);
-    p_out.modes[2][EN_C10_TRIG_SIDE_F_LONG]    = C20_MakeNone();  // CH_UP 삭제
+    p_out.modes[2][EN_C10_TRIG_SIDE_F_LONG]    = C20_MakeNone();
 
     p_out.modes[2][EN_C10_TRIG_SIDE_C_CLICK]   = C20_MakeConsumer(EN_C20_CON_PLAY_PAUSE);
     p_out.modes[2][EN_C10_TRIG_SIDE_C_DOUBLE]  = C20_MakeNone();
     p_out.modes[2][EN_C10_TRIG_SIDE_C_HOLD_2S] = C20_MakeNone();
 
     p_out.modes[2][EN_C10_TRIG_SIDE_R_CLICK]   = C20_MakeConsumer(EN_C20_CON_VOL_DOWN);
-    p_out.modes[2][EN_C10_TRIG_SIDE_R_LONG]    = C20_MakeNone();  // CH_DOWN 삭제
+    p_out.modes[2][EN_C10_TRIG_SIDE_R_LONG]    = C20_MakeNone();
 
     p_out.modes[2][EN_C10_TRIG_FLICK_LEFT]     = C20_MakeConsumer(EN_C20_CON_REWIND);
     p_out.modes[2][EN_C10_TRIG_FLICK_RIGHT]    = C20_MakeConsumer(EN_C20_CON_FF);
@@ -684,20 +792,15 @@ void CL_C10_Config::makeDefaultsProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p
 // =======================================================
 bool CL_C10_Config::validateWiFi(const ST_C10_WiFiConfig_t& p_w) const {
     if (p_w.mode > (uint8_t)EN_C10_WIFI_STA) return false;
-
-    // AP SSID 필수 (빈 문자열 금지)
     if (p_w.ap_ssid[0] == '\0') return false;
 
-    // AP 비밀번호: 비어있거나 8자 이상
     const size_t v_apLen = strlen(p_w.ap_pass);
     if (v_apLen > 0 && v_apLen < 8) return false;
 
-    // [v0415 rev15] STA 모드일 때 SSID 필수
     if (p_w.mode == (uint8_t)EN_C10_WIFI_STA && p_w.sta_ssid[0] == '\0') {
         return false;
     }
 
-    // mDNS 호스트: 빈 문자열 금지 + 길이 제한
     const size_t v_mdnsLen = strlen(p_w.mdns_host);
     if (v_mdnsLen == 0) return false;
     if (v_mdnsLen > C10_DEF::MDNS_MAX) return false;
@@ -705,106 +808,59 @@ bool CL_C10_Config::validateWiFi(const ST_C10_WiFiConfig_t& p_w) const {
     return true;
 }
 
+// =====================================================
+// [v0415 Phase 3-C] validateE10 (테이블 기반)
+// -----------------------------------------------------
+//  - G_E10_RULES[] 순회 (범위 규칙 68개)
+//  - 관계 검증은 별도 유지 (테이블로 표현 불가)
+//  - deep_idle_timeout은 0 허용 예외
+// =====================================================
 bool CL_C10_Config::validateE10(const ST_C10_E10Config_t& p_e) const {
-    if (p_e.dpi_level < 1 || p_e.dpi_level > 3) return false;
-    if (p_e.accel_threshold < 0.0f || p_e.accel_threshold > 50.0f) return false;
-    
-    if (p_e.wheel_threshold_deg < 1.0f || p_e.wheel_threshold_deg > 360.0f) return false;
-    if (p_e.wheel_step_max < 1 || p_e.wheel_step_max > 50) return false;
-    // [v0415 rev15 / 스키마 412] gesture_flick_deg / gesture_cooldown_ms 검증 삭제
-    //   - flick.* 검증은 하단에서 수행 (SSOT)
-    if (p_e.scroll_cursor_damp < 0.0f || p_e.scroll_cursor_damp > 1.0f) return false;
-
-    if (p_e.precision_mode >= (uint8_t)EN_C10_E10_PREC_MAX) return false;
-    if (p_e.precision_deadzone < 0.0f || p_e.precision_deadzone > 50.0f) return false;
-    if (p_e.precision_gain < 0.0f || p_e.precision_gain > 5.0f) return false;
-    if (p_e.precision_accel < 0.0f || p_e.precision_accel > 5.0f) return false;
-    if (p_e.precision_max_step < 1 || p_e.precision_max_step > 200) return false;
-    if (p_e.precision_smooth < 0.0f || p_e.precision_smooth > 1.0f) return false;
-    if (p_e.prec_entry_ms < 50 || p_e.prec_entry_ms > 5000) return false;
-    if (p_e.prec_exit_ms < 50 || p_e.prec_exit_ms > 5000) return false;
-    if (p_e.prec_entry_still_deg < 0.1f || p_e.prec_entry_still_deg > 20.0f) return false;
-    if (p_e.prec_exit_move_deg < 0.1f || p_e.prec_exit_move_deg > 50.0f) return false;
-    if (p_e.prec_profile > 5) return false;
-
-    if (p_e.gyro_bias.still_th < 0.1f || p_e.gyro_bias.still_th > 20.0f) return false;
-    if (p_e.gyro_bias.still_win_ms < 50 || p_e.gyro_bias.still_win_ms > 5000) return false;
-    if (p_e.gyro_bias.alpha < 0.0001f || p_e.gyro_bias.alpha > 0.1f) return false;
-
-    if (p_e.linear.th < 0.05f || p_e.linear.th > 5.0f) return false;
-    if (p_e.linear.impulse_th < 0.1f || p_e.linear.impulse_th > 5.0f) return false;
-    if (p_e.linear.window_ms < 50 || p_e.linear.window_ms > 1000) return false;
-
-    if (p_e.flick.p2p_th < 50.0f || p_e.flick.p2p_th > 2000.0f) return false;
-    if (p_e.flick.window_ms < 50 || p_e.flick.window_ms > 500) return false;
-    if (p_e.flick.cooldown_ms < 100 || p_e.flick.cooldown_ms > 5000) return false;
-
-    if (p_e.tilt_hold.angle_deg < 5.0f || p_e.tilt_hold.angle_deg > 45.0f) return false;
-    if (p_e.tilt_hold.hold_ms < 100 || p_e.tilt_hold.hold_ms > 2000) return false;
-    if (p_e.tilt_hold.repeat_hz < 1 || p_e.tilt_hold.repeat_hz > 20) return false;
-
-    if (p_e.sleep_idle_timeout_ms < 5000 || p_e.sleep_idle_timeout_ms > 3600000) return false;
-    if (p_e.active_mode < 1 || p_e.active_mode > C10_DEF::MODE_COUNT) return false;
-    if (p_e.active_peer_index > 2) return false;
-
-    // ---- Motion Advanced ----
-    const auto& cf = p_e.motion_adv.click_freeze;
-    if (cf.gyro_th < 5.0f || cf.gyro_th > 30.0f)               return false;
-    if (cf.max_ms < 50 || cf.max_ms > 300)                     return false;
-    if (cf.hold_ms > 50)                                       return false;
-    if (cf.fadeout_ms > 80)                                    return false;
-    if (cf.move_th < 1.0f || cf.move_th > 10.0f)               return false;
-    if (cf.freeze_move_th < 10.0f || cf.freeze_move_th > 60.0f) return false;
-
-    const auto& ema = p_e.motion_adv.ema;
-    if (ema.alpha_min < 0.01f || ema.alpha_min > 0.2f)     return false;
-    if (ema.alpha_max < 0.5f  || ema.alpha_max > 0.95f)    return false;
-    if (ema.alpha_min >= ema.alpha_max)                    return false;
-    if (ema.deadzone_th < 1.0f || ema.deadzone_th > 10.0f) return false;
-    if (ema.fast_th < 10.0f || ema.fast_th > 30.0f)        return false;
-    if (ema.deadzone_th >= ema.fast_th)                    return false;
-    if (ema.reversal_th < 5.0f || ema.reversal_th > 20.0f) return false;
-
-    const auto& snap = p_e.motion_adv.snap;
-    if (snap.mode_mask > 0x07)                                return false;
-    if (snap.axis_mode > 2)                                   return false;
-    if (snap.confirm_frames < 1 || snap.confirm_frames > 10)  return false;
-    if (snap.ratio_enter < 2.0f || snap.ratio_enter > 10.0f)  return false;
-    if (snap.strength < 0.5f || snap.strength > 1.0f)         return false;
-
-    // ---- Power ----
-    const auto& pw = p_e.power;
-    for (int i = 0; i < 3; i++) {
-        if (pw.idle_timeout_ms[i] < 5000 || pw.idle_timeout_ms[i] > 3600000) return false;
+    // 1) 범위 규칙 (테이블)
+    for (size_t i = 0; i < G_E10_RULES_COUNT; i++) {
+        const ST_RangeRule_t& r = G_E10_RULES[i];
+        const float v = r.getter(p_e);
+        if (v < r.min || v > r.max) {
+            D10_LOGW_C("C10::validateE10",
+                       "%s=%.4f out of [%.4f, %.4f]",
+                       r.name, (double)v, (double)r.min, (double)r.max);
+            return false;
+        }
     }
-    if (pw.idle_timeout_ble_ms < 60000 || pw.idle_timeout_ble_ms > 3600000)  return false;
-    if (pw.pairing_idle_timeout_ms < 10000 || pw.pairing_idle_timeout_ms > 60000) return false;
-    if (pw.deep_idle_timeout_ms != 0 &&
-        (pw.deep_idle_timeout_ms < 300000 || pw.deep_idle_timeout_ms > 7200000)) return false;
-    if (pw.wake_min_active_ms < 100 || pw.wake_min_active_ms > 2000) return false;
-    if (pw.wom_threshold < 5 || pw.wom_threshold > 100) return false;
-    if (pw.wom_duration < 1 || pw.wom_duration > 50)   return false;
-    if (pw.fast_recalib_ms < 100 || pw.fast_recalib_ms > 1000) return false;
-    if (pw.led_fadeout_ms > 1000 || pw.led_fadein_ms > 1000) return false;
 
-    // ---- Button ----
-    const auto& bt = p_e.button;
-    if (bt.debounce_press_ms < 8    || bt.debounce_press_ms > 100)  return false;
-    if (bt.debounce_release_ms < 8  || bt.debounce_release_ms > 100) return false;
-    if (bt.debounce_press_ms < bt.debounce_release_ms)               return false;
-    if (bt.long_delay_ms < 300      || bt.long_delay_ms > 2000)     return false;
-    if (bt.double_delay_ms < 150    || bt.double_delay_ms > 800)    return false;
-    if (bt.hold_2s_ms < 1000        || bt.hold_2s_ms > 5000)        return false;
-    if (bt.hold_3s_ms < 2000        || bt.hold_3s_ms > 8000)        return false;
-    if (bt.hold_2s_ms >= bt.hold_3s_ms)                              return false;
-    if (bt.min_click_ms > 100)                                       return false;
-    if (bt.debounce_min_ticks < 1   || bt.debounce_min_ticks > 10)  return false;
+    // 2) 관계 검증 (테이블로 표현 불가)
+    if (p_e.button.debounce_press_ms < p_e.button.debounce_release_ms) {
+        D10_LOGW_C("C10::validateE10", "press(%u) < release(%u)",
+                   (unsigned)p_e.button.debounce_press_ms,
+                   (unsigned)p_e.button.debounce_release_ms);
+        return false;
+    }
+    if (p_e.button.hold_2s_ms >= p_e.button.hold_3s_ms) {
+        D10_LOGW_C("C10::validateE10", "hold_2s >= hold_3s");
+        return false;
+    }
+    if (p_e.motion_adv.ema.alpha_min >= p_e.motion_adv.ema.alpha_max) {
+        D10_LOGW_C("C10::validateE10", "ema.alpha_min >= alpha_max");
+        return false;
+    }
+    if (p_e.motion_adv.ema.deadzone_th >= p_e.motion_adv.ema.fast_th) {
+        D10_LOGW_C("C10::validateE10", "ema.deadzone >= fast_th");
+        return false;
+    }
+
+    // 3) deep_idle_timeout 예외 (0 허용)
+    if (p_e.power.deep_idle_timeout_ms != 0 &&
+        (p_e.power.deep_idle_timeout_ms < 300000 ||
+         p_e.power.deep_idle_timeout_ms > 7200000)) {
+        D10_LOGW_C("C10::validateE10", "deep_idle_timeout_ms invalid");
+        return false;
+    }
 
     return true;
 }
 
 // =======================================================
-// [v0415] validateSlot — Consumer 24-bit 상한 검증 추가
+// validateSlot — Consumer 24-bit 상한 검증
 // =======================================================
 bool CL_C10_Config::validateSlot(const ST_C20_ActionSlot_t& p_s, uint8_t p_macroCount) const {
     if (p_s.kind >= (uint8_t)EN_C20_ACT_MAX)         return false;
@@ -820,7 +876,6 @@ bool CL_C10_Config::validateSlot(const ST_C20_ActionSlot_t& p_s, uint8_t p_macro
         case EN_C20_ACT_KB_REPEAT:       return (uint8_t)p_s.param16 <= 0xE7;
         case EN_C20_ACT_KB_COMBO:        return true;
 
-        // [v0415] Consumer 24-bit 상한 (Descriptor Report Count = 24)
         case EN_C20_ACT_CONSUMER_TAP:
         case EN_C20_ACT_CONSUMER_REPEAT:
             return p_s.param32 != 0 &&
@@ -835,16 +890,22 @@ bool CL_C10_Config::validateSlot(const ST_C20_ActionSlot_t& p_s, uint8_t p_macro
 bool CL_C10_Config::validateSlots(const ST_C10_ProfileSlots_t& p_s, uint8_t p_macroCount) const {
     for (uint8_t i = 0; i < EN_C10_TRIG_MAX; i++) {
         if (!validateSlot(p_s.global[i], p_macroCount)) {
-            D10_LOGW_C("C10::validateSlots", "global slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
-                       (unsigned)i, (unsigned)p_s.global[i].kind, (unsigned)p_s.global[i].param16, (unsigned)p_s.global[i].param32);
+            D10_LOGW_C("C10::validateSlots",
+                       "global slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
+                       (unsigned)i, (unsigned)p_s.global[i].kind,
+                       (unsigned)p_s.global[i].param16,
+                       (unsigned)p_s.global[i].param32);
             return false;
         }
     }
     for (uint8_t m = 0; m < C10_DEF::MODE_COUNT; m++) {
         for (uint8_t i = 0; i < EN_C10_TRIG_MAX; i++) {
             if (!validateSlot(p_s.modes[m][i], p_macroCount)) {
-                D10_LOGW_C("C10::validateSlots", "mode=%u slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
-                           (unsigned)m, (unsigned)i, (unsigned)p_s.modes[m][i].kind, (unsigned)p_s.modes[m][i].param16, (unsigned)p_s.modes[m][i].param32);
+                D10_LOGW_C("C10::validateSlots",
+                           "mode=%u slot trig=%u failed: kind=%u, p16=0x%04X, p32=0x%08X",
+                           (unsigned)m, (unsigned)i, (unsigned)p_s.modes[m][i].kind,
+                           (unsigned)p_s.modes[m][i].param16,
+                           (unsigned)p_s.modes[m][i].param32);
                 return false;
             }
         }
@@ -852,9 +913,6 @@ bool CL_C10_Config::validateSlots(const ST_C10_ProfileSlots_t& p_s, uint8_t p_ma
     return true;
 }
 
-// =======================================================
-// [v0415] validateMacroStep — Consumer 24-bit 상한 검증
-// =======================================================
 bool CL_C10_Config::validateMacroStep(const ST_C10_MacroStep_t& p_s) const {
     if (p_s.kind == (uint8_t)EN_C20_ACT_MACRO) return false;
     if (p_s.kind >= (uint8_t)EN_C20_ACT_MAX)   return false;
@@ -871,7 +929,6 @@ bool CL_C10_Config::validateMacroStep(const ST_C10_MacroStep_t& p_s) const {
         case EN_C20_ACT_KB_REPEAT:       return (uint8_t)p_s.param16 <= 0xE7;
         case EN_C20_ACT_KB_COMBO:        return true;
 
-        // [v0415] Consumer 24-bit 상한
         case EN_C20_ACT_CONSUMER_TAP:
         case EN_C20_ACT_CONSUMER_REPEAT:
             return p_s.param32 != 0 &&
@@ -919,10 +976,9 @@ bool CL_C10_Config::validateProfile(const ST_C10_ProfileConfig_t& p_p) const {
 }
 
 // =======================================================
-// [v0415] Consumer mask 마이그레이션
+// Consumer mask 마이그레이션
 // =======================================================
 void CL_C10_Config::_migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io) {
-    // 1) 슬롯 매트릭스 (global + 3 modes)
     for (uint8_t i = 0; i < EN_C10_TRIG_MAX; i++) {
         _migrateSlotConsumerV410ToV415(p_io.slots.global[i]);
     }
@@ -932,7 +988,6 @@ void CL_C10_Config::_migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io) {
         }
     }
 
-    // 2) 매크로 step
     for (uint8_t mi = 0; mi < p_io.macros.count; mi++) {
         ST_C10_Macro_t& v_m = p_io.macros.macros[mi];
         for (uint8_t si = 0; si < v_m.stepCount; si++) {
@@ -955,7 +1010,6 @@ void CL_C10_Config::_migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io) {
         }
     }
 
-    // 3) ver 갱신
     p_io.ver = (uint16_t)G_C10_CFG_VER;
 }
 
@@ -1035,7 +1089,8 @@ bool CL_C10_Config::_loadBootState(ST_C10_BootState_t& p_out) {
     if (!v_d["boot_ms"].isNull())           p_out.boot_ms    = (uint32_t)v_d["boot_ms"];
     if (!v_d["last_reset_reason"].isNull()) p_out.last_reset_reason = (uint8_t)v_d["last_reset_reason"];
     if (!v_d["last_host_addr"].isNull()) {
-        strlcpy(p_out.last_host_addr, (const char*)v_d["last_host_addr"], sizeof(p_out.last_host_addr));
+        strlcpy(p_out.last_host_addr, (const char*)v_d["last_host_addr"],
+                sizeof(p_out.last_host_addr));
     } else {
         p_out.last_host_addr[0] = '\0';
     }
@@ -1073,7 +1128,6 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
         return false;
     }
 
-    // [P2] rotate: main → old
     if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
     if (LittleFS.exists(v_main)) {
         if (!LittleFS.rename(v_main, v_old)) {
@@ -1082,7 +1136,6 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
         }
     }
 
-    // commit: tmp → main
     if (!LittleFS.rename(v_tmp, v_main)) {
         if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);
         (void)LittleFS.remove(v_tmp);
@@ -1096,14 +1149,10 @@ bool CL_C10_Config::_saveBootState(const ST_C10_BootState_t& p_in) {
 // =======================================================
 // File utils
 // =======================================================
-
 bool CL_C10_Config::_verifyJsonFile(const char* p_path) {
     File v_f = LittleFS.open(p_path, "r");
     if (!v_f) return false;
 
-    // [v0415 OPT-B] 파일 크기 사전 검증 (heap 할당 방지 + 손상 파일 조기 검출)
-    //   - 프로파일 실제 크기 ~2.4KB, 매크로 라이브러리 포함 시 ~3KB
-    //   - 128KB 상한은 여유 있는 방어 임계
     const size_t v_sz = v_f.size();
     if (v_sz == 0 || v_sz > 128 * 1024) {
         v_f.close();
@@ -1116,7 +1165,6 @@ bool CL_C10_Config::_verifyJsonFile(const char* p_path) {
     v_f.close();
     return v_ok;
 }
-
 
 bool CL_C10_Config::_copyFile(const char* p_src, const char* p_dst) {
     File v_s = LittleFS.open(p_src, "r");
@@ -1141,8 +1189,8 @@ bool CL_C10_Config::_copyFile(const char* p_src, const char* p_dst) {
     return true;
 }
 
-bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, JsonDocument& p_doc) {
-    // [P5] begin() 이후 1회만 mkdir (매 저장 반복 제거)
+bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath,
+                                     JsonDocument& p_doc) {
     if (!_dirsEnsured) {
         (void)LittleFS.mkdir("/json");
         (void)LittleFS.mkdir(C10_DEF::PROFILES_DIR);
@@ -1151,7 +1199,6 @@ bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, 
 
     if (LittleFS.exists(p_tmpPath)) (void)LittleFS.remove(p_tmpPath);
 
-    // 1) tmp write
     File v_f = LittleFS.open(p_tmpPath, "w");
     if (!v_f) {
         D10_LOGE_C("C10::_atomicWriteJson", "Failed to open tmp file: %s", p_tmpPath);
@@ -1167,13 +1214,11 @@ bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, 
         return false;
     }
 
-    // 2) verify
     if (!_verifyJsonFile(p_tmpPath)) {
         (void)LittleFS.remove(p_tmpPath);
         return false;
     }
 
-    // 3) rotate: main → main.old
     char v_old[96];
     snprintf(v_old, sizeof(v_old), "%s.old", p_path);
 
@@ -1188,7 +1233,6 @@ bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, 
         }
     }
 
-    // 4) commit: tmp → main
     if (!LittleFS.rename(p_tmpPath, p_path)) {
         if (!_copyFile(p_tmpPath, p_path)) {
             (void)LittleFS.remove(p_tmpPath);
@@ -1198,14 +1242,12 @@ bool CL_C10_Config::_atomicWriteJson(const char* p_path, const char* p_tmpPath, 
         (void)LittleFS.remove(p_tmpPath);
     }
 
-    // 5) verify final
     if (!_verifyJsonFile(p_path)) {
         (void)LittleFS.remove(p_path);
         if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, p_path);
         return false;
     }
 
-    // 6) cleanup old
     if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
     return true;
 }
@@ -1264,6 +1306,52 @@ void CL_C10_Config::_buildWiFiJson(JsonObject p_parent, const ST_C10_WiFiConfig_
     v_md["host"] = p_in.mdns_host;
 }
 
+// =====================================================
+// [v0415 Phase 3-D] E10 JSON 대칭성 계약 (Field Parity Contract)
+// -----------------------------------------------------
+//  ▸ 원칙: 이 목록의 모든 필드는
+//      - _buildE10Json  (직렬화)에 반드시 존재
+//      - _patchE10Json  (역직렬화)에 반드시 존재
+//      - makeDefaultsE10(기본값)에 반드시 존재
+//    3자 중 하나라도 누락 시 저장/로드 불일치 발생.
+//
+//  ▸ 신규 필드 추가 절차:
+//      1) 이 목록에 추가
+//      2) 3개 함수 동시 수정
+//      3) check_schema_0415.py::check_e10_json_parity 실행
+//
+//  ▸ 필드 목록 (JSON 경로 기준):
+//      dpi_level, hard_click_lock,
+//      scale_base[3], accel_gain[3], accel_threshold,
+//      wheel.threshold_deg, wheel.step_max,
+//      scroll_cursor_damp,
+//      precision.mode, precision.deadzone, precision.gain,
+//      precision.accel, precision.max_step, precision.smooth,
+//      precision.entry_ms, precision.exit_ms,
+//      precision.entry_still_deg, precision.exit_move_deg,
+//      precision.profile,
+//      led_brightness, battery_adc_enabled,
+//      gyro_bias.still_th, gyro_bias.still_win_ms, gyro_bias.alpha,
+//      linear.th, linear.impulse_th, linear.window_ms,
+//      flick.p2p_th, flick.window_ms, flick.cooldown_ms,
+//      tilt_hold.angle_deg, tilt_hold.hold_ms, tilt_hold.repeat_hz,
+//      sleep_idle_timeout_ms, active_mode, active_peer_index,
+//      motion_adv.click_freeze.{enable,gyro_th,max_ms,hold_ms,
+//                               fadeout_ms,move_th,freeze_move_th},
+//      motion_adv.ema.{alpha_min,alpha_max,deadzone_th,fast_th,
+//                      reversal_th,reversal_reset},
+//      motion_adv.snap.{enable,mode_mask,axis_mode,confirm_frames,
+//                       ratio_enter,strength},
+//      power.idle_timeout_ms[3], power.idle_timeout_ble_ms,
+//      power.pairing_idle_timeout_ms, power.deep_idle_timeout_ms,
+//      power.wake_min_active_ms, power.wom_threshold,
+//      power.wom_duration, power.fast_recalib_ms,
+//      power.led_fadeout_ms, power.led_fadein_ms,
+//      button.debounce_press_ms, button.debounce_release_ms,
+//      button.long_delay_ms, button.double_delay_ms,
+//      button.hold_2s_ms, button.hold_3s_ms,
+//      button.min_click_ms, button.debounce_min_ticks
+// =====================================================
 void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t& p_in) {
     p_parent["dpi_level"]       = p_in.dpi_level;
     p_parent["hard_click_lock"] = p_in.hard_click_lock;
@@ -1281,9 +1369,6 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     v_w["threshold_deg"] = p_in.wheel_threshold_deg;
     v_w["step_max"]      = p_in.wheel_step_max;
 
-    // [v0415 rev15 / 스키마 412] gesture JSON 블록 삭제
-    //   - flick 블록이 SSOT (하단 v_fl 참조)
-    
     JsonObject v_p = p_parent["precision"].to<JsonObject>();
     v_p["mode"]             = p_in.precision_mode;
     v_p["deadzone"]         = p_in.precision_deadzone;
@@ -1324,7 +1409,6 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     p_parent["active_mode"]           = p_in.active_mode;
     p_parent["active_peer_index"]     = p_in.active_peer_index;
 
-    // ---- Motion Advanced ----
     JsonObject v_ma = p_parent["motion_adv"].to<JsonObject>();
 
     JsonObject v_cf = v_ma["click_freeze"].to<JsonObject>();
@@ -1352,7 +1436,6 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     v_snap["ratio_enter"]    = p_in.motion_adv.snap.ratio_enter;
     v_snap["strength"]       = p_in.motion_adv.snap.strength;
 
-    // ---- Power ----
     JsonObject v_pw = p_parent["power"].to<JsonObject>();
     JsonArray v_ito = v_pw["idle_timeout_ms"].to<JsonArray>();
     v_ito.add(p_in.power.idle_timeout_ms[0]);
@@ -1368,7 +1451,6 @@ void CL_C10_Config::_buildE10Json(JsonObject p_parent, const ST_C10_E10Config_t&
     v_pw["led_fadeout_ms"]          = p_in.power.led_fadeout_ms;
     v_pw["led_fadein_ms"]           = p_in.power.led_fadein_ms;
 
-    // ---- Button ----
     JsonObject v_btn = p_parent["button"].to<JsonObject>();
     v_btn["debounce_press_ms"]   = p_in.button.debounce_press_ms;
     v_btn["debounce_release_ms"] = p_in.button.debounce_release_ms;
@@ -1420,7 +1502,6 @@ void CL_C10_Config::_buildMacrosJson(JsonArray p_arr, const ST_C10_MacroLib_t& p
 
 bool CL_C10_Config::buildProfileJson(const ST_C10_ProfileConfig_t& p_in, JsonDocument& p_out) {
     p_out.clear();
-    // [v0415] 저장 시 항상 현재 스키마 버전 기록
     p_out["ver"]  = (uint16_t)G_C10_CFG_VER;
     p_out["name"] = p_in.name;
 
@@ -1449,7 +1530,6 @@ bool CL_C10_Config::_patchSlotJson(JsonVariantConst p_v, ST_C20_ActionSlot_t& p_
     if (!p_v["p16"].isNull()) p_io.param16  = (uint16_t)p_v["p16"];
     if (!p_v["p32"].isNull()) p_io.param32  = (uint32_t)p_v["p32"];
 
-    // [v0415] Consumer kind의 경우 24-bit 상한 클램프
     if (p_io.kind == (uint8_t)EN_C20_ACT_CONSUMER_TAP ||
         p_io.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
         p_io.param32 &= G_C20_CONSUMER_MASK_MAX;
@@ -1522,11 +1602,6 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
         if (!v_w["step_max"].isNull())      p_io.wheel_step_max = (uint8_t)v_w["step_max"];
     }
 
-    // [v0415 rev15 / 스키마 412] gesture.* 필드 삭제
-    //   - legacy 411 파일의 gesture 블록은 무시됨 (makeDefaults의 flick 기본값 사용)
-    //   - 마이그레이션 미구현 정책에 따름
-    //   - flick.* 는 하단에서 별도 파싱 (SSOT)
-
     JsonVariantConst v_p = p_v["precision"];
     if (!v_p.isNull()) {
         if (!v_p["mode"].isNull())            p_io.precision_mode = (uint8_t)v_p["mode"];
@@ -1577,7 +1652,6 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
     if (!p_v["active_mode"].isNull())           p_io.active_mode = (uint8_t)p_v["active_mode"];
     if (!p_v["active_peer_index"].isNull())     p_io.active_peer_index = (uint8_t)p_v["active_peer_index"];
 
-    // ---- Motion Advanced (부분 패치) ----
     JsonVariantConst v_ma = p_v["motion_adv"];
     if (!v_ma.isNull()) {
         JsonVariantConst v_cf = v_ma["click_freeze"];
@@ -1615,7 +1689,6 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
         }
     }
 
-    // ---- Power ----
     JsonVariantConst v_pw = p_v["power"];
     if (!v_pw.isNull()) {
         auto& d = p_io.power;
@@ -1639,7 +1712,6 @@ bool CL_C10_Config::_patchE10Json(JsonVariantConst p_v, ST_C10_E10Config_t& p_io
         if (!v_pw["led_fadein_ms"].isNull())           d.led_fadein_ms           = (uint16_t)v_pw["led_fadein_ms"];
     }
 
-    // ---- Button ----
     JsonVariantConst v_btn = p_v["button"];
     if (!v_btn.isNull()) {
         auto& b = p_io.button;
@@ -1665,7 +1737,8 @@ bool CL_C10_Config::_patchSlotsJson(JsonVariantConst p_v, ST_C10_ProfileSlots_t&
     if (!v_modes.is<JsonArrayConst>()) return true;
 
     JsonArrayConst arr = v_modes.as<JsonArrayConst>();
-    const uint8_t n = (arr.size() < C10_DEF::MODE_COUNT) ? (uint8_t)arr.size() : C10_DEF::MODE_COUNT;
+    const uint8_t n = (arr.size() < C10_DEF::MODE_COUNT)
+                    ? (uint8_t)arr.size() : C10_DEF::MODE_COUNT;
 
     for (uint8_t m = 0; m < n; m++) {
         JsonVariantConst v_m = arr[m];
@@ -1680,11 +1753,12 @@ bool CL_C10_Config::_patchMacroStepJson(JsonVariantConst p_v, ST_C10_MacroStep_t
     if (p_v.isNull()) return false;
     if (!p_v["k"].isNull()) {
         const uint8_t v_k = (uint8_t)p_v["k"];
-        if (v_k != (uint8_t)EN_C20_ACT_MACRO && v_k != (uint8_t)EN_C20_ACT_SPECIAL && v_k < (uint8_t)EN_C20_ACT_MAX) {
+        if (v_k != (uint8_t)EN_C20_ACT_MACRO &&
+            v_k != (uint8_t)EN_C20_ACT_SPECIAL &&
+            v_k < (uint8_t)EN_C20_ACT_MAX) {
             p_io.kind = v_k;
         }
     }
-    // [v0412] 매크로 step은 holdMode == NONE(0)만 허용
     p_io.holdMode = (uint8_t)EN_C20_HOLD_NONE;
     if (!p_v["d"].isNull()) {
         uint16_t v_d = (uint16_t)p_v["d"];
@@ -1694,7 +1768,6 @@ bool CL_C10_Config::_patchMacroStepJson(JsonVariantConst p_v, ST_C10_MacroStep_t
     if (!p_v["p16"].isNull()) p_io.param16 = (uint16_t)p_v["p16"];
     if (!p_v["p32"].isNull()) p_io.param32 = (uint32_t)p_v["p32"];
 
-    // [v0415] Consumer kind의 경우 24-bit 상한 클램프
     if (p_io.kind == (uint8_t)EN_C20_ACT_CONSUMER_TAP ||
         p_io.kind == (uint8_t)EN_C20_ACT_CONSUMER_REPEAT) {
         p_io.param32 &= G_C20_CONSUMER_MASK_MAX;
@@ -1710,7 +1783,8 @@ bool CL_C10_Config::_patchMacroJson(JsonVariantConst p_v, ST_C10_Macro_t& p_io) 
     JsonVariantConst v_steps = p_v["steps"];
     if (v_steps.is<JsonArrayConst>()) {
         JsonArrayConst arr = v_steps.as<JsonArrayConst>();
-        const uint8_t n = (arr.size() < C10_DEF::MACRO_STEP_MAX) ? (uint8_t)arr.size() : C10_DEF::MACRO_STEP_MAX;
+        const uint8_t n = (arr.size() < C10_DEF::MACRO_STEP_MAX)
+                        ? (uint8_t)arr.size() : C10_DEF::MACRO_STEP_MAX;
         for (uint8_t i = 0; i < n; i++) {
             (void)_patchMacroStepJson(arr[i], p_io.steps[i]);
         }
@@ -1725,7 +1799,8 @@ bool CL_C10_Config::_patchMacrosJson(JsonVariantConst p_v, ST_C10_MacroLib_t& p_
     JsonArrayConst arr = p_v.as<JsonArrayConst>();
     if (arr.isNull()) return false;
 
-    const uint8_t n = (arr.size() < C10_DEF::MACRO_MAX) ? (uint8_t)arr.size() : C10_DEF::MACRO_MAX;
+    const uint8_t n = (arr.size() < C10_DEF::MACRO_MAX)
+                    ? (uint8_t)arr.size() : C10_DEF::MACRO_MAX;
     for (uint8_t i = 0; i < n; i++) {
         (void)_patchMacroJson(arr[i], p_io.macros[i]);
     }
@@ -1737,7 +1812,6 @@ bool CL_C10_Config::patchProfileFromJson(const String& p_json, ST_C10_ProfileCon
     JsonDocument v_doc;
     if (deserializeJson(v_doc, p_json)) return false;
 
-    // [v0415] ver 파싱 (마이그레이션 감지용)
     if (!v_doc["ver"].isNull()) p_io.ver = (uint16_t)v_doc["ver"];
 
     if (!v_doc["name"].isNull()) strlcpy(p_io.name, (const char*)v_doc["name"], sizeof(p_io.name));
@@ -1774,7 +1848,6 @@ bool CL_C10_Config::factoryReset(bool p_recreateDefault) {
     if (LittleFS.exists(C10_DEF::BOOT_PATH))     (void)LittleFS.remove(C10_DEF::BOOT_PATH);
     if (LittleFS.exists(C10_DEF::BOOT_TMP_PATH)) (void)LittleFS.remove(C10_DEF::BOOT_TMP_PATH);
 
-    // [v0415 Multi-Host] 호스트 목록 파일 및 백업 일괄 정리
     if (LittleFS.exists(C10_DEF::HOSTS_PATH))     (void)LittleFS.remove(C10_DEF::HOSTS_PATH);
     if (LittleFS.exists(C10_DEF::HOSTS_TMP_PATH)) (void)LittleFS.remove(C10_DEF::HOSTS_TMP_PATH);
     if (LittleFS.exists(C10_DEF::HOSTS_OLD_PATH)) (void)LittleFS.remove(C10_DEF::HOSTS_OLD_PATH);
@@ -1797,7 +1870,7 @@ bool CL_C10_Config::factoryReset(bool p_recreateDefault) {
 }
 
 // =======================================================
-// [v0415 Multi-Host] Hosts CRUD & LastHostAddr
+// Multi-Host: LastHostAddr
 // =======================================================
 bool CL_C10_Config::setLastHostAddr(const char* p_addr) {
     if (_bootMutex) xSemaphoreTake(_bootMutex, portMAX_DELAY);
@@ -1819,6 +1892,9 @@ bool CL_C10_Config::getLastHostAddr(char* p_out, size_t p_outSize) const {
     return (p_out[0] != '\0');
 }
 
+// =======================================================
+// Multi-Host: Hosts CRUD
+// =======================================================
 bool CL_C10_Config::loadHosts(ST_C10_HostsConfig_t& p_out) {
     memset(&p_out, 0, sizeof(p_out));
     p_out.ver = 1;
@@ -1870,7 +1946,8 @@ bool CL_C10_Config::saveHosts(const ST_C10_HostsConfig_t& p_in) {
     v_doc["ver"] = p_in.ver > 0 ? p_in.ver : 1;
     JsonArray v_arr = v_doc["hosts"].to<JsonArray>();
 
-    const uint8_t v_count = p_in.count > C10_DEF::HOSTS_MAX ? C10_DEF::HOSTS_MAX : p_in.count;
+    const uint8_t v_count = p_in.count > C10_DEF::HOSTS_MAX
+                          ? C10_DEF::HOSTS_MAX : p_in.count;
     for (uint8_t i = 0; i < v_count; i++) {
         const ST_C10_Host_t& v_src = p_in.hosts[i];
         JsonObject v_h = v_arr.add<JsonObject>();
@@ -1903,7 +1980,6 @@ bool CL_C10_Config::saveHosts(const ST_C10_HostsConfig_t& p_in) {
         return false;
     }
 
-    // 3-tier rotate: main → old
     if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
     if (LittleFS.exists(v_main)) {
         if (!LittleFS.rename(v_main, v_old)) {
@@ -1912,7 +1988,6 @@ bool CL_C10_Config::saveHosts(const ST_C10_HostsConfig_t& p_in) {
         }
     }
 
-    // commit: tmp → main
     if (!LittleFS.rename(v_tmp, v_main)) {
         if (LittleFS.exists(v_old)) (void)LittleFS.rename(v_old, v_main);
         (void)LittleFS.remove(v_tmp);
@@ -1922,4 +1997,3 @@ bool CL_C10_Config::saveHosts(const ST_C10_HostsConfig_t& p_in) {
     if (LittleFS.exists(v_old)) (void)LittleFS.remove(v_old);
     return true;
 }
-

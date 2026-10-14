@@ -1,61 +1,21 @@
 // =======================================================
 // File: src/v0415/W10_WebApi_Status_0415.cpp
 // =======================================================
-
 /*
  * ------------------------------------------------------
  * 소스명 : W10_WebApi_Status_0415.cpp
  * 모듈약어 : W10
- * 모듈명 : Web Config/Status/UI/OTA Server (Split: Status/Diag/Keycodes)
+ * 모듈명 : Status/Diag/Keycodes API
  * ------------------------------------------------------
- * 기능 요약
- *  - /api/status, /api/diag, /api/keycodes 및 E10 status fill 분리
- *  - [C-02] /api/status config에 profile_idx/name/count 추가 (프론트엔드 #stProfile)
+ * [v0415 Phase 1-3]
+ *  - _kbName() switch 200줄 → 이진 탐색 15줄
+ *    · G_W10_KB_NAMES[] 테이블 (W10_Def_0415.h)
  *
- * [v0415 주요 변경]
- *  - 파일명/심볼 _0415
- *  - ppt_mode → active_mode (Round G/K/M-1 정합)
- *  - task_stack_led_min_words 노출 (Round G)
- *  - _kbName에 Keyboard Page Power(0x66) 추가 (Round K)
- *  - _kbName에 기호·탐색·키패드·수정자 45건 추가 (rev13, B-3, 총 106 codes)
- *  - G_W10_CONSUMER[] 라벨 UPPER_SNAKE 동기화 (rev13, B-1)
- *  - Consumer 24-bit 값은 그대로 (C20_Action_0415.h와 정합)
- *
- * [v0415 Wave F 주요 변경]
- *  - _fillE10StatusFromSnapshot에 ble_peer_name 노출
- *    · B20::getPeerName()이 채운 값을 JSON에 반영
- *    · 홈 상단 pill에 peer 이름 표시 (am_status_0415.js)
- *
- * [v0415 Wave H 주요 변경]
- *  - _apiStatus에 fw_ver 필드 추가 (G_APP_FW_VER)
- *    · OTA 탭 버전 정보 카드 (P2-5) 데이터 소스
- * ------------------------------------------------------
- * [구현 규칙]
- *  - 항상 소스 시작 주석 부분 체계 유지 및 내용 업데이트
- *  - 소스 시작 주석 부분 구현규칙, 코드네이밍규칙 내용 그대로 유지, 수정금지
- *  - ArduinoJson v7.x.x 사용 (v6 이하 사용 금지)
- *  - JsonDocument 단일 타입만 사용
- *  - createNestedArray/Object/containsKey 사용 금지
- *  - memset + strlcpy 기반 안전 초기화
- *  - 주석/필드명은 JSON 구조와 동일하게 유지
- *  - 변수명은 가능한 해석 가능하게
- * ------------------------------------------------------
- * [코드 네이밍 규칙]
- *   - namespace 명        : 모듈약어_ 접두사
- *   - namespace 내 상수    : 모둘약어 접두시 미사용
- *   - 전역 상수,매크로      : G_모듈약어_ 접두사
- *   - 전역 변수             : g_모듈약어_ 접두사
- *   - 전역 함수             : 모듈약어_ 접두사
- *   - type                  : T_모듈약어_ 접두사
- *   - typedef               : _t  접미사
- *   - enum 상수             : EN_모듈약어_ 접두사
- *   - 구조체                : ST_모듈약어_ 접두사
- *   - 클래스명              : CL_모듈약어_ 접두사 , 버전 제거
- *   - 클래스 private 멤버 함수/변수   : _ 접두사
- *   - 클래스 멤버(함수/변수) : 모듈약어 접두사 미사용
- *   - 클래스 정적 멤버      : s_ 접두사
- *   - 함수 로컬 변수        : v_ 접두사
- *   - 함수 인자             : p_ 접두사
+ * [v0415 이전]
+ *  - ppt_mode → active_mode (Round M-1)
+ *  - task_stack_led_min_words 노출
+ *  - ble_peer_name 노출 (Wave F)
+ *  - _kbName에 Power(0x66), 심볼/탐색/키패드/수정자 45건 추가 (rev13)
  * ------------------------------------------------------
  */
 
@@ -63,16 +23,11 @@
 
 // =====================================================
 // E10 status fill
-// -----------------------------------------------------
-// [v0415] ppt_mode → active_mode (Round G/K/M-1 소급)
-//         task_stack_led_min_words 노출 (Round G)
-// [v0415 Wave F] ble_peer_name 노출
 // =====================================================
 void CL_W10_WebConfig::_fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Status_t& s) {
     e["ble_connected"] = s.ble_connected;
-    // [v0415 Wave F] BLE peer 이름 노출 (연결 시만 유효)
     e["ble_peer_name"] = s.ble_peer_name;
-    e["active_mode"]   = s.active_mode;           // [v0415] 신규
+    e["active_mode"]   = s.active_mode;
     e["dpi_level"]     = s.dpi_level;
     e["precision_mode"] = s.precision_mode;
 
@@ -120,7 +75,7 @@ void CL_W10_WebConfig::_fillE10StatusFromSnapshot(JsonObject e, const ST_E10_Sta
     JsonObject obs = e["obs"].to<JsonObject>();
     obs["task_stack_sensor_min_words"] = (uint32_t)s.task_stack_sensor_min_words;
     obs["task_stack_comm_min_words"]   = (uint32_t)s.task_stack_comm_min_words;
-    obs["task_stack_led_min_words"]    = (uint32_t)s.task_stack_led_min_words;   // [v0415] 신규
+    obs["task_stack_led_min_words"]    = (uint32_t)s.task_stack_led_min_words;
     obs["sensor_dt_max_ms"] = s.sensor_dt_max_ms;
     obs["sensor_overrun_count"] = (uint32_t)s.sensor_overrun_count;
     obs["comm_dt_avg_ms"] = s.comm_dt_avg_ms;
@@ -170,10 +125,6 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
     v_doc["heap_min_free"] = v_heapMin;
     v_doc["heap_max_alloc"] = v_heapMaxA;
     v_doc["api_ver"] = (uint16_t)G_W10_API_VER;
-    // ====================================================
-    // [v0415 Wave H] 펌웨어 버전 노출 (P2-5)
-    //   - OTA 탭 버전 정보 카드에서 사용
-    // ====================================================
     v_doc["fw_ver"]  = G_APP_FW_VER;
 
     JsonObject sys = v_doc["sys"].to<JsonObject>();
@@ -201,10 +152,9 @@ void CL_W10_WebConfig::_apiStatus(AsyncWebServerRequest* req) {
 
     JsonObject net = v_doc["net"].to<JsonObject>();
     net["mode"] = (WiFi.getMode() == WIFI_AP) ? "AP" : "STA";
-    net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+    net["ip"]   = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString()
+                                              : WiFi.localIP().toString();
 
-    // [FIX-8] SafeBoot SSID: _setupWiFi와 동일한 27자 클램프 규칙 적용
-    //   (_setupWiFi: strlen(base) <= 27일 때만 "-SAFE" 부착)
     const char* v_apSsid = (_wifi.ap_ssid[0] != '\0') ? _wifi.ap_ssid : "EliteAirMouse";
     String v_apSsidFull = String(v_apSsid);
     if (_cfg && _cfg->isSafeMode() && v_apSsidFull.length() <= 27) {
@@ -393,13 +343,15 @@ void CL_W10_WebConfig::_apiDiag(AsyncWebServerRequest* req) {
     const uint32_t v_uptime = (uint32_t)millis();
     apply["ok"] = _lastApplyOk;
     apply["ms"] = (uint32_t)_lastApplyMs;
-    apply["age_ms"] = (_lastApplyMs == 0) ? (uint32_t)0 : (uint32_t)((uint32_t)v_uptime - (uint32_t)_lastApplyMs);
+    apply["age_ms"] = (_lastApplyMs == 0) ? (uint32_t)0
+                                          : (uint32_t)((uint32_t)v_uptime - (uint32_t)_lastApplyMs);
     apply["code"] = _lastApplyCode;
     apply["src"] = _lastApplySrc;
 
     JsonArray ev = v_doc["events"].to<JsonArray>();
     if (_diagEvtCount > 0) {
-        const uint8_t start = (uint8_t)((_diagEvtHead + G_W10_DIAG_EVT_MAX - _diagEvtCount) % G_W10_DIAG_EVT_MAX);
+        const uint8_t start = (uint8_t)((_diagEvtHead + G_W10_DIAG_EVT_MAX - _diagEvtCount)
+                                        % G_W10_DIAG_EVT_MAX);
         for (uint8_t i = 0; i < _diagEvtCount; i++) {
             const uint8_t pos = (uint8_t)((start + i) % G_W10_DIAG_EVT_MAX);
             JsonObject e = ev.add<JsonObject>();
@@ -431,133 +383,22 @@ void CL_W10_WebConfig::_apiDiagClear(AsyncWebServerRequest* req) {
 // =====================================================
 // /api/keycodes
 // -----------------------------------------------------
-// [v0415] G_W10_CONSUMER[] 값은 Descriptor SSOT 그대로 (변경 없음)
+// [v0415 Phase 1-3]
+//   - _kbName() switch 200줄 → 이진 탐색 15줄
+//   - 테이블: G_W10_KB_NAMES[] (W10_Def_0415.h)
+// -----------------------------------------------------
+//   이진 탐색으로 O(log n) 조회
 // =====================================================
 const char* CL_W10_WebConfig::_kbName(uint16_t p_code) {
-    switch (p_code) {
-        case 0x00: return "None";
-        case 0x04: return "A";
-        case 0x05: return "B";
-        case 0x06: return "C";
-        case 0x07: return "D";
-        case 0x08: return "E";
-        case 0x09: return "F";
-        case 0x0A: return "G";
-        case 0x0B: return "H";
-        case 0x0C: return "I";
-        case 0x0D: return "J";
-        case 0x0E: return "K";
-        case 0x0F: return "L";
-        case 0x10: return "M";
-        case 0x11: return "N";
-        case 0x12: return "O";
-        case 0x13: return "P";
-        case 0x14: return "Q";
-        case 0x15: return "R";
-        case 0x16: return "S";
-        case 0x17: return "T";
-        case 0x18: return "U";
-        case 0x19: return "V";
-        case 0x1A: return "W";
-        case 0x1B: return "X";
-        case 0x1C: return "Y";
-        case 0x1D: return "Z";
-        case 0x1E: return "1";
-        case 0x1F: return "2";
-        case 0x20: return "3";
-        case 0x21: return "4";
-        case 0x22: return "5";
-        case 0x23: return "6";
-        case 0x24: return "7";
-        case 0x25: return "8";
-        case 0x26: return "9";
-        case 0x27: return "0";
-        case 0x28: return "Enter";
-        case 0x29: return "Esc";
-        case 0x2A: return "Backspace";
-        case 0x2B: return "Tab";
-        case 0x2C: return "Space";
-        case 0x3A: return "F1";
-        case 0x3B: return "F2";
-        case 0x3C: return "F3";
-        case 0x3D: return "F4";
-        case 0x3E: return "F5";
-        case 0x3F: return "F6";
-        case 0x40: return "F7";
-        case 0x41: return "F8";
-        case 0x42: return "F9";
-        case 0x43: return "F10";
-        case 0x44: return "F11";
-        case 0x45: return "F12";
-        case 0x4B: return "PageUp";
-        case 0x4E: return "PageDown";
-        case 0x4F: return "Right";
-        case 0x50: return "Left";
-        case 0x51: return "Down";
-        case 0x52: return "Up";
-        case 0x66: return "Power";   // [v0415] HID Keyboard Page Power
-
-        // =====================================================
-        // [v0415 rev13 / B-3] 기호·탐색·키패드·수정자 키 확장
-        //   - offline am_offline_0415.js의 names dict와 정합
-        //   - 온라인/오프라인 KB Usage 목록 완전 일치 (106 codes)
-        // =====================================================
-
-        // ---- 기호 키 (0x2D~0x38) ----
-        case 0x2D: return "Minus";
-        case 0x2E: return "Equal";
-        case 0x2F: return "LBracket";
-        case 0x30: return "RBracket";
-        case 0x31: return "Backslash";
-        case 0x32: return "NonUSHash";
-        case 0x33: return "Semicolon";
-        case 0x34: return "Quote";
-        case 0x35: return "Grave";
-        case 0x36: return "Comma";
-        case 0x37: return "Period";
-        case 0x38: return "Slash";
-
-        // ---- 편집/탐색 키 (0x39, 0x46~0x4D) ----
-        case 0x39: return "CapsLock";
-        case 0x46: return "PrtSc";
-        case 0x47: return "ScrollLock";
-        case 0x48: return "Pause";
-        case 0x49: return "Insert";
-        case 0x4A: return "Home";
-        case 0x4C: return "Delete";
-        case 0x4D: return "End";
-
-        // ---- 숫자 키패드 (0x53~0x63) ----
-        case 0x53: return "NumLock";
-        case 0x54: return "KP_Slash";
-        case 0x55: return "KP_Star";
-        case 0x56: return "KP_Minus";
-        case 0x57: return "KP_Plus";
-        case 0x58: return "KP_Enter";
-        case 0x59: return "KP_1";
-        case 0x5A: return "KP_2";
-        case 0x5B: return "KP_3";
-        case 0x5C: return "KP_4";
-        case 0x5D: return "KP_5";
-        case 0x5E: return "KP_6";
-        case 0x5F: return "KP_7";
-        case 0x60: return "KP_8";
-        case 0x61: return "KP_9";
-        case 0x62: return "KP_0";
-        case 0x63: return "KP_Dot";
-
-        // ---- 수정자 키 (0xE0~0xE7, HID Keyboard Page) ----
-        case 0xE0: return "LCtrl";
-        case 0xE1: return "LShift";
-        case 0xE2: return "LAlt";
-        case 0xE3: return "LGui";
-        case 0xE4: return "RCtrl";
-        case 0xE5: return "RShift";
-        case 0xE6: return "RAlt";
-        case 0xE7: return "RGui";
-
-        default: return nullptr;
+    size_t v_lo = 0;
+    size_t v_hi = G_W10_KB_NAMES_COUNT;
+    while (v_lo < v_hi) {
+        size_t v_mid = (v_lo + v_hi) / 2;
+        if (G_W10_KB_NAMES[v_mid].code < p_code)      v_lo = v_mid + 1;
+        else if (G_W10_KB_NAMES[v_mid].code > p_code) v_hi = v_mid;
+        else                                          return G_W10_KB_NAMES[v_mid].name;
     }
+    return nullptr;
 }
 
 const char* CL_W10_WebConfig::_precModeName(uint8_t p_mode) {
@@ -587,17 +428,15 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         o["mask"] = G_W10_MODS[i].mask;
     }
 
-    // ---- kb usages (유효한 키들만 등록하여 OOM 및 댕글링 포인터 방지) ----
+    // ---- kb usages (테이블 직접 순회) ----
     JsonArray kb = d["kb"].to<JsonArray>();
-    for (uint16_t code = 0; code <= 0xE7; code++) {
-        const char* n = _kbName(code);
-        if (!n) continue;
+    for (size_t i = 0; i < G_W10_KB_NAMES_COUNT; i++) {
         JsonObject o = kb.add<JsonObject>();
-        o["name"] = n;
-        o["code"] = code;
+        o["name"] = G_W10_KB_NAMES[i].name;
+        o["code"] = G_W10_KB_NAMES[i].code;
     }
 
-    // ---- consumer (24-bit Descriptor SSOT) ----
+    // ---- consumer ----
     JsonArray con = d["consumer"].to<JsonArray>();
     for (size_t i = 0; i < sizeof(G_W10_CONSUMER) / sizeof(G_W10_CONSUMER[0]); i++) {
         JsonObject o = con.add<JsonObject>();
@@ -618,19 +457,20 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
     // ---- action_kinds ----
     JsonArray kinds = d["action_kinds"].to<JsonArray>();
     {
-        struct ST_K { uint8_t v; const char* n; bool p16; bool p32; const char* h16; const char* h32; };
+        struct ST_K { uint8_t v; const char* n; bool p16; bool p32;
+                      const char* h16; const char* h32; };
         static const ST_K G_KINDS[] = {
-            { 0, "NONE",             false, false, nullptr,  nullptr },
-            { 1, "MOUSE_CLICK",      true,  false, "mask",   nullptr },
-            { 2, "MOUSE_HOLD",       true,  false, "mask",   nullptr },
-            { 3, "MOUSE_WHEEL",      true,  false, "axis|dir", nullptr },
-            { 4, "KB_TAP",           true,  true,  "usage",  "mod" },
-            { 5, "KB_COMBO",         false, true,  nullptr,  "mod|u1|u2|u3" },
-            { 6, "KB_REPEAT",        true,  true,  "usage",  "mod" },
-            { 7, "CONSUMER_TAP",     false, true,  nullptr,  "mask32" },
-            { 8, "CONSUMER_REPEAT",  false, true,  nullptr,  "mask32" },
-            { 9, "SPECIAL",          true,  false, "special", nullptr },
-            { 10, "MACRO",           false, true,  nullptr,  "macroIdx" },
+            { 0, "NONE",            false, false, nullptr,     nullptr },
+            { 1, "MOUSE_CLICK",     true,  false, "mask",      nullptr },
+            { 2, "MOUSE_HOLD",      true,  false, "mask",      nullptr },
+            { 3, "MOUSE_WHEEL",     true,  false, "axis|dir",  nullptr },
+            { 4, "KB_TAP",          true,  true,  "usage",     "mod" },
+            { 5, "KB_COMBO",        false, true,  nullptr,     "mod|u1|u2|u3" },
+            { 6, "KB_REPEAT",       true,  true,  "usage",     "mod" },
+            { 7, "CONSUMER_TAP",    false, true,  nullptr,     "mask32" },
+            { 8, "CONSUMER_REPEAT", false, true,  nullptr,     "mask32" },
+            { 9, "SPECIAL",         true,  false, "special",   nullptr },
+            { 10, "MACRO",          false, true,  nullptr,     "macroIdx" },
         };
         for (size_t i = 0; i < sizeof(G_KINDS)/sizeof(G_KINDS[0]); i++) {
             JsonObject o = kinds.add<JsonObject>();
@@ -665,7 +505,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
     { const char* G_D[] = { "LEFT", "RIGHT", "UP", "DOWN" };
       for (auto n : G_D) { JsonObject o = dirs.add<JsonObject>(); o["name"] = n; } }
 
-    // ---- groups (Mode 슬롯 4그룹) ----
+    // ---- groups ----
     JsonArray groups = d["groups"].to<JsonArray>();
     {
         struct ST_G { const char* n; uint8_t count; };
@@ -679,10 +519,11 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         }
     }
 
-    // ---- slots_meta (S1..S15 트리거 라벨) ----
+    // ---- slots_meta ----
     JsonArray slotMeta = d["slots_meta"].to<JsonArray>();
     {
-        struct ST_SM { const char* id; const char* label; const char* btn; const char* evt; };
+        struct ST_SM { const char* id; const char* label;
+                       const char* btn; const char* evt; };
         static const ST_SM G_SM[] = {
             { "S1",  "Top L Click",      "TOP_L",  "CLICK"  },
             { "S2",  "Top L Double",     "TOP_L",  "DOUBLE" },
@@ -709,7 +550,7 @@ void CL_W10_WebConfig::apiKeycodes(AsyncWebServerRequest* req) {
         }
     }
 
-    // ---- triggers (27개) ----
+    // ---- triggers ----
     JsonArray trigs = d["triggers"].to<JsonArray>();
     for (uint8_t i = 0; i < (uint8_t)EN_C10_TRIG_MAX; i++) {
         JsonObject o = trigs.add<JsonObject>();
