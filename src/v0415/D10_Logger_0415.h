@@ -111,9 +111,11 @@ class CL_D10_Logger {
 
     static void printBanner();
 
-    // [v0415 rev2] 관측용 (신규)
+    // [v0415 rev2] 관측용
     static uint32_t getOverwriteCount();
     static uint32_t getTruncCount();
+    // [v0415 Phase 4-A] 관측용 (방어적)
+    static uint32_t getCorruptCount();
 
   private:
     static void _pushToRing(EN_D10_LogLevel_t p_level, const char* p_msg, uint32_t p_nowMs);
@@ -140,6 +142,10 @@ class CL_D10_Logger {
     static volatile uint32_t          s_overwriteCount;
     // [v0415 rev2 / 추가 B] 잘림 카운터
     static volatile uint32_t          s_truncCount;
+    // [v0415 Phase 4-A] 슬롯 관측 카운터 (방어적)
+    //   - Phase 2 write 후 슬롯 무결성 검증 실패 누적
+    //   - Two-Phase Locking이 정상이면 항상 0
+    static volatile uint32_t          s_corruptCount;
 };
 
 // ------------------------------------------------------

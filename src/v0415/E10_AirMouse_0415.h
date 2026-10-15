@@ -214,11 +214,40 @@ class CL_E10_EliteAirMouse {
     uint32_t _failsafeReleaseCount = 0;
 
     // ====================================================
-    // 오류 카운터
+    // [v0415 Phase 4-B-1] 진단 카운터 통합 구조체
+    // ----------------------------------------------------
+    //  - 8개 개별 카운터를 1개 구조체로 그룹화
+    //  - reset(): _reqClearDiag 처리 시 1회 호출
+    //  - 참조: _diag.errMpuNan, _diag.consecutiveFail 등
     // ====================================================
-    uint32_t _errMpuNan      = 0;
-    uint32_t _errMutexMiss   = 0;
-    uint32_t _errTaskOverrun = 0;
+    struct ST_E10_DiagCounters {
+        // 오류 카운터
+        uint32_t errMpuNan      = 0;
+        uint32_t errMutexMiss   = 0;
+        uint32_t errTaskOverrun = 0;
+
+        // I2C 복구
+        uint32_t i2cRecoverCount  = 0;
+        bool     i2cRecoverLastOk = true;
+
+        // 연속 실패 카운터
+        uint16_t consecutiveFail        = 0;
+        uint16_t consecutiveRecoverFail = 0;
+        uint16_t consecutiveI2cFail     = 0;
+
+        void reset() {
+            errMpuNan      = 0;
+            errMutexMiss   = 0;
+            errTaskOverrun = 0;
+            i2cRecoverCount  = 0;
+            i2cRecoverLastOk = true;
+            consecutiveFail        = 0;
+            consecutiveRecoverFail = 0;
+            consecutiveI2cFail     = 0;
+        }
+    };
+
+    ST_E10_DiagCounters _diag;
 
     // ====================================================
     // RMS Welford 통계
@@ -232,12 +261,6 @@ class CL_E10_EliteAirMouse {
     double   _curM2   = 0.0;
 
     // ====================================================
-    // I2C recover
-    // ====================================================
-    uint32_t _i2cRecoverCount  = 0;
-    bool     _i2cRecoverLastOk = true;
-
-    // ====================================================
     // 이력 링버퍼
     // ====================================================
     ST_E10_ErrEvt_t _errHist[E10_CONST::ERR_HIST_CAP];
@@ -247,13 +270,6 @@ class CL_E10_EliteAirMouse {
     ST_E10_SpikeEvt_t _spikes[32];
     uint8_t           _spikeHead  = 0;
     uint8_t           _spikeCount = 0;
-
-    // ====================================================
-    // 연속 실패 카운터
-    // ====================================================
-    uint16_t _consecutiveFail        = 0;
-    uint16_t _consecutiveRecoverFail = 0;
-    uint16_t _consecutiveI2cFail     = 0;
 
     // ====================================================
     // FSM

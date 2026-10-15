@@ -140,15 +140,10 @@ void CL_E10_EliteAirMouse::_consumeResetAndAsyncFlags() {
         _reqClearDiag = false;
 
         _lock();
-        _errMpuNan      = 0;
-        _errMutexMiss   = 0;
-        _errTaskOverrun = 0;
+        _diag.reset();                          // ← 8개 카운터 일괄 리셋
 
         _gyroN = 0; _gyroMean = 0.0; _gyroM2 = 0.0;
         _curN  = 0; _curMean  = 0.0; _curM2  = 0.0;
-
-        _i2cRecoverCount  = 0;
-        _i2cRecoverLastOk = true;
 
         _errHistHead  = 0;
         _errHistCount = 0;
@@ -157,10 +152,6 @@ void CL_E10_EliteAirMouse::_consumeResetAndAsyncFlags() {
         _spikeHead  = 0;
         _spikeCount = 0;
         memset(_spikes, 0, sizeof(_spikes));
-
-        _consecutiveFail        = 0;
-        _consecutiveRecoverFail = 0;
-        _consecutiveI2cFail     = 0;
         _unlock();
 
         _pushErr(EN_E10_ERR_NONE, 0);
@@ -346,15 +337,15 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         Wire.beginTransmission(v_m->_mpuAddr);
         const uint8_t v_i2cProbe = Wire.endTransmission();
         if (v_i2cProbe != 0) {
-            v_m->_consecutiveI2cFail++;
-            if (v_m->_consecutiveI2cFail >= E10_CONST::I2C_FAIL_MAX) {
+            v_m->_diag.consecutiveI2cFail++;
+            if (v_m->_diag.consecutiveI2cFail >= E10_CONST::I2C_FAIL_MAX) {
                 (void)v_m->_recoverI2C();
-                v_m->_consecutiveI2cFail = 0;
+                v_m->_diag.consecutiveI2cFail = 0;
             }
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(E10_CONST::SENSOR_TICK_MS));
             continue;
         }
-        v_m->_consecutiveI2cFail = 0;
+        v_m->_diag.consecutiveI2cFail = 0;
 
         sensors_event_t v_a, v_g, v_t;
         v_m->_mpu.getEvent(&v_a, &v_g, &v_t);
@@ -405,18 +396,18 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             isnan(v_a.acceleration.x) ||
             isnan(v_a.acceleration.y) ||
             isnan(v_a.acceleration.z)) {
-            v_m->_errMpuNan++;
-            v_m->_consecutiveFail++;
+            v_m->_diag.errMpuNan++;
+            v_m->_diag.consecutiveFail++;
             v_m->_pushErr(EN_E10_ERR_MPU_NAN, 0);
 
-            if ((v_m->_errMpuNan % E10_CONST::NAN_RECOVER_EVERY) == 0) {
+            if ((v_m->_diag.errMpuNan % E10_CONST::NAN_RECOVER_EVERY) == 0) {
                 (void)v_m->_recoverI2C();
             }
 
             vTaskDelayUntil(&v_lastWake, pdMS_TO_TICKS(E10_CONST::SENSOR_TICK_MS));
             continue;
         } else {
-            if (v_m->_consecutiveFail > 0) v_m->_consecutiveFail--;
+            if (v_m->_diag.consecutiveFail > 0) v_m->_diag.consecutiveFail--;
         }
 
         v_m->_biasTracker.update(v_gxRaw, v_gyRaw, v_gzRaw, (uint32_t)millis());
@@ -560,7 +551,7 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
             if (v_updated) v_m->_state.updated = true;
             xSemaphoreGiveRecursive(v_m->_mutex);
         } else {
-            v_m->_errMutexMiss++;
+            v_m->_diag.errMutexMiss++;
             v_m->_pushErr(EN_E10_ERR_MUTEX_MISS, 0);
         }
 
@@ -586,8 +577,8 @@ void CL_E10_EliteAirMouse::_sensorTask(void* p_pv) {
         TickType_t v_after = xTaskGetTickCount();
 
         if ((v_after - v_before) == 0) {
-            v_m->_errTaskOverrun++;
-            if ((v_m->_errTaskOverrun % E10_CONST::OVERRUN_LOG_EVERY) == 0) {
+            v_m->_diag.errTaskOverrun++;
+            if ((v_m->_diag.errTaskOverrun % E10_CONST::OVERRUN_LOG_EVERY) == 0) {
                 v_m->_pushErr(EN_E10_ERR_TASK_OVERRUN, 0);
             }
         }

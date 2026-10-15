@@ -21,8 +21,11 @@
 | `_macroAbortToken` | `any` (취소 트리거) | `commTask` (`_tickMacro`) | `volatile uint32_t` | 단조 증가 카운터, 취소 판정 |
 | `_macroSnapshot` | `commTask` (`_startMacro`) | `commTask` (`_tickMacro`) | `_lock()` (v0415) | 실행 시점 매크로 스냅샷 |
 | `_hid` (BleCompositeHID) | `commTask` | `sensorTask`, `webTask` (`isConnected()`만) | Thread-safe API | 마우스/키보드 전송은 `commTask` 전용 |
-| `_mpu`, `Wire`, `_mpuAddr` | `setup()` (`_diagAndRecoverMpu`) / `sensorTask` | `sensorTask`, `P20` (`setMpuAddr`) | 독점 (No sync) | 부팅 시 0x68/0x69 자동 감지 후 `_power` 동기화. 런타임 pre-probe 및 10회 실패 복구 |
-| `_consecutiveI2cFail` | `sensorTask` | `sensorTask` | 독점 (No sync) | 런타임 pre-probe 독립 연속 실패 카운터 |
+| **`_diag`** (ST_E10_DiagCounters) | `sensorTask` (write), `_reqClearDiag` 시 `_diag.reset()` | `getStatus` (read) | `_lock()` 스냅샷 (관측용) | **rev18**: 8개 진단 카운터 통합 (`errMpuNan` / `errMutexMiss` / `errTaskOverrun` / `i2cRecoverCount` / `i2cRecoverLastOk` / `consecutiveFail` / `consecutiveRecoverFail` / `consecutiveI2cFail`). 루프 내 단조 증가는 무경합 원자적 갱신, 스냅샷 읽기는 `_lock()` 동기화 |
+| **`_commPrevConn`** | `commTask` | `commTask` | 독점 (No sync) | **rev18**: 이전 루프의 BLE 연결 상태 추적 (로컬 static → 멤버 승격) |
+| **`_commReleasedOnSafe`** | `commTask` | `commTask` | 독점 (No sync) | **rev18**: Safe/OTA Gate 진입 시 1회성 release 추적 |
+| **`_connEdgePrev`** | `sensorTask` (`_notifyConnectionEdge`) | `sensorTask` | 독점 (No sync) | **rev18**: BLE 연결 edge 감지용 상태 추적 (로컬 static → 멤버 승격) |
+| **`s_corruptCount`** (D10) | `_pushToRing` (Phase 2) | `getCorruptCount()` | `volatile` | **rev18**: Phase 4-A 슬롯 무결성 관측 (정상 시 0) |
 | `NimBLEDevice::isInitialized()` | `B20::begin()` | `B20::getBondCount()` 등 | NimBLE 내부 mutex | 최대 500ms 동기화 대기. 미초기화 시 API 접근 차단(NULL Mutex 방지) |
 | `_biasTracker` | `sensorTask` | `sensorTask` | 독점 (No sync) | 정지 상태 감지 및 자이로 바이어스 보정 |
 | `_gesture` | `sensorTask` | `sensorTask` | 독점 (No sync) | Flick/Linear/Tilt 제스처 감지기 |
@@ -323,3 +326,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | **rev14** | **2026-10-12** | **W10 Reboot 태스크 소유권 방어 (B-4) 및 D10 로깅 상태 전이 명세**: `_taskReboot` 생성 반환값(`pdPASS`) 검증 및 실패 시 동기식 `ESP.restart()` 안전 폴백 소유권 등록. D10 로거는 상태 전이 및 치명적 에러 한정 호출 규약 동기화. |
 | **rev15** | **2026-10-12** | **스키마 412 gesture 삭제 + Wi-Fi UI 저장 소유권**: §1 매트릭스에서 `_gestureFlickDeg`/`_gestureCooldownMs` 삭제 → `flick.p2p_th`/`flick.cooldown_ms` 단독 소유 명시. `cfgSave()` patch 확장(`{e10, wifi}`)에 따른 W10 `_wifi` 로컬 캐시 갱신 소유권 (§2.13 하위) 반영. |
 | **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target FSM 및 _reqHostOp 위임 소유권 명세**: §1 매트릭스에 `_reqHostOp`, `_advMode`, `_targetPeerIdx`, `_advModeStartMs`, `last_host_addr`, `hosts_0415.json` 소유권 추가. §2.11 Multi-Host FSM(IDLE/CYCLE/TARGET) 신설. §3 위임 패턴에 `_reqHostOp` 등록. |
+| **rev18** | **2026-10-15** | **Phase 1·2·3·4 소유권 반영**: §1 매트릭스에 `_diag` 그룹화 (8개 카운터 통합), `_commPrevConn` / `_commReleasedOnSafe` / `_connEdgePrev` (comm/sensor 상태 멤버 승격), `s_corruptCount` (D10 관측) 추가. |

@@ -75,14 +75,14 @@ bool CL_E10_EliteAirMouse::_recoverI2C() {
     }
 
     _lock();
-    _i2cRecoverCount++;
-    _i2cRecoverLastOk = v_ok;
+    _diag.i2cRecoverCount++;
+    _diag.i2cRecoverLastOk = v_ok;
 
     if (v_ok) {
-        _consecutiveRecoverFail = 0;
+        _diag.consecutiveRecoverFail = 0;
     } else {
-        _consecutiveRecoverFail++;
-        _consecutiveFail++;
+        _diag.consecutiveRecoverFail++;
+        _diag.consecutiveFail++;
     }
     _unlock();
 
@@ -356,12 +356,12 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     // [v0415 rev13 / B-2] LED 태스크 스택 (실측)
     p_out.task_stack_led_min_words    = _stackLedMinWords;
 
-    p_out.i2c_recover_count   = _i2cRecoverCount;
-    p_out.i2c_recover_last_ok = _i2cRecoverLastOk;
+    p_out.i2c_recover_count   = _diag.i2cRecoverCount;
+    p_out.i2c_recover_last_ok = _diag.i2cRecoverLastOk;
 
-    p_out.err_mpu_nan      = _errMpuNan;
-    p_out.err_mutex_miss   = _errMutexMiss;
-    p_out.err_task_overrun = _errTaskOverrun;
+    p_out.err_mpu_nan      = _diag.errMpuNan;
+    p_out.err_mutex_miss   = _diag.errMutexMiss;
+    p_out.err_task_overrun = _diag.errTaskOverrun;
 
     p_out.uptime_ms = (uint32_t)(millis() - _uptime0);
 
@@ -380,8 +380,8 @@ void CL_E10_EliteAirMouse::getStatus(ST_E10_Status_t& p_out) {
     }
 
     p_out.spike_count_10s          = v_sc;
-    p_out.consecutive_fail         = _consecutiveFail;
-    p_out.consecutive_recover_fail = _consecutiveRecoverFail;
+    p_out.consecutive_fail         = _diag.consecutiveFail;
+    p_out.consecutive_recover_fail = _diag.consecutiveRecoverFail;
 
     // health score (클램프 헬퍼)
     auto v_deduce = [](int p_score, uint32_t p_count, uint32_t p_mult, uint32_t p_cap) -> int {

@@ -399,7 +399,10 @@ struct ST_E10_HidCmd_t {
 | **`_bootWifi`** (W10) | `CL_W10_WebConfig::begin()` | `_bumpRebootMaskFromBoot` | 독점 (No sync) | **v0415: 부팅 WiFi 스냅샷** |
 | **`_wifi`** (W10) | `begin()` / `apiConfigSave` / **`apiProfilesActivePost` (rev15)** | `_bumpRebootMaskFromBoot`, `_setupWiFi` | 독점 (No sync) | **rev15: `/api/profiles/active` POST 경로도 갱신** |
 | **`_thLed`** (E10) | `begin()` (task create) | `getStatus` (관측) | 읽기 전용 | **v0415: LED 태스크 핸들** |
-| **`_consecutiveI2cFail`** (E10) | `sensorTask` (pre-probe) | `sensorTask` | 독점 (No sync) | **rev12: I2C 전용 (10회 시 복구 후 0 리셋)** |
+| **`_diag`** (ST_E10_DiagCounters) | `sensorTask` (write), `_reqClearDiag` 시 `_diag.reset()` | `getStatus` (read) | `_lock()` 스냅샷 (관측용) | **rev18**: 8개 진단 카운터 통합 (`errMpuNan`, `errMutexMiss`, `errTaskOverrun`, `i2cRecoverCount`, `i2cRecoverLastOk`, `consecutiveFail`, `consecutiveRecoverFail`, `consecutiveI2cFail`). 루프 내 단조 증가는 무경합 원자적 갱신, 스냅샷 읽기는 `_lock()` 동기화 |
+| **`_commPrevConn`** (E10) | `commTask` | `commTask` | 독점 (No sync) | **rev18**: 이전 루프의 BLE 연결 상태 추적 (로컬 static → 멤버 승격) |
+| **`_commReleasedOnSafe`** (E10) | `commTask` | `commTask` | 독점 (No sync) | **rev18**: Safe/OTA Gate 진입 시 1회성 release 추적 |
+| **`_connEdgePrev`** (E10) | `sensorTask` (`_notifyConnectionEdge`) | `sensorTask` | 독점 (No sync) | **rev18**: BLE 연결 Edge 감지용 상태 추적 (로컬 static → 멤버 승격) |
 | **`_bootMutex`** (C10) | `ctor` | – | Mutex | **rev12: `_boot` 보호** |
 | **`_dirsEnsured`** (C10) | `begin()` / `_atomicWriteJson` | `_atomicWriteJson` | 독점 (No sync) | **rev12: mkdir 캐시** |
 | **`_reqHostOp`** (E10) | `webTask` (`/api/hosts/select`, `cancel`) | `sensorTask` (루프 헤드) | `volatile EN_C20_ReqHostOp_t` | **rev16: Last-Write-Wins 위임 (신규 큐 미생성)** |
@@ -410,6 +413,7 @@ struct ST_E10_HidCmd_t {
 | **`s_buffer[64]`** (D10) | `_pushToRing` (Phase 2) | (write-only) | Two-Phase Locking | **rev12: critical 외부 96B 복사** |
 | **`s_head`/`s_count`** (D10) | `_pushToRing` (Phase 1) | `_pushToRing` (Phase 1) | `portENTER_CRITICAL` | **rev12** |
 | **`s_overwriteCount`/`s_truncCount`** (D10) | `_pushToRing` | `getOverwriteCount`/`getTruncCount` | critical + `volatile` | **rev12** |
+| **`s_corruptCount`** (D10) | `_pushToRing` (Phase 2) | `getCorruptCount` | critical / `volatile` | **rev18: Phase 2 슬롯 무결성 관측 카운터 (정상 시 0)** |
 | **`_logLevel`** (D10) | `setLevel` | `log` | `volatile` | **rev12** |
 
 ---
@@ -617,3 +621,5 @@ _unlock();
 | rev13 | 2026-10-12 | **Consumer/KB 라벨 SSOT 계약 (§2.19 신규, B-1/B-3)**: `G_W10_CONSUMER[].name` UPPER_SNAKE 통일 (B-1). `_kbName()`과 offline names dict 완전 파리티 (B-3, 106 codes). LED 태스크 스택 워터마크 관측 계약 (B-2, §2.14 연계). |
 | **rev14** | **2026-10-12** | **D10 Logger 백엔드 로깅 정책 (§2.18 보강) 및 W10 리부트 태스크 방어 (§2.20 신규, B-4)**: 8ms/7ms 루프 로깅 배제, 진단/부팅 단일 라인 원자적 D10 로깅 확립, 96B 초과 체크리스트 Serial 보존. `xTaskCreatePinnedToCore(_taskReboot)` 반환값 검증 및 생성 실패 시 동기식 `ESP.restart()` 안전 폴백 확립. |
 | **rev15** | **2026-10-12** | **스키마 412 + Wi-Fi 웹 UI 계약 (§2.13 보강) + 미사용 엔드포인트 정리**: `gesture.*` 삭제, `flick.*` SSOT. Config 탭 §8 Wi-Fi UI 신설 (`cfgSave` patch 확장, `apiProfilesActivePost` 재부팅 마스크). `validateWiFi` 강화. **미사용 엔드포인트 5종 삭제** (`/api/config` GET, `/api/config/save` POST, `/api/config/apply` POST, `/api/export` GET, `/api/reboot/check` GET). |
+| **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target 통합 계약 (§2.21)**: B20 BLE 엔진 경계, 비동기 위임 플래그 `_reqHostOp`, C10 `hosts_0415.json` 3-tier 저장 및 Boot State `last_host_addr` 계약 확립. |
+| **rev18** | **2026-10-15** | **Phase 1·2·3·4 리팩터링 계약 반영**: ① §2에 `_abortMacroLocked()` SSOT 헬퍼 (매크로 취소 6곳 → 1개). ② §2에 `_bootPriorityReconnect` / `_consumeHostOp` / `_handlePowerManagement` / `_consumeResetAndAsyncFlags` / `_notifyConnectionEdge` (sensorTask helper 5종). ③ §2에 `_handleCommDisconnectEdge` / `_handleCommGate` / `_drainAllQueuesOnGate` (commTask helper 3종). ④ §2.21에 `B20_HOST::{CONN_TIMEOUT_MS, BOND_MAX, TARGET_IDX_NONE}` 상수 SSOT. ⑤ §4 공유 변수 표에 `ST_E10_DiagCounters _diag` (8개 진단 카운터 통합). ⑥ §4에 `_commPrevConn` / `_commReleasedOnSafe` / `_connEdgePrev` 멤버 승격. ⑦ §4에 D10 `s_corruptCount` 관측 카운터. |

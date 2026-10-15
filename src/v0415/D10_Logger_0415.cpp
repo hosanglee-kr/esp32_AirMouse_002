@@ -21,6 +21,7 @@ volatile uint16_t          CL_D10_Logger::s_head           = 0;
 volatile uint16_t          CL_D10_Logger::s_count          = 0;
 volatile uint32_t          CL_D10_Logger::s_overwriteCount = 0;
 volatile uint32_t          CL_D10_Logger::s_truncCount     = 0;
+volatile uint32_t          CL_D10_Logger::s_corruptCount   = 0;
 
 // =======================================================
 // begin
@@ -45,6 +46,7 @@ void CL_D10_Logger::begin(Stream& p_serial) {
     s_count          = 0;
     s_overwriteCount = 0;
     s_truncCount     = 0;
+    s_corruptCount   = 0;
 #if G_D10_THREAD_SAFE
     portEXIT_CRITICAL(&s_mux);
 #endif
@@ -64,6 +66,7 @@ void CL_D10_Logger::clear() {
     s_count          = 0;
     s_overwriteCount = 0;
     s_truncCount     = 0;
+    s_corruptCount   = 0;
 #if G_D10_THREAD_SAFE
     portEXIT_CRITICAL(&s_mux);
 #endif
@@ -91,6 +94,10 @@ uint32_t CL_D10_Logger::getOverwriteCount() {
 
 uint32_t CL_D10_Logger::getTruncCount() {
     return s_truncCount;
+}
+
+uint32_t CL_D10_Logger::getCorruptCount() {
+    return s_corruptCount;
 }
 
 // =======================================================
@@ -164,6 +171,13 @@ void CL_D10_Logger::_pushToRing(EN_D10_LogLevel_t p_level, const char* p_msg, ui
     } else {
         if (v_len > 0) memcpy(s_buffer[v_idx].message, p_msg, v_len);
         s_buffer[v_idx].message[v_len] = '\0';
+    }
+
+    // [Phase 4-A] 후검증: timestamp가 여전히 우리 것인가?
+    //   - 이상 시: 다른 태스크가 같은 슬롯을 예약했거나 메모리 손상
+    //   - 실사용 영향 없으나, 지속 발생 시 Phase 1 정책 재검토 필요
+    if (s_buffer[v_idx].timestamp != p_nowMs) {
+        s_corruptCount++;
     }
 }
 
