@@ -83,13 +83,19 @@ EXCLUDE_NAMES = {
 BUNDLE_JS_ORDER = [
     "lib/am_base_0415.js",
     "lib/am_i18n_0415.js",
+    # Phase 5-B 분할: am_offline 3-모듈
+    "lib/am_offline_data_0415.js",
+    "lib/am_offline_store_0415.js",
     "lib/am_offline_0415.js",
     "lib/am_profile_0415.js",
     "lib/am_macro_0415.js",
-    "lib/am_config_0415.js",
+    # Phase 5-B 분할: am_config 3-모듈
+    "lib/am_config_motion_0415.js",   # ← 신규 (B-5)
+    "lib/am_config_system_0415.js",   # ← 신규 (B-6)
+    "lib/am_config_0415.js",          # 축소 (B-4)
     "lib/am_status_0415.js",
     "lib/am_remote_0415.js",
-    "lib/am_host_0415.js",        # ★ rev16 필수
+    "lib/am_host_0415.js",
     "app_0415_0001.js",
 ]
 

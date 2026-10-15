@@ -13,19 +13,25 @@
  *  - 매크로 라이브러리 CRUD 및 Live Test 지원
  *  - SafeBoot 및 원자적(Atomic) 파일 쓰기 보장
  *
- * [v0415 rev15 주요 변경]
- *  - 스키마 411 → 412 (gesture.* 삭제, flick.* SSOT 확립)
- *    · gesture_flick_deg / gesture_cooldown_ms 필드 완전 삭제
- *    · 마이그레이션 미구현 (제품 출시 시점 별도 검토)
- *  - validateWiFi 강화 (AP SSID 필수, STA 모드 SSID 필수, mdns 빈 값 금지)
+ * [v0415 rev18.1 - Phase 5-A 분할]
+ *  - 본 .h는 선언만 유지 (구현은 3개 .cpp로 분할)
+ *    · C10_Config_0415.cpp           : lifecycle / CRUD / File IO / Hosts
+ *    · C10_Config_Json_0415.cpp      : _build* / _patch* / JSON 직렬화
+ *    · C10_Config_Validate_0415.cpp  : validate* + G_E10_RULES[]
+ *  - legacy 410→411 마이그레이션 함수 제거 (불필요)
+ *    · _migrateProfileV410ToV411 삭제
+ *    · loadProfile은 patchProfileFromJson + validateProfile만 사용
+ *    · ver=410 파일은 patch 미적용 필드가 기본값으로 fallback
  *
- * [v0415 이전 주요 변경 (스키마 411)]
- *  - 스키마 410 → 411 (Consumer mask Descriptor 정합)
- *  - loadProfile: _migrateProfileV410ToV411() 자동 수행 + validateProfile
+ * [v0415 rev15 이전]
+ *  - 스키마 411 → 412 (gesture.* 삭제, flick.* SSOT)
+ *  - validateWiFi 강화 (AP SSID 필수, STA 모드 SSID 필수)
+ *
+ * [v0415 스키마 411]
+ *  - Consumer mask Descriptor 정합
  *  - deleteProfile: gap-shift → swap-with-last (원자성 강화)
  *  - validateSlot/validateMacroStep: Consumer 24-bit 상한 검증
  *  - makeDefaultsSlots: Mode 3 재배치 (WWW_*, KB_POWER 0x66)
- *  - _activeProfile 멤버 삭제 (Dead code)
  * ------------------------------------------------------
  */
 
@@ -45,12 +51,11 @@ class CL_C10_Config {
   private:
     ST_C10_BootState_t     _boot;
     ST_C10_ProfileIndex_t  _index;
-    // [v0415] _activeProfile 멤버 삭제 (미사용 확인됨)
 
     uint32_t _bootOkRetryAtMs = 0;
     volatile bool _profileSwitchInProgress = false;
-    bool _dirsEnsured = false;                        // [P5] 디렉토리 보장 캐시
-    SemaphoreHandle_t _bootMutex = nullptr;           // [W6] _boot 원자화
+    bool _dirsEnsured = false;
+    SemaphoreHandle_t _bootMutex = nullptr;
 
   public:
     CL_C10_Config();
@@ -65,11 +70,10 @@ class CL_C10_Config {
     bool    setActiveIndex(uint8_t p_idx);
 
     // ---------- Profile CRUD ----------
-    // [v0415] loadProfile: 스키마 410→411 자동 마이그레이션 + validate
     bool loadProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out);
     bool saveProfile(uint8_t p_idx, const ST_C10_ProfileConfig_t& p_in);
     bool createProfile(const char* p_newName, uint8_t& p_outIdx);
-    bool deleteProfile(uint8_t p_idx);       // [v0415] swap-with-last
+    bool deleteProfile(uint8_t p_idx);       // swap-with-last
     bool renameProfile(uint8_t p_idx, const char* p_newName);
 
     bool loadActiveProfile(ST_C10_ProfileConfig_t& p_out);
@@ -82,7 +86,7 @@ class CL_C10_Config {
     void makeDefaultsMacros(ST_C10_MacroLib_t&     p_out);
     void makeDefaultsProfile(uint8_t p_idx, ST_C10_ProfileConfig_t& p_out);
 
-    // ---------- Validation ----------
+    // ---------- Validation (C10_Config_Validate_0415.cpp) ----------
     bool validateWiFi     (const ST_C10_WiFiConfig_t&    p_w) const;
     bool validateE10      (const ST_C10_E10Config_t&     p_e) const;
     bool validateSlot     (const ST_C20_ActionSlot_t&    p_s, uint8_t p_macroCount = 0) const;
@@ -94,11 +98,11 @@ class CL_C10_Config {
 
     // ---------- SafeBoot ----------
     bool isSafeMode() const { return _boot.safe_mode; }
-    void getBootState(ST_C10_BootState_t& p_out) const;   // [W6] .cpp로 이동 (mutex)
+    void getBootState(ST_C10_BootState_t& p_out) const;
     bool clearSafeMode();
     bool bootMarkOkIfGracePassed(uint32_t p_graceMs);
 
-    // ---------- JSON Patcher / Builder ----------
+    // ---------- JSON Patcher / Builder (C10_Config_Json_0415.cpp) ----------
     bool patchProfileFromJson(const String& p_json, ST_C10_ProfileConfig_t& p_io);
     bool buildProfileJson(const ST_C10_ProfileConfig_t& p_in, JsonDocument& p_out);
 
@@ -106,7 +110,7 @@ class CL_C10_Config {
     bool isProfileSwitchInProgress() const { return _profileSwitchInProgress; }
     void setProfileSwitchInProgress(bool p_flag) { _profileSwitchInProgress = p_flag; }
 
-    // ---------- Hosts CRUD (v0415 Multi-Host) ----------
+    // ---------- Hosts CRUD ----------
     bool loadHosts(ST_C10_HostsConfig_t& p_out);
     bool saveHosts(const ST_C10_HostsConfig_t& p_in);
     bool setLastHostAddr(const char* p_addr);
@@ -129,14 +133,8 @@ class CL_C10_Config {
     uint8_t _getResetReasonU8();
 
     // --------------------------------------------------
-    // [v0415] Consumer mask 스키마 410 → 411 마이그레이션
-    //   - 슬롯: global[27] + modes[3][27]
-    //   - 매크로: steps[stepCount]
-    //   - 매핑: G_C20_LEGACY_410_TO_415[]
-    //   - ver은 내부에서 G_C10_CFG_VER로 갱신
+    // [C10_Config_Json_0415.cpp] JSON 직렬화 helper
     // --------------------------------------------------
-    void _migrateProfileV410ToV411(ST_C10_ProfileConfig_t& p_io);
-
     void _buildWiFiJson    (JsonObject p_parent, const ST_C10_WiFiConfig_t& p_in);
     void _buildE10Json     (JsonObject p_parent, const ST_C10_E10Config_t&  p_in);
     void _buildSlotsJson   (JsonObject p_parent, const ST_C10_ProfileSlots_t& p_in);

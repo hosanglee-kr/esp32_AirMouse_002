@@ -142,10 +142,18 @@ class CL_D10_Logger {
     static volatile uint32_t          s_overwriteCount;
     // [v0415 rev2 / 추가 B] 잘림 카운터
     static volatile uint32_t          s_truncCount;
+    
     // [v0415 Phase 4-A] 슬롯 관측 카운터 (방어적)
-    //   - Phase 2 write 후 슬롯 무결성 검증 실패 누적
-    //   - Two-Phase Locking이 정상이면 항상 0
+    // -------------------------------------------------------
+    //  ▸ 의미: Phase 2 후검증 실패 누적 = 실제 슬롯 손상
+    //  ▸ 발생 조건:
+    //      - RingBuffer(64) 가득 찬 상태 + 고빈도 로그 + 태스크 동시 진입
+    //      - 예: 부팅 초기 진단 로그 폭주
+    //  ▸ 영향: 로그 1~2건 손실 (시스템 동작 무영향)
+    //  ▸ 정책: 값이 지속 증가하면 Phase 1 정책 재검토 필요
+    //  ▸ 정상치: 0 (또는 부팅 초기 1~2)
     static volatile uint32_t          s_corruptCount;
+
 };
 
 // ------------------------------------------------------
