@@ -2,9 +2,15 @@
 """
 check_schema_0415.py — 백엔드↔프론트 필드명 정합성 검증
 - C10_Def_0415.h (ST_C10_PowerConfig_t, ST_C10_ButtonConfig_t) 필드 추출
-- am_config_0415.js의 configToUi/uiToConfig에서 참조하는 power/button 필드 추출
-- am_offline_0415.js 기본 프로파일의 power/button 키 추출
+- am_config_*_0415.js의 configToUi/uiToConfig에서 참조하는 power/button 필드 추출
+- am_offline_data_0415.js 기본 프로파일의 power/button 키 추출
 - 3자 비교 → 불일치 시 exit code 1
+
+[v0415 rev18.1 - Phase 5-A/B 분할 대응]
+- JS_CONFIG_FILES : am_config 3-모듈 (오케스트레이터 + motion + system)
+- JS_OFFLINE_DATA : am_offline_data_0415.js (데이터 파티션)
+- C10_JSON_CPP    : C10_Config_Json_0415.cpp (JSON 파티션)
+- 파일 텍스트를 concat하여 검증 (파티션 분할에 무관)
 
 [v0415 Phase 3-D 확장]
 - check_e10_json_parity(): _buildE10Json ↔ _patchE10Json 필드 대칭성
@@ -20,13 +26,34 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-H_DEF         = ROOT / "C10_Def_0415.h"
-JS_CONFIG     = ROOT / "data_v0415_www" / "lib" / "am_config_0415.js"
-JS_OFFLINE    = ROOT / "data_v0415_www" / "lib" / "am_offline_0415.js"
+H_DEF = ROOT / "C10_Def_0415.h"
 
 
 # ======================================================
-# [v0415 rev15 / Wave B] Wi-Fi 필드 매핑
+# [v0415 rev18.1 / Phase 5-B] JS 파일 경로 (분할 대응)
+# ------------------------------------------------------
+#  - am_config_0415.js         : 오케스트레이터
+#  - am_config_motion_0415.js  : Motion 파티션
+#  - am_config_system_0415.js  : System 파티션
+#  - 3 파일 텍스트를 concat하여 검증
+# ======================================================
+JS_CONFIG_FILES = [
+    ROOT / "data_v0415_www" / "lib" / "am_config_0415.js",
+    ROOT / "data_v0415_www" / "lib" / "am_config_motion_0415.js",
+    ROOT / "data_v0415_www" / "lib" / "am_config_system_0415.js",
+]
+
+# [v0415 rev18.1 / Phase 5-B] 오프라인 데이터 파티션
+#   - 데이터(G_OFFLINE_DEFAULT_PROFILE_0)는 am_offline_data_0415.js로 이동
+JS_OFFLINE_DATA = ROOT / "data_v0415_www" / "lib" / "am_offline_data_0415.js"
+
+# [v0415 rev18.1 / Phase 5-A] C10 JSON 파티션 (.cpp)
+#   - _buildE10Json / _patchE10Json은 C10_Config_Json_0415.cpp로 이동
+C10_JSON_CPP = ROOT / "C10_Config_Json_0415.cpp"
+
+
+# ======================================================
+# Wi-Fi 필드 매핑 (H struct → JSON 경로)
 # ======================================================
 WIFI_FIELD_MAP = {
     "mode":       "wifi.mode",
@@ -47,7 +74,7 @@ WIFI_DOM_MAP = {
 }
 
 # ======================================================
-# [v0415 rev15 / Wave D] E10 nested 구조체 화이트리스트
+# E10 nested 구조체 화이트리스트
 # ======================================================
 E10_NESTED_MAP = {
     "precision": {
@@ -85,10 +112,27 @@ E10_NESTED_MAP = {
     },
 }
 
-# [v0415 rev15 / 스키마 412] 삭제된 gesture 필드 (Negative check)
+# 삭제된 gesture 필드 (Negative check)
 GESTURE_REMOVED_H_FIELDS = ["gesture_flick_deg", "gesture_cooldown_ms"]
 
 
+# ======================================================
+# 유틸: 다중 파일 concat
+# ======================================================
+def _read_concat(paths):
+    """여러 파일을 개행으로 연결하여 하나의 문자열로 반환."""
+    parts = []
+    for p in paths:
+        if p.exists():
+            parts.append(p.read_text(encoding="utf-8"))
+        else:
+            print(f"[WARN] file not found: {p}", file=sys.stderr)
+    return "\n".join(parts)
+
+
+# ======================================================
+# C 구조체 필드 추출
+# ======================================================
 def extract_c_struct_fields(lines, struct_name):
     start = -1
     for i, line in enumerate(lines):
@@ -123,6 +167,9 @@ def extract_c_struct_fields(lines, struct_name):
     return fields
 
 
+# ======================================================
+# JS 필드 참조 추출 (e.power.X / pw.X 등)
+# ======================================================
 def extract_js_field_refs(text, section):
     pattern = re.compile(rf'\be\.{section}\.(\w+)')
     refs = set(pattern.findall(text))
@@ -171,6 +218,9 @@ def extract_offline_default_keys(text, section):
     return keys
 
 
+# ======================================================
+# 주석 제거
+# ======================================================
 def _strip_comments(line):
     idx = line.find('//')
     if idx >= 0:
@@ -252,7 +302,7 @@ def check_bundle_completeness(root):
 
 
 # ======================================================
-# [v0415 rev17] B20_HOST 상수 3자 정합 검증
+# [v0415 rev17] B20_HOST 상수 정합 검증
 # ======================================================
 def check_b20_host_constants(root):
     print(f"\n--- B20_HOST Constants (rev17) ---")
@@ -298,17 +348,15 @@ def check_b20_host_constants(root):
 
 
 # ======================================================
-# [v0415 Phase 3-D] E10 JSON 대칭성 검증
+# [Phase 3-D] E10 JSON 대칭성 검증
 # ------------------------------------------------------
-#  _buildE10Json ↔ _patchE10Json 필드 대칭성
-#  - 정규식으로 key 참조를 추출하여 좌우 비교
-#  - 완전 파싱이 아닌 "휴리스틱" → false positive 가능
+#  [v0415 rev18.1 / Phase 5-A] C10_Config_Json_0415.cpp에서 파싱
 # ======================================================
 def check_e10_json_parity(root):
     print(f"\n--- E10 JSON Parity (build ↔ patch) ---")
-    p = root / "C10_Config_0415.cpp"
+    p = root / "C10_Config_Json_0415.cpp"
     if not p.exists():
-        print(f"  [WARN] C10_Config_0415.cpp not found")
+        print(f"  [WARN] C10_Config_Json_0415.cpp not found: {p}")
         return True
 
     src = p.read_text(encoding="utf-8")
@@ -324,13 +372,7 @@ def check_e10_json_parity(root):
         print(f"  [WARN] build/patch 함수 파싱 실패")
         return True
 
-    # =====================================================
-    # [Phase 3-D fix] key 참조 패턴 (읽기/쓰기 공용)
-    # -----------------------------------------------------
-    #  - build: p_parent["key"] = ...   (쓰기 idiom)
-    #  - patch: p_v["key"].isNull()     (읽기 idiom)
-    #  - 대입 여부와 무관하게 `["key"]` 참조만 매칭
-    # =====================================================
+    # key 참조 패턴 (읽기/쓰기 공용)
     key_re = re.compile(r'\["([^"]+)"\]')
 
     build_keys = set(key_re.findall(m_build.group(1)))
@@ -350,8 +392,9 @@ def check_e10_json_parity(root):
         print(f"  [OK] E10 JSON 대칭성 확인 ({len(build_keys)} keys)")
     return ok
 
+
 # ======================================================
-# [v0415 Phase 3-D] KB 이름 테이블 정렬 검증
+# [Phase 3-D] KB 이름 테이블 정렬 검증
 # ======================================================
 def check_w10_kb_names_sorted(root):
     print(f"\n--- W10 KB Names (sorted) ---")
@@ -379,7 +422,7 @@ def check_w10_kb_names_sorted(root):
 
 
 # ======================================================
-# [v0415 Phase 3-D] 에러 코드 테이블 정렬 검증
+# [Phase 3-D] 에러 코드 테이블 정렬 검증
 # ======================================================
 def check_w10_err_map_sorted(root):
     print(f"\n--- W10 Err Map (sorted) ---")
@@ -406,9 +449,13 @@ def check_w10_err_map_sorted(root):
     return False
 
 
+# ======================================================
+# main
+# ======================================================
 def main():
     ok = True
 
+    # ---- 백엔드 H 필드 ----
     if not H_DEF.exists():
         print(f"[FAIL] file not found: {H_DEF}", file=sys.stderr)
         return 1
@@ -421,79 +468,73 @@ def main():
     print(f"  power:  {sorted(h_power)}")
     print(f"  button: {sorted(h_button)}")
 
-    if not JS_CONFIG.exists():
-        print(f"[FAIL] file not found: {JS_CONFIG}", file=sys.stderr)
+    # ---- 프론트 config 참조 (Phase 5-B: 3-모듈 concat) ----
+    cfg_text = _read_concat(JS_CONFIG_FILES)
+    if not cfg_text.strip():
+        print(f"[FAIL] no JS config text (all files missing?)", file=sys.stderr)
         return 1
-    cfg_text = JS_CONFIG.read_text(encoding="utf-8")
 
     js_power  = extract_js_field_refs(cfg_text, "power")
     js_button = extract_js_field_refs(cfg_text, "button")
 
     print(f"\n[check_schema] JS config refs: power={len(js_power)} button={len(js_button)}")
 
-    if not JS_OFFLINE.exists():
-        print(f"[FAIL] file not found: {JS_OFFLINE}", file=sys.stderr)
+    # ---- 오프라인 데이터 (Phase 5-B: am_offline_data) ----
+    if not JS_OFFLINE_DATA.exists():
+        print(f"[FAIL] file not found: {JS_OFFLINE_DATA}", file=sys.stderr)
         return 1
-    off_text = JS_OFFLINE.read_text(encoding="utf-8")
+    off_text = JS_OFFLINE_DATA.read_text(encoding="utf-8")
 
     off_power  = extract_offline_default_keys(off_text, "power")
     off_button = extract_offline_default_keys(off_text, "button")
 
     print(f"[check_schema] Offline defaults: power={len(off_power)} button={len(off_button)}")
 
+    # ---- H ↔ JS ----
     print(f"\n--- Power ---")
     _diff_and_report("H↔JS_config", h_power, js_power)
-    if h_power != js_power:
-        ok = False
+    if h_power != js_power: ok = False
 
     print(f"\n--- Button ---")
     _diff_and_report("H↔JS_config", h_button, js_button)
-    if h_button != js_button:
-        ok = False
+    if h_button != js_button: ok = False
 
     print(f"\n--- Power (H ↔ Offline) ---")
     _diff_and_report("H↔Offline", h_power, off_power)
-    if h_power != off_power:
-        ok = False
+    if h_power != off_power: ok = False
 
     print(f"\n--- Button (H ↔ Offline) ---")
     _diff_and_report("H↔Offline", h_button, off_button)
-    if h_button != off_button:
-        ok = False
+    if h_button != off_button: ok = False
 
-    if not check_wifi_mapping(h_lines, cfg_text, off_text):
-        ok = False
+    # ---- Wi-Fi / Gesture / E10 Nested (cfg_text concat 사용) ----
+    if not check_wifi_mapping(h_lines, cfg_text, off_text): ok = False
+    if not check_gesture_removed(h_lines, cfg_text, off_text): ok = False
+    if not check_e10_nested_mapping(h_lines, cfg_text, off_text): ok = False
 
-    if not check_gesture_removed(h_lines, cfg_text, off_text):
-        ok = False
-
-    if not check_e10_nested_mapping(h_lines, cfg_text, off_text):
-        ok = False
-
+    # ---- Wave C+D DOM IDs (cfg_text concat) ----
     HTML_INDEX = ROOT / "data_v0415_www" / "index_0415.html"
     if HTML_INDEX.exists():
         html_text = HTML_INDEX.read_text(encoding="utf-8")
-        if not check_wave_cd_dom_ids(html_text, cfg_text):
-            ok = False
+        if not check_wave_cd_dom_ids(html_text, cfg_text): ok = False
     else:
         print(f"\n[WARN] index_0415.html not found: {HTML_INDEX}")
 
-    if not check_bundle_completeness(ROOT):
-        ok = False
+    # ---- 번들 완전성 ----
+    if not check_bundle_completeness(ROOT): ok = False
 
-    if not check_b20_host_constants(ROOT):
-        ok = False
+    # ---- B20_HOST ----
+    if not check_b20_host_constants(ROOT): ok = False
 
-    # [Phase 3-D] 신규 검증
-    if not check_e10_json_parity(ROOT):
-        ok = False
-    if not check_w10_kb_names_sorted(ROOT):
-        ok = False
-    if not check_w10_err_map_sorted(ROOT):
-        ok = False
+    # ---- Phase 3-D 신규 ----
+    if not check_e10_json_parity(ROOT): ok = False
+    if not check_w10_kb_names_sorted(ROOT): ok = False
+    if not check_w10_err_map_sorted(ROOT): ok = False
 
     if ok:
-        print("\n[OK] schema field names match (H ↔ JS ↔ Offline) + Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids + E10 JSON parity + W10 tables sorted")
+        print("\n[OK] schema field names match (H ↔ JS ↔ Offline) "
+              "+ Wi-Fi + Gesture removal + E10 nested + Wave C/D DOM ids "
+              "+ E10 JSON parity + W10 tables sorted")
         return 0
     else:
         print("\n[FAIL] schema mismatch detected")
@@ -582,33 +623,27 @@ def check_gesture_removed(h_lines, js_config_text, off_text):
     h_hits = [f for f in GESTURE_REMOVED_H_FIELDS if f in h_text_code]
     if h_hits:
         print(f"  [FAIL] H에 gesture_* 필드 잔존 (스키마 412 위반):")
-        for f in h_hits:
-            print(f"    - {f}")
+        for f in h_hits: print(f"    - {f}")
         ok = False
     else:
         print(f"  [OK] H gesture_* 필드 없음")
 
     js_hits = []
-    if "e.gesture" in js_config_text:
-        js_hits.append("e.gesture")
-    if "cfg.e10.gesture" in js_config_text:
-        js_hits.append("cfg.e10.gesture")
+    if "e.gesture" in js_config_text: js_hits.append("e.gesture")
+    if "cfg.e10.gesture" in js_config_text: js_hits.append("cfg.e10.gesture")
     if js_hits:
         print(f"  [FAIL] JS config에 gesture 참조 잔존:")
-        for h in js_hits:
-            print(f"    - {h}")
+        for h in js_hits: print(f"    - {h}")
         ok = False
     else:
         print(f"  [OK] JS gesture 참조 없음")
 
     off_code = _strip_comments_multi(off_text)
     off_hits = []
-    if re.search(r'\bgesture\s*:', off_code):
-        off_hits.append("gesture:")
+    if re.search(r'\bgesture\s*:', off_code): off_hits.append("gesture:")
     if off_hits:
         print(f"  [FAIL] Offline에 gesture 블록 잔존:")
-        for h in off_hits:
-            print(f"    - {h}")
+        for h in off_hits: print(f"    - {h}")
         ok = False
     else:
         print(f"  [OK] Offline gesture 블록 없음")
