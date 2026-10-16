@@ -1,0 +1,177 @@
+# =====================================================================
+# .github/workflows/release_v2.3.yml
+# ---------------------------------------------------------------------
+# PlatformIO Release 자동 빌드 및 자산(Assets) 배포 파이프라인
+#  - 대상: AirMouse Elite S3 (v0412)
+#  - 지원 보드: platformio.ini 내 모든 env (기본: esp32-s3-zero)
+#  - 산출물:
+#      1. <env>_firmware_<tag>.bin (앱 펌웨어)
+#      2. <env>_littlefs_<tag>.bin (웹 UI 및 JSON 스키마/프로파일 파일시스템)
+#      3. <env>_bootloader_<tag>.bin (부트로더)
+#      4. <env>_partitions_<tag>.bin (파티션 테이블)
+#      5. <env>_flash_bundle_<tag>.zip (플래싱 바이너리 풀세트 + 플래시 안내문)
+#      6. Sources_<tag>.zip (Git 소스 클린 아카이브)
+# =====================================================================
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # GitHub Release 자산(Assets) 업로드 권한
+
+    env:
+      PLATFORMIO_BUILD_CACHE_DIR: /home/runner/.platformio/.cache
+      PLATFORMIO_CORE_DIR: /home/runner/.platformio
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---------------------------------------------------------------
+      # PlatformIO 의존 패키지, 툴체인 및 캐시 복원
+      # ---------------------------------------------------------------
+      - name: Cache PlatformIO & pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ~/.platformio/.cache
+            .pio/libdeps
+            .pio/cache
+          key: ${{ runner.os }}-pio-release-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-release-
+            ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO Core
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+
+      - name: Extract Release Tag and Environments
+        id: setup_env
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ -z "$TAG" ] || [ "$TAG" = "$GITHUB_REF" ]; then
+            TAG="latest"
+          fi
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          echo "Release Tag: $TAG"
+
+          # platformio.ini 에서 [env:...] 목록 추출
+          ENV_LIST=$(grep -oP '(?<=\[env:).*?(?=\])' platformio.ini | tr '\n' ',' | sed 's/,$//')
+          echo "ENV_LIST=$ENV_LIST" >> $GITHUB_ENV
+          echo "Available environments: $ENV_LIST"
+
+      - name: Prepare toDeploy directory
+        run: |
+          mkdir -p toDeploy
+
+      # ---------------------------------------------------------------
+      # 각 환경별 펌웨어 및 파일시스템 빌드 (Fail-Fast 적용)
+      # ---------------------------------------------------------------
+      - name: Build Firmware and Filesystem
+        shell: bash
+        run: |
+          set -e
+          IFS=',' read -r -a env_array <<< "${{ env.ENV_LIST }}"
+          TAG="${{ env.RELEASE_TAG }}"
+
+          for ENV in "${env_array[@]}"; do
+            echo "=========================================================="
+            echo ">>> Building firmware for: $ENV"
+            echo "=========================================================="
+            pio run -e "$ENV"
+
+            echo "=========================================================="
+            echo ">>> Building LittleFS filesystem for: $ENV"
+            echo "=========================================================="
+            pio run -e "$ENV" --target buildfs
+
+            BUILD_DIR=".pio/build/${ENV}"
+            BUNDLE_DIR="toDeploy/bundle_${ENV}"
+            mkdir -p "$BUNDLE_DIR"
+
+            # 1. 펌웨어 바이너리 복사
+            if [ -f "${BUILD_DIR}/firmware.bin" ]; then
+              cp "${BUILD_DIR}/firmware.bin" "toDeploy/${ENV}_firmware_${TAG}.bin"
+              cp "${BUILD_DIR}/firmware.bin" "${BUNDLE_DIR}/firmware.bin"
+            else
+              echo "::error::firmware.bin not found for ${ENV}"
+              exit 1
+            fi
+
+            # 2. LittleFS 바이너리 복사
+            if [ -f "${BUILD_DIR}/littlefs.bin" ]; then
+              cp "${BUILD_DIR}/littlefs.bin" "toDeploy/${ENV}_littlefs_${TAG}.bin"
+              cp "${BUILD_DIR}/littlefs.bin" "${BUNDLE_DIR}/littlefs.bin"
+            else
+              echo "::error::littlefs.bin not found for ${ENV}"
+              exit 1
+            fi
+
+            # 3. 부트로더 및 파티션 테이블 복사
+            [ -f "${BUILD_DIR}/bootloader.bin" ] && cp "${BUILD_DIR}/bootloader.bin" "toDeploy/${ENV}_bootloader_${TAG}.bin" && cp "${BUILD_DIR}/bootloader.bin" "${BUNDLE_DIR}/bootloader.bin"
+            [ -f "${BUILD_DIR}/partitions.bin" ] && cp "${BUILD_DIR}/partitions.bin" "toDeploy/${ENV}_partitions_${TAG}.bin" && cp "${BUILD_DIR}/partitions.bin" "${BUNDLE_DIR}/partitions.bin"
+
+            # 4. 플래시 안내 가이드(README) 생성 및 풀세트 번들 압축
+            cat << 'EOF' > "${BUNDLE_DIR}/FLASH_INSTRUCTIONS.txt"
+=====================================================================
+ESP32-S3 AirMouse Flash Guide
+=====================================================================
+esptool.py flash command example (4MB Flash):
+
+esptool.py --chip esp32s3 -p <PORT> -b 921600 \
+  --before default_reset --after hard_reset write_flash -z \
+  --flash_mode dio --flash_freq 80m --flash_size 4MB \
+  0x0000 bootloader.bin \
+  0x8000 partitions.bin \
+  0x10000 firmware.bin \
+  0x310000 littlefs.bin
+=====================================================================
+EOF
+
+            (cd toDeploy && zip -r "${ENV}_flash_bundle_${TAG}.zip" "bundle_${ENV}")
+            rm -rf "$BUNDLE_DIR"
+          done
+
+      # ---------------------------------------------------------------
+      # 클린 소스 코드 아카이브 생성 (git archive 기반)
+      # ---------------------------------------------------------------
+      - name: Package Clean Source Archive
+        shell: bash
+        run: |
+          TAG="${{ env.RELEASE_TAG }}"
+          echo "Packaging clean source code using git archive..."
+          git archive --format=zip --prefix="esp32_AirMouse_${TAG}/" HEAD -o "toDeploy/Sources_${TAG}.zip"
+
+      - name: Check toDeploy contents
+        run: |
+          echo "=== Release Assets to Upload ==="
+          ls -la toDeploy/
+
+      # ---------------------------------------------------------------
+      # GitHub Release에 자산(Assets) 등록
+      # ---------------------------------------------------------------
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: toDeploy/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

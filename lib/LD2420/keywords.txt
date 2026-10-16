@@ -1,0 +1,114 @@
+# Arduino keywords.txt 형식
+# TAB 구분 필수 (공백 금지)
+# KEYWORD1: 클래스명 (주황색)
+# KEYWORD2: 메서드 (파란색)
+# LITERAL1: 상수 (청록색)
+
+#######################################
+# Classes
+#######################################
+LD2420 KEYWORD1
+LD2420Async KEYWORD1
+LD2420Protocol KEYWORD1
+LD2420Calibration KEYWORD1
+
+#######################################
+# Data Structures
+#######################################
+LD2420GateConfig KEYWORD1
+LD2420TargetData KEYWORD1
+LD2420VersionInfo KEYWORD1
+LD2420CmdFrame KEYWORD1
+LD2420State KEYWORD1
+LD2420CmdState KEYWORD1
+LD2420CalState KEYWORD1
+LD2420Mode KEYWORD1
+
+#######################################
+# Initialization
+#######################################
+begin KEYWORD2
+end KEYWORD2
+
+#######################################
+# Data Access
+#######################################
+isReady KEYWORD2
+isPresent KEYWORD2
+getDistance KEYWORD2
+getGateEnergy KEYWORD2
+getLatestData KEYWORD2
+state KEYWORD2
+
+#######################################
+# Configuration
+#######################################
+requestGateThreshold KEYWORD2
+requestAllGateThresholds KEYWORD2
+requestMinMaxDistance KEYWORD2
+requestTimeout KEYWORD2
+requestMode KEYWORD2
+requestFirmwareVersion KEYWORD2
+requestRestart KEYWORD2
+requestConfigMode KEYWORD2
+
+#######################################
+# Presets
+#######################################
+requestDefaultThresholds KEYWORD2
+requestSensitiveThresholds KEYWORD2
+requestBalancedThresholds KEYWORD2
+
+#######################################
+# Calibration
+#######################################
+startCalibration KEYWORD2
+applyCalibration KEYWORD2
+cancelCalibration KEYWORD2
+calibrationProgress KEYWORD2
+calibrationState KEYWORD2
+calibrationNoiseFloor KEYWORD2
+
+#######################################
+# Callbacks
+#######################################
+onData KEYWORD2
+onEvent KEYWORD2
+
+#######################################
+# Utilities
+#######################################
+gateToMeters KEYWORD2
+metersToGate KEYWORD2
+
+#######################################
+# Constants
+#######################################
+LD2420_MAX_GATES LITERAL1
+LD2420_GATE_DISTANCE_M LITERAL1
+LD2420_CMD_ACK_TIMEOUT_MS LITERAL1
+LD2420_CMD_MAX_RETRIES LITERAL1
+LD2420_STARTUP_TIMEOUT_MS LITERAL1
+LD2420_CAL_INTERVAL_MS LITERAL1
+LD2420_CAL_SAMPLES LITERAL1
+
+#######################################
+# Enum values
+#######################################
+IDLE LITERAL1
+STARTUP LITERAL1
+LISTEN_SETTLE LITERAL1
+LISTEN LITERAL1
+RUN LITERAL1
+CONFIG LITERAL1
+CALIBRATE LITERAL1
+ERROR LITERAL1
+
+COLLECTING LITERAL1
+READY LITERAL1
+APPLIED LITERAL1
+FAILED LITERAL1
+
+SIMPLE LITERAL1
+ENERGY LITERAL1
+DEBUG LITERAL1

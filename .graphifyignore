@@ -1,0 +1,36 @@
+# =======================================================
+# .graphifyignore
+# Graphify Knowledge Graph Exclusion Rules
+# =======================================================
+
+# --- Old Firmware Versions (Active version is src/v0415) ---
+src/v001/
+src/v010/
+src/v030/
+src/v031/
+src/v032/
+src/v0400/
+src/v0410/
+src/v0412/
+
+# --- Backup Directories & Files ---
+src_backup/
+src/v032_backup/
+**/*_backup/
+**/*.bak
+**/*.old
+
+# --- Old Readme & Config Backups ---
+README_0320_002.md
+README_0410_001.md
+README_0410_002.md
+README_0412_001.md
+docs/README_History/
+platformio.ini.*
+
+# --- Build & Cache Artifacts ---
+.pio/
+.cache/
+compile_commands.json
+src/**/data_*/www/
+graphify-out/

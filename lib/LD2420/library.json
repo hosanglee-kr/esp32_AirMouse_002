@@ -1,0 +1,49 @@
+{
+  "name": "LD2420",
+  "version": "0.0.1",
+  "description": "HLK-LD2420 24GHz FMCW radar sensor library. Non-blocking, FreeRTOS-based, object-oriented with automatic calibration.",
+  "keywords": "ld2420, hlK, radar, mmwave, presence, sensor, esp32, freertos, fmcw, human-detection",
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "your.email@example.com",
+      "url": "https://github.com/yourname",
+      "maintainer": true
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/LD2420.git"
+  },
+  "homepage": "https://github.com/yourname/LD2420",
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": ["LD2420.h"],
+  "examples": [
+    "examples/01_BasicPresence/*.ino",
+    "examples/02_MaxGateLimit/*.ino",
+    "examples/03_ZoneDetection/*.ino",
+    "examples/04_TieredSensitivity/*.ino",
+    "examples/05_BathroomLightFan/*.ino",
+    "examples/06_CeilingFanFilter/*.ino",
+    "examples/07_AutoCalibration/*.ino",
+    "examples/08_ManualCalibration/*.ino",
+    "examples/09_FreeRTOS_MultiTask/*.ino",
+    "examples/10_AllFeatures_Demo/*.ino"
+  ],
+  "build": {
+    "libLDFMode": "deep+",
+    "flags": [
+      "-std=gnu++17",
+      "-Wall",
+      "-Wextra"
+    ],
+    "unflags": [
+      "-std=gnu++11"
+    ]
+  },
+  "dependencies": {
+    "espressif32": ">=5.0.0"
+  }
+}
