@@ -1,7 +1,8 @@
 # 🤖 Agent Guide & Project Instructions (agent.md)
 
-이 문서는 **esp32_AirMouse_002** 프로젝트를 분석, 설계, 구현, 리팩토링, 코드 리뷰 및 검증하는 AI 코딩 에이전트(Claude Code, Antigravity 등)와 개발자를 위한 **단일 진실 공급원(Single Source of Truth, SSOT)**이자 필수 행동 지침서입니다.
-프로젝트 작업을 시작하기 전 반드시 본 문서의 규칙과 아키텍처 원칙을 숙지하고 엄격히 준수해야 합니다.
+이 문서는 **esp32_AirMouse_002** 프로젝트를 분석, 설계, 구현, 리팩토링, 코드 리뷰 및 검증하는 모든 AI 코딩 에이전트(Claude Code, Antigravity, Cursor 등)와 개발자를 위한 **단일 진실 공급원(Single Source of Truth, SSOT)**이자 필수 행동 지침서입니다.
+
+AI 에이전트는 프로젝트 작업을 시작하기 전 본 문서의 규칙과 아키텍처 원칙을 숙지하고 예외 없이 엄격히 준수해야 합니다.
 
 ---
 
@@ -30,14 +31,18 @@
   - **저장소**: LittleFS (JSON 설정 원자적 5단계 트랜잭션 회전 저장)
 - **주요 핵심 기능**:
   - **3-Mode 프로파일**: Mode 1(PC AirMouse), Mode 2(Presentation/PPT), Mode 3(Smart TV)
-  - **BLE HID Composite**: NimBLE 기반 Mouse + Keyboard + Consumer Control 복합 디바이스
+  - **Multi-Host BLE HID Composite**:
+    - NimBLE 기반 Mouse + Keyboard + Consumer Control 복합 디바이스
+    - 최대 3대 호스트 페어링 슬롯 (`C10_DEF::HOSTS_MAX = 3`, `B20_HOST::BOND_MAX = 3`)
+    - Target-specific 연결 및 Reject-Until-Target 파이프라인
+    - Side C 버튼 및 Web REST API(`W10_WebApi_Hosts_0415.cpp`)를 통한 호스트 순환/전환
   - **3계층 제스처 엔진**: Flick(P2P), Linear(방향성 충격량), Tilt Hold(자세 유지)
   - **Front Hold 스크롤**: Side F 누른 상태에서 커서 감쇠 + 수직 휠 + 수평 팬
   - **Action Registry**: ~40종 사전 정의 액션 슬롯 매트릭스 자유 매핑
   - **Zero-rate Bias Tracking**: 정지 상태 실시간 자이로 바이어스 누적 흡수
   - **Two-Phase Commit 로거**: [D10_Logger_0415](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/src/v0415/D10_Logger_0415.h) 링버퍼 예약(`reserve`) 및 확정(`commit`)으로 멀티태스킹 로그 경합 제거
   - **전원 관리 (Light-sleep / Deep-sleep)**: 60초 미동작 시 절전, 버튼/모션 인터럽트 즉각 복귀
-  - **비동기 웹 UI 커스터마이징**: AP Fallback 및 웹 브라우저 기반 실시간 설정/프로파일/진단 제어
+  - **비동기 웹 UI 커스터마이징**: AP Fallback 및 웹 브라우저 기반 실시간 설정/프로파일/호스트/진단 제어
 
 ---
 
@@ -45,59 +50,65 @@
 
 > [!IMPORTANT]
 > **현재 활성(Active) 릴리스 버전은 `v0415` 입니다.**
-> 모든 신규 기능 구현, 버그 수정, 설정 관리는 `src/v0415/` 디렉터리 내의 파일들을 대상으로 해야 합니다. (레거시 `v001` ~ `v0410` 폴더는 참조용이며 빌드에서 제외됨)
+> 모든 신규 기능 구현, 버그 수정, 설정 관리는 `src/v0415/` 디렉터리 내의 파일들을 대상으로 해야 합니다. (레거시 `v001` ~ `v0412` 및 백업 폴더는 `.graphifyignore` 및 빌드 필터에 의해 제외됨)
 
 ```text
 esp32_AirMouse_002/
-├── platformio.ini           # PlatformIO 빌드 환경 설정 (default_envs: esp32-s3-zero)
-├── default_4MB.csv          # 4MB Flash 파티션 테이블
-├── agent.md                 # [본 파일] AI 에이전트 지침서 (Single Source of Truth)
-├── CLAUDE.md                # Claude Code용 참조 포인터 (agent.md 위임)
-├── README.md                # 전체 프로젝트 사양 및 설명서
+├── platformio.ini                   # PlatformIO 빌드 환경 설정 (default_envs: esp32-s3-zero)
+├── default_4MB.csv                  # 4MB Flash 파티션 테이블
+├── agent.md                         # [본 파일] AI 에이전트 지침서 (Single Source of Truth)
+├── CLAUDE.md                        # Claude Code용 최우선 참조 포인터 (agent.md 위임)
+├── .graphifyignore                  # 지식 그래프 제외 규칙 (구버전 및 백업 폴더 배제)
+├── README.md                        # 전체 프로젝트 사양 및 설명서
 ├── src/
-│   ├── main.cpp             # 펌웨어 진입점, W10-E10 브릿지 콜백, RTOS 스케줄러 시작
-│   └── v0415/               # [★ 최신 활성 코드베이스]
-│       ├── HW_Def_0415.h                # [HW SSOT] GPIO 핀 정의 및 EXT1 웨이크업 마스크
-│       ├── A40_ComFunc_0415.h           # 공용 유틸리티, JSON/LittleFS/Mutex 헬퍼
-│       ├── B20_Ble_0415.h / .cpp        # NimBLE 기반 HID Composite 제어기
-│       ├── C10_Def_0415.h               # 설정 데이터 구조체 (ST_C10_Config_t 등)
-│       ├── C10_Config_0415.h / .cpp     # LittleFS 원자적 JSON 저장/로드/백업 회전
-│       ├── C20_Action_0415.h            # 액션 ID, 레지스트리, 버튼 슬롯 정의
-│       ├── C20_ActionExec_0415.h / .cpp # 액션 실행기 (HID 커맨드 생성)
-│       ├── C20_BtnDispatcher_0415.h/.cpp# 물리 버튼 상태 디바운싱 및 슬롯 디스패치
-│       ├── D10_Logger_0415.h / .cpp     # Two-Phase Commit 기반 고속 링버퍼 로거
-│       ├── E10_Def_0415.h               # 에어마우스 상태/큐/모드 상수 정의
-│       ├── E10_AirMouse_0415.h          # 에어마우스 메인 클래스 선언
+│   ├── main.cpp                     # 펌웨어 진입점, W10-E10 브릿지 콜백, RTOS 스케줄러 시작
+│   └── v0415/                       # [★ 최신 활성 코드베이스]
+│       ├── HW_Def_0415.h            # [HW SSOT] GPIO 핀 정의 및 EXT1 웨이크업 마스크
+│       ├── A40_ComFunc_0415.h       # 공용 유틸리티, JSON/LittleFS/Mutex 헬퍼
+│       ├── B20_Ble_0415.h / .cpp    # NimBLE 기반 HID Composite 및 Multi-Host 제어기
+│       ├── C10_Def_0415.h           # 설정 데이터 구조체 (ST_C10_Config_t 등)
+│       ├── C10_Config_0415.h / .cpp # LittleFS 원자적 JSON 저장/로드/백업 회전 메인
+│       ├── C10_Config_Json_0415.cpp # JSON 역직렬화 및 직렬화 파티션 구현체
+│       ├── C10_Config_Valid_0415.cpp# 설정 유효성 검증 및 기본값 정규화 구현체
+│       ├── C20_Action_0415.h        # 액션 ID, 레지스트리, 버튼 슬롯 정의
+│       ├── C20_ActionExec_0415.h/.cpp # 액션 실행기 (HID 커맨드 생성)
+│       ├── C20_BtnDispatcher_0415.h/.cpp # 물리 버튼 상태 디바운싱 및 슬롯 디스패치
+│       ├── D10_Logger_0415.h / .cpp # Two-Phase Commit 기반 고속 링버퍼 로거
+│       ├── E10_Def_0415.h           # 에어마우스 상태/큐/모드 상수 정의
+│       ├── E10_AirMouse_0415.h      # 에어마우스 메인 클래스 선언
 │       ├── E10_AirMouse_Core_0415.cpp   # 초기화, FSM 생명주기 관리
 │       ├── E10_AirMouse_Hid_0415.cpp    # BLE HID 큐 소비 및 전송
 │       ├── E10_AirMouse_Motion_0415.cpp # IMU 읽기, 필터링 및 좌표 계산 파이프라인
 │       ├── E10_AirMouse_Diag_0415.cpp   # 진단, 바이어스 캘리브레이션
 │       ├── E10_AirMouse_Task_0415.cpp   # RTOS 태스크 진입점 및 스케줄링
 │       ├── E10_AirMouse_Action_0415.cpp # Special 액션 실행기 (모드 전환, 리셋 등)
-│       ├── L10_Led_0415.h / .cpp        # WS2812 NeoPixel 비동기 제어기
-│       ├── M10_MotionProc_0415.h        # 자이로 필터링 및 가속 곡선 엔진
-│       ├── M20_BiasTracker_0415.h       # 실시간 제로 레이트 바이어스 추적기
-│       ├── M30_Gesture_0415.h / .cpp    # 3계층 제스처 인식 엔진
-│       ├── P20_Power_0415.h / .cpp      # Light-sleep, Deep-sleep, WoM 전원 관리자
-│       ├── W10_Def_0415.h               # 웹 서버 데이터 구조체 및 상수
-│       ├── W10_Web_0415.h               # AsyncWebServer 관리자 클래스 선언
-│       ├── W10_Web_init_0415.cpp        # WiFi AP/STA 및 비동기 웹 서버 초기화
-│       ├── W10_Web_Static_0415.cpp      # Gzip 정적 웹 파일 라우팅
-│       ├── W10_WebApi_Com_0415.cpp      # 일반 REST API 라우트
-│       ├── W10_WebApi_Config_0415.cpp   # 설정 조회 및 변경 REST API
-│       ├── W10_WebApi_CtlPpt_0415.cpp   # PPT/프레젠테이션 제어 API
-│       ├── W10_WebApi_OtaBoot_0415.cpp  # OTA 펌웨어 업데이트 및 재부팅 API
-│       ├── W10_WebApi_Profile_0415.cpp  # 3-Mode 프로파일 전환 API
-│       ├── W10_WebApi_Status_0415.cpp   # 실시간 텔레메트리/센서 상태 API
-│       ├── data_v0415/                  # LittleFS에 플래시될 최종 파일 (index_0415.html.gz 등)
-│       ├── data_v0415_www/              # 웹 UI 원본 소스 (HTML/CSS/JS/i18n)
-│       ├── docs_v0415/                  # 기술 사양서 및 검증 스크립트
-│       │   ├── contract_doc/            # [5대 지속 산출물] CONTRACT, STATE, FLOW, BUDGET, SPEC
-│       │   ├── Req_ImplPlan/            # 요구사항 정의서 & 구현 계획서
-│       │   ├── SPEC_Manual/             # 00.SPEC_0415_001.md, 00.UserManual_0415_001.md
-│       │   ├── check_i18n_0415.py       # 다국어 리소스 무결성 검증기
-│       │   └── check_schema_0415.py     # 설정 JSON 스키마 검증기
-│       └── tools_v0415/                 # 빌드 보조 도구 (pio_gzip_0415.py)
+│       ├── L10_Led_0415.h / .cpp    # WS2812 NeoPixel 비동기 제어기
+│       ├── M10_MotionProc_0415.h    # 자이로 필터링 및 가속 곡선 엔진
+│       ├── M20_BiasTracker_0415.h   # 실시간 제로 레이트 바이어스 추적기
+│       ├── M30_Gesture_0415.h / .cpp# 3계층 제스처 인식 엔진
+│       ├── P20_Power_0415.h / .cpp  # Light-sleep, Deep-sleep, WoM 전원 관리자
+│       ├── W10_Def_0415.h           # 웹 서버 데이터 구조체 및 상수
+│       ├── W10_Web_0415.h           # AsyncWebServer 관리자 클래스 선언
+│       ├── W10_Web_init_0415.cpp    # WiFi AP/STA 및 비동기 웹 서버 초기화
+│       ├── W10_Web_Static_0415.cpp  # Gzip 정적 웹 파일 라우팅
+│       ├── W10_WebApi_Com_0415.cpp  # 일반 REST API 라우트
+│       ├── W10_WebApi_Config_0415.cpp # 설정 조회 및 변경 REST API
+│       ├── W10_WebApi_CtlPpt_0415.cpp # PPT/프레젠테이션 제어 API
+│       ├── W10_WebApi_Hosts_0415.cpp# Multi-Host 페어링/전환 REST API
+│       ├── W10_WebApi_OtaBoot_0415.cpp # OTA 펌웨어 업데이트 및 재부팅 API
+│       ├── W10_WebApi_Profile_0415.cpp # 3-Mode 프로파일 전환 API
+│       ├── W10_WebApi_Status_0415.cpp  # 실시간 텔레메트리/센서 상태 API
+│       ├── data_v0415/              # LittleFS 대상 (json/ 및 gzip 번들 산출물 www/)
+│       ├── data_v0415_www/          # 웹 UI 원본 소스 (HTML/CSS/JS/i18n)
+│       ├── docs_v0415/              # 기술 사양서 및 산출물
+│       │   ├── contract_doc/        # [5대 지속 산출물] CONTRACT, STATE, FLOW, BUDGET, SPEC
+│       │   │                        # UI_TERMINOLOGY_GUIDELINES_0415.md
+│       │   ├── User_Manual/         # 00.UserManual_0415_r017.md (최신 매뉴얼)
+│       │   └── Req_ImplPlan/        # 요구사항 정의서 & 구현 계획서 이력
+│       └── tools_v0415/             # 빌드 및 검증 자동화 도구
+│           ├── pio_gzip_0415.py     # SCons extra_scripts: 웹 에셋 압축 및 www/ 스테이징
+│           ├── check_i18n_0415.py   # 다국어(i18n KO/EN) 리소스 1:1 무결성 검증기
+│           └── check_schema_0415.py # 백엔드 C 구조체 ↔ 프론트엔드 JSON 스키마 검증기
 ```
 
 ---
@@ -109,11 +120,12 @@ esp32_AirMouse_002/
   ```powershell
   pio run -e esp32-s3-zero
   ```
-- **펌웨어 업로드**:
+- **펌웨어 플래시 업로드**:
   ```powershell
   pio run -e esp32-s3-zero -t upload
   ```
-- **LittleFS 파일시스템 빌드 및 업로드**:
+- **LittleFS 파일시스템 빌드 및 플래시 업로드**:
+  *(참고: `buildfs` 실행 시 `pio_gzip_0415.py`가 사전 실행되어 웹 에셋이 자동 Gzip 압축 및 스테이징됩니다)*
   ```powershell
   pio run -e esp32-s3-zero -t buildfs
   pio run -e esp32-s3-zero -t uploadfs
@@ -127,25 +139,22 @@ esp32_AirMouse_002/
   pio device monitor -b 115200
   ```
 
-### 🌐 웹 에셋 및 스키마 검증 스크립트
-- **웹 리소스 Gzip 압축 및 스테이징**:
+### 🌐 정합성 무결성 검증 스크립트 (Pre-Commit Gate)
+코드나 설정을 수정한 후에는 반드시 아래 검증 스크립트가 성공(`[OK]`)하는지 확인해야 합니다:
+- **다국어(i18n) 키 1:1 매칭 검증**:
   ```powershell
-  python src/v0415/tools_v0415/pio_gzip_0415.py
+  python src/v0415/tools_v0415/check_i18n_0415.py
   ```
-- **다국어(i18n) 정합성 검증**:
+- **백엔드 구조체 ↔ 프론트엔드 설정 스키마 정합성 검증**:
   ```powershell
-  python src/v0415/docs_v0415/check_i18n_0415.py
-  ```
-- **설정 스키마(schema) 정합성 검증**:
-  ```powershell
-  python src/v0415/docs_v0415/check_schema_0415.py
+  python src/v0415/tools_v0415/check_schema_0415.py
   ```
 
 ### 🧠 지식 그래프 (Graphify) 기반 탐색 원칙 (Strict Invariant)
 
 > [!CAUTION]
 > **전체 소스/문서 직접 열람 및 무차별 Grep 절대 금지 (Graph-First Rule)**:
-> AI 에이전트는 코드 분석, 수정, 버그 추적, 리팩토링, 미사용 코드 점검 등 **모든 작업 시 소스 코드(`.h`, `.cpp`)나 문서(`.md`, `.json`)를 직접 열거나(`view_file`) 무차별 검색(`grep_search`)을 먼저 수행하는 것을 엄격히 금지**합니다.
+> AI 에이전트는 코드 분석, 기능 구현, 버그 추적, 리팩토링, 미사용 코드 점검 등 **모든 작업 시 소스 코드(`.h`, `.cpp`)나 문서(`.md`, `.json`)를 직접 열거나(`view_file`) 무차별 검색(`grep_search`)을 먼저 수행하는 것을 엄격히 금지**합니다.
 
 #### 📌 2단계 필수 탐색 프로토콜 (Two-Step Navigation Protocol)
 1. **[1단계] Graphify 선행 질의 (Mandatory First Step)**:
@@ -158,7 +167,7 @@ esp32_AirMouse_002/
    - 전체 파일을 한 번에 크게 열거나, 목적 없이 파일들을 순차 열람하는 행위는 금지됩니다.
 
 #### 🔄 지식 그래프 갱신
-코드나 설계를 변경한 후에는 지식 그래프 최신화를 위해 반드시 다음 명령어를 실행합니다 (AST 전용, API 비용 없음):
+코드나 설계를 변경한 후에는 지식 그래프 최신화를 위해 반드시 다음 명령어를 실행합니다 (AST 전용, LLM API 비용 없음):
 ```powershell
 graphify update .
 ```
@@ -247,6 +256,9 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
   4. [BUDGET_0415.md](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/src/v0415/docs_v0415/contract_doc/BUDGET_0415.md): FreeRTOS 태스크 주기(8ms/7ms/50ms), Worst-case 실행 시간, 블로킹 금지 규칙
   5. [SPEC_0415.md](file:///d:/95.2540_PJT/80.Platformio_PJTs/esp32_AirMouse_002/src/v0415/docs_v0415/contract_doc/SPEC_0415.md): 요구사항 ID ↔ 구현 소스 추적성 매트릭스
 
+> [!TIP]
+> **계약 문서 열람 시 Graph-First 준수**: 계약 문서 역시 지식 그래프에 인덱싱되어 있습니다. 수천 라인의 계약 문서를 직접 통째로 열지 말고, `graphify query "<검토대상 키워드 또는 FSM>"`을 먼저 실행하여 해당 조항과 라인 번호를 특정한 뒤 정밀 열람하십시오.
+
 ### ⚡ 필수 검토 및 준수 6대 원칙 (Invariants)
 1. **[CONTRACT] 4대 절대 금지 규칙 준수**:
    - Web Task의 HID 직접 접근 금지, Special 액션 Context 격리, LED tick 단독 실행, 큐 non-blocking (timeout=0).
@@ -305,8 +317,11 @@ ESP32-S3의 듀얼 코어를 극대화하기 위해 다음과 같은 태스크 �
 
 | 항목 | 대상 모듈 | 정리 및 현행화 내용 | 상태 |
 |---|---|---|:---:|
-| **디렉터리 및 소스** | `src/v0415/` | `v0415` 버전 업그레이드 및 41개 소스/헤더/스크립트 심볼, 인클루드, HW SSOT 전수 현행화 | ✅ 완료 |
-| **빌드 환경** | `platformio.ini`, `main.cpp` | `data_dir = ./src/v0415/data_v0415`, `src_filter = +<v0415/> -<v0410/>`, `extra_scripts` 및 `main.cpp` 최신 연동 | ✅ 완료 |
+| **디렉터리 및 소스** | `src/v0415/` | `v0415` 버전 업그레이드 및 43개 소스/헤더/스크립트 심볼, 인클루드, HW SSOT 전수 현행화 | ✅ 완료 |
+| **Multi-Host BLE** | `B20_Ble_0415`, `W10_WebApi_Hosts` | 최대 3대 호스트 페어링, Target-specific Reject-Until-Target 연결 및 호스트 순환 API 연동 | ✅ 완료 |
+| **빌드 환경** | `platformio.ini`, `main.cpp` | `data_dir = ./src/v0415/data_v0415`, `src_filter = +<v0415/> -<v0412/>`, `extra_scripts` 및 `main.cpp` 최신 연동 | ✅ 완료 |
 | **Web UI & 번들** | `data_v0415_www/`, `data_v0415/` | HTML/CSS/JS 및 manifest/schema v0415 동기화, Gzip 사전 스테이징 검증 완료 | ✅ 완료 |
-| **계약 산출물** | `docs_v0415/contract_doc/` | 5대 문서(CONTRACT, STATE, FLOW, BUDGET, SPEC) 최신 하드닝 및 Mermaid 14개 다이어그램 렌더링 무결성 전수 현행화 | ✅ 완료 |
-| **검증 & 빌드** | PlatformIO / Graphify | `pio run -e esp32-s3-zero` 빌드 성공 (RAM 33.2%, Flash 46.2%), 지식 그래프 갱신 완료 | ✅ 완료 |
+| **계약 산출물** | `docs_v0415/contract_doc/` | 5대 문서(CONTRACT, STATE, FLOW, BUDGET, SPEC) 및 용어 가이드라인 최신화, Mermaid 무결성 전수 현행화 | ✅ 완료 |
+| **정합성 스크립트** | `tools_v0415/` | `check_i18n_0415.py` (501개 키 일치), `check_schema_0415.py` (전수 일치) 무결성 통과 | ✅ 완료 |
+| **지식 그래프** | `.graphifyignore`, `graphify` | 구버전/백업 노드 17,386개 제외 완료, 3,027 노드 정밀 인덱싱 및 Graph-First 탐색 불변 규칙 수립 | ✅ 완료 |
+| **검증 & 빌드** | PlatformIO | `pio run -e esp32-s3-zero` 빌드 성공 (RAM 33.2%, Flash 46.2%) | ✅ 완료 |
