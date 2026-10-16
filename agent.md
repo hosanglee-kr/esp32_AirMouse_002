@@ -141,11 +141,28 @@ esp32_AirMouse_002/
   python src/v0415/docs_v0415/check_schema_0415.py
   ```
 
-### 🧠 지식 그래프 (Graphify) 갱신
-코드나 설계를 변경한 후에는 지식 그래프 최신화를 위해 반드시 다음 명령어를 실행합니다:
+### 🧠 지식 그래프 (Graphify) 기반 탐색 원칙 (Strict Invariant)
+
+> [!CAUTION]
+> **전체 소스/문서 직접 열람 및 무차별 Grep 절대 금지 (Graph-First Rule)**:
+> AI 에이전트는 코드 분석, 수정, 버그 추적, 리팩토링, 미사용 코드 점검 등 **모든 작업 시 소스 코드(`.h`, `.cpp`)나 문서(`.md`, `.json`)를 직접 열거나(`view_file`) 무차별 검색(`grep_search`)을 먼저 수행하는 것을 엄격히 금지**합니다.
+
+#### 📌 2단계 필수 탐색 프로토콜 (Two-Step Navigation Protocol)
+1. **[1단계] Graphify 선행 질의 (Mandatory First Step)**:
+   - 작업 시작 전 반드시 아래 명령어로 지식 그래프(`graphify-out/graph.json`)를 먼저 질의하여 대상 심볼, 호출 관계, 소속 커뮤니티, 정확한 파일 경로 및 라인 번호를 파악해야 합니다:
+     - `graphify query "<목적/질문/심볼>"`: 관련 노드, 커뮤니티, 정확한 파일 경로(`src=...`) 및 라인(`loc=...`) 조회 (CLI `--budget` 조절 가능)
+     - `graphify path "<출발노드>" "<도착노드>"`: 두 심볼/모듈 간 호출 관계 및 최단 의존 경로 추적
+     - `graphify explain "<심볼/함수/클래스명>"`: 특정 심볼의 상세 명세 및 연결 노드 확인
+2. **[2단계] 타겟 라인 정밀 열람 (Pinpoint View)**:
+   - 1단계 Graphify 질의 결과로 확인된 **정확한 파일과 필요한 최소 라인 범위(`StartLine`, `EndLine`)에 한해서만** `view_file`을 실행합니다.
+   - 전체 파일을 한 번에 크게 열거나, 목적 없이 파일들을 순차 열람하는 행위는 금지됩니다.
+
+#### 🔄 지식 그래프 갱신
+코드나 설계를 변경한 후에는 지식 그래프 최신화를 위해 반드시 다음 명령어를 실행합니다 (AST 전용, API 비용 없음):
 ```powershell
 graphify update .
 ```
+*(참고: `graphify --help` 명령은 절대 실행하지 않으며 문법은 정적 가이드를 참조합니다.)*
 
 ---
 
