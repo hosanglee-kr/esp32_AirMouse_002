@@ -54,7 +54,6 @@ async function refreshStatus() {
       `#${cfg.profile_idx ?? "-"} ${cfg.profile_name ?? ""} / 총 ${cfg.profile_count ?? "-"}개`;
   }
 
-  setPill(qs("pillBle"), `BLE: ${e10.ble_connected ? "ON" : "OFF"}`, !!e10.ble_connected);
   setPill(qs("pillSafe"), `SAFE: ${boot.safe_mode ? "ON" : "OFF"}`, !!boot.safe_mode);
 
   // 상단 통합 알약
@@ -337,18 +336,6 @@ async function diagClear() {
    - bindQuickTuning(app_0415_0001.js)이 직접 /api/control 호출
 */
 
-/* =======================================================
-   [N-8] Host Cycle
-   ======================================================= */
-async function ctlHostCycle() {
-  if (!confirm(t("pop.host_cycle_confirm"))) return;
-
-  const u = unwrapApi(await apiPostJson("/api/action/test", {
-    k: 9, h: 0, p16: 5, p32: 0
-  }));
-  if (!u.ok) alert(`${t("pop.host_cycle_fail")} ${u.msg || u.code}`);
-  else setMsg(t("pop.host_cycle_ok"), true);
-}
 
 /* =======================================================
    [N-18] I2C 복구
@@ -727,21 +714,3 @@ function bindTroubleshoot() {
   });
 }
 
-/* =======================================================
-   Online / Offline 모드 전환
-   ======================================================= */
-function toggleAppMode() {
-  const targetMode = (g_appMode === APP_MODE_ONLINE) ? APP_MODE_OFFLINE : APP_MODE_ONLINE;
-  if (!confirm(t("pop.net_mode_switch_confirm", { current: g_appMode, target: targetMode }))) return;
-
-  setAppMode(targetMode);
-  setMsg(t("pop.mode_switch_ok", { tgt: g_appMode }), true);
-
-  profileReloadAll().then(() => {
-    renderSlotEditor();
-    macroRenderList();
-    macroRenderEditor();
-    cfgLoad();
-    refreshStatus();
-  });
-}

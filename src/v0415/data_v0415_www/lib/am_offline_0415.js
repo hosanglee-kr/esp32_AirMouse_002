@@ -398,8 +398,9 @@ function handleOfflineApi(url, method, body) {
       resObj.data = { reset: true, offline: true };
     }
   }
-  else if (path === "/api/reboot/check") {
-    resObj.data = { required: false, mask: 0, reasons: "", allowed: false, deny_code: "no_reboot_needed" };
+  else if (path === "/api/ota" || path === "/api/ota/status") {
+    resObj.data = { status: "idle", progress: 0, ota_guard: true, offline: true };
+    resObj.msg = "OTA simulated mode";
   }
   else {
     resObj.msg = "Offline stub response";

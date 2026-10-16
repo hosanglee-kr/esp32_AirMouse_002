@@ -226,13 +226,6 @@ function bindUi() {
     });
   });
   
-  qs("btnProfReload")?.addEventListener("click", async () => {
-    await profileReloadAll();
-    renderSlotEditor();
-    macroRenderList();
-    macroRenderEditor();
-    await cfgLoad();
-  });
   qs("btnProfCreate")?.addEventListener("click", profileCreate);
   qs("btnProfDelete")?.addEventListener("click", profileDelete);
   qs("btnProfRename")?.addEventListener("click", profileRename);
