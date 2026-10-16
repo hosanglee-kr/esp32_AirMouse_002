@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/STATE_0415.md`
-> 최종 갱신: 2026-10-14 (rev16 — Multi-Host Reject-Until-Target FSM 및 _reqHostOp 위임 소유권 명세)
+> 최종 갱신: 2026-10-16 (rev18.1 — Phase 5: C10 3-TU 분할에 따른 상태 소유권 보존 및 410 마이그레이션 상태 제거)
 
 ---
 
@@ -77,7 +77,7 @@
 - **정책 변경**: `_macroState` → `_lock()` 하 원자적 갱신 (v0412는 부분 volatile)
 - **L10 thread-safety**: Recursive Mutex (v0412는 무보호)
 - **`_fsm` 판정**: `_isPptMode` → `_activeMode == 2` (v0415 `_fsmUpdate(gyroAbs)` 단일 param)
-- **마이그레이션 정책**: v410→v411 로드 시 POWER→KB_POWER(0x66), TV_INPUT→WWW_SEARCH, 미지원 코드 NONE 치환 및 validate 통과 즉시 `saveProfile()` Eager Persist
+- **스키마 및 로드 정책**: 스키마 412 전면 적용. 레거시 410 마이그레이션 함수 3종 완전 삭제 및 `makeDefaultsProfile()` + `patchProfileFromJson()` + `validateProfile()` 2단계 순수 파이프라인 정착 (Phase 5).
 
 ---
 
@@ -327,3 +327,4 @@ Web 태스크가 sensorTask/commTask 소유 상태를 직접 조작하지 않고
 | **rev15** | **2026-10-12** | **스키마 412 gesture 삭제 + Wi-Fi UI 저장 소유권**: §1 매트릭스에서 `_gestureFlickDeg`/`_gestureCooldownMs` 삭제 → `flick.p2p_th`/`flick.cooldown_ms` 단독 소유 명시. `cfgSave()` patch 확장(`{e10, wifi}`)에 따른 W10 `_wifi` 로컬 캐시 갱신 소유권 (§2.13 하위) 반영. |
 | **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target FSM 및 _reqHostOp 위임 소유권 명세**: §1 매트릭스에 `_reqHostOp`, `_advMode`, `_targetPeerIdx`, `_advModeStartMs`, `last_host_addr`, `hosts_0415.json` 소유권 추가. §2.11 Multi-Host FSM(IDLE/CYCLE/TARGET) 신설. §3 위임 패턴에 `_reqHostOp` 등록. |
 | **rev18** | **2026-10-15** | **Phase 1·2·3·4 소유권 반영**: §1 매트릭스에 `_diag` 그룹화 (8개 카운터 통합), `_commPrevConn` / `_commReleasedOnSafe` / `_connEdgePrev` (comm/sensor 상태 멤버 승격), `s_corruptCount` (D10 관측) 추가. |
+| **rev18.1** | **2026-10-16** | **Phase 5 소유권 반영**: C10 3-TU 분할(`C10_Config_0415.cpp`, `Json`, `Valid`)에 걸쳐 `CL_C10_Config` 멤버 변수(`_boot`, `_index`, `_bootMutex`, `_dirsEnsured`) 독점 소유권 유지 및 구버전 마이그레이션 과도 상태 제거 명시. |

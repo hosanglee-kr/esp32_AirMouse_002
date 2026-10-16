@@ -2,7 +2,7 @@
 
 > 대상 버전: `v0415` (ESP32-S3-Zero + MPU6050 AirMouse)  
 > 위치: `src/v0415/docs_v0415/contract_doc/CONTRACT_0415.md`  
-> 최종 갱신: 2026-10-14 (rev16 — Multi-Host Option A: Reject-Until-Target 통합 계약 §2.21, 비동기 위임 플래그 `_reqHostOp`, B20 BLE 엔진 경계, C10 `hosts_0415.json` 3-tier 저장 및 Boot State `last_host_addr` 계약 확립)
+> 최종 갱신: 2026-10-16 (rev18.1 — Phase 5: C10 3-TU 분할, 레거시 마이그레이션 함수 정리, 프론트엔드 14-모듈 번들링 계약 확립)
 
 ---
 
@@ -56,6 +56,16 @@
 | `_saveIndex()` (C10) | `C10` only | 논블로킹 파일 I/O | `index.json` 원자적 회전 저장 (`main->old`, `tmp->main`, 롤백) | 실패 시 롤백 후 false |
 | `_saveBootState()` (C10) | `C10` only | 논블로킹 파일 I/O (`_bootMutex` 하 스냅샷) | `boot.json` 원자적 회전 저장 (`main->old`, `tmp->main`, 롤백) | 실패 시 롤백 후 false |
 | `CL_D10_Logger::log()` | `any` | Non-blocking (Two-Phase Locking) | Phase 1 critical 인덱스 할당 + Phase 2 슬롯 복사 + Serial 출력 | 인덱스 wrap 시 overwrite 카운터 증가 |
+| `_abortMacroLocked()` | `sensorTask`, `commTask`, `webTask` | `_lock()` 하 호출 필수 | `_macroAbortToken++`, `_macroState.active = false` (매크로 취소 SSOT 헬퍼) | 원자적 중단 |
+| `_bootPriorityReconnect()` | `sensorTask` only | `sensorTask` 진입 시 1회 | 부팅 시 `last_host_addr` 10초 우선 재연결 시도 | 미존재/실패 시 IDLE 유지 |
+| `_consumeHostOp()` | `sensorTask` only | 매 틱 루프 진입부 | Web API 비동기 호스트 전환 요청 소비 (`_reqHostOp` 클리어 및 B20 호출) | LWW 위임 소비 |
+| `_handlePowerManagement(now)` | `sensorTask` only | 매 틱 모션 처리 직후 | 정지 시간 판정, LED suspend, Light/Deep Sleep 진입 및 복귀 후 Fast Recalib | 순서 고정 |
+| `_consumeResetAndAsyncFlags()` | `sensorTask` only | 매 틱 루프 시작부 | `_reqResetBtnDisp`, `_reqResetGesture`, `_reqGyroCalib`, `_reqI2CRecover` 일괄 소비 | 위임 플래그 원자적 소비 |
+| `_notifyConnectionEdge(conn)` | `sensorTask` only | BLE 연결 상태 변화 시 | 연결 감지 시 `_dirty` 클리어, `last_host_addr` 갱신, 슬립 방지, LED 점등 연동 | – |
+| `_handleCommDisconnectEdge()` | `commTask` only | BLE 연결 해제 감지 시 | `_abortMacroLocked()`, HID stuck 방지 강제 release (`_doReleaseAllButtons`) | – |
+| `_handleCommGate()` | `commTask` only | SafeMode/OTA Guard 진입 시 | Safe/OTA 활성 중 1회성 release 및 큐 드레인 (`_drainAllQueuesOnGate`) | stuck 차단 |
+| `_drainAllQueuesOnGate()` | `commTask` only | Gate 진입 시 | `_qActionExec`, `_qHidCmd` 잔여 항목 완전 드레인 | – |
+
 
 
 ### 2.1 하드웨어 핀 및 Wake Mask SSOT 계약 (`HW_Def_0415.h`)
@@ -74,16 +84,18 @@
 - `BTN_PINS[]` 순서는 `EN_C20_BtnId_t` 순서와 1:1 유지. `C20_BtnDispatcher::G_PINS`는 본 배열을 참조해야 한다.
 - **`buildWakeMaskAll()` alias 삭제** (R-2 LC-F). 사용처 없음 확인.
 
-### 2.2 Consumer Mask Descriptor SSOT 및 마이그레이션 계약 (v0415)
+### 2.2 Consumer Mask Descriptor SSOT 및 프로파일 로드/검증 파이프라인 (Phase 5 개정)
 
 - HID Consumer Report의 비트 순서는 **ESP32-BLE-CompositeHID 라이브러리의 `_mediakeysHIDReportDescriptor`** (Report ID 0x43, 24-bit)가 **유일한 진실 공급원**이다.
 - `EN_C20_Consumer_t` (C20_Action_0415.h)와 `G_W10_CONSUMER[]` (W10_Def_0415.h)는 **동일한 비트 체계**(Bit 0 = Play, Bit 11 = PlayPause, Bit 12 = Mute, Bit 13 = Vol+ 등)를 사용해야 한다.
 - Consumer Report Count = 24 → **Bit 24 이상은 전송되지 않음**. `validateSlot`/`validateMacroStep`에서 `G_C20_CONSUMER_MASK_MAX = 0x00FFFFFFu` 상한 검증 필수.
-- v0410 스키마 프로파일의 16-bit Consumer 값은 **`_migrateSlotConsumerV410ToV415()` 및 `G_C20_LEGACY_410_TO_415[16]` 매핑 테이블**로 자동 변환:
-  - **POWER (0x1000)**: Consumer Report Descriptor 미지원이므로 Keyboard 액션 `EN_C20_ACT_KB_TAP` + `EN_C20_KB_POWER (0x66)` 로 치환.
-  - **TV_INPUT (0x2000)**: Consumer Descriptor 미지원이므로 안전 대체 키 `EN_C20_CON_WWW_SEARCH` (Bit 19)로 변환.
-  - **기타 미지원 코드 (CH_UP, CH_DOWN 등)**: 매핑 결과가 0인 슬롯은 `kind = EN_C20_ACT_NONE`으로 전환하여 `validateSlot()`의 `param32 != 0` 검증 실패를 방지.
-- **Eager Persist 정책**: `loadProfile()`에서 마이그레이션 적용 후 `validateProfile()` 통과 시, 즉시 `saveProfile(idx, p_out)`을 호출하여 플래시에 영구 반영한다. (Lazy Persist 시 매 부팅마다 불필요한 마이그레이션 경고 및 기본값 폴백 루프 발생 방지)
+- **[v0415 Phase 5-A] C10 3-TU 모듈 분할 및 마이그레이션 함수 정리**:
+  - 기존 거대 단일 파일(`C10_Config_0415.cpp`)을 책임에 따라 3개 번역 단위(TU)로 분할:
+    1. `C10_Config_0415.cpp`: Lifecycle, CRUD, SafeBoot 상태, LittleFS 파일 IO, Multi-Host 저장소
+    2. `C10_Config_Json_0415.cpp`: JSON 직렬화/역직렬화 (`_build*`, `_patch*`)
+    3. `C10_Config_Valid_0415.cpp`: 유효성 검증 (`validateWiFi`, `validateE10`, `validateSlot`, `validateMacro`, `G_E10_RULES[]` 68개 범위 규칙)
+  - 레거시 410 마이그레이션 함수(`_migrateProfileV410ToV411`, `_migrateSlotConsumerV410ToV415`, `_migrateConsumerMaskV410ToV415`)를 코드에서 완전 삭제.
+  - `loadProfile()`은 `makeDefaultsProfile()`로 기본값 세팅 후 `patchProfileFromJson()` + `validateProfile()` 2단계 파이프라인으로 수행하며, 구버전/미지원 필드는 기본값으로 자연스럽게 fallback 처리.
 
 ### 2.3 순간(Momentary) 트리거 지속성 액션 단발화 계약 (BB-1, v0415 확장)
 
@@ -295,11 +307,11 @@ SPEC §"매크로 실행 (비동기 상태머신)"의 "블로킹 없음" 표현�
 - `None`(mask=0)만 예외로 유지 (offline과 프론트엔드 모두 별도 처리).
 
 **KB Usage 라벨**:
-- `W10_WebApi_Status_0415.cpp::_kbName()`이 반환하는 코드 집합은 `am_offline_0415.js::G_OFFLINE_KEYCODES.kb`의 named 항목 집합과 **완전히 일치**해야 한다 (온라인/오프라인 KB Usage 드롭다운 파리티, 106 codes).
+- `W10_WebApi_Status_0415.cpp::_kbName()`이 반환하는 코드 집합은 `am_offline_data_0415.js::G_OFFLINE_KEYCODES.kb`의 named 항목 집합과 **완전히 일치**해야 한다 (온라인/오프라인 KB Usage 드롭다운 파리티, 106 codes).
 - 무명 코드는 양쪽 모두 노출하지 않는다 (raw hex fallback 금지).
 - 신규 키 추가 시 세 곳을 동시 갱신:
   1. `W10_WebApi_Status_0415.cpp::_kbName`
-  2. `am_offline_0415.js::G_OFFLINE_KEYCODES.kb.names`
+  2. `am_offline_data_0415.js::G_OFFLINE_KEYCODES.kb.names`
   3. (선택) `am_base_0415.js::_kbUsageGroup` 그룹 범위
 
 ### 2.20 W10 리부트 태스크 스케줄링 및 동기 폴백 계약 (rev14, B-4)
@@ -623,3 +635,4 @@ _unlock();
 | **rev15** | **2026-10-12** | **스키마 412 + Wi-Fi 웹 UI 계약 (§2.13 보강) + 미사용 엔드포인트 정리**: `gesture.*` 삭제, `flick.*` SSOT. Config 탭 §8 Wi-Fi UI 신설 (`cfgSave` patch 확장, `apiProfilesActivePost` 재부팅 마스크). `validateWiFi` 강화. **미사용 엔드포인트 5종 삭제** (`/api/config` GET, `/api/config/save` POST, `/api/config/apply` POST, `/api/export` GET, `/api/reboot/check` GET). |
 | **rev16** | **2026-10-14** | **Multi-Host Reject-Until-Target 통합 계약 (§2.21)**: B20 BLE 엔진 경계, 비동기 위임 플래그 `_reqHostOp`, C10 `hosts_0415.json` 3-tier 저장 및 Boot State `last_host_addr` 계약 확립. |
 | **rev18** | **2026-10-15** | **Phase 1·2·3·4 리팩터링 계약 반영**: ① §2에 `_abortMacroLocked()` SSOT 헬퍼 (매크로 취소 6곳 → 1개). ② §2에 `_bootPriorityReconnect` / `_consumeHostOp` / `_handlePowerManagement` / `_consumeResetAndAsyncFlags` / `_notifyConnectionEdge` (sensorTask helper 5종). ③ §2에 `_handleCommDisconnectEdge` / `_handleCommGate` / `_drainAllQueuesOnGate` (commTask helper 3종). ④ §2.21에 `B20_HOST::{CONN_TIMEOUT_MS, BOND_MAX, TARGET_IDX_NONE}` 상수 SSOT. ⑤ §4 공유 변수 표에 `ST_E10_DiagCounters _diag` (8개 진단 카운터 통합). ⑥ §4에 `_commPrevConn` / `_commReleasedOnSafe` / `_connEdgePrev` 멤버 승격. ⑦ §4에 D10 `s_corruptCount` 관측 카운터. |
+| **rev18.1** | **2026-10-16** | **Phase 5 리팩터링(C10 3-TU 분할 & 웹 14-모듈 번들링) 계약 반영**: ① C10 Config 3-TU 분할 (`C10_Config_0415.cpp`, `C10_Config_Json_0415.cpp`, `C10_Config_Valid_0415.cpp`). ② 레거시 410 마이그레이션 함수(`_migrateProfileV410ToV411` 등) 삭제 및 `loadProfile` 순수 patch+validate 간소화 (§2.2 개정). ③ 웹 프론트엔드 14개 JS 모듈 분할 및 번들링(`BUNDLE_JS_ORDER` 14개) SSOT 정합. ④ `check_schema_0415.py` Phase 5 분할 모듈 검증 파이프라인 연동. |
